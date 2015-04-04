@@ -1,0 +1,27 @@
+[- 
+use Data::Dumper;
+use DBI;
+use lib qw( /opt/local/apache2/perl/ );
+use Nabovarme::Db;
+
+$dbh;
+
+if ($dbh = Nabovarme::Db->my_connect) {
+	$sth = $dbh->prepare(qq[SELECT \
+		DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+		serial, \
+		flow_temp, \
+		return_flow_temp, \
+		temp_diff, \
+		flow, \
+		effect, \
+		hours, \
+		volume, \
+		energy FROM samples WHERE `serial` LIKE '6830682' ORDER BY `unix_time` ASC]);
+	$sth->execute;
+}
+-]
+Date,Temperature,Return temperature, Temperature diff.,Flow,Effect
+[$ while ($d = $sth->fetchrow_hashref) $]
+[+ $d->{time_stamp_formatted} +],[+ $d->{flow_temp} +],[+ $d->{return_flow_temp} +],[+ $d->{temp_diff} +],[+ $d->{flow} +],[+ $d->{effect} +]
+[$ endwhile $]
