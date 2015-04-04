@@ -1,10 +1,13 @@
 package Nabovarme::Data;
 
 use strict;
+use Apache2::RequestRec ();
+use Apache2::RequestIO ();
 use Apache2::Const;
 use DBI;
 
-use lib qw( /opt/local/apache2/perl/ );
+#use lib qw( /var/www/lib/perl );
+use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {
