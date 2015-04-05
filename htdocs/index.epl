@@ -35,7 +35,7 @@
 				['#a9000c', '#011091', '#d7c8dd', 'ad6933', '00982f'],
 				null
 			]
-			data = "data/6892850";
+			data = "data/[+ $fdat{'serial'} || '6892850' +]";
 			g = new Dygraph(
 				document.getElementById("div_nabovarme"), data, {
 					colors: colorSets[0],
