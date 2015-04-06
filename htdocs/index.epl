@@ -22,11 +22,10 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth->execute;
 }
 -]
-<span class="default">Meters</span><br>
+<span class="default"><b>Meters</b></span><br>
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
-		<span class="default"><a href="detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span><br>
-		
+		<span class="default">[+ $d->{serial} +] <a href="detail.epl?serial=[+ $d->{serial} +]&low=1">low</a> | <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">[+ $d->{serial} +] high res</a></span><br>
 [$ endwhile $]
 [$ endif $]
     </BODY>
