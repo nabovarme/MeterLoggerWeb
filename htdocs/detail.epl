@@ -110,7 +110,11 @@ if ($sth->rows) {
 				}
 			);
 			setInterval(function() {
-				g.updateOptions( { 'file': data } );
+				var range = g.xAxisRange();
+				// update data and pan right
+				range[0] += 60000;
+				range[1] += 60000;
+				g.updateOptions( { 'file': data, dateWindow: range } );
 			}, 60000);
 			
 			function formatDate(d) {
