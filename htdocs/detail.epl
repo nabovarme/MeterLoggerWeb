@@ -1,7 +1,30 @@
-﻿<HTML>
+﻿
+
+[- 
+use DBI;
+
+use lib qw( /var/www/lib/perl );
+#use lib qw( /opt/local/apache2/perl );
+use Nabovarme::Db;
+
+if ($dbh = Nabovarme::Db->my_connect) {
+	my $quoted_serial = $dbh->quote($fdat{'serial'});
+	$sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
+	$sth->execute;
+
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2->execute;
+}
+if ($sth->rows) {
+	if ($d = $sth->fetchrow_hashref) {
+		$info = $d->{info};
+	}
+}
+-]
+<HTML>
  
 	<HEAD>
-		<TITLE>MeterLogger</TITLE>
+		<TITLE>[+ $info +] MeterLogger</TITLE>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
 		.dygraph-legend {
@@ -23,16 +46,35 @@
 		.highlight {
 			font-weight: bold;
 		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
 		</style>
 	</HEAD>
 	<BODY>
+		<br>
+		<span class="default-bold">[+ $info +]<br></span>
+		<span class="default">
+		serial [+ $fdat{'serial'} +]<br>
+[$ if ($sth2->rows) $]
+	[$ if ($d = $sth2->fetchrow_hashref) $]
+		[+ $d->{energy} +] kWh<br>
+		[+ $d->{volume} +] m<sup>3</sup><br>
+		[+ $d->{hours} +] hours<br>
+	[$ endif $]
+[$ endif $]
+		</span>
 		<br>
 		<div id="div_nabovarme" style="width:800px; height:400px;"></div>
     	
     	<script type="text/javascript">
 			var data = [];
 			var colorSets = [
-				['#a9000c', '#011091', '#d7c8dd', 'ad6933', '00982f'],
+				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
 				null
 			]
 			data = "data/[+ $fdat{'serial'} || '6892850' +]/[+ $fdat{'low'} +]";
@@ -61,8 +103,10 @@
 						highlightCircleSize: 6,
 						strokeWidth: 2,
 						strokeBorderWidth: 1,
-					}
-					//showRangeSelector: true, does not work with zoom
+					},
+					showRangeSelector: true,
+					interactionModel: Dygraph.defaultInteractionModel,
+					dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
 				}
 			);
 			setInterval(function() {
@@ -87,5 +131,7 @@
 				}
 		}
 		</script>
+		<br>
+		<span class="default">[+ $d->{serial} +] <a href="./">Back</a></span>
 	</BODY>
 </HTML>
