@@ -55,15 +55,26 @@
 	    <td align="right"><span class="default-bold">Hours</span></td>
 		<td>&nbsp;</td>
 	    <td align="left"><span class="default-bold"></span></td>
+		<td>&nbsp;</td>
+	    <td align="left"><span class="default-bold">Saldo</span></td>
       </tr>
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 [- 
 	my $quoted_serial = $dbh->quote($d->{serial});
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 	$d2 = $sth2->fetchrow_hashref;
--]
+
+	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
+	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+	(SELECT \
+		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+	), 2) AS saldo]);
+	$sth3->execute;
+	$d3 = $sth3->fetchrow_hashref;
+-]	
 		  <tr align="left" valign="bottom">
 		    <td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
 		    <td align="left"><span class="default">[+ $d->{info} +]</span></td>
@@ -74,6 +85,8 @@
 		    <td align="right"><span class="default">[+ $d2->{hours} +] h</span></td>
 			<td>&nbsp;</td>
 		    <td align="left"><span class="default"><a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a><!-- | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+			<td>&nbsp;</td>
+		    <td align="left"><span class="default">[+ $d3->{saldo} +] kr</span></td>
 	      </tr>
 		<br>
 [$ endwhile $]
