@@ -6,8 +6,8 @@ use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 
-use lib qw( /var/www/perl/lib/ );
-#use lib qw( /opt/local/apache2/perl/ );
+#use lib qw( /var/www/perl/lib/ );
+use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
 openlog($0, "ndelay,pid", "local0");
@@ -15,6 +15,9 @@ syslog('info', "starting...");
 
 my $unix_time;
 my $meter_serial;
+my $sw_version;
+my $valve_status;
+
 my $mqtt = Net::MQTT::Simple->new(q[loppen.christiania.org]);
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
@@ -31,10 +34,52 @@ else {
 }
 
 # start mqtt run loop
-$mqtt->run(q[/sample/#] => \&mqtt_handler);
+$mqtt->run(	q[/sample/#] => \&sample_mqtt_handler,
+	q[/version/v1/#] => \&mqtt_version_handler,
+	q[/status/v1/#] => \&mqtt_status_handler
+);
 
 # end of main
-sub mqtt_handler {
+
+sub mqtt_version_handler {
+	my ($topic, $message) = @_;
+	unless ($topic =~ m!/version/v1/(\d+)/(\d+)!) {
+		return;
+	}
+	$sw_version = $message;
+	$meter_serial = $1;
+	$unix_time = $2;
+	
+	my $quoted_sw_version = $dbh->quote($sw_version);
+	my $quoted_meter_serial = $dbh->quote($meter_serial);
+	my $quoted_unix_time = $dbh->quote($unix_time);
+	$dbh->do(qq[UPDATE meters SET \
+					sw_version = $quoted_sw_version, \
+					last_updated = $quoted_unix_time \
+					WHERE serial = $quoted_meter_serial]) or warn $!;
+	warn Dumper({sw_version => $sw_version});
+}
+
+sub mqtt_status_handler {
+	my ($topic, $message) = @_;
+	unless ($topic =~ m!/status/v1/(\d+)/(\d+)!) {
+		return;
+	}
+	$valve_status = $message;
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	my $quoted_valve_status = $dbh->quote($valve_status);
+	my $quoted_meter_serial = $dbh->quote($meter_serial);
+	my $quoted_unix_time = $dbh->quote($unix_time);
+	$dbh->do(qq[UPDATE meters SET \
+					valve_status = $quoted_valve_status, \
+					last_updated = $quoted_unix_time \
+					WHERE serial = $quoted_meter_serial]) or warn $!;
+	warn Dumper({sw_version => $valve_status});
+}
+
+sub sample_mqtt_handler {
 	my ($topic, $message) = @_;
 
 	unless ($topic =~ m!/sample/v1/(\d+)/(\d+)!) {
