@@ -12,8 +12,22 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
 	$sth->execute;
 
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
+
+	# get kWh left
+	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
+	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+	(SELECT \
+		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+	), 2) AS kwh_left]);
+	$sth3->execute;
+
+	# get list of payments
+	$sth4 = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, info, amount, price \
+		FROM accounts WHERE serial = $quoted_serial ORDER BY payment_time ASC]);
+	$sth4->execute;
 }
 if ($sth->rows) {
 	if ($d = $sth->fetchrow_hashref) {
@@ -64,7 +78,7 @@ if ($sth->rows) {
 	[$ if ($d = $sth2->fetchrow_hashref) $]
 		[+ $d->{energy} +] kWh<br>
 		[+ $d->{volume} +] m<sup>3</sup><br>
-		[+ $d->{hours} +] hours<br>
+		[+ $d->{hours} +] hours<br><br>
 	[$ endif $]
 [$ endif $]
 		</span>
@@ -74,10 +88,10 @@ if ($sth->rows) {
     	<script type="text/javascript">
 			var data = [];
 			var colorSets = [
-				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
+				['#999999'],
 				null
 			]
-			data = "data/[+ $fdat{'serial'} || '6892850' +]/[+ $fdat{'low'} +]";
+			data = "data/[+ $fdat{'serial'} || '6892850' +]/acc_low";
 			g = new Dygraph(
 				document.getElementById("div_nabovarme"), data, {
 					colors: colorSets[0],
@@ -103,18 +117,12 @@ if ($sth->rows) {
 						highlightCircleSize: 6,
 						strokeWidth: 2,
 						strokeBorderWidth: 1,
-					},
-					showRangeSelector: true,
-					interactionModel: Dygraph.defaultInteractionModel,
-					dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
+					}
+					//showRangeSelector: true, does not work with zoom
 				}
 			);
 			setInterval(function() {
-				var range = g.xAxisRange();
-				// update data and pan right
-				range[0] += 60000;
-				range[1] += 60000;
-				g.updateOptions( { 'file': data, dateWindow: range } );
+				g.updateOptions( { 'file': data } );
 			}, 60000);
 			
 			function formatDate(d) {
@@ -127,37 +135,63 @@ if ($sth->rows) {
 				
 				var now = new Date();
 				if (date < now.getDate()) {
-					return 'Time: ' + month + '.' + date + '.' + year + ' ' + 
+					return 'Time: ' + date + '.' + month + '.' + year + ' ' + 
 						hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
 				}
 				else {
 					return 'Time: ' + hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
 				}
-			}
-			
-			function change(el) {
-				g.setVisibility(parseInt(el.id), el.checked);
-			}
+		}
 		</script>
 		<br><br>
-    	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
-			<tr align="left" valign="bottom">
-				<td align="left"><span class="default"><input type=checkbox id="0" checked onClick="change(this)">Temperature</label></span></td>
+	    	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
+			  <tr align="left" valign="bottom">
+			    <td align="left"><span class="default-bold">Date</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="1" checked onClick="change(this)">Return temperature</label></span></td>
+			    <td align="left"><span class="default-bold">Info</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="2" checked onClick="change(this)">Temperature diff.</label></span></td>
+			    <td align="right"><span class="default-bold">Amount</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="3" checked onClick="change(this)">Flow</label></span></td>
+			    <td align="left"><span class="default-bold">Price</span></td>
+	    	  </tr>
+		
+	  		[$ if ($sth4->rows) $]
+			[$ while ($d = $sth4->fetchrow_hashref) $]
+			  <tr align="left" valign="bottom">
+				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="4" checked onClick="change(this)">Effect</label></span></td>
-			</tr>
-			<tr>
-				<td colspan="9">&nbsp;</td>
-			</tr>
-			<tr>
-				<td colspan="9"><span class="default">[+ $d->{serial} +] <a href="./">Back</a></span></td>
-			</tr>
-		</table>
+				<td align="left"><span class="default">[+ ($d->{amount} / $d->{price}) . " kWh" +] [+ $d->{info} +] </span></td>
+				<td>&nbsp;</td>
+				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
+				<td>&nbsp;</td>
+				<td align="left"><span class="default">[+ $d->{price} || "0" +]  kr/kWh</span></td>
+  			  </tr>
+			[$ endwhile $]
+			[$ endif $]
+			  <tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+			  </tr>
+	  		[$ if ($sth3->rows) $]
+	  			[$ if ($d = $sth3->fetchrow_hashref) $]
+  			  <tr align="left" valign="bottom">
+  				<td>&nbsp;</td>
+  				<td>&nbsp;</td>
+  				<td align="right" colspan="3"><span class="default-bold">kWh left: [+ sprintf("%.0f", $d->{kwh_left}) || "0" +]</span></td>
+  				<td>&nbsp;</td>
+  				<td>&nbsp;</td>
+  			  </tr>
+	  			[$ endif $]
+	  		[$ endif $]
+		    </table>
+		
+		<br>
+		<br>
+		<!-- <span class="default">[+ $d->{serial} +] <a href="./">Back</a></span> -->
 	</BODY>
 </HTML>
