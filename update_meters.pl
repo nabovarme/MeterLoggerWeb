@@ -5,7 +5,6 @@ use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
-use Time::HiRes  qw( usleep );
 
 use lib qw( /var/www/perl/lib/ );
 #use lib qw( /opt/local/apache2/perl/ );
@@ -46,9 +45,7 @@ while ($d = $sth->fetchrow_hashref) {
 	#print Dumper {serial => $d->{serial}};
 	syslog('info', "send mqtt retain to all meters for version and status");
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-	usleep(500_000);
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-	usleep(500_000);
 }
 
 while (1) {
@@ -81,13 +78,9 @@ while (1) {
 					if ($d_valve_status->{valve_status} ne "close") {
 						syslog('info', "\tsend mqtt retain for close and status");
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => '');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => 'retain');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-						usleep(500_000);
 					}
 				}
 			}
@@ -97,13 +90,9 @@ while (1) {
 					if ($d_valve_status->{valve_status} ne "open") {
 						syslog('info', "\tsend mqtt retain for open and status");
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => '');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => 'retain');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-						usleep(500_000);
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-						usleep(500_000);
 					}
 				}
 			}
