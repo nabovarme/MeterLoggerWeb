@@ -69,7 +69,7 @@ if ($sth->rows) {
 [$ endif $]
 		</span>
 		<br>
-		<div id="div_nabovarme" style="width:800px; height:400px;"></div>
+		<div id="div_nabovarme" style="width:800px; height:445px;"></div>
     	
     	<script type="text/javascript">
 			var data = [];

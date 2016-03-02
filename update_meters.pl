@@ -40,10 +40,10 @@ else {
 $sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
 $sth->execute;
 
+syslog('info', "send mqtt retain to all meters for version and status");
 while ($d = $sth->fetchrow_hashref) {
 	my $quoted_serial = $dbh->quote($d->{serial});
 	#print Dumper {serial => $d->{serial}};
-	syslog('info', "send mqtt retain to all meters for version and status");
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
 }
@@ -54,7 +54,7 @@ while (1) {
 	
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
-		syslog('info', "serial #" . $d->{serial});
+		#syslog('info', "serial #" . $d->{serial});
 		
 		# get kWh left from db
 		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
@@ -70,13 +70,13 @@ while (1) {
 		$sth_valve_status->execute;
 	
 		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
+			#syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
 			#if ($d_kwh_left->{kwh_left} < $d->{min_amount}) {
 			if ($d_kwh_left->{kwh_left} < 0) {
 				# close valve if not allready closed
 				if ($d_valve_status = $sth_valve_status->fetchrow_hashref) {
 					if ($d_valve_status->{valve_status} ne "close") {
-						syslog('info', "\tsend mqtt retain for close and status");
+						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => '');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => 'retain');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
@@ -88,7 +88,7 @@ while (1) {
 				# open valve if not allready open
 				if ($d_valve_status = $sth_valve_status->fetchrow_hashref) {
 					if ($d_valve_status->{valve_status} ne "open") {
-						syslog('info', "\tsend mqtt retain for open and status");
+						syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => '');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => 'retain');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
@@ -98,7 +98,7 @@ while (1) {
 			}
 		}
 	}
-	sleep 60;
+	sleep 1;
 }
 
 # end of main
