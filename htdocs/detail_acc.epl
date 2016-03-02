@@ -90,7 +90,7 @@ if ($sth->rows) {
 				['#999999'],
 				null
 			]
-			data = "data/[+ $fdat{'serial'} || '6892850' +]/acc_low";
+			data = "data/[+ $fdat{'serial'} || '9999999' +]/acc_low";
 			g = new Dygraph(
 				document.getElementById("div_nabovarme"), data, {
 					colors: colorSets[0],
