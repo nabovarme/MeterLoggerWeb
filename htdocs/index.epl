@@ -84,7 +84,7 @@
 			<td>&nbsp;</td>
 		    <td align="right"><span class="default">[+ $d2->{hours} +] h</span></td>
 			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kr</span></td>
+		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
 			<td>&nbsp;</td>
 		    <td align="left"><span class="default"><a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a><!-- | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
 	      </tr>
