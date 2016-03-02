@@ -159,7 +159,7 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[+ ($d->{amount} / $d->{price}) . " kWh" +] [+ $d->{info} +] </span></td>
+				<td align="left"><span class="default">[+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [+ $d->{info} +] </span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
