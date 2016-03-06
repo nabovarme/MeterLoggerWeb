@@ -24,7 +24,7 @@
 	<BODY>
     [- 
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
+			$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters]);
 			$sth->execute;
 			
 			if ($fdat{'open'} ) {
@@ -86,7 +86,7 @@
 			<td>&nbsp;</td>
 		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
 			<td>&nbsp;</td>
-		    <td align="left"><span class="default"><a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a><!-- | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+		    <td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
 	      </tr>
 		<br>
 [$ endwhile $]

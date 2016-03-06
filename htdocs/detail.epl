@@ -156,7 +156,7 @@ if ($sth->rows) {
 				<td colspan="9">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="9"><span class="default">[+ $d->{serial} +] <a href="./">Back</a></span></td>
+			<td colspan="8" align="left"><span class="default"><a href="./">Back</a> | <a href="detail_acc.epl?serial=[+ $fdat{'serial'} +]&low=0">Accumulated</a></span></td>
 			</tr>
 		</table>
 	</BODY>

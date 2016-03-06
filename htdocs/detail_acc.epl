@@ -193,12 +193,11 @@ if ($sth->rows) {
 				<td colspan="8">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="8" align="left"><span class="default">[+ $d->{serial} +] <a href="./">Back</a></span></td>
+				<td colspan="8" align="left"><span class="default"><a href="./">Back</a> | <a href="detail.epl?serial=[+ $fdat{'serial'} +]&low=0">Details</a></span></td>
 			</tr>
 		    </table>
 		
 		<br>
 		<br>
-		<!-- <span class="default">[+ $d->{serial} +] <a href="./">Back</a></span> -->
 	</BODY>
 </HTML>

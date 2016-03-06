@@ -46,6 +46,7 @@ while ($d = $sth->fetchrow_hashref) {
 	#print Dumper {serial => $d->{serial}};
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
 	$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
+	$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
 }
 
 while (1) {
@@ -80,7 +81,6 @@ while (1) {
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => '');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => 'retain');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
 					}
 				}
 			}
@@ -92,7 +92,6 @@ while (1) {
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => '');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => 'retain');
 						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
 					}
 				}
 			}

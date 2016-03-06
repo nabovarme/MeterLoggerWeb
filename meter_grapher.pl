@@ -6,8 +6,8 @@ use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 
-#use lib qw( /var/www/perl/lib/ );
-use lib qw( /opt/local/apache2/perl/ );
+use lib qw( /var/www/perl/lib/ );
+#use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
 openlog($0, "ndelay,pid", "local0");
@@ -17,6 +17,7 @@ my $unix_time;
 my $meter_serial;
 my $sw_version;
 my $valve_status;
+my $uptime;
 
 my $mqtt = Net::MQTT::Simple->new(q[loppen.christiania.org]);
 my $mqtt_data = undef;
@@ -36,7 +37,8 @@ else {
 # start mqtt run loop
 $mqtt->run(	q[/sample/#] => \&sample_mqtt_handler,
 	q[/version/v1/#] => \&mqtt_version_handler,
-	q[/status/v1/#] => \&mqtt_status_handler
+	q[/status/v1/#] => \&mqtt_status_handler,
+	q[/uptime/v1/#] => \&mqtt_uptime_handler
 );
 
 # end of main
@@ -77,6 +79,25 @@ sub mqtt_status_handler {
 					last_updated = $quoted_unix_time \
 					WHERE serial = $quoted_meter_serial]) or warn $!;
 	warn Dumper({sw_version => $valve_status});
+}
+
+sub mqtt_uptime_handler {
+	my ($topic, $message) = @_;
+	unless ($topic =~ m!/uptime/v1/(\d+)/(\d+)!) {
+		return;
+	}
+	$uptime = $message;
+	$meter_serial = $1;
+	$unix_time = $2;
+	
+	my $quoted_uptime = $dbh->quote($uptime);
+	my $quoted_meter_serial = $dbh->quote($meter_serial);
+	my $quoted_unix_time = $dbh->quote($unix_time);
+	$dbh->do(qq[UPDATE meters SET \
+					uptime = $quoted_uptime, \
+					last_updated = $quoted_unix_time \
+					WHERE serial = $quoted_meter_serial]) or warn $!;
+	warn Dumper({sw_version => $sw_version});
 }
 
 sub sample_mqtt_handler {
