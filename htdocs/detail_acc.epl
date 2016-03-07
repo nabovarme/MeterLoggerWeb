@@ -1,5 +1,4 @@
-﻿
-
+﻿<HTML>
 [- 
 use DBI;
 
@@ -35,7 +34,6 @@ if ($sth->rows) {
 	}
 }
 -]
-<HTML>
  
 	<HEAD>
 		<TITLE>[+ $info +] MeterLogger</TITLE>
