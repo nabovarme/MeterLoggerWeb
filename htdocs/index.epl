@@ -24,7 +24,7 @@
 	<BODY>
     [- 
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters]);
+			$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters ORDER BY `info`, `serial`]);
 			$sth->execute;
 			
 			if ($fdat{'open'} ) {
