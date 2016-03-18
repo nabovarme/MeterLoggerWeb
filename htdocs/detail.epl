@@ -25,6 +25,18 @@ if ($sth->rows) {
  
 	<HEAD>
 		<TITLE>[+ $info +] MeterLogger</TITLE>
+		<script>
+			function update_last_energy() {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (xhttp.readyState == 4 && xhttp.status == 200) {
+						document.getElementById("last_energy").innerHTML = xhttp.responseText;
+					}
+				};
+				xhttp.open("GET", "last_energy.epl?serial=[+ $fdat{'serial'} +]", true);
+				xhttp.send();
+			}
+		</script>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
 		.dygraph-legend {
@@ -60,6 +72,7 @@ if ($sth->rows) {
 		<span class="default-bold">[+ $info +]<br></span>
 		<span class="default">
 		serial [+ $fdat{'serial'} +]<br>
+		<div id="last_energy">
 [$ if ($sth2->rows) $]
 	[$ if ($d = $sth2->fetchrow_hashref) $]
 		[+ $d->{energy} +] kWh<br>
@@ -67,6 +80,7 @@ if ($sth->rows) {
 		[+ $d->{hours} +] hours<br>
 	[$ endif $]
 [$ endif $]
+		</div>
 		</span>
 		<br>
 		<div id="div_nabovarme" style="width:800px; height:445px;"></div>
@@ -115,6 +129,7 @@ if ($sth->rows) {
 				range[0] += 60000;
 				range[1] += 60000;
 				g.updateOptions( { 'file': data, dateWindow: range } );
+				update_last_energy();
 			}, 60000);
 			
 			function formatDate(d) {
