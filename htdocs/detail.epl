@@ -68,7 +68,6 @@ if ($sth->rows) {
 		</style>
 	</HEAD>
 	<BODY>
-		<br>
 		<span class="default-bold">[+ $info +]<br></span>
 		<span class="default">
 		serial [+ $fdat{'serial'} +]<br>

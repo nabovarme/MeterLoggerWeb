@@ -50,6 +50,7 @@ while ($d = $sth->fetchrow_hashref) {
 }
 
 while (1) {
+	# open or close valve according to payment status
 	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
 	$sth->execute;
 	

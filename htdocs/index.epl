@@ -12,6 +12,11 @@
 		<TITLE>MeterLogger</TITLE>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
+		.top {
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
 		.default {
 			font-family: Verdana, Geneva, sans-serif;
 		}
@@ -44,7 +49,7 @@
 		  }
           -]
     <!-- <span class="default-bold">Meters</span> -->
-    <table border="0" align="left" cellpadding="0" cellspacing="6">
+    <table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
 	  <tr align="left" valign="bottom">
 	    <td align="left"><span class="default-bold">Serial</span></td>
 	    <td align="left"><span class="default-bold">Info</span></td>
