@@ -37,18 +37,9 @@ else {
 	die $!;
 }
 
-$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
-$sth->execute;
+$SIG{HUP} = \&get_version_and_status;
 
-syslog('info', "send mqtt retain to all meters for version and status");
-while ($d = $sth->fetchrow_hashref) {
-	my $quoted_serial = $dbh->quote($d->{serial});
-	#print Dumper {serial => $d->{serial}};
-	$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-	$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-	$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
-}
-
+get_version_and_status();
 while (1) {
 	# open or close valve according to payment status
 	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
@@ -102,3 +93,20 @@ while (1) {
 }
 
 # end of main
+
+sub get_version_and_status {
+	$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
+	$sth->execute;
+
+	syslog('info', "send mqtt retain to all meters for version and status");
+	while ($d = $sth->fetchrow_hashref) {
+		my $quoted_serial = $dbh->quote($d->{serial});
+		#print Dumper {serial => $d->{serial}};
+		$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
+		$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
+		$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
+	}
+}
+
+1;
+__END__
