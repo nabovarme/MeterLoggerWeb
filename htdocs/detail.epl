@@ -140,8 +140,8 @@ if ($sth->rows) {
 				seconds = d.getSeconds();
 				
 				var now = new Date();
-				if (date < now.getDate()) {
-					return 'Time: ' + month + '.' + date + '.' + year + ' ' + 
+				if (d.getTime() < now.getTime() - (1000 * 86400)) {
+					return 'Time: ' + date + '.' + month + '.' + year + ' ' + 
 						hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
 				}
 				else {
