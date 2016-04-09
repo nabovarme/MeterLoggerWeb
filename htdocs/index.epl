@@ -85,9 +85,9 @@
 		    <td align="left"><span class="default">[+ $d->{info} +]</span></td>
 		    <td align="right"><span class="default">[+ $d2->{energy} +] kWh</span></td>
 			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ $d2->{volume} +][$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
+		    <td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
 			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ $d2->{hours} +][$ if $d2->{hours} $] h[$ endif $]</span></td>
+		    <td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
 			<td>&nbsp;</td>
 		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
 			<td>&nbsp;</td>
