@@ -93,6 +93,17 @@ if ($sth->rows) {
 				xhttp.open("GET", "last_energy.epl?serial=[+ $fdat{'serial'} +]", true);
 				xhttp.send();
 			}
+
+			function update_kwh_left() {
+				var xhttp = new XMLHttpRequest();
+				xhttp.onreadystatechange = function() {
+					if (xhttp.readyState == 4 && xhttp.status == 200) {
+						document.getElementById("kwh_left").innerHTML = xhttp.responseText;
+					}
+				};
+				xhttp.open("GET", "kwh_left.epl?serial=[+ $fdat{'serial'} +]", true);
+				xhttp.send();
+			}
 		</script>
     	<script type="text/javascript">
 			var data = [];
@@ -137,6 +148,7 @@ if ($sth->rows) {
 				range[1] += 60000;
 				g.updateOptions( { 'file': data, dateWindow: range } );
 				update_last_energy();
+				update_kwh_left();
 			}, 60000);
 			
 			function formatDate(d) {
@@ -196,7 +208,7 @@ if ($sth->rows) {
   			  <tr align="left" valign="bottom">
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
-  				<td align="left"><span class="default-bold">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left</span></td>
+  				<td align="left"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left</div></span></td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>

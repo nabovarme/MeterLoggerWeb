@@ -1,0 +1,27 @@
+﻿
+
+[- 
+use DBI;
+
+use lib qw( /var/www/lib/perl );
+#use lib qw( /opt/local/apache2/perl );
+use Nabovarme::Db;
+
+if ($dbh = Nabovarme::Db->my_connect) {
+	my $quoted_serial = $dbh->quote($fdat{'serial'});
+
+	$sth = $dbh->prepare(qq[SELECT ROUND( \
+	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = ] . $quoted_serial . qq[) - \
+	(SELECT \
+		(SELECT samples.energy FROM samples WHERE samples.serial = ] . $quoted_serial . qq[ ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT meters.last_energy FROM meters WHERE meters.serial = ] . $quoted_serial . qq[) AS consumed_kwh \
+	), 2) AS kwh_left]);
+	$sth->execute;
+}
+-]
+
+[$ if ($sth->rows) $]
+	[$ if ($d = $sth->fetchrow_hashref) $]
+		[+ sprintf("%.0f", $d->{kwh_left}) +] kWh left
+	[$ endif $]
+[$ endif $]
