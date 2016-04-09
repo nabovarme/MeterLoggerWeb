@@ -7,7 +7,8 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK DONE REDIRECT NOT_FOUND);
 use DBI;
 
-use lib qw( /var/www/perl/lib );
+#use lib qw( /var/www/perl/lib );
+use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
@@ -15,26 +16,26 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $d);
 	
-	if ($r->uri =~ m|^/nabovarme/data/|) {
+	if ($r->uri =~ m|^/data/|) {
 		return Apache2::Const::OK;	# not handled	
 	}
 	
-	if ($r->uri =~ m|^/nabovarme/.*\.epl|) {
+	if ($r->uri =~ m|^/.*\.epl|) {
 		return Apache2::Const::OK;	# not handled here
 	}
 
-	# handle /nabovarme/ -> /nabovarme/index.epl
-	if ($r->uri =~ m|^/nabovarme/$|) {
-		$r->headers_out->set('Location' => "/nabovarme/index.epl");
+	# handle / -> /index.epl
+	if ($r->uri =~ m|^/$|) {
+		$r->headers_out->set('Location' => "/index.epl");
 		return Apache2::Const::REDIRECT;
 	}
 	
 	# handle short url
-	my ($meter_info) = $r->uri =~ m|^/nabovarme/([^/]+)/?$|;
+	my ($meter_info) = $r->uri =~ m|^/([^/]+)/?$|;
 	my $quoted_meter_info;
 	
 	if ($meter_info =~ /^\d+$/) {
-		$r->headers_out->set('Location' => "/nabovarme/detail_acc.epl?serial=$meter_info");
+		$r->headers_out->set('Location' => "/detail_acc.epl?serial=$meter_info");
 		return Apache2::Const::REDIRECT;
 	}
 	else {
@@ -48,7 +49,7 @@ sub handler {
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 				warn Dumper({looked_up_serial => $d->{serial}});
-				$r->headers_out->set('Location' => "/nabovarme/detail_acc.epl?serial=" . $d->{serial});
+				$r->headers_out->set('Location' => "/detail_acc.epl?serial=" . $d->{serial});
 				return Apache2::Const::REDIRECT;
 			}
 		}
