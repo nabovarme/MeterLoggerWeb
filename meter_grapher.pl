@@ -5,21 +5,26 @@ use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
+use Crypt::Mode::CBC;
 
-use lib qw( /var/www/perl/lib/ );
+use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
+
+use constant AES_KEY => '2b7e151628aed2a6abf7158809cf4f3c';
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
+my $protocol_version;
 my $unix_time;
 my $meter_serial;
 my $sw_version;
 my $valve_status;
 my $uptime;
 
-my $mqtt = Net::MQTT::Simple->new(q[loppen.christiania.org]);
+my $mqtt = Net::MQTT::Simple->new(q[localhost]);
+#my $mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
@@ -103,11 +108,25 @@ sub mqtt_uptime_handler {
 sub sample_mqtt_handler {
 	my ($topic, $message) = @_;
 
-	unless ($topic =~ m!/sample/v1/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/sample/v(\d+)/(\d+)/(\d+)!) {
 		return;
 	}
-	$meter_serial = $1;
-	$unix_time = $2;
+	$protocol_version = $1;
+	$meter_serial = $2;
+	$unix_time = $3;
+	
+	if ($protocol_version == 2) {
+		# encrypted message
+		my $iv;
+		my $ciphertext;
+		my $m;
+		
+		$message =~ /([\da-f]{32})([\da-f]+)/i;
+		$iv = pack 'H*', $1;
+		$ciphertext = pack 'H*', $2;
+		$m = Crypt::Mode::CBC->new('AES');
+		$message = $m->decrypt($ciphertext, pack('H*', AES_KEY), $iv);
+	}
 	
 	# parse message
 	$message =~ s/&$//;

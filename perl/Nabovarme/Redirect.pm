@@ -26,7 +26,7 @@ sub handler {
 
 	# handle / -> /index.epl
 	if ($r->uri =~ m|^/$|) {
-		$r->headers_out->set('Location' => "/index.epl");
+		$r->headers_out->set('Location' => "index.epl");
 		return Apache2::Const::REDIRECT;
 	}
 	
@@ -35,7 +35,7 @@ sub handler {
 	my $quoted_meter_info;
 	
 	if ($meter_info =~ /^\d+$/) {
-		$r->headers_out->set('Location' => "/detail_acc.epl?serial=$meter_info");
+		$r->headers_out->set('Location' => "detail_acc.epl?serial=$meter_info");
 		return Apache2::Const::REDIRECT;
 	}
 	else {
@@ -49,7 +49,7 @@ sub handler {
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 				warn Dumper({looked_up_serial => $d->{serial}});
-				$r->headers_out->set('Location' => "/detail_acc.epl?serial=" . $d->{serial});
+				$r->headers_out->set('Location' => "detail_acc.epl?serial=" . $d->{serial});
 				return Apache2::Const::REDIRECT;
 			}
 		}
