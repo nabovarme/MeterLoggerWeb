@@ -11,8 +11,6 @@ use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
-use constant AES_KEY => '2b7e151628aed2a6abf7158809cf4f3c';
-
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
@@ -23,7 +21,7 @@ my $sw_version;
 my $valve_status;
 my $uptime;
 
-my $mqtt = Net::MQTT::Simple->new(q[localhost]);
+my $mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
 #my $mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
@@ -43,7 +41,8 @@ else {
 $mqtt->run(	q[/sample/#] => \&sample_mqtt_handler,
 	q[/version/v1/#] => \&mqtt_version_handler,
 	q[/status/v1/#] => \&mqtt_status_handler,
-	q[/uptime/v1/#] => \&mqtt_uptime_handler
+	q[/uptime/v1/#] => \&mqtt_uptime_handler,
+	q[/aes/v2/#] => \&mqtt_aes_test_handler
 );
 
 # end of main
@@ -121,11 +120,18 @@ sub sample_mqtt_handler {
 		my $ciphertext;
 		my $m;
 		
-		$message =~ /(.{16})(.+)/is;
+		$message =~ /(.{16})(.+)/s;
 		$iv = $1;
 		$ciphertext = $2;
-		$m = Crypt::Mode::CBC->new('AES');
-		$message = $m->decrypt($ciphertext, pack('H*', AES_KEY), $iv);
+		
+		my $sth = $dbh->prepare(qq[SELECT aes_key FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+		$sth->execute;
+		if ($sth->rows) {
+			my $aes_key = $sth->fetchrow_hashref->{aes_key} || warn "no aes key found";
+			$m = Crypt::Mode::CBC->new('AES');
+			$message = $m->decrypt($ciphertext, pack('H*', $aes_key), $iv);
+			warn Dumper $message;
+		}
 	}
 	
 	# parse message
@@ -178,5 +184,39 @@ sub sample_mqtt_handler {
 		$sth->finish;
 	}
 	$mqtt_data = undef;
+}
+
+
+sub mqtt_aes_test_handler {
+	my ($topic, $message) = @_;
+
+	unless ($topic =~ m!/aes/v(\d+)/(\d+)/(\d+)!) {
+		return;
+	}
+	$protocol_version = $1;
+	$meter_serial = $2;
+	$unix_time = $3;
+	
+	if ($protocol_version == 2) {
+		# encrypted message
+		my $iv;
+		my $ciphertext;
+		my $m;
+		
+		print Dumper length $message;
+		$message =~ /(.{16})(.+)/s;
+		$iv = $1;
+		$ciphertext = $2;
+		
+		my $sth = $dbh->prepare(qq[SELECT aes_key FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+		$sth->execute;
+		if ($sth->rows) {
+			my $aes_key = $sth->fetchrow_hashref->{aes_key} || warn "no aes key found";
+			warn Dumper unpack('H*', $iv), unpack('H*', $ciphertext);
+			$m = Crypt::Mode::CBC->new('AES');
+			$message = $m->decrypt($ciphertext, pack('H*', $aes_key), $iv);
+			warn Dumper $message;
+		}
+	}
 }
 
