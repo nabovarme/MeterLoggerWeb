@@ -121,9 +121,9 @@ sub sample_mqtt_handler {
 		my $ciphertext;
 		my $m;
 		
-		$message =~ /([\da-f]{32})([\da-f]+)/i;
-		$iv = pack 'H*', $1;
-		$ciphertext = pack 'H*', $2;
+		$message =~ /(.{16})(.+)/is;
+		$iv = $1;
+		$ciphertext = $2;
 		$m = Crypt::Mode::CBC->new('AES');
 		$message = $m->decrypt($ciphertext, pack('H*', AES_KEY), $iv);
 	}
