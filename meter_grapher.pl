@@ -78,7 +78,7 @@ sub mqtt_version_handler {
 		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
 		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		if ($mac eq hmac_sha256($iv . $ciphertext . $topic, $hmac_sha256_key)) {
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$sw_version = $m->decrypt($ciphertext, $aes_key, $iv);
@@ -128,7 +128,7 @@ sub mqtt_status_handler {
 		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
 		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		if ($mac eq hmac_sha256($iv . $ciphertext . $topic, $hmac_sha256_key)) {
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$valve_status = $m->decrypt($ciphertext, $aes_key, $iv);
@@ -179,7 +179,7 @@ sub mqtt_uptime_handler {
 		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
 		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		if ($mac eq hmac_sha256($iv . $ciphertext . $topic, $hmac_sha256_key)) {
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$uptime = $m->decrypt($ciphertext, $aes_key, $iv);
@@ -233,7 +233,7 @@ sub sample_mqtt_handler {
 		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
 		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		if ($mac eq hmac_sha256($iv . $ciphertext . $topic, $hmac_sha256_key)) {
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
@@ -322,19 +322,19 @@ sub mqtt_crypto_test_handler {
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
-		warn Dumper("message: " . unpack('H*', $message));
-		warn Dumper("aes key: " . unpack('H*', $aes_key));
-		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
-		warn Dumper("iv: " . unpack('H*', $iv));
-		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
-		warn Dumper("mac: " . unpack('H*', $mac));
-		
-		if ($mac eq hmac_sha256($iv . $ciphertext . $topic, $hmac_sha256_key)) {
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
-			warn Dumper $message;
-			warn Dumper unpack('H*', $message);
+			warn Dumper({	"message" => unpack('H*', $message),
+							"aes key" => unpack('H*', $aes_key),
+							"hmac sha256 key" => unpack('H*', $hmac_sha256_key),
+							"iv" => unpack('H*', $iv),
+							"ciphertext" => unpack('H*', $ciphertext),
+							"mac" => unpack('H*', $mac),
+							"message" => $message,
+							"cleartext" => unpack('H*', $message)
+						});
 		}
 		else {
 			# hmac sha256 not ok
