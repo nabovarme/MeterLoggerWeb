@@ -6,9 +6,10 @@ use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
+use Digest::SHA qw( sha256 hmac_sha256 );
 
-use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl/ );
+#use lib qw( /etc/apache2/perl );
+use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
 openlog($0, "ndelay,pid", "local0");
@@ -21,8 +22,8 @@ my $sw_version;
 my $valve_status;
 my $uptime;
 
-my $mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-#my $mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+#my $mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
+my $mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
@@ -38,11 +39,11 @@ else {
 }
 
 # start mqtt run loop
-$mqtt->run(	q[/sample/#] => \&sample_mqtt_handler,
-	q[/version/v1/#] => \&mqtt_version_handler,
-	q[/status/v1/#] => \&mqtt_status_handler,
-	q[/uptime/v1/#] => \&mqtt_uptime_handler,
-	q[/aes/v2/#] => \&mqtt_aes_test_handler
+$mqtt->run(	q[/sample/v2/#] => \&sample_mqtt_handler,
+	q[/xversion/v1/#] => \&mqtt_version_handler,
+	q[/xstatus/v1/#] => \&mqtt_status_handler,
+	q[/xuptime/v1/#] => \&mqtt_uptime_handler,
+	q[/crypto/v2/#] => \&mqtt_crypto_test_handler
 );
 
 # end of main
@@ -106,117 +107,152 @@ sub mqtt_uptime_handler {
 
 sub sample_mqtt_handler {
 	my ($topic, $message) = @_;
+	my $m;
 
-	unless ($topic =~ m!/sample/v(\d+)/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/sample/v\d+/(\d+)/(\d+)!) {
 		return;
 	}
 	$protocol_version = $1;
 	$meter_serial = $2;
 	$unix_time = $3;
 	
-	if ($protocol_version == 2) {
-		# encrypted message
-		my $iv;
-		my $ciphertext;
-		my $m;
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
 		
-		$message =~ /(.{16})(.+)/s;
-		$iv = $1;
-		$ciphertext = $2;
+	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		warn Dumper("message: " . unpack('H*', $message));
+		warn Dumper("aes key: " . unpack('H*', $aes_key));
+		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
+		warn Dumper("iv: " . unpack('H*', $iv));
+		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
+		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		my $sth = $dbh->prepare(qq[SELECT aes_key FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-		$sth->execute;
-		if ($sth->rows) {
-			my $aes_key = $sth->fetchrow_hashref->{aes_key} || warn "no aes key found";
+		if ($mac eq hmac_sha256($iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
-			$message = $m->decrypt($ciphertext, pack('H*', $aes_key), $iv);
+			$message = $m->decrypt($ciphertext, $aes_key, $iv);
 			warn Dumper $message;
-		}
-	}
+			warn Dumper unpack('H*', $message);
+			
+			# parse message
+			$message =~ s/&$//;
 	
-	# parse message
-	$message =~ s/&$//;
-	
-	my ($key, $value, $unit);
-	my @key_value_list = split(/&/, $message);
-	my $key_value; 
-	foreach $key_value (@key_value_list) {
-		if (($key, $value, $unit) = $key_value =~ /([^=]*)=(\S+)(?:\s+(.*))?/) {
-			# check energy register unit
-			if ($key =~ /^e1$/i) {
-				if ($unit =~ /^MWh$/i) {
-					$value *= 1000;
-					$unit = 'kWh';
+			my ($key, $value, $unit);
+			my @key_value_list = split(/&/, $message);
+			my $key_value; 
+			foreach $key_value (@key_value_list) {
+				if (($key, $value, $unit) = $key_value =~ /([^=]*)=(\S+)(?:\s+(.*))?/) {
+					# check energy register unit
+					if ($key =~ /^e1$/i) {
+						if ($unit =~ /^MWh$/i) {
+							$value *= 1000;
+							$unit = 'kWh';
+						}
+					}
+					$mqtt_data->{$key} = $value;
 				}
 			}
-			$mqtt_data->{$key} = $value;
+			warn Dumper($mqtt_data);
+		
+			# save to db
+			if ($unix_time < time() + 7200) {
+				my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
+					`serial`,
+					`heap`,
+					`flow_temp`,
+					`return_flow_temp`,
+					`temp_diff`,
+					`flow`,
+					`effect`,
+					`hours`,
+					`volume`,
+					`energy`,
+					`unix_time`
+					) VALUES (] . 
+					$dbh->quote($meter_serial) . ',' . 
+					$dbh->quote($mqtt_data->{heap}) . ',' . 
+					$dbh->quote($mqtt_data->{t1}) . ',' . 
+					$dbh->quote($mqtt_data->{t2}) . ',' . 
+					$dbh->quote($mqtt_data->{tdif}) . ',' . 
+					$dbh->quote($mqtt_data->{flow1}) . ',' . 
+					$dbh->quote($mqtt_data->{effect1}) . ',' . 
+					$dbh->quote($mqtt_data->{hr}) . ',' . 
+					$dbh->quote($mqtt_data->{v1}) . ',' . 
+					$dbh->quote($mqtt_data->{e1}) . ',' .
+					$dbh->quote($unix_time) . qq[)]);
+				$sth->execute || syslog('info', "can't log to db");
+				$sth->finish;
+			}
 		}
+		else {
+			# hmac sha256 not ok
+		}
+		
+		
+
 	}
-	warn Dumper($mqtt_data);
+
+
+
 	
-	# save to db
-	if ($unix_time < time() + 7200) {
-		my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
-			`serial`,
-			`heap`,
-			`flow_temp`,
-			`return_flow_temp`,
-			`temp_diff`,
-			`flow`,
-			`effect`,
-			`hours`,
-			`volume`,
-			`energy`,
-			`unix_time`
-			) VALUES (] . 
-			$dbh->quote($meter_serial) . ',' . 
-			$dbh->quote($mqtt_data->{heap}) . ',' . 
-			$dbh->quote($mqtt_data->{t1}) . ',' . 
-			$dbh->quote($mqtt_data->{t2}) . ',' . 
-			$dbh->quote($mqtt_data->{tdif}) . ',' . 
-			$dbh->quote($mqtt_data->{flow1}) . ',' . 
-			$dbh->quote($mqtt_data->{effect1}) . ',' . 
-			$dbh->quote($mqtt_data->{hr}) . ',' . 
-			$dbh->quote($mqtt_data->{v1}) . ',' . 
-			$dbh->quote($mqtt_data->{e1}) . ',' .
-			$dbh->quote($unix_time) . qq[)]);
-		$sth->execute || syslog('info', "can't log to db");
-		$sth->finish;
-	}
+
 	$mqtt_data = undef;
 }
 
 
-sub mqtt_aes_test_handler {
+sub mqtt_crypto_test_handler {
 	my ($topic, $message) = @_;
+	my $m;
 
-	unless ($topic =~ m!/aes/v(\d+)/(\d+)/(\d+)!) {
-		return;
+	unless ($topic =~ m!/crypto/v\d+/(\d+)/(\d+)!) {
+	        return;
 	}
-	$protocol_version = $1;
-	$meter_serial = $2;
-	$unix_time = $3;
-	
-	if ($protocol_version == 2) {
-		# encrypted message
-		my $iv;
-		my $ciphertext;
-		my $m;
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
 		
-		print Dumper length $message;
-		$message =~ /(.{16})(.+)/s;
-		$iv = $1;
-		$ciphertext = $2;
+	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		warn Dumper("message: " . unpack('H*', $message));
+		warn Dumper("aes key: " . unpack('H*', $aes_key));
+		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
+		warn Dumper("iv: " . unpack('H*', $iv));
+		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
+		warn Dumper("mac: " . unpack('H*', $mac));
 		
-		my $sth = $dbh->prepare(qq[SELECT aes_key FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-		$sth->execute;
-		if ($sth->rows) {
-			my $aes_key = $sth->fetchrow_hashref->{aes_key} || warn "no aes key found";
-			warn Dumper unpack('H*', $iv), unpack('H*', $ciphertext);
+		if ($mac eq hmac_sha256($iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
-			$message = $m->decrypt($ciphertext, pack('H*', $aes_key), $iv);
+			$message = $m->decrypt($ciphertext, $aes_key, $iv);
 			warn Dumper $message;
+			warn Dumper unpack('H*', $message);
+		}
+		else {
+			# hmac sha256 not ok
 		}
 	}
 }
 
+__END__
