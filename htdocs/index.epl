@@ -3,8 +3,17 @@
 	use Net::MQTT::Simple "loppen.christiania.org";
 	          
 	use lib qw( /var/www/lib/perl );
-	#use lib qw( /opt/local/apache2/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Config;
 	use Nabovarme::Db;
+	
+#	my $mqtt;
+#	if ($Config{osname} =~ /darwin/) {
+#		$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+#	}
+#	else {
+#		$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
+#	}
 -]
 [- if (%fdat) { $http_headers_out{Location} = [ "./", 303 ]; } -]
 <HTML>
@@ -28,8 +37,9 @@
 	</HEAD>
 	<BODY>
     [- 
+	# get all meters
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters ORDER BY `info`, `serial`]);
+			$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters ORDER BY `info`, `serial`]);
 			$sth->execute;
 			
 			if ($fdat{'open'} ) {
@@ -66,8 +76,9 @@
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 [- 
+	# get details about every meter
 	my $quoted_serial = $dbh->quote($d->{serial});
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy, FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 	$d2 = $sth2->fetchrow_hashref;
 
@@ -91,7 +102,10 @@
 			<td>&nbsp;</td>
 		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
 			<td>&nbsp;</td>
-		    <td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+		    <td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
+[-
+#		    <td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+-]
 	      </tr>
 		<br>
 [$ endwhile $]

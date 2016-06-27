@@ -7,8 +7,9 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
+use Config;
 
-#use lib qw( /etc/apache2/perl );
+use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
@@ -22,8 +23,13 @@ my $sw_version;
 my $valve_status;
 my $uptime;
 
-#my $mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-my $mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+my $mqtt;
+if ($Config{osname} =~ /darwin/) {
+	$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+}
+else {
+	$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
+}
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
@@ -137,7 +143,6 @@ sub mqtt_sample_handler {
 			$mqtt_data->{$key} = $value;
 		}
 	}
-	warn Dumper($mqtt_data);
 	
 	# validate data
 	my $data_validation_ok = undef;
@@ -173,6 +178,16 @@ sub mqtt_sample_handler {
 			$dbh->quote($unix_time) . qq[)]);
 		$sth->execute || syslog('info', "can't log to db");
 		$sth->finish;
+		syslog('info', $topic . "\t" . $message);
+		warn $topic . "\t" . $message;
+		
+		# update last_updated time stamp
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[UPDATE meters SET \
+						last_updated = $quoted_unix_time \
+						WHERE serial = $quoted_meter_serial]) or warn $!;
+		warn Dumper({uptime => $uptime});
 	}
 	$mqtt_data = undef;
 }
@@ -202,13 +217,6 @@ sub v2_mqtt_version_handler {
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
-		warn Dumper("message: " . unpack('H*', $message));
-		warn Dumper("aes key: " . unpack('H*', $aes_key));
-		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
-		warn Dumper("iv: " . unpack('H*', $iv));
-		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
-		warn Dumper("mac: " . unpack('H*', $mac));
-		
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
@@ -220,11 +228,14 @@ sub v2_mqtt_version_handler {
 							sw_version = $quoted_sw_version, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({sw_version => $sw_version});
+							syslog('info', $topic . "\t" . $sw_version);
+							warn $topic . "\t" . $sw_version;
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			syslog('info', $topic . "hmac error");
+			syslog('info', $topic . "\t" . unpack('H*', $message));
+			warn $topic . "\t" . unpack('H*', $message);
 		}
 	}
 }
@@ -252,13 +263,6 @@ sub v2_mqtt_status_handler {
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
-		warn Dumper("message: " . unpack('H*', $message));
-		warn Dumper("aes key: " . unpack('H*', $aes_key));
-		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
-		warn Dumper("iv: " . unpack('H*', $iv));
-		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
-		warn Dumper("mac: " . unpack('H*', $mac));
-		
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
@@ -303,13 +307,6 @@ sub v2_mqtt_uptime_handler {
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
-		warn Dumper("message: " . unpack('H*', $message));
-		warn Dumper("aes key: " . unpack('H*', $aes_key));
-		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
-		warn Dumper("iv: " . unpack('H*', $iv));
-		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
-		warn Dumper("mac: " . unpack('H*', $mac));
-		
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
@@ -357,19 +354,10 @@ sub v2_mqtt_sample_handler {
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
-		warn Dumper("message: " . unpack('H*', $message));
-		warn Dumper("aes key: " . unpack('H*', $aes_key));
-		warn Dumper("hmac sha256 key: " . unpack('H*', $hmac_sha256_key));
-		warn Dumper("iv: " . unpack('H*', $iv));
-		warn Dumper("ciphertext: " . unpack('H*', $ciphertext));
-		warn Dumper("mac: " . unpack('H*', $mac));
-		
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
-			warn Dumper $message;
-			warn Dumper unpack('H*', $message);
 			
 			# parse message
 			$message =~ s/&$//;
@@ -388,9 +376,7 @@ sub v2_mqtt_sample_handler {
 					}
 					$mqtt_data->{$key} = $value;
 				}
-			}
-			warn Dumper($mqtt_data);
-		
+			}		
 			# save to db
 			if ($unix_time < time() + 7200) {
 				my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
@@ -420,10 +406,21 @@ sub v2_mqtt_sample_handler {
 				$sth->execute || syslog('info', "can't log to db");
 				$sth->finish;
 			}
+			syslog('info', $topic . "\t" . $message);
+			warn $topic . "\t" . $message;
+			
+		
+			# update last_updated time stamp
+			my $quoted_meter_serial = $dbh->quote($meter_serial);
+			my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[UPDATE meters SET \
+							last_updated = $quoted_unix_time \
+							WHERE serial = $quoted_meter_serial]) or warn $!;
+			warn Dumper({uptime => $uptime});
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+
 		}
 	}
 	$mqtt_data = undef;
