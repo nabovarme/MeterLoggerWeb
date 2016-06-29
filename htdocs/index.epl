@@ -78,7 +78,8 @@
 [- 
 	# get details about every meter
 	my $quoted_serial = $dbh->quote($d->{serial});
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy, FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	warn Dumper(qq[SELECT hours, volume, energy, FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 	$d2 = $sth2->fetchrow_hashref;
 
