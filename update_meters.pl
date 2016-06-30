@@ -151,16 +151,45 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `serial`,`info` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
 	$sth->execute;
-
+	
 	syslog('info', "send mqtt retain to all meters for version and status");
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
-		#print Dumper {serial => $d->{serial}};
-#		$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-#		$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-#		$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
+
+		$key = $d->{key};
+		$sha256 = sha256(pack('H*', $key));
+		$aes_key = substr($sha256, 0, 16);
+		$hmac_sha256_key = substr($sha256, 16, 16);
+		
+		syslog('info', "\tsend mqtt version, status and uptime commands to " . $d->{serial});
+		# send close
+		$topic = '/config/v2/' . $d->{serial} . '/version';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+
+		# send close
+		$topic = '/config/v2/' . $d->{serial} . '/status';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+
+		# send close
+		$topic = '/config/v2/' . $d->{serial} . '/uptime';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 	}
 }
 
