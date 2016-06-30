@@ -5,9 +5,8 @@ use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
-use Config;
 
-use lib qw( /var/www/perl/lib/ );
+use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
@@ -16,7 +15,6 @@ syslog('info', "starting...");
 
 my $unix_time;
 my $meter_serial;
-my $mqtt;
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
@@ -28,6 +26,7 @@ my $d;
 my $d_kwh_left;
 my $d_valve_status;
 
+my $mqtt;
 if ($Config{osname} =~ /darwin/) {
 	$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
 }
