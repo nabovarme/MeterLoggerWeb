@@ -94,7 +94,8 @@ sub mqtt_status_handler {
 					valve_status = $quoted_valve_status, \
 					last_updated = $quoted_unix_time \
 					WHERE serial = $quoted_meter_serial]) or warn $!;
-	warn Dumper({sw_version => $valve_status});
+	warn Dumper({valve_status => $valve_status});
+	syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
 }
 
 sub mqtt_uptime_handler {
@@ -274,7 +275,8 @@ sub v2_mqtt_status_handler {
 							valve_status = $quoted_valve_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({valve_status => $valve_status});
+			warn {valve_status => $valve_status};
+			syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
 			
 		}
 		else {
@@ -405,10 +407,7 @@ sub v2_mqtt_sample_handler {
 					$dbh->quote($unix_time) . qq[)]);
 				$sth->execute || syslog('info', "can't log to db");
 				$sth->finish;
-			}
-			syslog('info', $topic . "\t" . $message);
-			warn $topic . "\t" . $message;
-			
+			}			
 		
 			# update last_updated time stamp
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -417,6 +416,8 @@ sub v2_mqtt_sample_handler {
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn $!;
 			warn Dumper({uptime => $uptime});
+			syslog('info', $topic . " " . $message);
+			warn $topic . "\t" . $message;
 		}
 		else {
 			# hmac sha256 not ok

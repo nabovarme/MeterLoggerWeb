@@ -5,6 +5,10 @@ use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
+use Crypt::Mode::CBC;
+use Math::Random::Secure qw(rand);
+use Digest::SHA qw( sha256 hmac_sha256 );
+use Config;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
@@ -25,6 +29,16 @@ my $sth_valve_status;
 my $d;
 my $d_kwh_left;
 my $d_valve_status;
+
+my $key;
+my $m = Crypt::Mode::CBC->new('AES');
+my $sha256;
+my $aes_key;
+my $hmac_sha256_key;
+my $hmac_sha256_hash;
+my $iv;
+my $topic;
+my $message;
 
 my $mqtt;
 if ($Config{osname} =~ /darwin/) {
@@ -49,12 +63,14 @@ $SIG{HUP} = \&get_version_and_status;
 get_version_and_status();
 while (1) {
 	# open or close valve according to payment status
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples)]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
 	$sth->execute;
 	
-	while ($d = $sth->fetchrow_hashref) {
+	while (($d = $sth->fetchrow_hashref) && $d->{sw_version} =~ /THERMO/) {
+		# update all meters containing THERMO in version string
 		my $quoted_serial = $dbh->quote($d->{serial});
 		#syslog('info', "serial #" . $d->{serial});
+		print Dumper $d->{valve_status};
 		
 		# get kWh left from db
 		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
@@ -65,35 +81,68 @@ while (1) {
 		), 2) AS kwh_left]);
 		$sth_kwh_left->execute;
 		
-		# get valve status from db
-		$sth_valve_status = $dbh->prepare(qq[SELECT valve_status FROM meters WHERE serial = $quoted_serial]);
-		$sth_valve_status->execute;
-	
 		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
 			#syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
+			print Dumper("serial: " . $d->{serial} . "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}) . " status: " . $d->{valve_status});
 			#if ($d_kwh_left->{kwh_left} < $d->{min_amount}) {
+
+			$key = $d->{key};
+			$sha256 = sha256(pack('H*', $key));
+			$aes_key = substr($sha256, 0, 16);
+			$hmac_sha256_key = substr($sha256, 16, 16);
+			
 			if ($d_kwh_left->{kwh_left} < 0) {
 				# close valve if not allready closed
-				if ($d_valve_status = $sth_valve_status->fetchrow_hashref) {
-					if ($d_valve_status->{valve_status} ne "close") {
-						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => '');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => 'retain');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-					}
+				if ($d->{valve_status} !~ /close/i) {
+					printf("valve status: " . $d->{valve_status} . "\n");
+					# send close
+					printf("send close\n");
+					syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
+					$topic = '/config/v2/' . $d->{serial} . '/close';
+					$message = '';
+					$iv = join('', map(chr(int rand(256)), 1..16));
+					$message = $m->encrypt($message, $aes_key, $iv);
+					$message = $iv . $message;
+					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+					$mqtt->publish($topic => $hmac_sha256_hash . $message);
+					
+					# send status
+					$topic = '/config/v2/' . $d->{serial} . '/status';
+					$message = '';
+					$iv = join('', map(chr(int rand(256)), 1..16));
+					$message = $m->encrypt($message, $aes_key, $iv);
+					$message = $iv . $message;
+					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+					$mqtt->publish($topic => $hmac_sha256_hash . $message);
 				}
 			}
 			else {
 				# open valve if not allready open
-				if ($d_valve_status = $sth_valve_status->fetchrow_hashref) {
-					if ($d_valve_status->{valve_status} ne "open") {
-						syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/close' => '');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/open' => 'retain');
-						$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-					}
+				if ($d->{valve_status} !~ /open/i) {
+					printf("valve status: " . $d->{valve_status} . "\n");
+					syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
+					# send open
+					printf("send open\n");
+					syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
+					$topic = '/config/v2/' . $d->{serial} . '/open';
+					$message = '';
+					$iv = join('', map(chr(int rand(256)), 1..16));
+					$message = $m->encrypt($message, $aes_key, $iv);
+					$message = $iv . $message;
+					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+					$mqtt->publish($topic => $hmac_sha256_hash . $message);
+					
+					# send status
+					$topic = '/config/v2/' . $d->{serial} . '/status';
+					$message = '';
+					$iv = join('', map(chr(int rand(256)), 1..16));
+					$message = $m->encrypt($message, $aes_key, $iv);
+					$message = $iv . $message;
+					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+					$mqtt->publish($topic => $hmac_sha256_hash . $message);
 				}
 			}
+
 		}
 	}
 	sleep 1;
@@ -109,9 +158,9 @@ sub get_version_and_status {
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 		#print Dumper {serial => $d->{serial}};
-		$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
-		$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
-		$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
+#		$mqtt->retain('/config/v1/' . $d->{serial} . '/version' => 'retain');
+#		$mqtt->retain('/config/v1/' . $d->{serial} . '/status' => 'retain');
+#		$mqtt->retain('/config/v1/' . $d->{serial} . '/uptime' => 'retain');
 	}
 }
 
