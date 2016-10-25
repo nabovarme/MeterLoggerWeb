@@ -66,83 +66,85 @@ while (1) {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
 	$sth->execute;
 	
-	while (($d = $sth->fetchrow_hashref) && $d->{sw_version} =~ /THERMO/) {
-		# update all meters containing THERMO in version string
-		my $quoted_serial = $dbh->quote($d->{serial});
-		#syslog('info', "serial #" . $d->{serial});
-		print Dumper $d->{valve_status};
-		
-		# get kWh left from db
-		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
-		(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
-		(SELECT \
-			(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
-			(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-		), 2) AS kwh_left]);
-		$sth_kwh_left->execute;
-		
-		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			#syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
-			print Dumper("serial: " . $d->{serial} . "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}) . " status: " . $d->{valve_status});
-			#if ($d_kwh_left->{kwh_left} < $d->{min_amount}) {
-
-			$key = $d->{key};
-			$sha256 = sha256(pack('H*', $key));
-			$aes_key = substr($sha256, 0, 16);
-			$hmac_sha256_key = substr($sha256, 16, 16);
+	while ($d = $sth->fetchrow_hashref) {
+		if ($d->{sw_version} =~ /THERMO/) {
+			# update all meters containing THERMO in version string
+			my $quoted_serial = $dbh->quote($d->{serial});
+			#syslog('info', "serial #" . $d->{serial});
+			print Dumper $d->{valve_status};
 			
-			if ($d_kwh_left->{kwh_left} < 0) {
-				# close valve if not allready closed
-				if ($d->{valve_status} !~ /close/i) {
-					printf("valve status: " . $d->{valve_status} . "\n");
-					# send close
-					printf("send close\n");
-					syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
-					$topic = '/config/v2/' . $d->{serial} . '/close';
-					$message = '';
-					$iv = join('', map(chr(int rand(256)), 1..16));
-					$message = $m->encrypt($message, $aes_key, $iv);
-					$message = $iv . $message;
-					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-					$mqtt->publish($topic => $hmac_sha256_hash . $message);
-					
-					# send status
-					$topic = '/config/v2/' . $d->{serial} . '/status';
-					$message = '';
-					$iv = join('', map(chr(int rand(256)), 1..16));
-					$message = $m->encrypt($message, $aes_key, $iv);
-					$message = $iv . $message;
-					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-					$mqtt->publish($topic => $hmac_sha256_hash . $message);
+			# get kWh left from db
+			$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
+			(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+			(SELECT \
+				(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+				(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+			), 2) AS kwh_left]);
+			$sth_kwh_left->execute;
+			
+			if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
+				#syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
+				print Dumper("serial: " . $d->{serial} . "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}) . " status: " . $d->{valve_status});
+				#if ($d_kwh_left->{kwh_left} < $d->{min_amount}) {
+	
+				$key = $d->{key};
+				$sha256 = sha256(pack('H*', $key));
+				$aes_key = substr($sha256, 0, 16);
+				$hmac_sha256_key = substr($sha256, 16, 16);
+				
+				if ($d_kwh_left->{kwh_left} <= 0) {
+					# close valve if not allready closed
+					if ($d->{valve_status} !~ /close/i) {
+						printf("valve status: " . $d->{valve_status} . "\n");
+						# send close
+						printf("send close\n");
+						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
+						$topic = '/config/v2/' . $d->{serial} . '/close';
+						$message = '';
+						$iv = join('', map(chr(int rand(256)), 1..16));
+						$message = $m->encrypt($message, $aes_key, $iv);
+						$message = $iv . $message;
+						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+						$mqtt->publish($topic => $hmac_sha256_hash . $message);
+						
+						# send status
+						$topic = '/config/v2/' . $d->{serial} . '/status';
+						$message = '';
+						$iv = join('', map(chr(int rand(256)), 1..16));
+						$message = $m->encrypt($message, $aes_key, $iv);
+						$message = $iv . $message;
+						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+						$mqtt->publish($topic => $hmac_sha256_hash . $message);
+					}
 				}
-			}
-			else {
-				# open valve if not allready open
-				if ($d->{valve_status} !~ /open/i) {
-					printf("valve status: " . $d->{valve_status} . "\n");
-					syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
-					# send open
-					printf("send open\n");
-					syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
-					$topic = '/config/v2/' . $d->{serial} . '/open';
-					$message = '';
-					$iv = join('', map(chr(int rand(256)), 1..16));
-					$message = $m->encrypt($message, $aes_key, $iv);
-					$message = $iv . $message;
-					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-					$mqtt->publish($topic => $hmac_sha256_hash . $message);
-					
-					# send status
-					$topic = '/config/v2/' . $d->{serial} . '/status';
-					$message = '';
-					$iv = join('', map(chr(int rand(256)), 1..16));
-					$message = $m->encrypt($message, $aes_key, $iv);
-					$message = $iv . $message;
-					$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-					$mqtt->publish($topic => $hmac_sha256_hash . $message);
+				else {
+					# open valve if not allready open
+					if ($d->{valve_status} !~ /open/i) {
+						printf("valve status: " . $d->{valve_status} . "\n");
+						syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
+						# send open
+						printf("send open\n");
+						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
+						$topic = '/config/v2/' . $d->{serial} . '/open';
+						$message = '';
+						$iv = join('', map(chr(int rand(256)), 1..16));
+						$message = $m->encrypt($message, $aes_key, $iv);
+						$message = $iv . $message;
+						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+						$mqtt->publish($topic => $hmac_sha256_hash . $message);
+						
+						# send status
+						$topic = '/config/v2/' . $d->{serial} . '/status';
+						$message = '';
+						$iv = join('', map(chr(int rand(256)), 1..16));
+						$message = $m->encrypt($message, $aes_key, $iv);
+						$message = $iv . $message;
+						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+						$mqtt->publish($topic => $hmac_sha256_hash . $message);
+					}
 				}
+	
 			}
-
 		}
 	}
 	sleep 1;
