@@ -166,7 +166,7 @@ sub get_version_and_status {
 		$hmac_sha256_key = substr($sha256, 16, 16);
 		
 		syslog('info', "\tsend mqtt version, status and uptime commands to " . $d->{serial});
-		# send close
+		# send version
 		$topic = '/config/v2/' . $d->{serial} . '/version';
 		$message = '';
 		$iv = join('', map(chr(int rand(256)), 1..16));
@@ -175,7 +175,7 @@ sub get_version_and_status {
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 
-		# send close
+		# send status
 		$topic = '/config/v2/' . $d->{serial} . '/status';
 		$message = '';
 		$iv = join('', map(chr(int rand(256)), 1..16));
@@ -184,8 +184,17 @@ sub get_version_and_status {
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 
-		# send close
+		# send uptime
 		$topic = '/config/v2/' . $d->{serial} . '/uptime';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+
+		# send ssid
+		$topic = '/config/v2/' . $d->{serial} . '/ssid';
 		$message = '';
 		$iv = join('', map(chr(int rand(256)), 1..16));
 		$message = $m->encrypt($message, $aes_key, $iv);

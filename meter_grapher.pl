@@ -22,6 +22,7 @@ my $meter_serial;
 my $sw_version;
 my $valve_status;
 my $uptime;
+my $ssid;
 
 my $mqtt;
 if ($Config{osname} =~ /darwin/) {
@@ -54,6 +55,7 @@ $mqtt->run(	q[/sample/v1/#] => \&mqtt_sample_handler,
 	q[/version/v2/#] => \&v2_mqtt_version_handler,
 	q[/status/v2/#] => \&v2_mqtt_status_handler,
 	q[/uptime/v2/#] => \&v2_mqtt_uptime_handler,
+	q[/ssid/v2/#] => \&v2_mqtt_ssid_handler,
 	q[/crypto/v2/#] => \&v2_mqtt_crypto_test_handler
 );
 
@@ -321,6 +323,49 @@ sub v2_mqtt_uptime_handler {
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn $!;
 			warn Dumper({uptime => $uptime});
+		}
+		else {
+			# hmac sha256 not ok
+			warn Dumper("serial $meter_serial checksum error");
+		}
+	}
+}
+
+sub v2_mqtt_ssid_handler {
+	my ($topic, $message) = @_;
+	my $m;
+	
+	unless ($topic =~ m!/ssid/v\d+/(\d+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+	
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
+		
+	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
+			$m = Crypt::Mode::CBC->new('AES');
+			$ssid = $m->decrypt($ciphertext, $aes_key, $iv);
+			my $quoted_ssid = $dbh->quote($uptime);
+			my $quoted_meter_serial = $dbh->quote($meter_serial);
+			my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[UPDATE meters SET \
+							ssid = $quoted_ssid, \
+							last_updated = $quoted_unix_time \
+							WHERE serial = $quoted_meter_serial]) or warn $!;
+			warn Dumper({ssid => $ssid});
 		}
 		else {
 			# hmac sha256 not ok
