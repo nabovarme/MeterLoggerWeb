@@ -358,7 +358,7 @@ sub v2_mqtt_ssid_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$ssid = $m->decrypt($ciphertext, $aes_key, $iv);
-			my $quoted_ssid = $dbh->quote($uptime);
+			my $quoted_ssid = $dbh->quote($ssid);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
 			$dbh->do(qq[UPDATE meters SET \
