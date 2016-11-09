@@ -390,7 +390,7 @@ sub v2_mqtt_rssi_handler {
 	my $mac = $1;
 	my $iv = $2;
 	my $ciphertext = $3;
-		
+	
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
@@ -402,7 +402,7 @@ sub v2_mqtt_rssi_handler {
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
-			$ssid = $m->decrypt($ciphertext, $aes_key, $iv);
+			$rssi = $m->decrypt($ciphertext, $aes_key, $iv);
 			my $quoted_rssi = $dbh->quote($rssi);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
