@@ -9,10 +9,18 @@ use Crypt::Mode::CBC;
 use Math::Random::Secure qw(rand);
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
+use Proc::Pidfile;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
+
+$SIG{HUP} = \&get_version_and_status;
+
+$SIG{INT} = \&sig_int_handler;
+
+my $pp = Proc::Pidfile->new();
+print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
@@ -57,8 +65,6 @@ else {
 	syslog('info', "cant't connect to db $!");
 	die $!;
 }
-
-$SIG{HUP} = \&get_version_and_status;
 
 get_version_and_status();
 while (1) {
@@ -211,6 +217,11 @@ sub get_version_and_status {
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 	}
+}
+
+sub sig_int_handler {
+
+	die $!;
 }
 
 1;
