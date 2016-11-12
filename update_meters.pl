@@ -106,7 +106,7 @@ while (1) {
 						printf("send close\n");
 						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
 						$topic = '/config/v2/' . $d->{serial} . '/close';
-						$message = '';
+						$message = time();
 						$iv = join('', map(chr(int rand(256)), 1..16));
 						$message = $m->encrypt($message, $aes_key, $iv);
 						$message = $iv . $message;
@@ -132,7 +132,7 @@ while (1) {
 						printf("send open\n");
 						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
 						$topic = '/config/v2/' . $d->{serial} . '/open';
-						$message = '';
+						$message = time();
 						$iv = join('', map(chr(int rand(256)), 1..16));
 						$message = $m->encrypt($message, $aes_key, $iv);
 						$message = $iv . $message;
