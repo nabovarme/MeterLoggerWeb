@@ -156,7 +156,7 @@ sub mqtt_sample_handler {
 	}
 	
 	# save to db
-	if ($data_validation_ok && ($unix_time < time() + 7200)) {
+	if ($data_validation_ok) {
 		my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
 			`serial`,
 			`heap`,
@@ -470,34 +470,32 @@ sub v2_mqtt_sample_handler {
 				}
 			}		
 			# save to db
-			if ($unix_time < time() + 7200) {
-				my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
-					`serial`,
-					`heap`,
-					`flow_temp`,
-					`return_flow_temp`,
-					`temp_diff`,
-					`flow`,
-					`effect`,
-					`hours`,
-					`volume`,
-					`energy`,
-					`unix_time`
-					) VALUES (] . 
-					$dbh->quote($meter_serial) . ',' . 
-					$dbh->quote($mqtt_data->{heap}) . ',' . 
-					$dbh->quote($mqtt_data->{t1}) . ',' . 
-					$dbh->quote($mqtt_data->{t2}) . ',' . 
-					$dbh->quote($mqtt_data->{tdif}) . ',' . 
-					$dbh->quote($mqtt_data->{flow1}) . ',' . 
-					$dbh->quote($mqtt_data->{effect1}) . ',' . 
-					$dbh->quote($mqtt_data->{hr}) . ',' . 
-					$dbh->quote($mqtt_data->{v1}) . ',' . 
-					$dbh->quote($mqtt_data->{e1}) . ',' .
-					$dbh->quote($unix_time) . qq[)]);
-				$sth->execute || syslog('info', "can't log to db");
-				$sth->finish;
-			}			
+			my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
+				`serial`,
+				`heap`,
+				`flow_temp`,
+				`return_flow_temp`,
+				`temp_diff`,
+				`flow`,
+				`effect`,
+				`hours`,
+				`volume`,
+				`energy`,
+				`unix_time`
+				) VALUES (] . 
+				$dbh->quote($meter_serial) . ',' . 
+				$dbh->quote($mqtt_data->{heap}) . ',' . 
+				$dbh->quote($mqtt_data->{t1}) . ',' . 
+				$dbh->quote($mqtt_data->{t2}) . ',' . 
+				$dbh->quote($mqtt_data->{tdif}) . ',' . 
+				$dbh->quote($mqtt_data->{flow1}) . ',' . 
+				$dbh->quote($mqtt_data->{effect1}) . ',' . 
+				$dbh->quote($mqtt_data->{hr}) . ',' . 
+				$dbh->quote($mqtt_data->{v1}) . ',' . 
+				$dbh->quote($mqtt_data->{e1}) . ',' .
+				$dbh->quote($unix_time) . qq[)]);
+			$sth->execute || syslog('info', "can't log to db");
+			$sth->finish;
 		
 			# update last_updated time stamp
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
