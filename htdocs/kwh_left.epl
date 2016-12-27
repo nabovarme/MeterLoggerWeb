@@ -17,11 +17,59 @@ if ($dbh = Nabovarme::Db->my_connect) {
 		(SELECT meters.last_energy FROM meters WHERE meters.serial = ] . $quoted_serial . qq[) AS consumed_kwh \
 	), 2) AS kwh_left]);
 	$sth->execute;
+
+	# get last days energy usage
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
+	$sth5->execute;
+	if ($sth5->rows) {
+		if ($d = $sth5->fetchrow_hashref) {
+			$energy_now = $d->{energy};
+			$time_now = $d->{unix_time};
+		}
+	}
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial \
+		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+	$sth5->execute;
+	if ($sth5->rows) {
+		if ($d = $sth5->fetchrow_hashref) {
+			$energy_last = $d->{energy};
+			$time_last = $d->{unix_time};
+		}
+	}
+	if (($time_now - $time_last) > 0) {
+		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+	}
 }
 -]
 
 [$ if ($sth->rows) $]
 	[$ if ($d = $sth->fetchrow_hashref) $]
-		[+ sprintf("%.0f", $d->{kwh_left}) +] kWh left
+		[-	use utf8;
+			if ($energy_last_day > 0) {
+				$energy_time_left = $d->{kwh_left} / $energy_last_day;
+				if ($energy_time_left > 24) {
+					if (sprintf("%.0f", $energy_time_left / 24) == 1) {
+						$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
+					}
+					else {
+						$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
+					}
+				}
+				else {
+					if (sprintf("%.0f", $energy_time_left) == 1) {
+						$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
+					}
+					else {
+						$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
+					}
+				}
+			}
+			else {
+				$energy_time_left_str = '∞';
+			}
+		-]
+		[+ sprintf("%.0f", $d->{kwh_left}) +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h
 	[$ endif $]
 [$ endif $]

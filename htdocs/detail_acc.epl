@@ -27,7 +27,32 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth4 = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, info, amount, price \
 		FROM accounts WHERE serial = $quoted_serial ORDER BY payment_time ASC]);
 	$sth4->execute;
+
+	# get last days energy usage
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
+	$sth5->execute;
+	if ($sth5->rows) {
+		if ($d = $sth5->fetchrow_hashref) {
+			$energy_now = $d->{energy};
+			$time_now = $d->{unix_time};
+		}
+	}
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial \
+		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+	$sth5->execute;
+	if ($sth5->rows) {
+		if ($d = $sth5->fetchrow_hashref) {
+			$energy_last = $d->{energy};
+			$time_last = $d->{unix_time};
+		}
+	}
+	if (($time_now - $time_last) > 0) {
+		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+	}
 }
+
 if ($sth->rows) {
 	if ($d = $sth->fetchrow_hashref) {
 		$info = $d->{info};
@@ -36,7 +61,9 @@ if ($sth->rows) {
 -]
  
 	<HEAD>
+		<meta name="robots" content="noindex">
 		<TITLE>[+ $info +] MeterLogger</TITLE>
+		<script src="spinner/spin.js"></script>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
 		.dygraph-legend {
@@ -81,7 +108,28 @@ if ($sth->rows) {
 [$ endif $]
 		</div>
 		</span>
-		<div id="div_nabovarme" style="width:800px; height:400px;"></div>
+		<div id="spinner" style="width:800px; height:400px; position:relative;"><div id="div_nabovarme" style="width:800px; height:400px; position:absolute;"></div></div>
+		<script>
+			var opts = {
+				lines: 13,				// The number of lines to draw
+				length: 20,				// The length of each line
+				width: 10,				// The line thickness
+				radius: 30,				// The radius of the inner circle
+				corners: 1,				// Corner roundness (0..1)
+				rotate: 0,				// The rotation offset
+				direction: 1,			// 1: clockwise, -1: counterclockwise
+				color: '#000',			// #rgb or #rrggbb or array of colors
+				speed: 1,				// Rounds per second
+				trail: 60,				// Afterglow percentage
+				shadow: false,			// Whether to render a shadow
+				hwaccel: false,			// Whether to use hardware acceleration
+				className: 'spinner',	// The CSS class to assign to the spinner
+				zIndex: 2e9,			// The z-index (defaults to 2000000000)
+				top: '50%',				// Top position relative to parent
+				left: '50%'				// Left position relative to parent
+			}
+			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
+		</script>
 		<script>
 			function update_last_energy() {
 				var xhttp = new XMLHttpRequest();
@@ -167,7 +215,12 @@ if ($sth->rows) {
 				else {
 					return 'Time: ' + hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
 				}
-		}
+		    }
+
+			g.ready(function () {
+				// stop spinner
+				spinner.stop();
+			});
 		</script>
 		<br>
 	    	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
@@ -205,10 +258,34 @@ if ($sth->rows) {
 			  </tr>
 	  		[$ if ($sth3->rows) $]
 	  			[$ if ($d = $sth3->fetchrow_hashref) $]
+				[-	use utf8;
+					if ($energy_last_day > 0) {
+						$energy_time_left = $d->{kwh_left} / $energy_last_day;
+						if ($energy_time_left > 24) {
+							if (sprintf("%.0f", $energy_time_left / 24) == 1) {
+								$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
+							}
+							else {
+								$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
+							}
+						}
+						else {
+							if (sprintf("%.0f", $energy_time_left) == 1) {
+								$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
+							}
+							else {
+								$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
+							}
+						}
+					}
+					else {
+						$energy_time_left_str = '∞';
+					}
+				-]
   			  <tr align="left" valign="bottom">
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
-  				<td align="left"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left</div></span></td>
+  				<td align="left"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h</div></span></td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>

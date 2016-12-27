@@ -18,6 +18,7 @@
 [- if (%fdat) { $http_headers_out{Location} = [ "./", 303 ]; } -]
 <HTML>
 	<HEAD>
+		<meta name="robots" content="noindex">
 		<TITLE>MeterLogger</TITLE>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
@@ -71,6 +72,8 @@
 		<td>&nbsp;</td>
 	    <td align="right"><span class="default-bold">kWh left</span></td>
 		<td>&nbsp;</td>
+	    <td align="right"><span class="default-bold">time left</span></td>
+		<td>&nbsp;</td>
 	    <td align="left"><span class="default-bold"></span></td>
       </tr>
 [$ if ($sth->rows) $]
@@ -90,8 +93,60 @@
 		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 	), 2) AS kwh_left]);
 	$sth3->execute;
+
+	# get last days energy usage
+	$sth4 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
+	$sth4->execute;
+	if ($sth4->rows) {
+		if ($d4 = $sth4->fetchrow_hashref) {
+			$energy_now = $d4->{energy};
+			$time_now = $d4->{unix_time};
+		}
+	}
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial \
+		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+	$sth5->execute;
+	if ($sth5->rows) {
+		if ($d5 = $sth5->fetchrow_hashref) {
+			$energy_last = $d5->{energy};
+			$time_last = $d5->{unix_time};
+		}
+	}
+	if (($time_now - $time_last) > 0) {
+		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+	}
+
+
 	$d3 = $sth3->fetchrow_hashref;
--]	
+
+
+-]
+[-	use utf8;
+	if ($energy_last_day > 0) {
+		$energy_time_left = $d3->{kwh_left} / $energy_last_day;
+		if ($energy_time_left > 24) {
+			if (sprintf("%.0f", $energy_time_left / 24) == 1) {
+				$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
+			}
+			else {
+				$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
+			}
+		}
+		else {
+			if (sprintf("%.0f", $energy_time_left) == 1) {
+				$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
+			}
+			else {
+				$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
+			}
+		}
+	}
+	else {
+		$energy_time_left_str = '∞';
+	}
+-]
 		  <tr align="left" valign="bottom">
 		    <td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
 		    <td align="left"><span class="default">[+ $d->{info} +]</span></td>
@@ -102,6 +157,8 @@
 		    <td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
 			<td>&nbsp;</td>
 		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
+			<td>&nbsp;</td>
+		    <td align="right"><span class="default">[+ $energy_time_left_str +]</lefts></td>
 			<td>&nbsp;</td>
 		    <td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
 [-

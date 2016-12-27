@@ -24,6 +24,7 @@ if ($sth->rows) {
 <HTML>
  
 	<HEAD>
+		<meta name="robots" content="noindex">
 		<TITLE>[+ $info +] MeterLogger</TITLE>
 		<script>
 			function update_last_energy() {
@@ -37,6 +38,7 @@ if ($sth->rows) {
 				xhttp.send();
 			}
 		</script>
+		<script src="spinner/spin.js"></script>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
 		.dygraph-legend {
@@ -82,8 +84,29 @@ if ($sth->rows) {
 		</div>
 		</span>
 		<br>
-		<div id="div_nabovarme" style="width:800px; height:445px;"></div>
+		<div id="spinner" style="width:800px; height:400px; position:relative;"><div id="div_nabovarme" style="width:800px; height:445px; position:absolute;"></div></div>
     	
+		<script>
+			var opts = {
+				lines: 13,				// The number of lines to draw
+				length: 20,				// The length of each line
+				width: 10,				// The line thickness
+				radius: 30,				// The radius of the inner circle
+				corners: 1,				// Corner roundness (0..1)
+				rotate: 0,				// The rotation offset
+				direction: 1,			// 1: clockwise, -1: counterclockwise
+				color: '#000',			// #rgb or #rrggbb or array of colors
+				speed: 1,				// Rounds per second
+				trail: 60,				// Afterglow percentage
+				shadow: false,			// Whether to render a shadow
+				hwaccel: false,			// Whether to use hardware acceleration
+				className: 'spinner',	// The CSS class to assign to the spinner
+				zIndex: 2e9,			// The z-index (defaults to 2000000000)
+				top: '50%',				// Top position relative to parent
+				left: '50%'				// Left position relative to parent
+			}
+			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
+		</script>
     	<script type="text/javascript">
 			var data = [];
 			var colorSets = [
@@ -152,6 +175,11 @@ if ($sth->rows) {
 			function change(el) {
 				g.setVisibility(parseInt(el.id), el.checked);
 			}
+
+			g.ready(function () {
+				// stop spinner
+				spinner.stop();
+			});
 		</script>
 		<br><br>
     	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
