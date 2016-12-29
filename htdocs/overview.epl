@@ -1,0 +1,157 @@
+﻿[-
+	use DBI;
+	use Net::MQTT::Simple "loppen.christiania.org";
+	          
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Config;
+	use Nabovarme::Db;
+	
+#	my $mqtt;
+#	if ($Config{osname} =~ /darwin/) {
+#		$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+#	}
+#	else {
+#		$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
+#	}
+-]
+[- if (%fdat) { $http_headers_out{Location} = [ "./", 303 ]; } -]
+<HTML>
+	<HEAD>
+		<meta name="robots" content="noindex">
+		<TITLE>MeterLogger</TITLE>
+		<script src="dygraphs/dygraph-dev.js"></script>
+		<style type="text/css">
+		a {
+			color:black;
+			text-decoration: none;
+		}
+		a:hover {
+			color:black;
+			text-decoration: none;
+		}
+		.nav a {
+			color:black;
+			text-decoration: none;
+		}
+		.top {
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+			text-decoration: none;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			text-decoration: none;
+		}
+		</style>
+	</HEAD>
+	<BODY>
+
+[- 
+	# get all meters
+	if ($dbh = Nabovarme::Db->my_connect) {
+		$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters ORDER BY `info`, `serial`]);
+		$sth->execute;			
+	 }
+-]
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+[- 
+	# get details about every meter
+	my $quoted_serial = $dbh->quote($d->{serial});
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	warn Dumper(qq[SELECT hours, volume, energy, FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2->execute;
+	$d2 = $sth2->fetchrow_hashref;
+
+	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
+	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+	(SELECT \
+		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+	), 2) AS kwh_left]);
+	$sth3->execute;
+	$d3 = $sth3->fetchrow_hashref;
+-]
+	<span class="default-bold"><a href="detail.epl?serial=[+ $d->{'serial'} +]"&low=0>[+ $d->{'info'} +]</a></span><span class="default"> <a href="detail.epl?serial=[+ $d->{'serial'} +]"&low=0>(serial [+ $d->{'serial'} +])</a></span><br>
+
+	<div id="div_nabovarme_[+ $d->{'serial'} +]" style="width:800px; height:150px;"></div><br><br>
+	<script type="text/javascript">
+			var data_[+ $d->{'serial'} +] = [];
+			var colorSets_[+ $d->{'serial'} +] = [
+				['#00982f'],
+				null
+			]
+			data_[+ $d->{'serial'} +] = "data/[+ $d->{'serial'} +]/effect/";
+			g_[+ $d->{'serial'} +] = new Dygraph(
+				document.getElementById("div_nabovarme_[+ $d->{'serial'} +]"), data_[+ $d->{'serial'} +], {
+					colors: colorSets_[+ $d->{'serial'} +][0],
+					strokeWidth: 1.5,
+					animatedZooms: true,
+					showLabelsOnHighlight: true,
+					labelsDivStyles: {
+						'font-family': 'Verdana, Geneva, sans-serif',
+						'text-align': 'left',
+						'background': 'none'
+					},
+					labelsSeparateLines: true,
+					labelsDivWidth: 700,
+					axes: {
+						x: {
+							valueFormatter: function(x) {
+								return formatDate(new Date(x));
+							}
+						}
+					},
+					includeZero: true,
+					highlightSeriesOpts: {
+						pointSize: 6,
+						highlightCircleSize: 6,
+						strokeWidth: 2,
+						strokeBorderWidth: 1,
+					},
+					showRangeSelector: false,
+					interactionModel: Dygraph.defaultInteractionModel,
+					dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
+				}
+			);
+			setInterval(function() {
+				var range = g_[+ $d->{'serial'} +].xAxisRange();
+				// update data and pan right
+				range[0] += 60000;
+				range[1] += 60000;
+				g_[+ $d->{'serial'} +].updateOptions( { 'file': data_[+ $d->{'serial'} +], dateWindow: range } );
+			}, 60000);
+			
+			function formatDate(d) {
+				var year = d.getFullYear(),
+				month = d.getMonth() + 1,
+				date = d.getDate(),
+				hours = d.getHours(),
+				minutes = d.getMinutes(),
+				seconds = d.getSeconds();
+				
+				var now = new Date();
+				if (d.getTime() < now.getTime() - (1000 * 86400)) {
+					return 'Time: ' + date + '.' + month + '.' + year + ' ' + 
+						hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+				}
+				else {
+					return 'Time: ' + hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+				}
+			}
+			
+			function change(el) {
+				g_[+ $d->{'serial'} +].setVisibility(parseInt(el.id), el.checked);
+			}
+		</script>
+[$ endwhile $]
+[$ endif $]
+
+    </BODY>
+</HTML>
