@@ -24,6 +24,7 @@ my $valve_status;
 my $uptime;
 my $ssid;
 my $rssi;
+my $wifi_status;
 
 my $mqtt;
 if ($Config{osname} =~ /darwin/) {
@@ -58,6 +59,7 @@ $mqtt->run(	q[/sample/v1/#] => \&mqtt_sample_handler,
 	q[/uptime/v2/#] => \&v2_mqtt_uptime_handler,
 	q[/ssid/v2/#] => \&v2_mqtt_ssid_handler,
 	q[/rssi/v2/#] => \&v2_mqtt_rssi_handler,
+	q[/wifi_status/v2/#] => \&v2_mqtt_wifi_status_handler,
 	q[/crypto/v2/#] => \&v2_mqtt_crypto_test_handler
 );
 
@@ -419,6 +421,49 @@ sub v2_mqtt_rssi_handler {
 	}
 }
 
+sub v2_mqtt_wifi_status_handler {
+	my ($topic, $message) = @_;
+	my $m;
+	
+	unless ($topic =~ m!/wifi_status/v\d+/(\d+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+	
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
+	
+	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
+			$m = Crypt::Mode::CBC->new('AES');
+			$wifi_status = $m->decrypt($ciphertext, $aes_key, $iv);
+			my $quoted_wifi_status = $dbh->quote($wifi_status);
+			my $quoted_meter_serial = $dbh->quote($meter_serial);
+			my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[UPDATE meters SET \
+							wifi_status = $quoted_wifi_status, \
+							last_updated = $quoted_unix_time \
+							WHERE serial = $quoted_meter_serial]) or warn $!;
+			warn Dumper({wifi_status => $wifi_status});
+		}
+		else {
+			# hmac sha256 not ok
+			warn Dumper("serial $meter_serial checksum error");
+		}
+	}
+}
+
 sub v2_mqtt_sample_handler {
 	my ($topic, $message) = @_;
 	my $m;
@@ -476,6 +521,7 @@ sub v2_mqtt_sample_handler {
 				`flow_temp`,
 				`return_flow_temp`,
 				`temp_diff`,
+				`t3`,
 				`flow`,
 				`effect`,
 				`hours`,
@@ -488,6 +534,7 @@ sub v2_mqtt_sample_handler {
 				$dbh->quote($mqtt_data->{t1}) . ',' . 
 				$dbh->quote($mqtt_data->{t2}) . ',' . 
 				$dbh->quote($mqtt_data->{tdif}) . ',' . 
+				$dbh->quote($mqtt_data->{t3}) . ',' . 
 				$dbh->quote($mqtt_data->{flow1}) . ',' . 
 				$dbh->quote($mqtt_data->{effect1}) . ',' . 
 				$dbh->quote($mqtt_data->{hr}) . ',' . 
