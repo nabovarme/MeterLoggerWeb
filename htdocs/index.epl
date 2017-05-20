@@ -18,64 +18,43 @@
 [- if (%fdat) { $http_headers_out{Location} = [ "./", 303 ]; } -]
 <HTML>
 	<HEAD>
-		<meta name="robots" content="noindex">
-		<TITLE>MeterLogger</TITLE>
-		<script src="dygraphs/dygraph-dev.js"></script>
-		<style type="text/css">
-		.top {
-			position: absolute;
-			top: 0;
-			left: 0;
-		}
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-		.default-bold {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-		}
-		</style>
+	<meta name="robots" content="noindex">
+<!--	<meta http-equiv="refresh" content="60">	-->
+	<TITLE>MeterLogger</TITLE>
+	<script src="dygraphs/dygraph-dev.js"></script>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	</style>
 	</HEAD>
 	<BODY>
     [- 
 	# get all meters
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters ORDER BY `info`, `serial`]);
-			$sth->execute;
-			
-			if ($fdat{'open'} ) {
-#				publish('/config/v1/' . $fdat{'serial'} . '/off' => '');
-#				publish('/config/v1/' . $fdat{'serial'} . '/open' => '');
-			}
-			elsif ($fdat{'close'}) {
-#				publish('/config/v1/' . $fdat{'serial'} . '/off' => '');
-#				publish('/config/v1/' . $fdat{'serial'} . '/close' => '');
-			}
-			elsif ($fdat{'test'}) {
-#				publish('/config/v1/' . $fdat{'serial'} . '/test' => '');
-			}
-			elsif ($fdat{'off'}) {
-#				publish('/config/v1/' . $fdat{'serial'} . '/off' => '');
-			}
+			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+			$sth->execute;			
 		  }
+	$last_group = '';
+	$is_first = 1;
+
           -]
     <!-- <span class="default-bold">Meters</span> -->
-    <table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
-	  <tr align="left" valign="bottom">
-	    <td align="left"><span class="default-bold">Serial</span></td>
-	    <td align="left"><span class="default-bold">Info</span></td>
-	    <td align="right"><span class="default-bold">Energy</span></td>
-		<td>&nbsp;</td>
-	    <td align="right"><span class="default-bold">Volume</span></td>
-		<td>&nbsp;</td>
-	    <td align="right"><span class="default-bold">Hours</span></td>
-		<td>&nbsp;</td>
-	    <td align="right"><span class="default-bold">kWh left</span></td>
-		<td>&nbsp;</td>
-	    <td align="right"><span class="default-bold">time left</span></td>
-		<td>&nbsp;</td>
-	    <td align="left"><span class="default-bold"></span></td>
-      </tr>
+	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 [- 
@@ -147,27 +126,66 @@
 		$energy_time_left_str = '∞';
 	}
 -]
-		  <tr align="left" valign="bottom">
-		    <td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
-		    <td align="left"><span class="default">[+ $d->{info} +]</span></td>
-		    <td align="right"><span class="default">[+ $d2->{energy} +] kWh</span></td>
-			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
-			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
-			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
-			<td>&nbsp;</td>
-		    <td align="right"><span class="default">[+ $energy_time_left_str +]</lefts></td>
-			<td>&nbsp;</td>
-		    <td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
+[$ if (($last_group ne $d->{'group'}) and ($is_first == 0)) $]
+	<tr>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+		<td>&nbsp;</td>
+		<td></td>
+	</tr>
+[$ endif $]
+[- $is_first = 0; -]
+[$ if ($last_group ne $d->{'group'}) $]
+	<tr>
+		<td align="left" colspan=13><span class="default-group">[+ $d->{'group'} +]</span></td>
+	</tr>
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default-bold">Serial</span></td>
+		<td align="left"><span class="default-bold">Info</span></td>
+		<td align="right"><span class="default-bold">Energy</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">Volume</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">Hours</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">kWh left</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">time left</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold"></span></td>
+	</tr>
+[$ endif $]
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
+		<td align="right"><span class="default">[+ $d2->{energy} +] kWh</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $energy_time_left_str +]</lefts></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
 [-
-#		    <td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+#		<td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
 -]
-	      </tr>
-		<br>
+	</tr>
+
+[-        $last_group = $d->{'group'};  -]
 [$ endwhile $]
 [$ endif $]
-    </table>
-    </BODY>
+	</table>
+	</BODY>
 </HTML>

@@ -7,7 +7,7 @@ use Apache2::RequestIO ();
 use Apache2::Const;
 use DBI;
 
-use lib qw( /var/www/perl/lib );
+use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
@@ -15,7 +15,7 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
-	my ($serial, $option) = $r->uri =~ m|/(\d+)(?:/([^/]+))?|;
+	my ($serial, $option) = $r->uri =~ m|/([^/]+)(?:/([^/]+))?$|;
 	my $quoted_serial;
 	my $last_energy = 0;
 	
@@ -24,7 +24,37 @@ sub handler {
 	if ($dbh = Nabovarme::Db->my_connect) {
 		$quoted_serial = $dbh->quote($serial);
 		
-		if ($option =~ /acc/) {		# accumulated energy
+		if ($option =~ /effect/) {		# effect
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
+				AVG(`effect`) as `effect` \
+				FROM `samples` \
+				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
+				ORDER BY `unix_time` ASC]);
+			$sth->execute;	
+		
+			$r->content_type('text/plain');
+			$r->print("Date,Effect\n");
+			while ($d = $sth->fetchrow_hashref) {
+				$r->print($d->{time_stamp_formatted} . ',');
+				$r->print(($d->{effect}) . "\n");
+			}
+			# get last
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+				effect FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				ORDER BY `unix_time` ASC LIMIT 1]);
+			$sth->execute;
+			if ($sth->rows) {
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print(($d->{effect}) . "\n");
+				}
+			}
+
+		}
+		elsif ($option =~ /acc/) {		# accumulated energy
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
 				AVG(`energy`) as `energy` \
@@ -59,6 +89,24 @@ sub handler {
 			if ($sth->rows) {
 				unless ($csv_header_set) {
 					$r->print("Date,Temperature,Return temperature, Temperature diff.,Flow,Effect\n");
+				}
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print(($d->{energy} - $last_energy) . "\n");
+				}
+			}
+		}
+		elsif ($option =~ /last/) {		# last accumulated		
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				AND effect IS NOT NULL \
+				ORDER BY `unix_time` DESC \
+				LIMIT 1]);
+			$sth->execute;
+			if ($sth->rows) {
+				unless ($csv_header_set) {
+				        $r->print("Date,Energy\n");
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');

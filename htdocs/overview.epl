@@ -53,9 +53,15 @@
 	<BODY>
 
 [- 
-	# get all meters
+	# get all meters in group
 	if ($dbh = Nabovarme::Db->my_connect) {
-		$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters ORDER BY `info`, `serial`]);
+		my $group_id = $dbh->quote($fdat{group_id});
+		if ($fdat{group_id}) {
+			$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters WHERE `group` = $group_id ORDER BY `info`, `serial`]);
+		}
+		else {
+			$sth = $dbh->prepare(qq[SELECT `serial`, `last_updated`, `info` FROM meters ORDER BY `info`, `serial`]);
+		}
 		$sth->execute;			
 	 }
 -]
