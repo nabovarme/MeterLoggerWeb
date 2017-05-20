@@ -1,0 +1,77 @@
+﻿[-
+	use DBI;
+	use Net::MQTT::Simple "loppen.christiania.org";
+	          
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Config;
+	use Nabovarme::Db;
+	
+#	my $mqtt;
+#	if ($Config{osname} =~ /darwin/) {
+#		$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
+#	}
+#	else {
+#		$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
+#	}
+-]
+[- if (%fdat) { $http_headers_out{Location} = [ "./", 303 ]; } -]
+<HTML>
+	<HEAD>
+	<meta name="robots" content="noindex">
+	<meta http-equiv="refresh" content="60">
+	<TITLE>MeterLogger&lsquo;s offline</TITLE>
+	<script src="dygraphs/dygraph-dev.js"></script>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	</style>
+	</HEAD>
+	<BODY>
+	[- 
+	# get all meters
+		if ($dbh = Nabovarme::Db->my_connect) {
+			$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters WHERE FROM_UNIXTIME(`last_updated`) < NOW() - INTERVAL 1 HOUR]);
+			$sth->execute;			
+		}
+	-]
+	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
+	<tr align="left" valign="bottom">
+		<td align="left" colspan=3><span class="default-group">Offline</span></td>
+	</tr>
+	<tr align="left" valign="bottom">
+		<td colspan=3>&nbsp;</td>
+	</tr>
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default-bold">Serial</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Info</span></td>
+	</tr>
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
+	</tr>
+	<br>
+[$ endwhile $]
+[$ endif $]
+	</table>
+	</BODY>
+</HTML>

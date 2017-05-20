@@ -10,12 +10,16 @@ use Math::Random::Secure qw(rand);
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
 use Proc::Pidfile;
+use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
+use constant DELAY_AFTER_SENDING => 100_000;	# 100 mS
+
 $SIG{HUP} = \&get_version_and_status;
+$SIG{USR1} = \&get_wifi_scan_results;
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -180,6 +184,7 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 
 		# send status
 		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/status';
@@ -189,6 +194,7 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 
 		# send uptime
 		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/uptime';
@@ -198,6 +204,7 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 
 		# send ssid
 		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ssid';
@@ -207,6 +214,7 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 
 		# send rssi
 		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/rssi';
@@ -216,6 +224,7 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 
 		# send wifi_status
 		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/wifi_status';
@@ -225,6 +234,33 @@ sub get_version_and_status {
 		$message = $iv . $message;
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
+	}
+}
+
+sub get_wifi_scan_results {
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
+	$sth->execute;
+	
+	syslog('info', "send mqtt scan command to all meters");
+	while ($d = $sth->fetchrow_hashref) {
+		my $quoted_serial = $dbh->quote($d->{serial});
+
+		$key = $d->{key};
+		$sha256 = sha256(pack('H*', $key));
+		$aes_key = substr($sha256, 0, 16);
+		$hmac_sha256_key = substr($sha256, 16, 16);
+		
+		syslog('info', "\tsend mqtt scan commands to " . $d->{serial});
+		# send scan
+		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/scan';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 	}
 }
 

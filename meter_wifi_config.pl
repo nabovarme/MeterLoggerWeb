@@ -10,12 +10,15 @@ use Math::Random::Secure qw(rand);
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
 use Proc::Pidfile;
+use Time::HiRes qw( usleep );
+use threads;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
-$SIG{HUP} = \&get_version_and_status;
+use constant DELAY_AFTER_SENDING => 200_000;			# 200 mS
+use constant DELAY_AFTER_SENDING_RECONNECT => 30_000_000;	# 30 seconds
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -39,7 +42,7 @@ my $d_kwh_left;
 my $d_valve_status;
 
 my $key;
-my $m = Crypt::Mode::CBC->new('AES');
+my $m;
 my $sha256;
 my $aes_key;
 my $hmac_sha256_key;
@@ -66,93 +69,103 @@ else {
 	die $!;
 }
 
+sub start_thread {
+	my $key = $_[0]->{'key'};
+	my $sha256 = sha256(pack('H*', $key));
+	my $aes_key = substr($sha256, 0, 16);
+	my $hmac_sha256_key = substr($sha256, 16, 16);
+	
+	$m = Crypt::Mode::CBC->new('AES');
+
+	if (defined($_[0]->{wifi_set_ssid})) {
+		# send set_ssid
+		warn "\tsend mqtt command to change ssid to " . $_[0]->{serial};
+		syslog('info', "\tsend mqtt command to change ssid to " . $_[0]->{serial});
+		$topic = '/config/v2/' . $_[0]->{serial} . '/' . time() . '/set_ssid';
+		$message = $_[0]->{wifi_set_ssid} . "\0";
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);	
+	}
+	if (defined($_[0]->{wifi_set_pwd})) {
+		# send set_pwd
+		warn "\tsend mqtt command to change wifi pwd to " . $_[0]->{serial};
+		syslog('info', "\tsend mqtt command to change wifi pwd to " . $_[0]->{serial});
+		$topic = '/config/v2/' . $_[0]->{serial} . '/' . time() . '/set_pwd';
+		$message = $_[0]->{wifi_set_pwd} . "\0";
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
+	}
+	
+	# send reconnect
+	warn "\tsend mqtt command to reconnect to " . $_[0]->{serial};
+	syslog('info', "\tsend mqtt command to reconnect to " . $_[0]->{serial});
+	$topic = '/config/v2/' . $_[0]->{serial} . '/' . time() . '/reconnect';
+	$message = '';
+	$iv = join('', map(chr(int rand(256)), 1..16));
+	$message = $m->encrypt($message, $aes_key, $iv);
+	$message = $iv . $message;
+	$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+	$mqtt->publish($topic => $hmac_sha256_hash . $message);
+	usleep(DELAY_AFTER_SENDING_RECONNECT);
+	
+	# send ssid
+	warn "\tsend mqtt command to get ssid to" . $_[0]->{serial};
+	syslog('info', "\tsend mqtt command to get ssid to" . $_[0]->{serial});
+	$topic = '/config/v2/' . $_[0]->{serial} . '/' . time() . '/ssid';
+	$message = '';
+	$iv = join('', map(chr(int rand(256)), 1..16));
+	$message = $m->encrypt($message, $aes_key, $iv);
+	$message = $iv . $message;
+	$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+	$mqtt->publish($topic => $hmac_sha256_hash . $message);
+	usleep(DELAY_AFTER_SENDING);
+	
+	# send wifi_status
+	warn "\tsend mqtt command to get wifi status to " . $_[0]->{serial};
+	syslog('info', "\tsend mqtt command to get wifi status to " . $_[0]->{serial});
+	$topic = '/config/v2/' . $_[0]->{serial} . '/' . time() . '/wifi_status';
+	$message = '';
+	$iv = join('', map(chr(int rand(256)), 1..16));
+	$message = $m->encrypt($message, $aes_key, $iv);
+	$message = $iv . $message;
+	$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+	$mqtt->publish($topic => $hmac_sha256_hash . $message);
+	usleep(DELAY_AFTER_SENDING);
+	
+	if ($_[0]->{wifi_status} =~ /^connected/i) {
+		# we asume that supplied ssid/pwd make MeterLogger able to connect, so we can delete it from the db
+		warn "done changing network for " . $_[0]->{serial} . "\n";
+		syslog('info', "done changing network for " . $_[0]->{serial});
+		my $quoted_meter_serial = $dbh->quote($_[0]->{serial});
+		$dbh->do(qq[UPDATE meters SET \
+						wifi_set_ssid = NULL, \
+						wifi_set_pwd = NULL \
+						WHERE serial = $quoted_meter_serial]) or warn $!;
+	
+	}
+}
+
 while (1) {
-	# open or close valve according to payment status
-	$sth = $dbh->prepare(qq[SELECT `serial`, `wifi_status`, `wifi_set_ssid`, `wifi_set_pwd`, `key` FROM meters WHERE `key` IS NOT NULL]);
+	my @threads = ();
+	$sth = $dbh->prepare(qq[SELECT `serial`, `wifi_status`, `wifi_set_ssid`, `wifi_set_pwd`, `key` FROM meters WHERE `wifi_status` = 'reconnect']);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
-		next if !defined($d->{wifi_status});	# DEBUG: has to go away when all meters supports it
-		print Dumper $d->{wifi_status};
-		
-		my $key = $d->{key};
-		my $sha256 = sha256(pack('H*', $key));
-		my $aes_key = substr($sha256, 0, 16);
-		my $hmac_sha256_key = substr($sha256, 16, 16);
-
-		if ($d->{wifi_status} =~ /^connected/i) {
-			# we asume that supplied ssid/pwd make MeterLogger able to connect, so we can delete it from the db
-			my $quoted_meter_serial = $dbh->quote($d->{serial});
-			$dbh->do(qq[UPDATE meters SET \
-							wifi_set_ssid = NULL, \
-							wifi_set_pwd = NULL \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			
-		}
-		elsif ($d->{wifi_status} =~ /^disconnected/i) {
-			if (defined($d->{wifi_set_ssid})) {
-				# send set_ssid
-				print Dumper("\tsend mqtt command to change ssid to " . $d->{serial});
-				syslog('info', "\tsend mqtt command to change ssid to " . $d->{serial});
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/set_ssid';
-				$message = $d->{wifi_set_ssid} . "\0";
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-				
-				# send ssid
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ssid';
-				$message = '';
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-				# send wifi_status
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/wifi_status';
-				$message = '';
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-			}
-			if (defined($d->{wifi_set_pwd})) {
-				# send set_pwd
-				syslog('info', "\tsend mqtt command to change wifi pwd to " . $d->{serial});
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/set_pwd';
-				$message = $d->{wifi_set_pwd} . "\0";
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-				
-				# send ssid
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ssid';
-				$message = '';
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-				# send wifi_status
-				$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/wifi_status';
-				$message = '';
-				$iv = join('', map(chr(int rand(256)), 1..16));
-				$message = $m->encrypt($message, $aes_key, $iv);
-				$message = $iv . $message;
-				$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-				$mqtt->publish($topic => $hmac_sha256_hash . $message);
-			}
-		}
+		my $thr = threads->create(\&start_thread, $d);
+		push(@threads, $thr);
 	}
-	
-	sleep 1;
+	foreach (@threads) {
+		my $t = $_->join;
+	}
+	sleep 10;
 }
 
 sub sig_int_handler {
@@ -161,160 +174,5 @@ sub sig_int_handler {
 }
 
 1;
-
-__END__
-
-get_version_and_status();
-while (1) {
-	# open or close valve according to payment status
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
-	$sth->execute;
-	
-	while ($d = $sth->fetchrow_hashref) {
-		if ($d->{sw_version} =~ /THERMO/) {
-			# update all meters containing THERMO in version string
-			my $quoted_serial = $dbh->quote($d->{serial});
-			#syslog('info', "serial #" . $d->{serial});
-			print Dumper $d->{valve_status};
-			
-			# get kWh left from db
-			$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
-			(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
-			(SELECT \
-				(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
-				(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-			), 2) AS kwh_left]);
-			$sth_kwh_left->execute;
-			
-			if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-				#syslog('info', "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}));
-				print Dumper("serial: " . $d->{serial} . "\tkWh left: " . ($d_kwh_left->{kwh_left} - $d->{min_amount}) . " status: " . $d->{valve_status});
-				#if ($d_kwh_left->{kwh_left} < $d->{min_amount}) {
-	
-				$key = $d->{key};
-				$sha256 = sha256(pack('H*', $key));
-				$aes_key = substr($sha256, 0, 16);
-				$hmac_sha256_key = substr($sha256, 16, 16);
-				
-				if ($d_kwh_left->{kwh_left} <= 0) {
-					# close valve if not allready closed
-					if ($d->{valve_status} !~ /close/i) {
-						printf("valve status: " . $d->{valve_status} . "\n");
-						# send close
-						printf("send close\n");
-						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
-						$topic = '/config/v2/' . $d->{serial} . '/close';
-						$message = time();
-						$iv = join('', map(chr(int rand(256)), 1..16));
-						$message = $m->encrypt($message, $aes_key, $iv);
-						$message = $iv . $message;
-						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-						$mqtt->publish($topic => $hmac_sha256_hash . $message);
-						
-						# send status
-						$topic = '/config/v2/' . $d->{serial} . '/status';
-						$message = '';
-						$iv = join('', map(chr(int rand(256)), 1..16));
-						$message = $m->encrypt($message, $aes_key, $iv);
-						$message = $iv . $message;
-						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-						$mqtt->publish($topic => $hmac_sha256_hash . $message);
-					}
-				}
-				else {
-					# open valve if not allready open
-					if ($d->{valve_status} !~ /open/i) {
-						printf("valve status: " . $d->{valve_status} . "\n");
-						syslog('info', "\tsend mqtt retain for open and status to " . $d->{serial});
-						# send open
-						printf("send open\n");
-						syslog('info', "\tsend mqtt retain for close and status to " . $d->{serial});
-						$topic = '/config/v2/' . $d->{serial} . '/open';
-						$message = time();
-						$iv = join('', map(chr(int rand(256)), 1..16));
-						$message = $m->encrypt($message, $aes_key, $iv);
-						$message = $iv . $message;
-						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-						$mqtt->publish($topic => $hmac_sha256_hash . $message);
-						
-						# send status
-						$topic = '/config/v2/' . $d->{serial} . '/status';
-						$message = '';
-						$iv = join('', map(chr(int rand(256)), 1..16));
-						$message = $m->encrypt($message, $aes_key, $iv);
-						$message = $iv . $message;
-						$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-						$mqtt->publish($topic => $hmac_sha256_hash . $message);
-					}
-				}
-	
-			}
-		}
-	}
-	sleep 1;
-}
-
-# end of main
-
-sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
-	$sth->execute;
-	
-	syslog('info', "send mqtt retain to all meters for version and status");
-	while ($d = $sth->fetchrow_hashref) {
-		my $quoted_serial = $dbh->quote($d->{serial});
-
-		$key = $d->{key};
-		$sha256 = sha256(pack('H*', $key));
-		$aes_key = substr($sha256, 0, 16);
-		$hmac_sha256_key = substr($sha256, 16, 16);
-		
-		syslog('info', "\tsend mqtt version, status and uptime commands to " . $d->{serial});
-		# send version
-		$topic = '/config/v2/' . $d->{serial} . '/version';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-		# send status
-		$topic = '/config/v2/' . $d->{serial} . '/status';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-		# send uptime
-		$topic = '/config/v2/' . $d->{serial} . '/uptime';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-		# send ssid
-		$topic = '/config/v2/' . $d->{serial} . '/ssid';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-
-		# send rssi
-		$topic = '/config/v2/' . $d->{serial} . '/rssi';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-	}
-}
 
 __END__

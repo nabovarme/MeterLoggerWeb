@@ -60,6 +60,7 @@ $mqtt->run(	q[/sample/v1/#] => \&mqtt_sample_handler,
 	q[/ssid/v2/#] => \&v2_mqtt_ssid_handler,
 	q[/rssi/v2/#] => \&v2_mqtt_rssi_handler,
 	q[/wifi_status/v2/#] => \&v2_mqtt_wifi_status_handler,
+	q[/scan_result/v2/#] => \&v2_mqtt_scan_result_handler,
 	q[/crypto/v2/#] => \&v2_mqtt_crypto_test_handler
 );
 
@@ -67,7 +68,7 @@ $mqtt->run(	q[/sample/v1/#] => \&mqtt_sample_handler,
 
 sub mqtt_version_handler {
 	my ($topic, $message) = @_;
-	unless ($topic =~ m!/version/v1/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/version/v1/([^/]+)/(\d+)!) {
 		return;
 	}
 	$sw_version = $message;
@@ -86,7 +87,7 @@ sub mqtt_version_handler {
 
 sub mqtt_status_handler {
 	my ($topic, $message) = @_;
-	unless ($topic =~ m!/status/v1/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/status/v1/([^/]+)/(\d+)!) {
 		return;
 	}
 	$valve_status = $message;
@@ -106,7 +107,7 @@ sub mqtt_status_handler {
 
 sub mqtt_uptime_handler {
 	my ($topic, $message) = @_;
-	unless ($topic =~ m!/uptime/v1/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/uptime/v1/([^/]+)/(\d+)!) {
 		return;
 	}
 	$uptime = $message;
@@ -126,7 +127,7 @@ sub mqtt_uptime_handler {
 sub mqtt_sample_handler {
 	my ($topic, $message) = @_;
 
-	unless ($topic =~ m!/sample/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/sample/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -205,7 +206,7 @@ sub v2_mqtt_version_handler {
 	my ($topic, $message) = @_;
 	my $m;
 
-	unless ($topic =~ m!/version/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/version/v\d+/([^/]+)/(\d+)!) {
 	        return;
 	}
 	$meter_serial = $1;
@@ -251,7 +252,7 @@ sub v2_mqtt_status_handler {
 	my ($topic, $message) = @_;
 	my $m;
 	
-	unless ($topic =~ m!/status/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/status/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -296,7 +297,7 @@ sub v2_mqtt_uptime_handler {
 	my ($topic, $message) = @_;
 	my $m;
 	
-	unless ($topic =~ m!/uptime/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/uptime/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -339,7 +340,7 @@ sub v2_mqtt_ssid_handler {
 	my ($topic, $message) = @_;
 	my $m;
 	
-	unless ($topic =~ m!/ssid/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/ssid/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -382,7 +383,7 @@ sub v2_mqtt_rssi_handler {
 	my ($topic, $message) = @_;
 	my $m;
 	
-	unless ($topic =~ m!/rssi/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/rssi/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -425,7 +426,7 @@ sub v2_mqtt_wifi_status_handler {
 	my ($topic, $message) = @_;
 	my $m;
 	
-	unless ($topic =~ m!/wifi_status/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/wifi_status/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
@@ -464,11 +465,83 @@ sub v2_mqtt_wifi_status_handler {
 	}
 }
 
+sub v2_mqtt_scan_result_handler {
+	my ($topic, $message) = @_;
+	my $m;
+
+	unless ($topic =~ m!/scan_result/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$protocol_version = $1;
+	$meter_serial = $2;
+	$unix_time = $3;
+	
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
+		
+	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
+			$m = Crypt::Mode::CBC->new('AES');
+			$message = $m->decrypt($ciphertext, $aes_key, $iv);
+			
+			# parse message
+			$message =~ s/&$//;
+	
+			my ($key, $value, $unit);
+			my @key_value_list = split(/&/, $message);
+			my $key_value; 
+			foreach $key_value (@key_value_list) {
+				if (($key, $value) = $key_value =~ /([^=]*)=(.*)/) {
+					$mqtt_data->{$key} = $value;
+				}
+			}		
+			# save to db
+			my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (
+				`serial`,
+				`ssid`,
+				`bssid`,
+				`rssi`,
+				`channel`,
+				`unix_time`
+				) VALUES (] . 
+				$dbh->quote($meter_serial) . ',' . 
+				$dbh->quote($mqtt_data->{ssid}) . ',' . 
+				$dbh->quote($mqtt_data->{bssid}) . ',' . 
+				$dbh->quote($mqtt_data->{rssi}) . ',' . 
+				$dbh->quote($mqtt_data->{channel}) . ',' . 
+				'UNIX_TIMESTAMP()' . qq[)]);
+			$sth->execute || syslog('info', "can't log to db");
+			$sth->finish;
+		
+			syslog('info', $topic . " " . $message);
+			warn $topic . "\t" . $message;
+		}
+		else {
+			# hmac sha256 not ok
+
+		}
+	}
+	$mqtt_data = undef;
+}
+
 sub v2_mqtt_sample_handler {
 	my ($topic, $message) = @_;
 	my $m;
 
-	unless ($topic =~ m!/sample/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/sample/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$protocol_version = $1;
@@ -567,7 +640,7 @@ sub v2_mqtt_crypto_test_handler {
 	my ($topic, $message) = @_;
 	my $m;
 
-	unless ($topic =~ m!/crypto/v\d+/(\d+)/(\d+)!) {
+	unless ($topic =~ m!/crypto/v\d+/([^/]+)/(\d+)!) {
 	        return;
 	}
 	$meter_serial = $1;
