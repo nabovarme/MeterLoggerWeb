@@ -44,6 +44,7 @@ my $time_now;
 my $time_last;
 my $energy_last_day;
 
+my $energy_left;
 my $energy_time_left;
 
 my $notification;
@@ -59,7 +60,7 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND ((`email_notification` is not NULL) OR (`sms_notification` is not NULL))]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND ((`email_notification` is not NULL) OR (`sms_notification` is not NULL))]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
@@ -100,10 +101,13 @@ while (1) {
 		}
 
 		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			if ($energy_last_day > 0) {
-				$energy_time_left = ($d_kwh_left->{kwh_left} - $d->{min_amount}) / $energy_last_day;
+			$energy_left = $d_kwh_left->{kwh_left} - $d->{min_amount};
+			if ($energy_last_day == 0) {
+				next;
 			}
 
+			$energy_time_left = $energy_left / $energy_last_day;
+			
 			if (($d->{notification_state}) == 0) {		# send close warning notification if not sent before
 				if ($energy_time_left < CLOSE_WARNING_TIME) {	# 3 days
 					# send close warning
@@ -114,8 +118,10 @@ while (1) {
 						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$notification"]);
 					}
 					$dbh->do(qq[UPDATE meters SET \
-						notification_state = 1 \
+						notification_state = 1, \
+						notification_sent_at = $energy_left \
 						WHERE serial = $d->{serial}]) or warn $!;
+						warn "serial: " . $d->{serial} . ", energy_time_left: " . $energy_time_left . "\n";
 				}
 			}
 			elsif (($d->{notification_state}) == 1) {	# send close notification if not sent before
@@ -131,7 +137,7 @@ while (1) {
 						notification_state = 2 \
 						WHERE serial = $d->{serial}]) or warn $!;
 				}
-				elsif ($energy_time_left >= CLOSE_WARNING_TIME) {
+				elsif (($energy_time_left > 0) and ($energy_left > $d->{notification_sent_at})) {
 					# send open message
 					syslog('info', "open notice sent for serial #" . $d->{serial});
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left) . ' hours left. (' . $d->{serial} . ') ' . 
