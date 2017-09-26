@@ -487,18 +487,18 @@ sub v2_mqtt_sample_handler {
 	            'sample',          # topic
 	            0,                  # partition
 	            [                   # messages
-	                $meter_serial,
-	                $mqtt_data->{heap} || '',
-	                $mqtt_data->{t1} || '',
-					$mqtt_data->{t2} || '',
-					$mqtt_data->{tdif} || '',
-					$mqtt_data->{t3} || '',
-					$mqtt_data->{flow1} || '',
-					$mqtt_data->{effect1} || '',
-					$mqtt_data->{hr} || '',
-					$mqtt_data->{v1} || '',
-					$mqtt_data->{e1} || '',
-					$unix_time
+					'serial', $meter_serial,
+					'heap', $mqtt_data->{heap} || '',
+					't1', $mqtt_data->{t1} || '',
+					't2', $mqtt_data->{t2} || '',
+					'tdif', $mqtt_data->{tdif} || '',
+					't3', $mqtt_data->{t3} || '',
+					'flow1', $mqtt_data->{flow1} || '',
+					'effect1', $mqtt_data->{effect1} || '',
+					'hr', $mqtt_data->{hr} || '',
+					'v1', $mqtt_data->{v1} || '',
+					'e1', $mqtt_data->{e1} || '',
+					'time', $unix_time
 	            ]
 	        );
 		
