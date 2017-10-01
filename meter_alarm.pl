@@ -48,8 +48,8 @@ sub check_conditions {
 			# check every alarm in database
 			$condition = $d->{condition};
 			$serial = $d->{serial};
-			$down_message = $d->{down_message} || 'up';
-			$up_message = $d->{up_message} || 'down';
+			$down_message = $d->{down_message} || 'alarm';
+			$up_message = $d->{up_message} || 'normal';
 			@condition_vars = ($condition =~ /\$(\w+)/g);
 			if (scalar(@condition_vars) == 0) {
 				@condition_vars = ();
