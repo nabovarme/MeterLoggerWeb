@@ -33,11 +33,21 @@ while (1) {
 # end of main
 
 sub check_conditions {
-	my $sth = $dbh->prepare(qq[SELECT `serial`, `condition`, `last_notification`, `alarm_state`, `repeat`, `sms_notification`, `down_message`, `up_message` FROM `alarms`]);
+	my $sth = $dbh->prepare(qq[SELECT alarms.`serial`, \
+									meters.`info`, \
+									alarms.`condition`, \
+									alarms.`last_notification`, \
+									alarms.`alarm_state`, \
+									alarms.`repeat`, \
+									alarms.`sms_notification`, \
+									alarms.`down_message`, \
+									alarms.`up_message` \
+								FROM `alarms`, `meters` WHERE alarms.`serial` = meters.`serial`]);
 	$sth->execute;
 	if ($sth->rows) {
 		my $serial;
 		my $quoted_serial;
+		my $info;
 		my $condition;
 		my $condition_var;
 		my @condition_vars;
@@ -52,12 +62,17 @@ sub check_conditions {
 			# check every alarm in database
 			$condition = $d->{condition};
 			$serial = $d->{serial};
+			$info = $d->{info};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
 			
 			# replace $serial with actual serial in message texts
 			$down_message =~ s/\$serial/$serial/x;
 			$up_message =~ s/\$serial/$serial/x;
+			
+			# replace $info with info for serial in message texts
+			$down_message =~ s/\$info/$info/x;
+			$up_message =~ s/\$info/$info/x;
 			
 			@down_message_vars = ($down_message =~ /\$(\w+)/g);
 			if (scalar(@down_message_vars) == 0) {
@@ -131,7 +146,6 @@ sub check_conditions {
 					}
 				}				
 			}
-			print Dumper $down_message, $up_message;
 			
 			syslog('info', "checking condition for serial $serial: $condition");
 			warn "checking condition for serial $serial: $condition";
