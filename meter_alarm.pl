@@ -201,11 +201,13 @@ sub sms_send {
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
+			syslog('info', 'running ' . qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
 			system(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
 			warn(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
 		}
 	}
 	else {
+		syslog('info', 'running ' . qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
 		system(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
 		warn(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
 	}
