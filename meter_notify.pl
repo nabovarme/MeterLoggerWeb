@@ -115,7 +115,7 @@ while (1) {
 					$notification = 'Nabovarme closing in ' . sprintf("%.0f", $energy_time_left) . ' hours. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$notification"]);
+						sms_send($d->{sms_notification}, $notification);
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 1, \
@@ -131,7 +131,7 @@ while (1) {
 					$notification = 'Nabovarme closed. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$notification"]);
+						sms_send($d->{sms_notification}, $notification);
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 2 \
@@ -143,7 +143,7 @@ while (1) {
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left) . ' hours left. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$notification"]);
+						sms_send($d->{sms_notification}, $notification);
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 0 \
@@ -157,7 +157,7 @@ while (1) {
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$notification"]);
+						sms_send($d->{sms_notification}, $notification);
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 0 \
@@ -171,6 +171,27 @@ while (1) {
 
 # end of main
 
+sub sms_send {
+	my ($sms_notification, $message) = @_;
+	my @sms_notifications;
+	
+	return unless $sms_notification;
+	
+	
+	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
+	if (scalar(@sms_notifications) > 1) {
+		foreach (@sms_notifications) {
+			syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+			system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+			warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		}
+	}
+	else {
+		syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+	}
+}
 
 sub sig_int_handler {
 
