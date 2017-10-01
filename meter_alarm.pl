@@ -153,10 +153,7 @@ sub check_conditions {
 				# condition met, an alarm should be sent if we not dit it in the latest repeat time interval
 				if ($d->{alarm_state} == 0) {
 					# changed from no alarm to alarm - send sms
-					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$down_message"]);
-						warn(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$down_message"]);
-					}
+					sms_send($d->{sms_notification}, $down_message);
 					$dbh->do(qq[UPDATE alarms SET \
 									last_notification = ] . time() . qq[, \
 									alarm_state = 1 \
@@ -166,10 +163,7 @@ sub check_conditions {
 				}
 				elsif ($d->{repeat} && (($d->{last_notification} + $d->{repeat}) < time())) {
 					# repeat down notification every 'repeat' time interval
-					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$down_message"]);
-						warn(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$down_message"]);
-					}
+					sms_send($d->{sms_notification}, $down_message);
 					$dbh->do(qq[UPDATE alarms SET \
 									last_notification = ] . time() . qq[, \
 									alarm_state = 1 \
@@ -183,10 +177,7 @@ sub check_conditions {
 				# condition not met
 				if ($d->{alarm_state} == 1) {
 					# changed from alarm to no alarm - send sms
-					if ($d->{sms_notification}) {
-						system(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$up_message"]);
-						warn(qq[gammu-smsd-inject EMS $d->{sms_notification} -unicode -text "$up_message"]);
-					}
+					sms_send($d->{sms_notification}, $up_message);
 					syslog('info', "serial $serial: up");
 					warn "up\n";
 				}
@@ -200,6 +191,25 @@ sub check_conditions {
 	}
 }
 
+sub sms_send {
+	my ($sms_notification, $message) = @_;
+	my @sms_notifications;
+	
+	return unless $sms_notification;
+	
+	
+	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
+	if (scalar(@sms_notifications) > 1) {
+		foreach (@sms_notifications) {
+			system(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
+			warn(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
+		}
+	}
+	else {
+		system(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
+		warn(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
+	}
+}
 
 
 __END__
