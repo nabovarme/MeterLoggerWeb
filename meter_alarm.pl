@@ -201,15 +201,15 @@ sub sms_send {
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
-			syslog('info', 'running ' . qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
-			system(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
-			warn(qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
+			syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+			system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+			warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
 		}
 	}
 	else {
-		syslog('info', 'running ' . qq[gammu-smsd-inject EMS $_ -unicode -text "$message"]);
-		system(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
-		warn(qq[gammu-smsd-inject EMS $sms_notification -unicode -text "$message"]);
+		syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
 	}
 }
 
