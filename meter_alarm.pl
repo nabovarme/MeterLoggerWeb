@@ -208,8 +208,8 @@ sub sms_send {
 	}
 	else {
 		syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
-		system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
-		warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$message"]);
+		system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$message"]);
+		warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$message"]);
 	}
 }
 
