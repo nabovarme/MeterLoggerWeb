@@ -41,6 +41,10 @@ sub check_conditions {
 		my $condition;
 		my $condition_var;
 		my @condition_vars;
+		my $down_message_var;
+		my @down_message_vars;
+		my $up_message_var;
+		my @up_message_vars;
 		my $down_message;
 		my $up_message;
 		my $d;
@@ -50,6 +54,59 @@ sub check_conditions {
 			$serial = $d->{serial};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
+			
+			# replace $serial with actual serial in message texts
+			$down_message =~ s/\$serial/$serial/x;
+			$up_message =~ s/\$serial/$serial/x;
+			
+			@down_message_vars = ($down_message =~ /\$(\w+)/g);
+			if (scalar(@down_message_vars) == 0) {
+				@down_message_vars = ();
+			}
+			else {
+				# we need to look up symbolic variables
+				for $down_message_var (@down_message_vars) {
+					my $quoted_down_message_var = '`' . $down_message_var . '`';
+					$quoted_serial = $dbh->quote($serial);
+					my $values = [];
+					my $median;
+					my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples` \
+																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 3]);
+					$sth_down_message_vars->execute;
+					if ($sth_down_message_vars->rows) {
+						$values = $sth_down_message_vars->fetchall_arrayref;
+						$median = median(@$values) + 0.0;	# hack to convert , to .
+						# replace symbol with value from database
+						$down_message =~ s/\$$down_message_var/$median/x;
+					}
+				}				
+				
+			}
+			
+			@up_message_vars = ($up_message =~ /\$(\w+)/g);
+			if (scalar(@up_message_vars) == 0) {
+				@up_message_vars = ();
+			}
+			else {
+				# we need to look up symbolic variables
+				for $up_message_var (@up_message_vars) {
+					my $quoted_up_message_var = '`' . $up_message_var . '`';
+					$quoted_serial = $dbh->quote($serial);
+					my $values = [];
+					my $median;
+					my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples` \
+																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 3]);
+					$sth_up_message_vars->execute;
+					if ($sth_up_message_vars->rows) {
+						$values = $sth_up_message_vars->fetchall_arrayref;
+						$median = median(@$values) + 0.0;	# hack to convert , to .
+						# replace symbol with value from database
+						$up_message =~ s/\$$up_message_var/$median/x;
+					}
+				}				
+				
+			}
+			
 			@condition_vars = ($condition =~ /\$(\w+)/g);
 			if (scalar(@condition_vars) == 0) {
 				@condition_vars = ();
@@ -74,6 +131,7 @@ sub check_conditions {
 					}
 				}				
 			}
+			print Dumper $down_message, $up_message;
 			
 			syslog('info', "checking condition for serial $serial: $condition");
 			warn "checking condition for serial $serial: $condition";
