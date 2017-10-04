@@ -25,6 +25,7 @@ my $uptime;
 my $ssid;
 my $rssi;
 my $wifi_status;
+my $ap_status;
 
 my $mqtt;
 if ($Config{osname} =~ /darwin/) {
@@ -60,6 +61,7 @@ $mqtt->run(	q[/sample/v1/#] => \&mqtt_sample_handler,
 	q[/ssid/v2/#] => \&v2_mqtt_ssid_handler,
 	q[/rssi/v2/#] => \&v2_mqtt_rssi_handler,
 	q[/wifi_status/v2/#] => \&v2_mqtt_wifi_status_handler,
+	q[/ap_status/v2/#] => \&v2_mqtt_ap_status_handler,
 	q[/scan_result/v2/#] => \&v2_mqtt_scan_result_handler,
 	q[/crypto/v2/#] => \&v2_mqtt_crypto_test_handler
 );
@@ -457,6 +459,67 @@ sub v2_mqtt_wifi_status_handler {
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn $!;
 			warn Dumper({wifi_status => $wifi_status});
+		}
+		else {
+			# hmac sha256 not ok
+			warn Dumper("serial $meter_serial checksum error");
+		}
+	}
+}
+
+sub v2_mqtt_ap_status_handler {
+	my ($topic, $message) = @_;
+	my $m;
+	
+	unless ($topic =~ m!/ap_status/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+	
+	$message =~ /(.{32})(.{16})(.+)/s;
+	my $mac = $1;
+	my $iv = $2;
+	my $ciphertext = $3;
+	
+	my $sth = $dbh->prepare(qq[SELECT `key`, `sw_version` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	$sth->execute;
+	if ($sth->rows) {
+		$_ = $sth->fetchrow_hashref;
+		my $key = $_->{key} || warn "no aes key found";
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
+			# hmac sha256 ok
+			$m = Crypt::Mode::CBC->new('AES');
+			$ap_status = $m->decrypt($ciphertext, $aes_key, $iv);
+			
+			# remove trailing nulls
+			$ap_status =~ s/(started|stopped).*/$1/;
+
+			# reverse ap_status for sw version higher than or equal to build #942
+			my $orig_ap_status = $ap_status;
+			$_->{sw_version} =~ /[^-]+-(\d+)/;
+			if ($1 <= 942) {
+				if ($orig_ap_status =~ /started/i) {
+					$ap_status = 'stopped';
+				}
+				elsif ($orig_ap_status =~ /stopped/i) {
+					$ap_status = 'started';
+				}
+				syslog('info', 'reverse ap_status for sw version lower than or equal to build #942' . ", serial: $meter_serial, received ap_status: $orig_ap_status, saved ap_status: $ap_status");
+			}
+
+			my $quoted_ap_status = $dbh->quote($ap_status);
+			my $quoted_meter_serial = $dbh->quote($meter_serial);
+			my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[UPDATE meters SET \
+							ap_status = $quoted_ap_status, \
+							last_updated = $quoted_unix_time \
+							WHERE serial = $quoted_meter_serial]) or warn $!;
+			warn Dumper({ap_status => $ap_status});
 		}
 		else {
 			# hmac sha256 not ok
