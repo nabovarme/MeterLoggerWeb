@@ -73,7 +73,7 @@ else {
 get_version_and_status();
 while (1) {
 	# open or close valve according to payment status
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `key` FROM meters WHERE `key` is not NULL]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
@@ -87,7 +87,7 @@ while (1) {
 			$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
 			(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 			(SELECT \
-				(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+				(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 				(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 			), 2) AS kwh_left]);
 			$sth_kwh_left->execute;
@@ -163,7 +163,7 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
 	$sth->execute;
 	
 	syslog('info', "send mqtt retain to all meters for version and status");
@@ -235,11 +235,21 @@ sub get_version_and_status {
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 		usleep(DELAY_AFTER_SENDING);
+
+		# send ap_status
+		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ap_status';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 	}
 }
 
 sub get_wifi_scan_results {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND `key` is not NULL]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
 	$sth->execute;
 	
 	syslog('info', "send mqtt scan command to all meters");

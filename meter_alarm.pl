@@ -86,7 +86,7 @@ sub check_conditions {
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
 					my $median;
-					my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples` \
+					my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples_cache` \
 																WHERE `serial` like ] . $quoted_serial . qq[ AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 1 DAY ORDER BY `unix_time` DESC LIMIT 3]);
 					$sth_down_message_vars->execute;
 					if ($sth_down_message_vars->rows) {
@@ -110,7 +110,7 @@ sub check_conditions {
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
 					my $median;
-					my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples` \
+					my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
 																WHERE `serial` like ] . $quoted_serial . qq[ AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 1 DAY ORDER BY `unix_time` DESC LIMIT 3]);
 					$sth_up_message_vars->execute;
 					if ($sth_up_message_vars->rows) {
@@ -134,7 +134,7 @@ sub check_conditions {
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
 					my $median;
-					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[ FROM `samples` \
+					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[ FROM `samples_cache` \
 																WHERE `serial` like ] . $quoted_serial . qq[ AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 1 DAY ORDER BY `unix_time` DESC LIMIT 3]);
 					$sth_condition_vars->execute;
 					if ($sth_condition_vars->rows) {

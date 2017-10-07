@@ -60,7 +60,7 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `serial` IN (SELECT DISTINCT(`serial`) `serial` FROM samples) AND ((`email_notification` is not NULL) OR (`sms_notification` is not NULL))]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE ((`email_notification` is not NULL) OR (`sms_notification` is not NULL))]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
@@ -70,13 +70,13 @@ while (1) {
 		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
 		(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 		(SELECT \
-			(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+			(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 			(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 		), 2) AS kwh_left]);
 		$sth_kwh_left->execute;
 
 		# get last days energy usage
-		$sth_energy_now = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		$sth_energy_now = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
 		$sth_energy_now->execute;
 		if ($sth_energy_now->rows) {
@@ -86,7 +86,7 @@ while (1) {
 			}
 		}
 
-		$sth_energy_last = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+		$sth_energy_last = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial \
 			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d_energy_now->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 		$sth_energy_last->execute;
