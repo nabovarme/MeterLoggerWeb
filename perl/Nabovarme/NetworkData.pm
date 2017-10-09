@@ -18,7 +18,7 @@ sub handler {
 	my $count = 0;
 	
 	if ($dbh = Nabovarme::Db->my_connect) {
-		$sth = $dbh->prepare(qq[SELECT `serial`, `info`, trim(trailing char(0) from `ssid`) as `ssid`, `rssi`, `last_updated`, trim(trailing char(0) from `sw_version`) as `sw_version` FROM meters ORDER BY `ssid` asc, `rssi` desc]);
+		$sth = $dbh->prepare(qq[SELECT `serial`, `info`, trim(trailing char(0) from `ssid`) as `ssid`, `rssi`, `last_updated`, trim(trailing char(0) from `sw_version`) as `sw_version` FROM meters WHERE `ssid` NOT LIKE '' ORDER BY `ssid` asc, `rssi` desc]);
 		$sth->execute;
 		$count = $sth->rows;
 		if ($count) {
@@ -41,6 +41,7 @@ sub handler {
                                         $r->print("]");
                                 }	
 			}
+			$r->print(",[]");
 			$r->print("]");
 		}
 	}
