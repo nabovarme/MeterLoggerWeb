@@ -56,13 +56,13 @@ sub clean_samples_cache {
 							SELECT a.`id` FROM (
 							SELECT * FROM nabovarme.samples_cache 
 							WHERE `serial` LIKE $quoted_serial 
-							AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 24 HOUR 
+							AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 48 HOUR 
 							ORDER BY `unix_time` DESC LIMIT 3
 						) a
 						UNION SELECT b.`id` FROM (
 						SELECT * FROM nabovarme.samples_cache 
 							WHERE `serial` LIKE $quoted_serial 
-							AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 24 HOUR 
+							AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 48 HOUR 
 							ORDER BY `unix_time` DESC
 						) b
 						) save_list
