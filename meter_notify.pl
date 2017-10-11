@@ -153,7 +153,16 @@ while (1) {
 			elsif (($d->{notification_state}) == 2) {	# send open notification if not sent before
 				if ($energy_time_left > 0) {
 					# send open message
+<<<<<<< Local Changes
+					syslog('info', "open notice sent for serial #" . $d->{serial} 
+						. ", energy left: " . $energy_left 
+						. ", energy now: " . $energy_now 
+						. ", energy last: " . $energy_last 
+						. ", time now: " . $time_now 
+						. ", time last: " . $time_last);ª
+=======
 					syslog('info', "open notice sent for serial #" . $d->{serial});
+>>>>>>> External Changes
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
