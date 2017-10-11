@@ -60,7 +60,7 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE ((`email_notification` is not NULL) OR (`sms_notification` is not NULL))]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `email_notification` OR `sms_notification`]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
@@ -111,7 +111,12 @@ while (1) {
 			if (($d->{notification_state}) == 0) {		# send close warning notification if not sent before
 				if ($energy_time_left < CLOSE_WARNING_TIME) {	# 3 days
 					# send close warning
-					syslog('info', "close warning sent for serial #" . $d->{serial});
+					syslog('info', "close warning sent for serial #" . $d->{serial} 
+						. ", energy left: " . $energy_left 
+						. ", energy now: " . $energy_now 
+						. ", energy last: " . $energy_last 
+						. ", time now: " . $time_now 
+						. ", time last: " . $time_last);
 					$notification = 'Nabovarme closing in ' . sprintf("%.0f", $energy_time_left) . ' hours. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
@@ -127,7 +132,12 @@ while (1) {
 			elsif (($d->{notification_state}) == 1) {	# send close notification if not sent before
 				if ($energy_time_left <= 0) {			# no energy left
 					# send close message
-					syslog('info', "close notice sent for serial #" . $d->{serial});
+					syslog('info', "close notice sent for serial #" . $d->{serial} 
+						. ", energy left: " . $energy_left 
+						. ", energy now: " . $energy_now 
+						. ", energy last: " . $energy_last 
+						. ", time now: " . $time_now 
+						. ", time last: " . $time_last);
 					$notification = 'Nabovarme closed. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
@@ -139,7 +149,12 @@ while (1) {
 				}
 				elsif (($energy_time_left > 0) and ($energy_left > $d->{notification_sent_at})) {
 					# send open message
-					syslog('info', "open notice sent for serial #" . $d->{serial});
+					syslog('info', "open notice sent for serial #" . $d->{serial} 
+						. ", energy left: " . $energy_left 
+						. ", energy now: " . $energy_now 
+						. ", energy last: " . $energy_last 
+						. ", time now: " . $time_now 
+						. ", time last: " . $time_last);
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left) . ' hours left. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
@@ -153,16 +168,12 @@ while (1) {
 			elsif (($d->{notification_state}) == 2) {	# send open notification if not sent before
 				if ($energy_time_left > 0) {
 					# send open message
-<<<<<<< Local Changes
 					syslog('info', "open notice sent for serial #" . $d->{serial} 
 						. ", energy left: " . $energy_left 
 						. ", energy now: " . $energy_now 
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
-						. ", time last: " . $time_last);ª
-=======
-					syslog('info', "open notice sent for serial #" . $d->{serial});
->>>>>>> External Changes
+						. ", time last: " . $time_last);
 					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'http://isp.skulp.net/nabovarme/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
