@@ -204,15 +204,15 @@ sub sms_send {
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
-			syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$encoded_message"]);
-			system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$encoded_message"]);
-			warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$_ "$encoded_message"]);
+			syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
+			system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
+			warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
 		}
 	}
 	else {
-		syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$encoded_message"]);
-		system(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$encoded_message"]);
-		warn(qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$encoded_message"]);
+		syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
+		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
+		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
 	}
 }
 
