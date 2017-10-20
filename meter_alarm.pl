@@ -5,7 +5,6 @@ use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Statistics::Basic qw( :all );
-use Encode;
 use Config;
 
 use lib qw( /etc/apache2/perl );
@@ -198,21 +197,18 @@ sub sms_send {
 	
 	return unless $sms_notification;
 	
-	# force ISO-8859-1 encoding
-	my $encoded_message = Encode::encode('ISO-8859-1', Encode::decode('utf8', $message));
-	
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
-			syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
-			system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
-			warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$encoded_message"]);
+			syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
+			system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
+			warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
 		}
 	}
 	else {
-		syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
-		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
-		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$encoded_message"]);
+		syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
+		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
+		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 	}
 }
 

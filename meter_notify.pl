@@ -197,7 +197,6 @@ sub sms_send {
 	
 	return unless $sms_notification;
 	
-	
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
@@ -207,7 +206,7 @@ sub sms_send {
 		}
 	}
 	else {
-		syslog('info', 'running ' . qq[/usr/share/doc/smstools/examples/scripts/sendsms 45$sms_notification "$message"]);
+		syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 	}
