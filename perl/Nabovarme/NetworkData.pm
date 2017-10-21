@@ -6,7 +6,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const;
 use DBI;
-#use utf8;
+use utf8;
 
 use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl );
@@ -47,7 +47,7 @@ sub handler {
 	}
 
 	if ($sth->rows) {
-	        $r->content_type("application/json; charset=iso-8859-1");
+	        $r->content_type("application/json; charset=utf-8");
 	        $r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 		return Apache2::Const::OK;
 	}
