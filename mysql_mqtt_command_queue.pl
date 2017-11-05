@@ -98,8 +98,8 @@ sub mqtt_handler {
 				return;
 			}
 
-			warn "received mqtt reply: $function, with param: $cleartext, deleting from mysql queue\n";
-			syslog('info', "received mqtt reply: $function, with param: $cleartext, deleting from mysql queue");
+			warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue\n";
+			syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue");
 			# do mysql stuff here
 			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
 			
