@@ -102,7 +102,7 @@ while (1) {
 
 		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
 			$energy_left = $d_kwh_left->{kwh_left} - $d->{min_amount};
-			unless ($energy_last_day < 0) {
+			if ($energy_last_day >= 0) {
 				next;
 			}
 
