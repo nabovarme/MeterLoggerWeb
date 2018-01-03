@@ -277,6 +277,10 @@ sub v2_mqtt_status_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$valve_status = $m->decrypt($ciphertext, $aes_key, $iv);
+			
+			# remove trailing nulls
+			$valve_status =~ s/(open|close).*/$1/;
+
 			my $quoted_valve_status = $dbh->quote($valve_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
