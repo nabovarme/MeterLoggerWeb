@@ -279,7 +279,7 @@ sub v2_mqtt_status_handler {
 			$valve_status = $m->decrypt($ciphertext, $aes_key, $iv);
 			
 			# remove trailing nulls
-			$valve_status =~ s/(open|close).*/$1/;
+			$valve_status =~ s/(\w+).*/$1/;
 
 			my $quoted_valve_status = $dbh->quote($valve_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -455,6 +455,10 @@ sub v2_mqtt_wifi_status_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$wifi_status = $m->decrypt($ciphertext, $aes_key, $iv);
+
+			# remove trailing nulls
+			$wifi_status =~ s/(\w+).*/$1/;
+
 			my $quoted_wifi_status = $dbh->quote($wifi_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
@@ -501,7 +505,7 @@ sub v2_mqtt_ap_status_handler {
 			$ap_status = $m->decrypt($ciphertext, $aes_key, $iv);
 			
 			# remove trailing nulls
-			$ap_status =~ s/(started|stopped).*/$1/;
+			$ap_status =~ s/(\w+).*/$1/;
 
 			# reverse ap_status for sw version higher than or equal to build #942
 			my $orig_ap_status = $ap_status;
