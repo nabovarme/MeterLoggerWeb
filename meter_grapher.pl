@@ -412,6 +412,10 @@ sub v2_mqtt_rssi_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$rssi = $m->decrypt($ciphertext, $aes_key, $iv);
+
+			# remove trailing nulls
+			$rssi =~ s/(\w+).*/$1/;
+
 			my $quoted_rssi = $dbh->quote($rssi);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
