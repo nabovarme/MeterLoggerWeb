@@ -104,7 +104,7 @@ sub login_handler {
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 				# if user has a phone number in database generate and send sms code
-#				my $sms_code = join('', map(int(Math::Random::Secure::rand(9)), 1..6));
+				my $sms_code = join('', map(int(Math::Random::Secure::rand(9)), 1..6));
 				my $quoted_sms_code = $dbh->quote($sms_code);
 				$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 				
