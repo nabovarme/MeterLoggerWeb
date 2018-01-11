@@ -70,6 +70,7 @@ sub login_handler {
 	
 	my $login_path = $r->dir_config('LoginPath') || '/private/login.epl';
 	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
+	my $default_stay_logged_in = $r->dir_config('DefaultStayLoggedIn') || 'true';
 
 	my ($dbh, $sth, $d);
 	$dbh = Nabovarme::Db->my_connect || die $!;
@@ -118,7 +119,7 @@ sub login_handler {
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
 				#$r->internal_redirect("/private/sms_code.epl");
 				#return Apache2::Const::OK;
-				$r->err_headers_out->add('Location' => $sms_code_path);
+				$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
 				return Apache2::Const::REDIRECT;
 			}
 			else {
@@ -135,7 +136,13 @@ sub login_handler {
 			my ($sms_code) = $r->args =~ /sms_code=([^&]*)/i;
 			my $quoted_sms_code = $dbh->quote($sms_code);
 			my ($stay_logged_in) = $r->args =~ /stay_logged_in=([^&]*)/i;
-			warn Dumper $sms_code;
+			unless ($stay_logged_in) {
+				#$cookie->expires('');
+				$cookie = CGI::Cookie->new(	-name  => 'auth_token',
+											-value => $passed_cookie_token);
+				warn Dumper "session cookie";
+				warn Dumper $cookie;
+			}
 			$sth = $dbh->prepare(qq[SELECT `sms_code`, `orig_uri` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token AND `sms_code` LIKE $quoted_sms_code LIMIT 1]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
@@ -148,7 +155,7 @@ sub login_handler {
 			else {
 				# let user retry
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
-				$r->internal_redirect($sms_code_path);
+				$r->internal_redirect($sms_code_path . '?' . $r->args);	# add args for embperl on the page
 				return Apache2::Const::OK;
 				#$r->err_headers_out->add('Location' => "/private/sms_code.epl");
 				#return Apache2::Const::REDIRECT;
