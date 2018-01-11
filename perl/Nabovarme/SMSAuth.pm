@@ -190,6 +190,8 @@ sub login_handler {
 sub logout_handler {
 	my $r = shift;
 	
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
+
 	my ($dbh, $sth, $d);
 	$dbh = Nabovarme::Db->my_connect || die $!;
 
@@ -211,8 +213,10 @@ sub logout_handler {
 	$r->err_headers_out->add('Set-Cookie' => $cookie);
 	
 	# redirect to logged out page
-	$r->err_headers_out->add('Location' => "/logged_out.epl");
-	return Apache2::Const::REDIRECT;
+	$r->internal_redirect($logged_out_path);
+	return Apache2::Const::OK;
+#	$r->err_headers_out->add('Location' => $logged_out_path);
+#	return Apache2::Const::REDIRECT;
 }
 
 sub sms_send {
