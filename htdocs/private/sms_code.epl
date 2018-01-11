@@ -1,7 +1,7 @@
 <html>
     <head>
 	<meta name="robots" content="noindex">
-        <title>Login page</title>
+        <title>Login page - SMS Code</title>
 		<style type="text/css">
 		.top {
 			position: absolute;
@@ -18,9 +18,9 @@
 		</style>
     </head>
     <body>
-        <form method="POST" action="">
-            <span class="default-bold">Username</span><br><input type="text" name="httpd_username" value="" /><br><br>
-            <span class="default-bold">Password</span><br><input type="password" name="httpd_password" value="" /><br><br>
+        <form method="GET" action="">
+            <span class="default-bold">SMS Code</span><br><input type="number" inputmode="numeric" pattern="[0-9]*" name="sms_code" value="" /><br></span>
+            <span class="default"><input type="checkbox" name="stay_logged_in" value="true" [+ $fdat{'stay_logged_in'} ? 'checked="true"' : '' +] />Stay Logged in<br><br></span>
             <input type="submit" name="login" value="Login" />
         </form>
     </body>

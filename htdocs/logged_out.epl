@@ -1,0 +1,28 @@
+<HTML>
+	<HEAD>
+	<meta name="robots" content="noindex">
+	<TITLE>MeterLogger - Logged out</TITLE>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	</style>
+	</HEAD>
+	<BODY>
+		<span class="default-bold">Logged out</span>
+	</BODY>
+</HTML>

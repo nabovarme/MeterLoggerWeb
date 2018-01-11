@@ -1,0 +1,27 @@
+<html>
+    <head>
+	<meta name="robots" content="noindex">
+        <title>Login page</title>
+		<style type="text/css">
+		.top {
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		</style>
+    </head>
+    <body>
+        <form method="GET" action="">
+            <span class="default-bold">Phone/serial number</span><br><input type="tel" name="id" value="" /><br><br>
+            <input type="submit" name="login" value="Login" />
+        </form>
+    </body>
+</html>
+
