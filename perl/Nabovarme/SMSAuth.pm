@@ -68,6 +68,9 @@ sub handler {
 sub login_handler {
 	my $r = shift;
 	
+	my $login_path = $r->dir_config('LoginPath') || '/private/login.epl';
+	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
+
 	my ($dbh, $sth, $d);
 	$dbh = Nabovarme::Db->my_connect || die $!;
 
@@ -95,7 +98,7 @@ sub login_handler {
 			$r->err_headers_out->add('Set-Cookie' => $cookie);
 			#$r->internal_redirect("/private/login.epl");
 			#return Apache2::Const::OK;
-			$r->err_headers_out->add('Location' => "/private/login.epl");
+			$r->err_headers_out->add('Location' => $login_path);
 			return Apache2::Const::REDIRECT;
 		}
 		elsif ($d->{auth_state} =~ /login/i) {
@@ -115,13 +118,13 @@ sub login_handler {
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
 				#$r->internal_redirect("/private/sms_code.epl");
 				#return Apache2::Const::OK;
-				$r->err_headers_out->add('Location' => "/private/sms_code.epl");
+				$r->err_headers_out->add('Location' => $sms_code_path);
 				return Apache2::Const::REDIRECT;
 			}
 			else {
 				# ask for phone number
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
-				$r->internal_redirect("/private/login.epl");
+				$r->internal_redirect($login_path);
 				return Apache2::Const::OK;
 				#$r->err_headers_out->add('Location' => "/private/login.epl");
 				#return Apache2::Const::REDIRECT;
@@ -143,8 +146,9 @@ sub login_handler {
 				return Apache2::Const::REDIRECT;
 			}
 			else {
+				# let user retry
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
-				$r->internal_redirect("/private/sms_code.epl");
+				$r->internal_redirect($sms_code_path);
 				return Apache2::Const::OK;
 				#$r->err_headers_out->add('Location' => "/private/sms_code.epl");
 				#return Apache2::Const::REDIRECT;
@@ -171,7 +175,7 @@ sub login_handler {
 		# redirect to login page
 #		$r->internal_redirect("/private/login.epl");
 #		return Apache2::Const::OK;
-		$r->err_headers_out->add('Location' => "/private/login.epl");
+		$r->err_headers_out->add('Location' => $login_path);
 		return Apache2::Const::REDIRECT;
 	}
 }
