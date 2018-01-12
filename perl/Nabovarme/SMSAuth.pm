@@ -47,6 +47,11 @@ sub handler {
 			$sth = $dbh->prepare(qq[SELECT `auth_state` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token AND `auth_state` LIKE 'sms_code_verified' LIMIT 1]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
+				# renew cookie expires time
+				my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
+												-value => $passed_cookie_token,
+												-expires => '+1y');
+				$r->err_headers_out->add('Set-Cookie' => $cookie);
 				return Apache2::Const::OK;
 			}
 			else {
