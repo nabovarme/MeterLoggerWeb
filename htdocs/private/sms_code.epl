@@ -16,13 +16,13 @@
 			font-weight: bold;
 		}
 		</style>
-    </head>
-    <body>
-        <form method="GET" action="">
-            <span class="default-bold">SMS Code</span><br><input type="number" inputmode="numeric" pattern="[0-9]*" name="sms_code" value="" /><br></span>
-            <span class="default"><input type="checkbox" name="stay_logged_in" value="true" [+ $fdat{'stay_logged_in'} ? 'checked="true"' : '' +] />Stay Logged in<br><br></span>
-            <input type="submit" name="login" value="Login" />
-        </form>
-    </body>
+	</head>
+	<body>
+		<form method="GET" action="">
+			<span class="default-bold">SMS Code</span><br><input type="number" inputmode="numeric" pattern="[0-9]*" name="sms_code" value="" /><br></span>
+			<span class="default"><input type="checkbox" name="stay_logged_in" value="true" [+ $fdat{'stay_logged_in'} ? 'checked="true"' : '' +] />Stay Logged in<br><br></span>
+			<input type="submit" name="login" value="Login" />
+		</form>
+	</body>
 </html>
 

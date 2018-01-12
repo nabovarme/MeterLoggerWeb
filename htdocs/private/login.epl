@@ -16,12 +16,12 @@
 			font-weight: bold;
 		}
 		</style>
-    </head>
-    <body>
-        <form method="GET" action="">
-            <span class="default-bold">Phone/serial number</span><br><input type="tel" name="id" value="" /><br><br>
-            <input type="submit" name="login" value="Login" />
-        </form>
-    </body>
+	</head>
+	<body>
+		<form method="GET" action="">
+			<span class="default-bold">Phone/serial number</span><br><input type="tel" name="id" value="" /><br><br>
+			<input type="submit" name="login" value="Login" />
+		</form>
+	</body>
 </html>
 
