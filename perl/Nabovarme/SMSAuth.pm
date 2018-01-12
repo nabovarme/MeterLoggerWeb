@@ -36,32 +36,9 @@ sub handler {
 			# user wants to logout
 			return logout_handler($r);
 		}
-		else {
-			# chack if the user is auth'ed
-			my $passed_cookie_token;
-			if ($passed_cookie) {
-				($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
-			}
-
-			my $quoted_passed_cookie_token = $dbh->quote($passed_cookie_token);
-			$sth = $dbh->prepare(qq[SELECT `auth_state` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token AND `auth_state` LIKE 'sms_code_verified' LIMIT 1]);
-			$sth->execute;
-			if ($d = $sth->fetchrow_hashref) {
-				# renew cookie expires time
-				my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
-												-value => $passed_cookie_token,
-												-expires => '+1y');
-				$r->err_headers_out->add('Set-Cookie' => $cookie);
-				return Apache2::Const::OK;
-			}
-			else {
-				return login_handler($r);
-			}
-		}
-	}
-	else {
-		return login_handler($r);
 	}	
+
+	return login_handler($r);
 }
 
 sub login_handler {
@@ -155,7 +132,12 @@ sub login_handler {
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 				# if sms code matches the one in database
-				$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_verified', unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
+				if ($stay_logged_in) {
+					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_verified', `session` = 0, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
+				}
+				else {
+					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_verified', `session` = 1, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
+				}
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
 				$r->err_headers_out->add('Location' => $d->{orig_uri});
 				return Apache2::Const::REDIRECT;
@@ -171,6 +153,15 @@ sub login_handler {
 		
 		}
 		elsif ($d->{auth_state} =~ /sms_code_verified/i) {
+			# if db says its a session cookie send session cookie
+			$sth = $dbh->prepare(qq[SELECT `session` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token LIMIT 1]);
+			$sth->execute;
+			if ($d = $sth->fetchrow_hashref) {
+				if ($d->{session}) {
+					$cookie = CGI::Cookie->new(	-name  => 'auth_token',
+												-value => $passed_cookie_token);
+				}
+			}
 			$r->err_headers_out->add('Set-Cookie' => $cookie);
 			return Apache2::Const::OK;
 		}
