@@ -100,9 +100,18 @@ sub login_handler {
 			# look up phone number
 			my ($id) = $r->args =~ /id=([^&]*)/i;
 			my $quoted_id = $dbh->quote($id);
+			
+			# check in meters db
 			$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_id LIMIT 1]);
 			$sth->execute;
-			if ($d = $sth->fetchrow_hashref) {
+			my $user_is_in_db = $sth->fetchrow_hashref;
+			
+			# check in users db
+			$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_id LIMIT 1]);
+			$sth->execute;
+			$user_is_in_db |= $sth->fetchrow_hashref;
+			
+			if ($user_is_in_db) {
 				# if user has a phone number in database generate and send sms code
 				my $sms_code = join('', map(int(Math::Random::Secure::rand(9)), 1..6));
 				my $quoted_sms_code = $dbh->quote($sms_code);
