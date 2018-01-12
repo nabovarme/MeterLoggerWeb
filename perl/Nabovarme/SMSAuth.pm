@@ -117,7 +117,7 @@ sub login_handler {
 				my $quoted_sms_code = $dbh->quote($sms_code);
 				$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 				
-				sms_send($d->{sms_notification}, "SMS Code: $sms_code");
+				sms_send($id, "SMS Code: $sms_code");
 
 				$r->err_headers_out->add('Set-Cookie' => $cookie);
 				#$r->internal_redirect("/private/sms_code.epl");
