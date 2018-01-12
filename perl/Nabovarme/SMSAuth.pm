@@ -86,12 +86,12 @@ sub login_handler {
 			# check in meters db
 			$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_id LIMIT 1]);
 			$sth->execute;
-			my $user_is_in_db = $sth->fetchrow_hashref;
+			my $user_is_in_db = $sth->rows;
 			
 			# check in users db
 			$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_id LIMIT 1]);
 			$sth->execute;
-			$user_is_in_db |= $sth->fetchrow_hashref;
+			$user_is_in_db |= $sth->rows;
 			
 			if ($user_is_in_db) {
 				# if user has a phone number in database generate and send sms code
