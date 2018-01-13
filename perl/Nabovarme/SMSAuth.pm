@@ -173,7 +173,7 @@ sub login_handler {
 		# send new cookie
 
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
-		my $quoted_orig_uri = $dbh->quote($r->uri);
+		my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
 		$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, ] . time() . qq[)]) or warn $!;
 
 		$r->err_headers_out->add('Set-Cookie' => $cookie);
