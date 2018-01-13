@@ -4,7 +4,7 @@
 
 function setupchart(){
 console.log("ready");
-$.getJSON("http://isp.skulp.net/nabovarme/network_data", {},
+$.getJSON("http://46.246.71.20/network_data", {},
 function (flat) {
 
 var flatNodes = [
@@ -63,9 +63,9 @@ HTMLclass: 'green'
 
 
 
-	if ( timeSinceLast > 86000){
+	if ( timeSinceLast > 3600){
 n.HTMLclass = 'red';
-	} else if (timeSinceLast > 43000){
+	} else if (timeSinceLast > 1800){
 n.HTMLclass = 'yellow';
 } 
 
