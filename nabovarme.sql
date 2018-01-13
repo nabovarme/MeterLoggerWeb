@@ -31,7 +31,7 @@ CREATE TABLE `accounts` (
   `price` float NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=274 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=429 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -63,7 +63,7 @@ DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW if (new.amount > 0)
 then 
 	INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`) 
-	VALUES (new.`serial`, 'open_until', ((new.amount / new.price) + (SELECT `energy` FROM samples WHERE `serial` = new.`serial` ORDER BY `unix_time` DESC LIMIT 1)), UNIX_TIMESTAMP(NOW()));
+	VALUES (new.`serial`, 'open_until', ((SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = new.`serial`) + (SELECT meters.last_energy FROM meters WHERE meters.serial = new.`serial`)), UNIX_TIMESTAMP(NOW()));
 end if */;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -81,16 +81,16 @@ DROP TABLE IF EXISTS `alarms`;
 CREATE TABLE `alarms` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) DEFAULT NULL,
-  `condition` mediumtext,
+  `condition` varchar(256) NOT NULL DEFAULT '',
   `last_notification` int(11) DEFAULT NULL,
   `alarm_state` int(1) unsigned NOT NULL DEFAULT '0',
-  `repeat` int(11) DEFAULT NULL,
+  `repeat` int(11) NOT NULL DEFAULT '0',
   `sms_notification` varchar(64) DEFAULT NULL,
   `down_message` mediumtext,
   `up_message` mediumtext,
   `comment` mediumtext,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -107,7 +107,7 @@ CREATE TABLE `command_queue` (
   `param` varchar(256) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -157,7 +157,7 @@ CREATE TABLE `meters` (
   `ap_status` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=154 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=158 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -183,7 +183,7 @@ CREATE TABLE `samples` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=30413081 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=44019638 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -225,7 +225,28 @@ CREATE TABLE `samples_cache` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=30412396 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=44018952 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `sms_auth`
+--
+
+DROP TABLE IF EXISTS `sms_auth`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `sms_auth` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `cookie_token` varchar(256) DEFAULT NULL,
+  `session` tinyint(1) NOT NULL DEFAULT '0',
+  `serial` varchar(16) DEFAULT NULL,
+  `auth_state` set('new','login','sms_code_sent','sms_code_verified','deny') DEFAULT 'new',
+  `phone` varchar(64) DEFAULT NULL,
+  `sms_code` varchar(256) DEFAULT NULL,
+  `orig_uri` mediumtext,
+  `unix_time` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4829 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -276,7 +297,7 @@ CREATE TABLE `users` (
   `meter_id` int(255) DEFAULT NULL,
   `comment` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -296,7 +317,7 @@ CREATE TABLE `wifi_scan` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=1582960 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=3441836 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -308,4 +329,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-10-08  1:25:42
+-- Dump completed on 2018-01-13 23:45:17
