@@ -45,7 +45,9 @@ sub login_handler {
 	my $r = shift;
 	
 	my $login_path = $r->dir_config('LoginPath') || '/private/login.epl';
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
+	my $default_path = $r->dir_config('DefaultPath') || '/';
 	my $default_stay_logged_in = $r->dir_config('DefaultStayLoggedIn') || 'true';
 
 	my ($dbh, $sth, $d);
@@ -173,8 +175,15 @@ sub login_handler {
 		# send new cookie
 
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
-		my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
-		$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, ] . time() . qq[)]) or warn $!;
+		if (index($r->uri, $login_path) || index($r->uri, $logged_out_path) || index($r->uri, $sms_code_path)) {
+			# if the requested url is a special one, go to default path
+			my $quoted_default_path = $dbh->quote($default_path);
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, ] . time() . qq[)]) or warn $!;
+		}
+		else {
+			my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, ] . time() . qq[)]) or warn $!;
+		}
 
 		$r->err_headers_out->add('Set-Cookie' => $cookie);
 

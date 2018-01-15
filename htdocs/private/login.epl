@@ -19,7 +19,7 @@
 	</head>
 	<body>
 		<form method="GET" action="">
-			<span class="default-bold">Phone number</span><br><input type="tel" name="id" value="" /><br><br>
+			<span class="default-bold">Phone number</span><br><input type="tel" name="id" value="" autofocus><br><br>
 			<input type="submit" name="login" value="Login" />
 		</form>
 	</body>
