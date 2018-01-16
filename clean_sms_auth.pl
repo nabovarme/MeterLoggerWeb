@@ -33,6 +33,7 @@ else {
 
 syslog('info', "cleaning sms_auth");
 $dbh->do(qq[DELETE FROM sms_auth WHERE `auth_state` = 'new' AND from_unixtime(`unix_time`) < NOW() - INTERVAL 1 HOUR]) or warn $!;
+$dbh->do(qq[DELETE FROM sms_auth WHERE `auth_state` = 'login' AND from_unixtime(`unix_time`) < NOW() - INTERVAL 1 DAY]) or warn $!;
 $dbh->do(qq[DELETE FROM sms_auth WHERE `auth_state` = 'sms_code_sent' AND from_unixtime(`unix_time`) < NOW() - INTERVAL 1 DAY]) or warn $!;
 
 1;
