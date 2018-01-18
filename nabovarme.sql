@@ -30,8 +30,9 @@ CREATE TABLE `accounts` (
   `info` varchar(256) NOT NULL DEFAULT '',
   `price` float NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=429 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=461 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -60,7 +61,7 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW if (new.amount > 0)
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`localhost`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW if (new.amount != 0)
 then 
 	INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`) 
 	VALUES (new.`serial`, 'open_until', ((SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = new.`serial`) + (SELECT meters.last_energy FROM meters WHERE meters.serial = new.`serial`)), UNIX_TIMESTAMP(NOW()));
@@ -107,7 +108,7 @@ CREATE TABLE `command_queue` (
   `param` varchar(256) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -120,8 +121,9 @@ DROP TABLE IF EXISTS `meter_groups`;
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(256) NOT NULL DEFAULT '',
+  `default_price` float DEFAULT '1',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=1001 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -157,7 +159,7 @@ CREATE TABLE `meters` (
   `ap_status` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=158 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=160 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -183,7 +185,7 @@ CREATE TABLE `samples` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=44019638 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=44607962 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -225,7 +227,7 @@ CREATE TABLE `samples_cache` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=44018952 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=44607276 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -246,36 +248,7 @@ CREATE TABLE `sms_auth` (
   `orig_uri` mediumtext,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4829 DEFAULT CHARSET=utf8;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `ticket_secrets`
---
-
-DROP TABLE IF EXISTS `ticket_secrets`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `ticket_secrets` (
-  `sec_version` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `sec_data` text NOT NULL,
-  UNIQUE KEY `sec_version` (`sec_version`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `tickets`
---
-
-DROP TABLE IF EXISTS `tickets`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `tickets` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `ticket_hash` varchar(256) NOT NULL DEFAULT '',
-  `ts` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=6792 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -287,17 +260,17 @@ DROP TABLE IF EXISTS `users`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(255) NOT NULL DEFAULT '',
-  `password` varchar(255) NOT NULL DEFAULT '',
-  `admin` tinyint(1) DEFAULT NULL,
-  `name` varchar(255) NOT NULL DEFAULT '',
-  `mail` varchar(255) NOT NULL DEFAULT '',
-  `phone` varchar(255) NOT NULL DEFAULT '',
-  `address` varchar(255) DEFAULT NULL,
+  `username` varchar(256) NOT NULL DEFAULT '',
+  `password` varchar(256) NOT NULL DEFAULT '',
+  `admin_group` varchar(256) DEFAULT NULL,
+  `name` varchar(256) NOT NULL DEFAULT '',
+  `mail` varchar(256) NOT NULL DEFAULT '',
+  `phone` varchar(256) NOT NULL DEFAULT '',
+  `address` varchar(256) DEFAULT NULL,
   `meter_id` int(255) DEFAULT NULL,
-  `comment` varchar(255) DEFAULT NULL,
+  `comment` varchar(256) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=61 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=65 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -317,7 +290,7 @@ CREATE TABLE `wifi_scan` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=3441836 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=3527728 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -329,4 +302,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-01-13 23:45:17
+-- Dump completed on 2018-01-18  5:04:59
