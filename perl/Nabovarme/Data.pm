@@ -15,7 +15,9 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
-	my ($serial, $option) = $r->uri =~ m|/([^/]+)(?:/([^/]+))?$|;
+#	my ($serial, $option, $unix_time) = $r->uri =~ m|/([^/]+)(?:/([^/]+))?$|;
+	my ($serial, $option, $unix_time) = $r->uri =~ m|^/[^/]+/([^/]+)(?:/([^/]+))?(?:/([^/]+))?|;
+#	warn Dumper {uri => $r->uri, serial => $serial, option => $option, unix_time => $unix_time};
 	my $quoted_serial;
 	my $last_energy = 0;
 	
@@ -96,13 +98,24 @@ sub handler {
 				}
 			}
 		}
-		elsif ($option =~ /last/) {		# last accumulated		
-			$sth = $dbh->prepare(qq[SELECT \
-				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-				AND effect IS NOT NULL \
-				ORDER BY `unix_time` DESC \
-				LIMIT 1]);
+		elsif ($option =~ /last/) {		# last accumulated
+		        if ($unix_time) {
+			        $sth = $dbh->prepare(qq[SELECT \
+				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+        				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+        				AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
+        				AND effect IS NOT NULL \
+        				ORDER BY `unix_time` DESC \
+        				LIMIT 1]);
+                        }
+                        else {
+			        $sth = $dbh->prepare(qq[SELECT \
+				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+        				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+        				AND effect IS NOT NULL \
+        				ORDER BY `unix_time` DESC \
+        				LIMIT 1]);                        
+                        }
 			$sth->execute;
 			if ($sth->rows) {
 				unless ($csv_header_set) {
@@ -196,12 +209,12 @@ sub handler {
 			}
 		}
 	
-		if ($sth->rows) {
+#		if ($sth->rows) {
 			return Apache2::Const::OK;
-		}
-		else {
-			return Apache2::Const::NOT_FOUND;	
-		}	
+#		}
+#		else {
+#			return Apache2::Const::NOT_FOUND;	
+#		}	
 	}	
 }
 

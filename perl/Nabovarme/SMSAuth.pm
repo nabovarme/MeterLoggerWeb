@@ -60,7 +60,7 @@ sub login_handler {
 	if ($passed_cookie) {
 		($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
 	}
-	warn Dumper $passed_cookie;
+#	warn Dumper $passed_cookie;
 	my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
 								-value => $passed_cookie_token || $cookie_token,
 								-expires => '+1y');
@@ -70,7 +70,7 @@ sub login_handler {
 	$sth = $dbh->prepare(qq[SELECT `auth_state` FROM sms_auth WHERE cookie_token LIKE $quoted_passed_cookie_token LIMIT 1]);
 	$sth->execute;
 	if ($d = $sth->fetchrow_hashref) {
-		warn Dumper $d->{auth_state};
+#		warn Dumper $d->{auth_state};
 		if ($d->{auth_state} =~ /new/i) {			
 			$dbh->do(qq[UPDATE sms_auth SET auth_state = 'login', unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 			
@@ -127,8 +127,8 @@ sub login_handler {
 				#$cookie->expires('');
 				$cookie = CGI::Cookie->new(	-name  => 'auth_token',
 											-value => $passed_cookie_token);
-				warn Dumper "session cookie";
-				warn Dumper $cookie;
+#				warn Dumper "session cookie";
+#				warn Dumper $cookie;
 			}
 			$sth = $dbh->prepare(qq[SELECT `sms_code`, `orig_uri` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token AND `sms_code` LIKE $quoted_sms_code LIMIT 1]);
 			$sth->execute;
@@ -213,7 +213,7 @@ sub logout_handler {
 	my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
 									-value => $passed_cookie_token,
 									-expires => '-1y');
-	warn Dumper $cookie;
+#	warn Dumper $cookie;
 	
 	my $quoted_cookie_token = $dbh->quote($passed_cookie_token);
 	$dbh->do(qq[DELETE FROM sms_auth WHERE cookie_token = $quoted_cookie_token]) or warn $!;

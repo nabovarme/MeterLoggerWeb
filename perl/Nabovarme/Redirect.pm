@@ -32,7 +32,7 @@ sub handler {
 	
 	# handle short url
 	my ($meter_info) = $r->uri =~ m|^/([^/]+)/?$|;
-	warn "meter_info: $meter_info\n";
+#	warn "meter_info: $meter_info\n";
 	my $quoted_meter_info;
 	
 #	if ($meter_info =~ /^\d+$/) {
@@ -40,25 +40,25 @@ sub handler {
 #		return Apache2::Const::REDIRECT;
 #	}
 #	else {
-		warn Dumper({meter_info => $meter_info});
+#		warn Dumper({meter_info => $meter_info});
 		if ($meter_info && ($dbh = Nabovarme::Db->my_connect)) {
 			$meter_info = "%" . $meter_info . "%";
 			$quoted_meter_info = $dbh->quote($meter_info);
 
-			warn Dumper(qq[SELECT `serial` FROM meters WHERE `serial` like $quoted_meter_info limit 1]);
+#			warn Dumper(qq[SELECT `serial` FROM meters WHERE `serial` like $quoted_meter_info limit 1]);
 			$sth = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE `serial` like $quoted_meter_info limit 1]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
-				warn Dumper({looked_up_serial => $d->{serial}});
+#				warn Dumper({looked_up_serial => $d->{serial}});
 				$r->headers_out->set('Location' => "detail_acc.epl?serial=" . $d->{serial});
 				return Apache2::Const::REDIRECT;
 			}
 
-			warn Dumper(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info limit 1]);
+#			warn Dumper(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info limit 1]);
 			$sth = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info limit 1]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
-				warn Dumper({looked_up_serial => $d->{serial}});
+#				warn Dumper({looked_up_serial => $d->{serial}});
 				$r->headers_out->set('Location' => "detail_acc.epl?serial=" . $d->{serial});
 				return Apache2::Const::REDIRECT;
 			}
