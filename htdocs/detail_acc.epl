@@ -106,6 +106,12 @@ if ($sth->rows) {
 		}
 		</style>
 [$ if ($is_admin) $]
+		<style type="text/css">
+		td input {
+		    width: 100%;
+		    box-sizing: border-box;
+		}
+		</style>
 <!--		<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"> -->
 <!--		<script src="https://code.jquery.com/jquery-1.12.4.js"></script> -->
 <!--		<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script> -->
@@ -297,7 +303,7 @@ if ($sth->rows) {
 					<input type="hidden" name="amount" value="[+ $fdat{amount} +]">
 					<input type="hidden" name="price" value="[+ $fdat{price} +]">
 					<input type="hidden" name="add_state" value="add">
-					<input type="submit" name="add" value="Add">
+					<input type="submit" name="add" value="Add" style="width: 100px;">
 				</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
@@ -324,7 +330,7 @@ if ($sth->rows) {
 					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 					<input type="hidden" name="low" value="[+ $fdat{low} +]">
 					<input type="hidden" name="add_state" value="preview">
-					<input type="submit" name="add" value="Preview">
+					<input type="submit" name="add" value="Preview" style="width: 100px;">
 				</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
