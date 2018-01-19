@@ -320,7 +320,7 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td align="right"><span class="default"><input type="text" inputmode="text" name="amount" value="" size="5"></span></td>
 				<td>&nbsp;</td>
-				<td><span class="default"><input type="text" inputmode="text" name="price" value="1.00" size="3"></span>
+				<td><span class="default"><input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3"></span>
 			  </td>
 			  </tr>
 			  <tr align="left" valign="bottom">

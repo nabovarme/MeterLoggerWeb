@@ -48,7 +48,7 @@ sub cookie_is_admin {
 		$sth = $self->{dbh}->prepare(qq[SELECT `group` FROM `meters` WHERE `serial` LIKE $quoted_serial LIMIT 1]);
 		$sth->execute;
 		if ($d = $sth->fetchrow_hashref) {
-			if (grep(/$d->{group}/, split(/,\s*/, $admin_group))) {
+			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
 				warn "allowing $username as admin for group $admin_group, serial $serial\n";
 				return 1;
 			}
@@ -70,6 +70,21 @@ sub add {
 
 	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_info, $quoted_amount, $quoted_price)];
 	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
+}
+
+sub default_price_for_serial {
+	my ($self, $serial) = @_;
+
+	my ($quoted_serial);
+	$quoted_serial = $self->{dbh}->quote($serial);
+
+
+	my $sth = $self->{dbh}->prepare(qq[SELECT `default_price` FROM `meters` WHERE `serial` LIKE $quoted_serial LIMIT 1]);
+	$sth->execute;
+	if (my $d = $sth->fetchrow_hashref) {
+		# get default price for meter
+		return $d->{default_price};
+	}
 }
 
 1;
