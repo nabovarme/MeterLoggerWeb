@@ -49,12 +49,14 @@ sub cookie_is_admin {
 		$sth->execute;
 		if ($d = $sth->fetchrow_hashref) {
 			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
-				warn "allowing $username as admin for group $admin_group, serial $serial\n";
+				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+					"\" allowing $username as admin for group $admin_group, serial $serial\n";
 				return 1;
 			}
 		}
 	}
-	warn "passed cookie $passed_cookie_token is not logged in as admin - go away!";
+	warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!";
 	return 0;
 }
 
