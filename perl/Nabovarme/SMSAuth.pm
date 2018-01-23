@@ -175,14 +175,16 @@ sub login_handler {
 		# send new cookie
 
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
+		my $quoted_remote_host = $dbh->quote($ENV{REMOTE_ADDR});
+		my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
 		if (index($r->uri, $login_path) || index($r->uri, $logged_out_path) || index($r->uri, $sms_code_path)) {
 			# if the requested url is a special one, go to default path
 			my $quoted_default_path = $dbh->quote($default_path);
-			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, ] . time() . qq[)]) or warn $!;
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 		}
 		else {
 			my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
-			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, ] . time() . qq[)]) or warn $!;
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 		}
 
 		$r->err_headers_out->add('Set-Cookie' => $cookie);
