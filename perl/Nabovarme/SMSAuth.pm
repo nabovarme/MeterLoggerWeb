@@ -175,7 +175,7 @@ sub login_handler {
 		# send new cookie
 
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
-		my $quoted_remote_host = $dbh->quote($ENV{REMOTE_ADDR});
+		my $quoted_remote_host = $dbh->quote($r->useragent_ip);
 		my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
 		if (index($r->uri, $login_path) || index($r->uri, $logged_out_path) || index($r->uri, $sms_code_path)) {
 			# if the requested url is a special one, go to default path
