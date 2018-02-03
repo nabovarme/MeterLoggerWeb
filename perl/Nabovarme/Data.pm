@@ -19,7 +19,7 @@ sub handler {
 	my ($serial, $option, $unix_time) = $r->uri =~ m|^/[^/]+/([^/]+)(?:/([^/]+))?(?:/([^/]+))?|;
 #	warn Dumper {uri => $r->uri, serial => $serial, option => $option, unix_time => $unix_time};
 	my $quoted_serial;
-	my $last_energy = 0;
+	my $last_value = 0;
 	
 	my $csv_header_set = 0;
 	
@@ -56,6 +56,47 @@ sub handler {
 			}
 
 		}
+		elsif ($option =~ /volume_acc/) {		# accumulated energy
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
+				AVG(`volume`) as `volume` \
+				FROM `samples` \
+				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
+				GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
+				ORDER BY `unix_time` ASC]);
+			$sth->execute;	
+		
+			$sth2 = $dbh->prepare(qq[SELECT last_volume FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
+			$sth2->execute;
+			if ($d2 = $sth2->fetchrow_hashref) {
+				$last_value = $d2->{last_volume};
+			}
+			$r->content_type('text/plain');
+			$r->print("Date,Volume\n");
+			$csv_header_set = 1;
+			while ($d = $sth->fetchrow_hashref) {
+				$r->print($d->{time_stamp_formatted} . ',');
+				$r->print(($d->{volume} - $last_value) . "\n");
+			}
+
+			# get highres data
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+				volume FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
+				ORDER BY `unix_time` ASC]);
+			$sth->execute;
+			if ($sth->rows) {
+				unless ($csv_header_set) {
+					$r->print("Date,Volume\n");
+				}
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print(($d->{volume} - $last_value) . "\n");
+				}
+			}
+		}
 		elsif ($option =~ /acc/) {		# accumulated energy
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
@@ -70,14 +111,14 @@ sub handler {
 			$sth2 = $dbh->prepare(qq[SELECT last_energy FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
 			$sth2->execute;
 			if ($d2 = $sth2->fetchrow_hashref) {
-				$last_energy = $d2->{last_energy};
+				$last_value = $d2->{last_energy};
 			}
 			$r->content_type('text/plain');
 			$r->print("Date,Energy\n");
 			$csv_header_set = 1;
 			while ($d = $sth->fetchrow_hashref) {
 				$r->print($d->{time_stamp_formatted} . ',');
-				$r->print(($d->{energy} - $last_energy) . "\n");
+				$r->print(($d->{energy} - $last_value) . "\n");
 			}
 
 			# get highres data
@@ -94,7 +135,7 @@ sub handler {
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{energy} - $last_energy) . "\n");
+					$r->print(($d->{energy} - $last_value) . "\n");
 				}
 			}
 		}
@@ -123,7 +164,7 @@ sub handler {
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{energy} - $last_energy) . "\n");
+					$r->print(($d->{energy} - $last_value) . "\n");
 				}
 			}
 		}

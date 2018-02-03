@@ -45,7 +45,7 @@
     [- 
 	# get all meters
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`type`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
 			$sth->execute;			
 		  }
 	$last_group = '';
@@ -163,7 +163,7 @@
 	</tr>
 [$ endif $]
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="default"><a href="[$ if ($d->{type} eq 3) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
 		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
 		<td align="right"><span class="default">[+ $d2->{energy} +] kWh</span></td>
 		<td>&nbsp;</td>
