@@ -1,6 +1,7 @@
 <html>
     <head>
 	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=600, initial-scale=2">
         <title>Login page - SMS Code</title>
 		<style type="text/css">
 		.top {
@@ -21,7 +22,7 @@
 			input[type=checkbox] {
 				margin-right: 1em;
 				/* All browsers except webkit*/
-				transform: scale(2);
+				transform: scale(1.5);
 				/* Webkit browsers*/
 				-webkit-transform: scale(2);
 			}
