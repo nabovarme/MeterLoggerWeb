@@ -30,7 +30,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	}
 	$sth5 = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial \
-		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 DAY)) ORDER BY unix_time DESC LIMIT 1]);
 	$sth5->execute;
 	if ($sth5->rows) {
 		if ($d = $sth5->fetchrow_hashref) {
@@ -70,6 +70,6 @@ if ($dbh = Nabovarme::Db->my_connect) {
 				$volume_time_left_str = '∞';
 			}
 		-]
-		[+ sprintf("%.0f", $d->{m3_left}) +] m<sup>3</sup> left, [+ $volume_time_left_str || "0" +] at [+ sprintf("%.2f", $volume_last_day) +] m<sup>3</sup>/h
+		[+ sprintf("%.2f", $d->{m3_left}) +] m<sup>3</sup> left, [+ $volume_time_left_str || "0" +] at [+ sprintf("%.0f", $volume_last_day * 1000) +] l/h
 	[$ endif $]
 [$ endif $]
