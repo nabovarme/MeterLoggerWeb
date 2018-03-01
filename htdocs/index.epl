@@ -67,7 +67,7 @@
 	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 	(SELECT \
 		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
-		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 	), 2) AS kwh_left]);
 	$sth3->execute;
 
@@ -95,8 +95,43 @@
 		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
 	}
 
-
 	$d3 = $sth3->fetchrow_hashref;
+
+
+	# same for flow meters
+	$sth3_volume = $dbh->prepare(qq[SELECT ROUND( \
+	(SELECT SUM(amount/price) AS paid_m3 FROM accounts WHERE serial = $quoted_serial) - \
+	(SELECT \
+		(SELECT samples.volume FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_m3 \
+	), 2) AS m3_left]);
+	$sth3_volume->execute;
+
+	# get last days energy usage
+	$sth4_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
+	$sth4_volume->execute;
+	if ($sth4_volume->rows) {
+		if ($d4_volume = $sth4_volume->fetchrow_hashref) {
+			$volume_now = $d4_volume->{volume};
+			$time_now_volume = $d4_volume->{unix_time};
+		}
+	}
+	$sth5_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples \
+		WHERE `serial` = $quoted_serial \
+		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4_volume->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+	$sth5_volume->execute;
+	if ($sth5_volume->rows) {
+		if ($d5_volume = $sth5_volume->fetchrow_hashref) {
+			$volume_last = $d5_volume->{volume};
+			$time_last_volume = $d5_volume->{unix_time};
+		}
+	}
+	if (($time_now_volume - $time_last_volume) > 0) {
+		$volume_last_day = ($volume_now - $volume_last) / (($time_now_volume - $time_last_volume) / 60 / 60);
+	}
+
+	$d3_volume = $sth3_volume->fetchrow_hashref;
 
 
 -]
@@ -122,6 +157,30 @@
 	}
 	else {
 		$energy_time_left_str = '∞';
+	}
+
+	# same for impulse meters
+	if ($volume_last_day > 0) {
+		$volume_time_left = $d3_volume->{m3_left} / $volume_last_day;
+		if ($volume_time_left > 24) {
+			if (sprintf("%.0f", $volume_time_left / 24) == 1) {
+				$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " day";
+			}
+			else {
+				$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " days";
+			}
+		}
+		else {
+			if (sprintf("%.0f", $volume_time_left) == 1) {
+				$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hour";
+			}
+			else {
+				$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hours";
+			}
+		}
+	}
+	else {
+		$volume_time_left_str = '∞';
 	}
 -]
 [$ if (($last_group ne $d->{'group'}) and ($is_first == 0)) $]
@@ -155,7 +214,7 @@
 		<td>&nbsp;</td>
 		<td align="right"><span class="default-bold">Hours</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default-bold">kWh left</span></td>
+		<td align="right"><span class="default-bold">left</span></td>
 		<td>&nbsp;</td>
 		<td align="right"><span class="default-bold">time left</span></td>
 		<td>&nbsp;</td>
@@ -165,13 +224,13 @@
 	<tr align="left" valign="bottom">
 		<td align="left"><span class="default"><a href="[$ if ($d->{type} eq 3) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
 		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
-		<td align="right"><span class="default">[+ $d2->{energy} +] kWh</span></td>
+		<td align="right"><span class="default">[$ if ($d->{type} ne 3) $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
 		<td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
 		<td>&nbsp;</td>
 		<td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[+ sprintf("%.0f", $d3->{kwh_left}) || "0" +]</span></td>
+		<td align="right"><span class="default">[$ if ($d->{type} eq 3) $][+ sprintf("%.0f", $d3_volume->{m3_left}) || "0" +] m<sup>3</sup>[$ else $][+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
 		<td align="right"><span class="default">[+ $energy_time_left_str +]</lefts></td>
 		<td>&nbsp;</td>

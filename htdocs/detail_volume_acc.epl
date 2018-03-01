@@ -21,16 +21,16 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
 	$sth->execute;
 
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 
 	# get kWh left
 	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
-	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+	(SELECT SUM(amount/price) AS paid_m3 FROM accounts WHERE serial = $quoted_serial) - \
 	(SELECT \
-		(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
-		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-	), 2) AS kwh_left]);
+		(SELECT samples_cache.volume FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
+		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
+	), 2) AS m3_left]);
 	$sth3->execute;
 
 	# get list of payments
@@ -38,28 +38,28 @@ if ($dbh = Nabovarme::Db->my_connect) {
 		FROM accounts WHERE serial = $quoted_serial ORDER BY payment_time ASC]);
 	$sth4->execute;
 
-	# get last days energy usage
-	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+	# get last days volume usage
+	$sth5 = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
 	$sth5->execute;
 	if ($sth5->rows) {
 		if ($d = $sth5->fetchrow_hashref) {
-			$energy_now = $d->{energy};
+			$volume_now = $d->{volume};
 			$time_now = $d->{unix_time};
 		}
 	}
-	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+	$sth5 = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial \
 		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 	$sth5->execute;
 	if ($sth5->rows) {
 		if ($d = $sth5->fetchrow_hashref) {
-			$energy_last = $d->{energy};
+			$volume_last = $d->{volume};
 			$time_last = $d->{unix_time};
 		}
 	}
 	if (($time_now - $time_last) > 0) {
-		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+		$volume_last_day = ($volume_now - $volume_last) / (($time_now - $time_last) / 60 / 60);
 	}
 }
 
@@ -127,10 +127,9 @@ if ($sth->rows) {
 		<span class="default-bold">[+ $info +]<br></span>
 		<span class="default">
 		serial [+ $fdat{'serial'} +]<br>
-		<div id="last_energy">
+		<div id="last_volume">
 [$ if ($sth2->rows) $]
 	[$ if ($d = $sth2->fetchrow_hashref) $]
-		[+ $d->{energy} +] kWh<br>
 		[+ $d->{volume} +] m<sup>3</sup><br>
 		[+ $d->{hours} +] hours<br>
 	[$ endif $]
@@ -164,25 +163,25 @@ if ($sth->rows) {
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
 		<script>
-			function update_last_energy() {
+			function update_last_volume() {
 				var xhttp = new XMLHttpRequest();
 				xhttp.onreadystatechange = function() {
 					if (xhttp.readyState == 4 && xhttp.status == 200) {
-						document.getElementById("last_energy").innerHTML = xhttp.responseText;
+						document.getElementById("last_volume").innerHTML = xhttp.responseText;
 					}
 				};
-				xhttp.open("GET", "last_energy.epl?serial=[+ $fdat{'serial'} +]", true);
+				xhttp.open("GET", "last_volume.epl?serial=[+ $fdat{'serial'} +]", true);
 				xhttp.send();
 			}
 
-			function update_kwh_left() {
+			function update_m3_left() {
 				var xhttp = new XMLHttpRequest();
 				xhttp.onreadystatechange = function() {
 					if (xhttp.readyState == 4 && xhttp.status == 200) {
-						document.getElementById("kwh_left").innerHTML = xhttp.responseText;
+						document.getElementById("m3_left").innerHTML = xhttp.responseText;
 					}
 				};
-				xhttp.open("GET", "kwh_left.epl?serial=[+ $fdat{'serial'} +]", true);
+				xhttp.open("GET", "m3_left.epl?serial=[+ $fdat{'serial'} +]", true);
 				xhttp.send();
 			}
 		</script>
@@ -229,8 +228,8 @@ if ($sth->rows) {
 				range[0] += 60000;
 				range[1] += 60000;
 				g.updateOptions( { 'file': data, dateWindow: range } );
-				update_last_energy();
-				update_kwh_left();
+				update_last_volume();
+				update_m3_left();
 			}, 60000);
 			
 			function formatDate(d) {
@@ -353,33 +352,33 @@ if ($sth->rows) {
 	  		[$ if ($sth3->rows) $]
 	  			[$ if ($d = $sth3->fetchrow_hashref) $]
 				[-	use utf8;
-					if ($energy_last_day > 0) {
-						$energy_time_left = $d->{kwh_left} / $energy_last_day;
-						if ($energy_time_left > 24) {
-							if (sprintf("%.0f", $energy_time_left / 24) == 1) {
-								$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
+					if ($volume_last_day > 0) {
+						$volume_time_left = $d->{m3_left} / $volume_last_day;
+						if ($volume_time_left > 24) {
+							if (sprintf("%.0f", $volume_time_left / 24) == 1) {
+								$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " day";
 							}
 							else {
-								$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
+								$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " days";
 							}
 						}
 						else {
-							if (sprintf("%.0f", $energy_time_left) == 1) {
-								$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
+							if (sprintf("%.0f", $volume_time_left) == 1) {
+								$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hour";
 							}
 							else {
-								$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
+								$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hours";
 							}
 						}
 					}
 					else {
-						$energy_time_left_str = '∞';
+						$volume_time_left_str = '∞';
 					}
 				-]
   			  <tr align="left" valign="bottom">
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
-  				<td align="left"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h</div></span></td>
+  				<td align="left"><span class="default-bold"><div id="m3_left">[+ sprintf("%.0f", $d->{m3_left}) || "0" +] m<sup>3</sup> left, [+ $volume_time_left_str || "0" +] at [+ sprintf("%.2f", $volume_last_day) +] m<sup>3</sup>/h</div></span></td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
   				<td>&nbsp;</td>
