@@ -14,7 +14,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = ] . $quoted_serial . qq[) - \
 	(SELECT \
 		(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = ] . $quoted_serial . qq[ ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
-		(SELECT meters.last_energy FROM meters WHERE meters.serial = ] . $quoted_serial . qq[) AS consumed_kwh \
+		(SELECT meters.setup_value FROM meters WHERE meters.serial = ] . $quoted_serial . qq[) AS consumed_kwh \
 	), 2) AS kwh_left]);
 	$sth->execute;
 
