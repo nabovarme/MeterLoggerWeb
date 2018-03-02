@@ -19,7 +19,7 @@ sub handler {
 	my ($serial, $option, $unix_time) = $r->uri =~ m|^/[^/]+/([^/]+)(?:/([^/]+))?(?:/([^/]+))?|;
 #	warn Dumper {uri => $r->uri, serial => $serial, option => $option, unix_time => $unix_time};
 	my $quoted_serial;
-	my $last_value = 0;
+	my $setup_value = 0;
 	
 	my $csv_header_set = 0;
 	
@@ -70,14 +70,14 @@ sub handler {
 			$sth2 = $dbh->prepare(qq[SELECT last_volume FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
 			$sth2->execute;
 			if ($d2 = $sth2->fetchrow_hashref) {
-				$last_value = $d2->{last_volume};
+				$setup_value = $d2->{setup_value};
 			}
 			$r->content_type('text/plain');
 			$r->print("Date,Volume\n");
 			$csv_header_set = 1;
 			while ($d = $sth->fetchrow_hashref) {
 				$r->print($d->{time_stamp_formatted} . ',');
-				$r->print(($d->{volume} - $last_value) . "\n");
+				$r->print(($d->{volume} - $setup_value) . "\n");
 			}
 
 			# get highres data
@@ -93,7 +93,7 @@ sub handler {
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{volume} - $last_value) . "\n");
+					$r->print(($d->{volume} - $setup_value) . "\n");
 				}
 			}
 		}
@@ -108,17 +108,17 @@ sub handler {
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		
-			$sth2 = $dbh->prepare(qq[SELECT last_energy FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
+			$sth2 = $dbh->prepare(qq[SELECT setup_value FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
 			$sth2->execute;
 			if ($d2 = $sth2->fetchrow_hashref) {
-				$last_value = $d2->{last_energy};
+				$setup_value = $d2->{setup_value};
 			}
 			$r->content_type('text/plain');
 			$r->print("Date,Energy\n");
 			$csv_header_set = 1;
 			while ($d = $sth->fetchrow_hashref) {
 				$r->print($d->{time_stamp_formatted} . ',');
-				$r->print(($d->{energy} - $last_value) . "\n");
+				$r->print(($d->{energy} - $setup_value) . "\n");
 			}
 
 			# get highres data
@@ -135,7 +135,7 @@ sub handler {
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{energy} - $last_value) . "\n");
+					$r->print(($d->{energy} - $setup_value) . "\n");
 				}
 			}
 		}
@@ -164,7 +164,7 @@ sub handler {
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{energy} - $last_value) . "\n");
+					$r->print(($d->{energy} - $setup_value) . "\n");
 				}
 			}
 		}

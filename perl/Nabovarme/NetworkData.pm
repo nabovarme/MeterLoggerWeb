@@ -14,7 +14,7 @@ use Nabovarme::Db;
 
 sub handler {
 	my $r = shift;
-	my ($dbh, $sth, $sth_last_energy, $d);
+	my ($dbh, $sth, $d);
 	my $count = 0;
 	
 	if ($dbh = Nabovarme::Db->my_connect) {
