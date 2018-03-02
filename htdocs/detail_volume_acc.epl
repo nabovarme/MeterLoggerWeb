@@ -13,7 +13,7 @@ $is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
 
 if ($is_admin && ($fdat{add_state} =~ /add/i)) {
 	$admin->add($fdat{serial}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});	# $serial, $date, $info, $amount, $price
-	$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial} . "&low=1";
+	$http_headers_out{'Location'} = "detail_volume_acc.epl?serial=" . $fdat{serial} . "&low=1";
 }
 
 if ($dbh = Nabovarme::Db->my_connect) {
