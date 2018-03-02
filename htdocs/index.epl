@@ -232,7 +232,7 @@
 		<td>&nbsp;</td>
 		<td align="right"><span class="default">[$ if ($d->{type} eq 3) $][+ sprintf("%.0f", $d3_volume->{m3_left}) || "0" +] m<sup>3</sup>[$ else $][+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[+ $energy_time_left_str +]</lefts></td>
+		<td align="right"><span class="default">[$ if ($d->{type} eq 3) $][+ $volume_time_left_str +][$ else $][+ $energy_time_left_str +][$ endif $]</lefts></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
 [-
