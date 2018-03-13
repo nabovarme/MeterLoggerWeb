@@ -160,6 +160,16 @@ sub get_version_and_status {
 		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 		$mqtt->publish($topic => $hmac_sha256_hash . $message);
 		usleep(DELAY_AFTER_SENDING);
+
+		# send reset_reason
+		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/reset_reason';
+		$message = '';
+		$iv = join('', map(chr(int rand(256)), 1..16));
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
+		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$mqtt->publish($topic => $hmac_sha256_hash . $message);
+		usleep(DELAY_AFTER_SENDING);
 	}
 }
 
