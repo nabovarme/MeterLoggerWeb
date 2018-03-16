@@ -6,7 +6,7 @@ use LWP::UserAgent;
 use JSON::Create 'create_json';
 use JSON::Parse 'parse_json';
 
-#use lib qw( /opt/local/apache2/perl/ );
+use lib qw( /opt/local/apache2/perl/ );
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
@@ -29,7 +29,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 							wifiAccessPoints => []
 						};
 			my $quoted_serial = $dbh->quote($d->{serial});
-			my $sth2 = $dbh->prepare(qq[SELECT `serial`, `ssid`, `bssid`, `rssi`, `channel`, `unix_time` from wifi_scan where `serial` like ] . $quoted_serial . 
+			my $sth2 = $dbh->prepare(qq[SELECT `serial`, `ssid`, `bssid`, `rssi`, `channel`, `unix_time` from wifi_scan where `serial` LIKE ] . $quoted_serial . 
 									qq[ AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 3 DAY GROUP BY `bssid` ORDER BY `unix_time`]);
 			$sth2->execute || warn $!;
 			if ($sth2->rows) {
@@ -53,7 +53,12 @@ if ($dbh = Nabovarme::Db->my_connect) {
 				if ($response->is_success() ) {
 #					print $response->decoded_content();
 					my $loc = parse_json($response->decoded_content());
-					print $loc->{'location'}->{'lat'} . ',' . $loc->{'location'}->{'lng'} . ',' . '"' . $d->{'serial'} . ' ' . $d->{'info'} . '"' . "\n";
+					
+					# insert into db
+					my $quoted_lat = $dbh->quote($loc->{'location'}->{'lat'});
+					my $quoted_long = $dbh->quote($loc->{'location'}->{'lng'});
+					$dbh->do(qq[UPDATE meters SET `location_lat` = $quoted_lat, `location_long` = $quoted_long WHERE `serial` LIKE $quoted_serial]) or warn $!;
+#					print $loc->{'location'}->{'lat'} . ',' . $loc->{'location'}->{'lng'} . ',' . '"' . $d->{'serial'} . ' ' . $d->{'info'} . '"' . "\n";
 				}
 				else {
 					print("ERROR: " . $response->status_line()) . "\n";
