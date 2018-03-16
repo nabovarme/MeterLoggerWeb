@@ -10,9 +10,12 @@ use lib qw( /opt/local/apache2/perl/ );
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
+use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
-my $api_key = '';
-my $url = 'https://www.googleapis.com/geolocation/v1/geolocate?key=';
+my $config = new Config::Simple(CONFIG_FILE) || die $!;
+
+my $api_key = $config->param('google_api_key');
+my $url = $config->param('google_geolocation_api_url');
 
 my $dbh;
 my ($sth, $sth2);
