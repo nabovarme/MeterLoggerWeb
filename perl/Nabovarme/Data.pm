@@ -29,10 +29,9 @@ sub handler {
 		if ($option =~ /effect/) {		# effect
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
-				AVG(`effect`) as `effect` \
-				FROM `samples` \
+				`effect` \
+				FROM `samples_calculated` \
 				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-				GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		
@@ -59,11 +58,10 @@ sub handler {
 		elsif ($option =~ /volume_acc/) {		# accumulated energy
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
-				AVG(`volume`) as `volume` \
-				FROM `samples` \
+				`volume` \
+				FROM `samples_calculated` \
 				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 				AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
-				GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		
@@ -100,11 +98,10 @@ sub handler {
 		elsif ($option =~ /acc/) {		# accumulated energy
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
-				AVG(`energy`) as `energy` \
-				FROM `samples` \
+				`energy` \
+				FROM `samples_calculated` \
 				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 				AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
-				GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		
@@ -124,7 +121,7 @@ sub handler {
 			# get highres data
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
 				AND effect IS NOT NULL \
 				ORDER BY `unix_time` ASC]);
@@ -143,7 +140,7 @@ sub handler {
 		        if ($unix_time) {
 			        $sth = $dbh->prepare(qq[SELECT \
 				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-        				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+        				energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
         				AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
         				AND effect IS NOT NULL \
         				ORDER BY `unix_time` DESC \
@@ -152,7 +149,7 @@ sub handler {
                         else {
 			        $sth = $dbh->prepare(qq[SELECT \
 				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-        				energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+        				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
         				AND effect IS NOT NULL \
         				ORDER BY `unix_time` DESC \
         				LIMIT 1]);                        
@@ -180,26 +177,23 @@ sub handler {
 					effect, \
 					hours, \
 					volume, \
-					energy FROM samples WHERE `serial` LIKE AND effect IS NOT NULL] . $quoted_serial . qq[ ORDER BY `unix_time` ASC]);
+					energy FROM `samples` WHERE `serial` LIKE AND effect IS NOT NULL] . $quoted_serial . qq[ ORDER BY `unix_time` ASC]);
 			}
 			else {
 				$sth = $dbh->prepare(qq[SELECT \
-					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
 					serial, \
-					AVG(`flow_temp`) as `flow_temp`, \
-					AVG(`return_flow_temp`) as `return_flow_temp`, \
-					AVG(`temp_diff`) as `temp_diff`, \
-					AVG(`flow`) as `flow`, \
-					AVG(`effect`) as `effect`, \
-					`hours`, \
-					`volume`, \
-					`energy` \
-					FROM `samples` \
-					WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+					flow_temp, \
+					return_flow_temp, \
+					temp_diff, \
+					flow, \
+					effect, \
+					hours, \
+					volume, \
+					energy FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 					AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
 					AND effect IS NOT NULL \
-					GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) \
-					ORDER BY FROM_UNIXTIME(`unix_time`) ASC]);
+					ORDER BY `unix_time` ASC]);
 			}
 			$sth->execute;
 			if ($sth->rows) {
@@ -229,7 +223,7 @@ sub handler {
 					effect, \
 					hours, \
 					volume, \
-					energy FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+					energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 				    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
 					AND effect IS NOT NULL \
 					ORDER BY `unix_time` ASC]);
