@@ -49,7 +49,7 @@ sub update_samples_calculated {
 		syslog('info', "    update samples_calculated for " . $d->{serial});
 		# re calculate in transaction
 		eval {
-			$dbh->do(qq[DELETE FROM `samples_calculated` WHERE `serial` LIKE ] . $d->{serial}) || warn $!;
+			$dbh->do(qq[DELETE FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial) || warn $!;
 			$dbh->do(qq[INSERT INTO `samples_calculated` (`serial`, `heap`, `flow_temp`, `return_flow_temp`, `temp_diff`, `t3`, `flow`, `effect`, `hours`, `volume`, `energy`, `unix_time`)
 							SELECT 
 								`serial`, 
