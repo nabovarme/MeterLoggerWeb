@@ -76,8 +76,14 @@
 [$ endif $]
 
 		// Creates a red marker with the coffee icon
-		var onlineMarker = L.AwesomeMarkers.icon({
+		var onlineOpenMarker = L.AwesomeMarkers.icon({
 			icon: 'circle',
+			markerColor: 'green',
+			prefix: 'fa',
+			spin: false
+		});
+		var onlineCloseMarker = L.AwesomeMarkers.icon({
+			icon: 'minus-circle',
 			markerColor: 'green',
 			prefix: 'fa',
 			spin: false
@@ -104,21 +110,22 @@
 		
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `last_updated` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `last_updated`, `valve_status` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;			
 -]
 [$ if ($sth->rows) $]
 	[$ while ($d = $sth->fetchrow_hashref) $]
 				L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
-						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $]onlineMarker[$ endif $],
+						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if ($d->{valve_status} =~ /close/i) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
 						riseOnHover: true
 					})
 				[$ if ($d->{last_updated} < time() - 3600) $]
 					.setZIndexOffset(1000)
 				[$ endif $]
 					.addTo(map)
-					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]');
+					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]
+								<br>Valve status: [+ $d->{valve_status} +]');
 	[$ endwhile $]
 [$ endif $]
 	</script>
