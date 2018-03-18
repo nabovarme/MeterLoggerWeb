@@ -21,6 +21,7 @@
 	<HEAD>
 	<meta name="robots" content="noindex">
 	<TITLE>MeterLogger Map</TITLE>
+
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
@@ -28,7 +29,14 @@
 		height: 800px;
 	}
 	</style>
+
+	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
 	
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	
+	<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
+	<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
+
 	<style type="text/css">
 	.top {
 		position: absolute;
@@ -59,28 +67,48 @@
 -]
 [$ if ($sth->rows) $]
 [$ if ($d = $sth->fetchrow_hashref) $]
-		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 20);
+		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 18);
 [$ endif $]
 [$ endif $]
-    	
+
 		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-		    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-			maxZoom: 18,
+			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+			detectRetina: true,
+			maxZoom: 20,
 			minZoom: 10
 		}).addTo(map);
-    	
+		
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `last_updated` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;			
 -]
-		[$ if ($sth->rows) $]
-		[$ while ($d = $sth->fetchrow_hashref) $]
-				L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ]).addTo(map)
-				    .bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]')
-				    .openPopup();
-		[$ endwhile $]
-		[$ endif $]
+[$ if ($sth->rows) $]
+		// Creates a red marker with the coffee icon
+		var onlineMarker = L.AwesomeMarkers.icon({
+			icon: 'circle',
+			markerColor: 'green',
+			prefix: 'fa',
+			spin: false
+		});
+		var offlineMarker = L.AwesomeMarkers.icon({
+			icon: 'exclamation-triangle',
+			markerColor: 'red',
+			prefix: 'fa',
+			spin: false
+		});
+		var semiOfflineMarker = L.AwesomeMarkers.icon({
+			icon: 'exclamation',
+			markerColor: 'orange',
+			prefix: 'fa',
+			spin: false
+		});
+	[$ while ($d = $sth->fetchrow_hashref) $]
+				L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], {icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $]onlineMarker[$ endif $]}).addTo(map)
+					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]')
+					.openPopup();
+	[$ endwhile $]
+[$ endif $]
 	</script>
 
 	</BODY>
