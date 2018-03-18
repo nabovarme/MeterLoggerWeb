@@ -19,14 +19,17 @@
 -]
 <HTML>
 	<HEAD>
-	<meta name="robots" content="noindex">
 	<TITLE>MeterLogger Map</TITLE>
+	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+	
 
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
 	#map {
-		height: 800px;
+		height: 100%;
+		width: 100%;
 	}
 	</style>
 
@@ -68,6 +71,7 @@
 [$ if ($sth->rows) $]
 [$ if ($d = $sth->fetchrow_hashref) $]
 		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 18);
+		map.locate({setView: true, maxZoom: 16});
 [$ endif $]
 [$ endif $]
 
@@ -105,8 +109,7 @@
 		});
 	[$ while ($d = $sth->fetchrow_hashref) $]
 				L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], {icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $]onlineMarker[$ endif $]}).addTo(map)
-					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]')
-					.openPopup();
+					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]');
 	[$ endwhile $]
 [$ endif $]
 	</script>
