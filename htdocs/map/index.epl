@@ -116,6 +116,12 @@
 -]
 [$ if ($sth->rows) $]
 	[$ while ($d = $sth->fetchrow_hashref) $]
+		[- 
+		# ugly hack here to remove padding null characters
+		$d->{valve_status} =~ s/[\x00\s]+$//; $d->{valve_status} .= '';
+		$d->{ssid} =~ s/[\x00\s]+$//; $d->{ssid} .= '';
+		$d->{sw_version} =~ s/[\x00\s]+$//; $d->{sw_version} .= '';
+		-]
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
 						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if ($d->{valve_status} =~ /close/i) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
