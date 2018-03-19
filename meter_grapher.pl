@@ -95,7 +95,7 @@ sub v2_mqtt_version_handler {
 			$sw_version = $m->decrypt($ciphertext, $aes_key, $iv);
 
 			# remove trailing nulls
-			$sw_version =~ s/(\w+).*/$1/;
+			$sw_version =~ s/[\x00\s]+$//;
 
 			my $quoted_sw_version = $dbh->quote($sw_version);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -145,7 +145,7 @@ sub v2_mqtt_status_handler {
 			$valve_status = $m->decrypt($ciphertext, $aes_key, $iv);
 			
 			# remove trailing nulls
-			$valve_status =~ s/(\w+).*/$1/;
+			$valve_status =~ s/[\x00\s]+$//;
 
 			my $quoted_valve_status = $dbh->quote($valve_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -237,7 +237,7 @@ sub v2_mqtt_ssid_handler {
 			$ssid = $m->decrypt($ciphertext, $aes_key, $iv);
 
 			# remove trailing nulls
-			$ssid =~ s/(\w+).*/$1/;
+			$ssid =~ s/[\x00\s]+$//;
 
 			my $quoted_ssid = $dbh->quote($ssid);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -284,7 +284,7 @@ sub v2_mqtt_rssi_handler {
 			$rssi = $m->decrypt($ciphertext, $aes_key, $iv);
 
 			# remove trailing nulls
-			$rssi =~ s/(\w+).*/$1/;
+			$rssi =~ s/[\x00\s]+$//;
 
 			my $quoted_rssi = $dbh->quote($rssi);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -331,7 +331,7 @@ sub v2_mqtt_wifi_status_handler {
 			$wifi_status = $m->decrypt($ciphertext, $aes_key, $iv);
 
 			# remove trailing nulls
-			$wifi_status =~ s/(\w+).*/$1/;
+			$wifi_status =~ s/[\x00\s]+$//;
 
 			my $quoted_wifi_status = $dbh->quote($wifi_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
@@ -379,7 +379,7 @@ sub v2_mqtt_ap_status_handler {
 			$ap_status = $m->decrypt($ciphertext, $aes_key, $iv);
 			
 			# remove trailing nulls
-			$ap_status =~ s/(\w+).*/$1/;
+			$ap_status =~ s/[\x00\s]+$//;
 
 			# reverse ap_status for sw version higher than or equal to build #942
 			my $orig_ap_status = $ap_status;
@@ -440,7 +440,7 @@ sub v2_mqtt_reset_reason_handler {
 			$reset_reason = $m->decrypt($ciphertext, $aes_key, $iv);
 			
 			# remove trailing nulls
-			$reset_reason =~ s/(\w+).*/$1/;
+			$reset_reason =~ s/[\x00\s]+$//;
 
 			my $quoted_reset_reason = $dbh->quote($reset_reason);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
