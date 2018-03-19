@@ -71,7 +71,7 @@
 [$ if ($sth->rows) $]
 [$ if ($d = $sth->fetchrow_hashref) $]
 		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 18);
-		map.locate({setView: true, maxZoom: 18});
+		map.locate({setView: true, maxZoom: 22});
 [$ endif $]
 [$ endif $]
 
@@ -104,8 +104,9 @@
 		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 			detectRetina: true,
-			maxZoom: 19,
-			minZoom: 10
+			maxZoom: 22,
+			minZoom: 10,
+			maxNativeZoom: 18
 		}).addTo(map);
 		
 [- 
@@ -128,7 +129,9 @@
 					.addTo(map)
 					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br><b>Version: </b>[+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
 					);
-				m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
+				if (L.Browser.mobile == false) {
+					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
+				}
 	[$ endwhile $]
 [$ endif $]
 	</script>
