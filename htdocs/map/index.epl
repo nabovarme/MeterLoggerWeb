@@ -125,6 +125,8 @@
 					.setZIndexOffset(1000)
 				[$ elsif ($d->{last_updated} < time() - 1800) $]
 					.setZIndexOffset(900)
+				[$ elsif ($d->{valve_status} =~ /close/i) $]
+					.setZIndexOffset(800)
 				[$ endif $]
 					.addTo(map)
 					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br><b>Version: </b>[+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
