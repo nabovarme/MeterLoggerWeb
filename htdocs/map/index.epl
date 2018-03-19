@@ -124,7 +124,7 @@
 					.setZIndexOffset(1000)
 				[$ endif $]
 					.addTo(map)
-					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div>Valve status: [+ $d->{valve_status} +]<br>SSID: [+ $d->{ssid} +]<br>RSSI: [+ $d->{rssi} +]<br>AP status: [+ $d->{ap_status} +]<br>Version: [+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
+					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Version: </b>[+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
 					);
 	[$ endwhile $]
 [$ endif $]
