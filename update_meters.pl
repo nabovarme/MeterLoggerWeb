@@ -16,7 +16,7 @@ use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
-use constant DELAY_AFTER_SENDING => 100_000;	# 100 mS
+use constant DELAY_AFTER_SENDING => 400_000;	# 100 mS
 
 $SIG{HUP} = \&get_version_and_status;
 $SIG{USR1} = \&get_wifi_scan_results;
