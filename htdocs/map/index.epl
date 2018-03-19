@@ -115,7 +115,7 @@
 -]
 [$ if ($sth->rows) $]
 	[$ while ($d = $sth->fetchrow_hashref) $]
-				L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
+				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
 						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if ($d->{valve_status} =~ /close/i) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
 						riseOnHover: true
@@ -126,6 +126,7 @@
 					.addTo(map)
 					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br><b>Version: </b>[+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
 					);
+				m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 	[$ endwhile $]
 [$ endif $]
 	</script>
