@@ -104,7 +104,7 @@
 		
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
@@ -128,7 +128,7 @@
 					.setZIndexOffset(800)
 				[$ endif $]
 					.addTo(map)
-					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br><b>Version: </b>[+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
+					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br><b>Version: </b>[+ $d->{sw_version} +]<br>[$ if (length($d->{comment})) $]<br><i>[+ $d->{comment} +]</i><br>[$ endif $]<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
 					);
 				if (L.Browser.mobile == false) {
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
