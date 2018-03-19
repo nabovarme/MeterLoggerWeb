@@ -64,7 +64,7 @@
 
 	<div id="map"></div>
 	<script>
-		var map = L.map('map');
+		var map = L.map('map', {zoomSnap: 0});
 
 		// Creates a red marker with the coffee icon
 		var onlineOpenMarker = L.AwesomeMarkers.icon({
@@ -137,7 +137,7 @@
 				g.addLayer(m);
 	[$ endwhile $]
 [$ endif $]
-				map.fitBounds(g.getBounds());
+				map.fitBounds(g.getBounds(), {padding: [20, 20]});
 	</script>
 
 	</BODY>
