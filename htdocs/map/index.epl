@@ -110,8 +110,8 @@
 		
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `last_updated`, `valve_status` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
-		$sth->execute;			
+		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth->execute;
 -]
 [$ if ($sth->rows) $]
 	[$ while ($d = $sth->fetchrow_hashref) $]
@@ -120,12 +120,12 @@
 						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if ($d->{valve_status} =~ /close/i) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
 						riseOnHover: true
 					})
-				[$ if ($d->{last_updated} < time() - 3600) $]
+				[$ if ($d->{last_updated} < time() - 1800) $]
 					.setZIndexOffset(1000)
 				[$ endif $]
 					.addTo(map)
-					.bindPopup('<a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a> [+ $d->{info} +]
-								<br>Valve status: [+ $d->{valve_status} +]');
+					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div>Valve status: [+ $d->{valve_status} +]<br>SSID: [+ $d->{ssid} +]<br>RSSI: [+ $d->{rssi} +]<br>AP status: [+ $d->{ap_status} +]<br>Version: [+ $d->{sw_version} +]<br><a href="/detail_acc.epl?serial=[+ $d->{serial} +]&low=1">Accummulated</a> | <a href="/detail.epl?serial=[+ $d->{serial} +]&low=1">Details</a></div>'
+					);
 	[$ endwhile $]
 [$ endif $]
 	</script>
