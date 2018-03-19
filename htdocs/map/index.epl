@@ -71,7 +71,7 @@
 [$ if ($sth->rows) $]
 [$ if ($d = $sth->fetchrow_hashref) $]
 		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 18);
-		map.locate({setView: true, maxZoom: 16});
+		map.locate({setView: true, maxZoom: 18});
 [$ endif $]
 [$ endif $]
 
