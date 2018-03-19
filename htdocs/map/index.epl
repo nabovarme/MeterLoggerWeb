@@ -64,16 +64,7 @@
 
 	<div id="map"></div>
 	<script>
-[-
-		$sth = $dbh->prepare(qq[SELECT AVG(`location_lat`) AS `location_lat`, AVG(`location_long`) AS `location_long` FROM meters WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
-		$sth->execute;			
--]
-[$ if ($sth->rows) $]
-[$ if ($d = $sth->fetchrow_hashref) $]
-		var map = L.map('map').setView([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 18);
-		map.locate({setView: true, maxZoom: 22});
-[$ endif $]
-[$ endif $]
+		var map = L.map('map');
 
 		// Creates a red marker with the coffee icon
 		var onlineOpenMarker = L.AwesomeMarkers.icon({
@@ -109,6 +100,8 @@
 			maxNativeZoom: 18
 		}).addTo(map);
 		
+		var g = L.featureGroup();
+		
 [- 
 		# get all meters
 		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
@@ -140,8 +133,11 @@
 				if (L.Browser.mobile == false) {
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
+				
+				g.addLayer(m);
 	[$ endwhile $]
 [$ endif $]
+				map.fitBounds(g.getBounds());
 	</script>
 
 	</BODY>
