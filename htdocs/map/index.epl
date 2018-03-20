@@ -27,10 +27,32 @@
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
-	#map {
-		height: 100%;
-		width: 100%;
-	}
+		#footer {
+		    position: fixed;
+		    height: 0px;	// change this to enable footer
+		    margin-top: 0;
+		    bottom: 0;
+		    right: 0;
+		    left: 0;
+		    background: white;
+		}
+		body > div.container {
+		    position: fixed;
+		    top: 0;
+		    bottom: 0px;	// change this to enable footer
+		    right: 0;
+		    left: 0;
+			width: 100%;
+		    vertical-align: top;
+			padding-left: 0;
+			padding-right: 0;
+			margin-left: 0;
+			margin-right: 0;
+		}
+		#map {
+			height: 100%;
+			width: 100%;
+		}
 	</style>
 
 	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
@@ -62,7 +84,11 @@
 	</HEAD>
 	<BODY>
 
-	<div id="map"></div>
+<div class="container">
+    <div id="map"></div>
+	<div id="footer"></div>
+</div>
+	
 	<script>
 		var map = L.map('map', {zoomSnap: 0});
 
@@ -100,11 +126,12 @@
 			maxNativeZoom: 18
 		}).addTo(map);
 		
-		var g = L.featureGroup();
+		var g = L.featureGroup();		// heating meters
+		var g_el = L.featureGroup();	// electricity meters
 		
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `type`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
@@ -134,10 +161,20 @@
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
 				
-				g.addLayer(m);
+			[$ if ($d->{type} == 1) $]
+				g_el.addLayer(m).addTo(map);
+			[$ else $]
+				g.addLayer(m).addTo(map);
+			[$ endif $]
 	[$ endwhile $]
 [$ endif $]
-				map.fitBounds(g.getBounds(), {padding: [20, 45]});
+				map.fitBounds(g.getBounds().extend(g_el.getBounds()), {padding: [20, 45]});
+				
+				var overlayMaps = {
+				    "Heating meters": g,
+				    "Electricity meters": g_el
+				};
+				L.control.layers(null, overlayMaps).addTo(map);
 	</script>
 
 	</BODY>
