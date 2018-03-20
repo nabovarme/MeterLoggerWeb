@@ -54,8 +54,8 @@ sub handler {
 				return Apache2::Const::REDIRECT;
 			}
 
-#			warn Dumper(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info limit 1]);
-			$sth = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info limit 1]);
+#			warn Dumper(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info ORDER BY `type`, `group` LIMIT 1]);
+			$sth = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE info like $quoted_meter_info ORDER BY `type`, `group` LIMIT 1]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 #				warn Dumper({looked_up_serial => $d->{serial}});

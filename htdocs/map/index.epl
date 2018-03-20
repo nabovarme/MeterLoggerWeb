@@ -137,7 +137,7 @@
 				g.addLayer(m);
 	[$ endwhile $]
 [$ endif $]
-				map.fitBounds(g.getBounds(), {padding: [20, 20]});
+				map.fitBounds(g.getBounds(), {padding: [20, 45]});
 	</script>
 
 	</BODY>
