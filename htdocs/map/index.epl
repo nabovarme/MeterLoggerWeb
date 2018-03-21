@@ -126,6 +126,7 @@
 			maxNativeZoom: 18
 		}).addTo(map);
 		
+		var g_all = L.featureGroup();			// all meters
 		var g_heat = L.featureGroup();			// heating meters
 		var g_water = L.featureGroup();			// water meters
 		var g_electricity = L.featureGroup();	// electricity meters
@@ -134,8 +135,20 @@
 		var g_heat_sub = L.featureGroup();		// sub meters
 		
 [- 
+		# get all groups
+		$sth = $dbh->prepare(qq[SELECT `id`, `group` FROM `meter_groups` WHERE `group` IS NOT NULL]);
+		$sth->execute;
+-]
+		var g_meter_groups = [];
+[$ if ($sth->rows) $]
+	[$ while ($d = $sth->fetchrow_hashref) $]
+		g_meter_groups.push({id: [+ $d->{id} +], name: "[+ $d->{group} +]", group: L.featureGroup()});
+	[$ endwhile $]
+[$ endif $]
+
+[- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `type`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
@@ -165,6 +178,7 @@
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
 				
+				g_all.addLayer(m).addTo(map);
 			[$ if ($d->{type} =~ /^heat$/i) $]
 				g_heat.addLayer(m).addTo(map);
 			[$ elsif ($d->{type} =~ /^water$/i) $]
@@ -178,6 +192,13 @@
 			[$ elsif ($d->{type} =~ /^heat_sub$/i) $]
 				g_heat_sub.addLayer(m).addTo(map);
 			[$ endif $]
+				
+				for (var i in g_meter_groups) {
+					if (g_meter_groups[i].id == [+ $d->{group} +]) {
+						g_meter_groups[i].group.addLayer(m).addTo(map);
+					}
+				}
+				
 	[$ endwhile $]
 [$ endif $]
 				map.fitBounds(g_heat.getBounds().extend(g_water.getBounds())
@@ -187,15 +208,22 @@
 					.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
 				);
 				
-				var overlayMaps = {
+				var overlay_maps = {
+					"All<br>&nbsp;": g_all,
 				    "Heating meters": g_heat,
 				    "Water meters": g_water,
 				    "Electricity meters": g_electricity,
 				    "Heat production": g_heat_supply,
 				    "Heat sub meter": g_heat_sub,
-				    "Aggregated meters": g_aggregated
+				    "Aggregated meters<br>&nbsp;": g_aggregated
 				};
-				L.control.layers(null, overlayMaps).addTo(map);
+//				L.control.layers(null, overlay_maps).addTo(map);
+				
+//				var overlay = {};
+				for (var i in g_meter_groups) {
+					overlay_maps[g_meter_groups[i].name] = g_meter_groups[i].group;
+				}
+				L.control.layers(null, overlay_maps).addTo(map);
 	</script>
 
 	</BODY>
