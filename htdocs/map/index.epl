@@ -126,8 +126,12 @@
 			maxNativeZoom: 18
 		}).addTo(map);
 		
-		var g = L.featureGroup();		// heating meters
-		var g_el = L.featureGroup();	// electricity meters
+		var g_heat = L.featureGroup();			// heating meters
+		var g_water = L.featureGroup();			// water meters
+		var g_electricity = L.featureGroup();	// electricity meters
+		var g_aggregated = L.featureGroup();	// from aggregated source
+		var g_heat_supply = L.featureGroup();	// heat supply
+		var g_heat_sub = L.featureGroup();		// sub meters
 		
 [- 
 		# get all meters
@@ -161,18 +165,35 @@
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
 				
-			[$ if ($d->{type} == 1) $]
-				g_el.addLayer(m).addTo(map);
-			[$ else $]
-				g.addLayer(m).addTo(map);
+			[$ if ($d->{type} =~ /^heat$/i) $]
+				g_heat.addLayer(m).addTo(map);
+			[$ elsif ($d->{type} =~ /^water$/i) $]
+				g_water.addLayer(m).addTo(map);
+			[$ elsif ($d->{type} =~ /^electricity$/i) $]
+				g_electricity.addLayer(m).addTo(map);
+			[$ elsif ($d->{type} =~ /^aggregated$/i) $]
+				g_aggregated.addLayer(m).addTo(map);
+			[$ elsif ($d->{type} =~ /^heat_supply$/i) $]
+				g_heat_supply.addLayer(m).addTo(map);
+			[$ elsif ($d->{type} =~ /^heat_sub$/i) $]
+				g_heat_sub.addLayer(m).addTo(map);
 			[$ endif $]
 	[$ endwhile $]
 [$ endif $]
-				map.fitBounds(g.getBounds().extend(g_el.getBounds()), {padding: [20, 45]});
+				map.fitBounds(g_heat.getBounds().extend(g_water.getBounds())
+					.extend(g_electricity.getBounds())
+					.extend(g_aggregated.getBounds())
+					.extend(g_heat_supply.getBounds())
+					.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
+				);
 				
 				var overlayMaps = {
-				    "Heating meters": g,
-				    "Electricity meters": g_el
+				    "Heating meters": g_heat,
+				    "Water meters": g_water,
+				    "Electricity meters": g_electricity,
+				    "Heat production": g_heat_supply,
+				    "Heat sub meter": g_heat_sub,
+				    "Aggregated meters": g_aggregated
 				};
 				L.control.layers(null, overlayMaps).addTo(map);
 	</script>
