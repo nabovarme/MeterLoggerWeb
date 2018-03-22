@@ -148,7 +148,7 @@
 
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `valve_installed`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
@@ -161,7 +161,7 @@
 		-]
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
-						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if ($d->{valve_status} =~ /close/i) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
+						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
 						riseOnHover: true
 					})
 				[$ if ($d->{last_updated} < time() - 3600) $]
@@ -177,7 +177,7 @@
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
 				
-				g_all.addLayer(m);
+				g_all.addLayer(m).addTo(map);
 			[$ if ($d->{type} =~ /^heat$/i) $]
 				g_heat.addLayer(m).addTo(map);
 			[$ elsif ($d->{type} =~ /^water$/i) $]
@@ -222,7 +222,50 @@
 				for (var i in g_meter_groups) {
 					overlay_maps[g_meter_groups[i].name] = g_meter_groups[i].group;
 				}
-				L.control.layers(null, overlay_maps).addTo(map);
+				var c = L.control.layers(null, overlay_maps).addTo(map);
+
+/*
+				map.on("overlayadd overlayremove", function (event) {
+					var layer = event.layer;
+					console.log(event);
+					if (layer === g_all) {
+						if (layer.notUserAction) {
+							layer.notUserAction = false;
+							return;
+						}
+						// Emulate addition / removal of all category LayerGroups when g_all is added / removed.
+						for (var i in g_meter_groups) {
+							if (g_meter_groups[i].name !== "All<br>&nbsp;") {
+								if (event.type === "overlayadd") {
+									g_meter_groups[i].group.addTo(map);
+								}
+								else {
+									map.removeLayer(g_meter_groups[i].group);
+								}
+							}
+						}
+						c._update();
+					}
+					else {//if (layer && g_meter_groups[i].name in g_meter_groups) {
+						if (event.type === "overlayadd") {
+							for (var i in g_meter_groups) {		
+								var j = g_meter_groups[i].group;					
+								if (g_meter_groups[i].name !== "All<br>&nbsp;" && !j._map) {
+									// At least one category is not shown, do nothing.
+									return;
+								}
+							}
+				            g_all.addTo(map);
+				            c._update();
+						}
+						else if (event.type === "overlayremove" && g_all._map) {
+				            g_all.notUserAction = true;
+				            map.removeLayer(g_all);
+				            c._update();
+						}
+					}
+				});
+*/
 	</script>
 
 	</BODY>
