@@ -106,12 +106,12 @@ sub mqtt_handler {
 				warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue\n";
 				syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue");
 				# do mysql stuff here
-				$dbh->do(qq[DELETE FROM command_queue2 WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
+				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
 			}
 			else {
 				warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, activate callback\n";
 				syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext activate callback");
-				$dbh->do(qq[UPDATE command_queue2 SET \
+				$dbh->do(qq[UPDATE command_queue SET \
 					`state` = 'received', \
 				    `param` = ] . $dbh->quote($cleartext) . qq[ 
 					WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
@@ -147,9 +147,9 @@ sub publish_thread {
 
 	my $m = Crypt::Mode::CBC->new('AES');
  	while (1) {
-		$sth = $dbh->prepare(qq[SELECT command_queue2.`serial`, command_queue2.`function`, command_queue2.`param`, meters.`key` \
-			FROM command_queue2, meters \
-			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue2.`serial` LIKE meters.`serial` \
+		$sth = $dbh->prepare(qq[SELECT command_queue.`serial`, command_queue.`function`, command_queue.`param`, meters.`key` \
+			FROM command_queue, meters \
+			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` \
 		]);
 		$sth->execute;
 		while ($d = $sth->fetchrow_hashref) {
