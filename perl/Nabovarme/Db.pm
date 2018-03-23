@@ -6,7 +6,7 @@ use DBI;
 use Sys::Syslog;
 use Config::Simple;
 
-use constant CONFIG_FILE => '/etc/Nabovarme.conf';
+use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 

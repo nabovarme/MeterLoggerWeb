@@ -12,12 +12,16 @@ use Proc::Pidfile;
 use threads;
 use threads::shared;
 
-#use lib qw( /opt/local/apache2/perl/ );
 use lib qw( /etc/apache2/perl );
+use lib qw( /opt/local/apache2/perl );
+use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
-#use constant MQTT_HOST => "10.8.0.84";
-use constant MQTT_HOST => "127.0.0.1";
+use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+
+my $config = new Config::Simple(CONFIG_FILE) || die $!;
+my $mqtt_host :shared = $config->param('mqtt_host');
+my $mqtt_port :shared = $config->param('mqtt_port');
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -98,11 +102,21 @@ sub mqtt_handler {
 				return;
 			}
 
-			warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue\n";
-			syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue");
-			# do mysql stuff here
-			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
-			
+			if ($function =~ /^open_until/i) {
+				warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue\n";
+				syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext, deleting from mysql queue");
+				# do mysql stuff here
+				$dbh->do(qq[DELETE FROM command_queue2 WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
+			}
+			else {
+				warn "received mqtt reply from $meter_serial: $function, with param: $cleartext, activate callback\n";
+				syslog('info', "received mqtt reply from $meter_serial: $function, with param: $cleartext activate callback");
+				$dbh->do(qq[UPDATE command_queue2 SET \
+					`state` = 'received', \
+				    `param` = ] . $dbh->quote($cleartext) . qq[ 
+					WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
+					AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
+			}
 		}
 		else {
 			# hmac sha256 not ok
@@ -117,7 +131,7 @@ sub publish_thread {
 	my $sth;
 	my $d;
 	
-	my $publish_mqtt = Net::MQTT::Simple->new(MQTT_HOST);
+	my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 	
 	# connect to db
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -133,9 +147,9 @@ sub publish_thread {
 
 	my $m = Crypt::Mode::CBC->new('AES');
  	while (1) {
-		$sth = $dbh->prepare(qq[SELECT command_queue.`serial`, command_queue.`function`, command_queue.`param`, meters.`key` \
-			FROM command_queue, meters \
-			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` \
+		$sth = $dbh->prepare(qq[SELECT command_queue2.`serial`, command_queue2.`function`, command_queue2.`param`, meters.`key` \
+			FROM command_queue2, meters \
+			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue2.`serial` LIKE meters.`serial` \
 		]);
 		$sth->execute;
 		while ($d = $sth->fetchrow_hashref) {
@@ -164,7 +178,7 @@ sub publish_thread {
 }
 
 sub subscribe_thread {
-	my $subscribe_mqtt = Net::MQTT::Simple->new(MQTT_HOST);
+	my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 	
 	$subscribe_mqtt->run(q[/#], \&mqtt_handler);
 }
