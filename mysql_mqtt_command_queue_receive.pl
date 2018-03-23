@@ -54,7 +54,6 @@ sub mqtt_handler {
 	# connect to db
 	if ($dbh = Nabovarme::Db->my_connect) {
 		$dbh->{'mysql_auto_reconnect'} = 1;
-		syslog('info', "connected to db");
 	}
 	else {
 		syslog('info', "cant't connect to db $!");
