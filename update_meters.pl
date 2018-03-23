@@ -3,20 +3,18 @@
 use strict;
 use Data::Dumper;
 use Sys::Syslog;
-use Net::MQTT::Simple;
 use DBI;
-use Crypt::Mode::CBC;
-use Math::Random::Secure qw(rand);
-use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
 use Proc::Pidfile;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl/ );
-use Nabovarme::Db;
+use lib qw( /opt/local/apache2/perl );
+use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
+use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
+use Nabovarme::MQTT_RPC;
 
-use constant DELAY_AFTER_SENDING => 400_000;	# 100 mS
+use constant RPC_TIMEOUT => 300;	# 5 minutes
 
 $SIG{HUP} = \&get_version_and_status;
 $SIG{USR1} = \&get_wifi_scan_results;
@@ -29,36 +27,12 @@ print Dumper $pp->pidfile();
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
-my $unix_time;
-my $meter_serial;
-my $mqtt_data = undef;
-#my $mqtt_count = 0;
-
 my $dbh;
 my $sth;
-my $sth_kwh_left;
-my $sth_valve_status;
 my $d;
-my $d_kwh_left;
-my $d_valve_status;
 
-my $key;
-my $m = Crypt::Mode::CBC->new('AES');
-my $sha256;
-my $aes_key;
-my $hmac_sha256_key;
-my $hmac_sha256_hash;
-my $iv;
-my $topic;
-my $message;
-
-my $mqtt;
-if ($Config{osname} =~ /darwin/) {
-	$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
-}
-else {
-	$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-}
+my $nabovarme_mqtt = new Nabovarme::MQTT_RPC;
+$nabovarme_mqtt->connect() || die $!;
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
@@ -78,124 +52,93 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
 	syslog('info', "send mqtt retain to all meters for version and status");
 	while ($d = $sth->fetchrow_hashref) {
-		my $quoted_serial = $dbh->quote($d->{serial});
-
-		$key = $d->{key};
-		$sha256 = sha256(pack('H*', $key));
-		$aes_key = substr($sha256, 0, 16);
-		$hmac_sha256_key = substr($sha256, 16, 16);
+		syslog('info', "    send mqtt version, status and uptime commands to " . $d->{serial});
 		
-		syslog('info', "\tsend mqtt version, status and uptime commands to " . $d->{serial});
 		# send version
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/version';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
-
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'version',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
+		
 		# send status
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/status';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'status',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send uptime
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/uptime';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'uptime',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send ssid
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ssid';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'ssid',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send rssi
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/rssi';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'rssi',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send wifi_status
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/wifi_status';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'wifi_status',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send ap_status
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/ap_status';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'ap_status',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 
 		# send reset_reason
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/reset_reason';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'reset_reason',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 	}
 }
 
 sub get_wifi_scan_results {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
 	syslog('info', "send mqtt scan command to all meters");
 	while ($d = $sth->fetchrow_hashref) {
-		my $quoted_serial = $dbh->quote($d->{serial});
+		syslog('info', "    send mqtt scan commands to " . $d->{serial});
 
-		$key = $d->{key};
-		$sha256 = sha256(pack('H*', $key));
-		$aes_key = substr($sha256, 0, 16);
-		$hmac_sha256_key = substr($sha256, 16, 16);
-		
-		syslog('info', "\tsend mqtt scan commands to " . $d->{serial});
-		# send scan
-		$topic = '/config/v2/' . $d->{serial} . '/' . time() . '/scan';
-		$message = '';
-		$iv = join('', map(chr(int rand(256)), 1..16));
-		$message = $m->encrypt($message, $aes_key, $iv);
-		$message = $iv . $message;
-		$hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-		$mqtt->publish($topic => $hmac_sha256_hash . $message);
-		usleep(DELAY_AFTER_SENDING);
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'scan',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 	}
 }
 
