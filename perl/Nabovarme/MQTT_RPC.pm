@@ -39,7 +39,7 @@ sub call {
 	my $mqtt_function = $args->{function};
 	my $message = $args->{param};
 	my $callback = $args->{callback};
-	my $timeout = $args->{timeout};
+	my $timeout = $args->{timeout} || 0;
 	
 	my $quoted_serial = $self->{dbh}->quote($serial);
 	my $quoted_mqtt_function = $self->{dbh}->quote($mqtt_function);
