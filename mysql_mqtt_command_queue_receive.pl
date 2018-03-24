@@ -78,15 +78,8 @@ sub mqtt_handler {
 		return;
 	}
 
-	if ($function =~ /^open_until/i) {
-		warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-		syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-		# do mysql stuff here
-		warn Dumper(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
-		$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
-		return;
-	}
-	elsif ($function =~ /^scan_result$/i) {
+	# handle special case
+	if ($function =~ /^scan_result$/i) {
 		warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
 		syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
 		# do mysql stuff here
@@ -117,6 +110,9 @@ sub mqtt_handler {
 			# hmac sha256 ok
 			my $m = Crypt::Mode::CBC->new('AES');
 			my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
+			# remove trailing nulls
+			$cleartext =~ s/[\x00\s]+$//;
+			$cleartext .= '';
 
 			# only react to functions we have sent a mqtt function for
 			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
@@ -124,7 +120,30 @@ sub mqtt_handler {
 			unless ($sth->rows) {
 				return;
 			}
+			
+			# handle special case
+			if ($function =~ /^open_until/i) {
+				# do mysql stuff here
+				# if open_until parameter matches the one sent to meter
+				$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue \
+					WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+					AND `function` LIKE ] . $dbh->quote($function) . qq[ \
+					AND `param` LIKE ] . $dbh->quote($cleartext) . qq[ \
+					LIMIT 1]);
+				$sth->execute;
+				if ($sth->rows) {
+					warn "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue\n";
+					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue");
+					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
+				}
+				else {
+					warn "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value\n";
+					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value");
+				}
+				return;
+			}
 
+			# handle general case
 			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
 
 			# mark it for deletion
