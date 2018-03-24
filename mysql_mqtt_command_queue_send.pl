@@ -17,8 +17,9 @@ use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
 use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
-use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10second
-use constant DELAY_BETWEEN_SERIALS => 1_000_000;		# 1second
+use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10 second
+use constant DELAY_BETWEEN_SERIALS => 1_000_000;		# 1 second
+use constant DB_POLL_DELAY => 1_000_000;					# 1 second
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -61,21 +62,30 @@ my $m = Crypt::Mode::CBC->new('AES');
 # delete commands timed out
 $dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $!;
 
-while (1)	{
-	my ($current_function, $last_function);
-	
- 	while (1) {
-		$sth = $dbh->prepare(qq[SELECT command_queue.`id`, command_queue.`serial`, command_queue.`function`, command_queue.`param`, command_queue.`unix_time`, command_queue.`has_callback`, command_queue.`timeout`, meters.`key` \
-			FROM command_queue, meters \
-			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` AND `state` = 'sent' ORDER BY `function` \
-		]);
-		$sth->execute || warn $!;
-		while ($d = $sth->fetchrow_hashref) {
-			$current_function = $d->{function};			
-			if ($current_function ne $last_function) {
-				usleep(DELAY_BETWEEN_SERIALS);
-			}
+my ($current_function, $last_function);
 
+while (1) {
+	$sth = $dbh->prepare(qq[SELECT \
+			command_queue.`id`, \
+			command_queue.`serial`, \
+			command_queue.`function`, \
+			command_queue.`param`, \
+			command_queue.`unix_time`, \
+			command_queue.`has_callback`, \
+			command_queue.`timeout`, \
+			command_queue.`sent_count`, \
+			meters.`key` \
+		FROM command_queue, meters \
+		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` AND `state` = 'sent' ORDER BY `function` \
+	]);
+	$sth->execute || warn $!;
+	while ($d = $sth->fetchrow_hashref) {
+		$current_function = $d->{function};			
+		if ($current_function ne $last_function) {
+			usleep(DELAY_BETWEEN_SERIALS);
+		}
+
+		if ($d->{unix_time} + $d->{sent_count} * (DELAY_BETWEEN_RETRANSMIT / 1_000_000) < time()) {
 			# send mqtt function to meter
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
@@ -91,29 +101,34 @@ while (1)	{
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 			
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
+			$dbh->do(qq[UPDATE command_queue SET \
+				`sent_count` = `sent_count` + 1 \
+				WHERE `id` = ] . $d->{id}) or warn $!;
 			
-			# remove timed out calls from db
-			if ($d->{timeout}) {
-				if (time() - $d->{unix_time} > $d->{timeout}) {
-					warn "function " . $d->{function} . " to " . $d->{serial} . " timed out\n";
-					syslog('info', "function " . $d->{function} . " to " . $d->{serial} . " timed out");
-					if ($d->{has_callback}) {
-						$dbh->do(qq[UPDATE command_queue SET \
-							`state` = 'timeout' \
-							WHERE `id` = ] . $d->{id}) or warn $!;
-					}
-					else {
-						$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
-					}
+		}
+		
+		# remove timed out calls from db
+		if ($d->{timeout}) {
+			if (time() - $d->{unix_time} > $d->{timeout}) {
+				warn "function " . $d->{function} . " to " . $d->{serial} . " timed out\n";
+				syslog('info', "function " . $d->{function} . " to " . $d->{serial} . " timed out");
+				if ($d->{has_callback}) {
+					$dbh->do(qq[UPDATE command_queue SET \
+						`state` = 'timeout' \
+						WHERE `id` = ] . $d->{id}) or warn $!;
+				}
+				else {
+					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
 				}
 			}
-			
-			$last_function = $current_function;
-		} 	   
-		# wait and retransmit     
-		usleep(DELAY_BETWEEN_RETRANSMIT);
-	}               
-}
+		}
+		
+		$last_function = $current_function;
+	} 	   
+	# wait and retransmit     
+#	usleep(DELAY_BETWEEN_RETRANSMIT);
+	usleep(DB_POLL_DELAY);
+}               
 
 
 1;
