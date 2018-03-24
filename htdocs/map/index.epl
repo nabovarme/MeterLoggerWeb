@@ -243,7 +243,8 @@
 						circle: {
 							stroke: false,
 							fill: true,
-							radius: 50,
+							fillOpacity: 0.6,
+							radius: 30,
 							weight: 0,
 							color: '#d13b2f'
 						}

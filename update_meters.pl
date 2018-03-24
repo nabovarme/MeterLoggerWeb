@@ -52,7 +52,7 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
+	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
 	syslog('info', "send mqtt retain to all meters for version and status");
@@ -67,13 +67,15 @@ sub get_version_and_status {
 								timeout => RPC_TIMEOUT
 							});
 		
-		# send status
-		$nabovarme_mqtt->call({	serial => $d->{serial},
-								function => 'status',
-								param => '1',
-								callback => undef,
-								timeout => RPC_TIMEOUT
-							});
+		unless ($d->{type} =~ /^electricity$/i) {
+			# send status
+			$nabovarme_mqtt->call({	serial => $d->{serial},
+									function => 'status',
+									param => '1',
+									callback => undef,
+									timeout => RPC_TIMEOUT
+								});
+		}
 
 		# send uptime
 		$nabovarme_mqtt->call({	serial => $d->{serial},
