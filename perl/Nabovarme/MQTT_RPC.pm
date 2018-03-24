@@ -48,7 +48,7 @@ sub call {
 	
 	my $d = undef;
 
-	my $sth = $self->{dbh}->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
+	my $sth = $self->{dbh}->prepare(qq[SELECT `serial` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
 		# insert into db mqtt command queue

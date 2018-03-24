@@ -96,7 +96,7 @@ while (1)	{
 					syslog('info', "function " . $d->{function} . " to " . $d->{serial} . " timed out");
 					if ($d->{has_callback}) {
 						$dbh->do(qq[UPDATE command_queue SET \
-							`state` = 'timeout', \
+							`state` = 'timeout' \
 							WHERE `id` = ] . $d->{id}) or warn $!;
 					}
 					else {
