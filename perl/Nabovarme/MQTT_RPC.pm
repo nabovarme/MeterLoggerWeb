@@ -61,12 +61,17 @@ sub call {
 		# wait for reply
 		do {
 			$sth = $self->{dbh}->prepare(qq[SELECT `id`, `serial`, `function`, `param`, `unix_time`, `state` FROM command_queue \
-				WHERE `serial` LIKE $quoted_serial AND `function` LIKE $quoted_mqtt_function AND `state` = 'received']);
+				WHERE `serial` LIKE $quoted_serial AND `function` LIKE $quoted_mqtt_function AND (`state` = 'received' OR `state` = 'timeout')]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
 				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
 				$callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
-				return 1;
+				if ($d->{state} =~ /^timeout$/i) {
+					return 0;
+				}
+				else {
+					return 1;
+				}
 			} 	        
 			sleep 1;
 		} while (!$d)

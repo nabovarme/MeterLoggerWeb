@@ -62,7 +62,7 @@ while (1)	{
 	my ($current_function, $last_function);
 	
  	while (1) {
-		$sth = $dbh->prepare(qq[SELECT command_queue.`id`, command_queue.`serial`, command_queue.`function`, command_queue.`param`, command_queue.`unix_time`, command_queue.`timeout`, meters.`key` \
+		$sth = $dbh->prepare(qq[SELECT command_queue.`id`, command_queue.`serial`, command_queue.`function`, command_queue.`param`, command_queue.`unix_time`, command_queue.`has_callback`, command_queue.`timeout`, meters.`key` \
 			FROM command_queue, meters \
 			WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` AND `state` = 'sent' ORDER BY `function` \
 		]);
@@ -94,7 +94,14 @@ while (1)	{
 				if (time() - $d->{unix_time} > $d->{timeout}) {
 					warn "function " . $d->{function} . " to " . $d->{serial} . " timed out\n";
 					syslog('info', "function " . $d->{function} . " to " . $d->{serial} . " timed out");
-					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
+					if ($d->{has_callback}) {
+						$dbh->do(qq[UPDATE command_queue SET \
+							`state` = 'timeout', \
+							WHERE `id` = ] . $d->{id}) or warn $!;
+					}
+					else {
+						$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
+					}
 				}
 			}
 			
