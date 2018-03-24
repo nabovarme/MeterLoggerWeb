@@ -58,6 +58,9 @@ else {
 
 my $m = Crypt::Mode::CBC->new('AES');
 
+# delete commands timed out
+$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $!;
+
 while (1)	{
 	my ($current_function, $last_function);
 	
