@@ -30,6 +30,10 @@ my $mqtt_port = $config->param('mqtt_port');
 
 my $pp = Proc::Pidfile->new();
 
+my $dbh;
+my $sth;
+my $d;
+
 #print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
@@ -40,26 +44,23 @@ sub sig_int_handler {
 	die $!;
 }
 
+my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
+
+# connect to db
+if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh->{'mysql_auto_reconnect'} = 1;
+}
+else {
+	syslog('info', "cant't connect to db $!");
+	warn "cant't connect to db $!\n";
+	die $!;
+}
+
+my $m = Crypt::Mode::CBC->new('AES');
+
 while (1)	{
-	my $dbh;
-	my $sth;
-	my $d;
-	
 	my ($current_function, $last_function);
 	
-	my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
-	
-	# connect to db
-	if ($dbh = Nabovarme::Db->my_connect) {
-		$dbh->{'mysql_auto_reconnect'} = 1;
-	}
-	else {
-		syslog('info', "cant't connect to db $!");
-		warn "cant't connect to db $!\n";
-		die $!;
-	}
-
-	my $m = Crypt::Mode::CBC->new('AES');
  	while (1) {
 		$sth = $dbh->prepare(qq[SELECT command_queue.`id`, command_queue.`serial`, command_queue.`function`, command_queue.`param`, command_queue.`unix_time`, command_queue.`timeout`, meters.`key` \
 			FROM command_queue, meters \

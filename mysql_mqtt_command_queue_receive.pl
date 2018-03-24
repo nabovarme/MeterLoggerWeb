@@ -26,6 +26,10 @@ $SIG{INT} = \&sig_int_handler;
 
 my $pp = Proc::Pidfile->new();
 
+my $dbh;
+my $sth;
+my $d;
+
 #print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
@@ -40,25 +44,12 @@ sub sig_int_handler {
 sub mqtt_handler {
 	my ($topic, $message) = @_;
 	
-	my $dbh;
-	my $sth;
-	my $d;
-
 	unless ($topic =~ m!/[^/]+/v2/([^/]+)/(\d+)!) {
 		return;
 	}
 	
 	my $meter_serial = $1;
 	my $unix_time = $2;
-
-	# connect to db
-	if ($dbh = Nabovarme::Db->my_connect) {
-		$dbh->{'mysql_auto_reconnect'} = 1;
-	}
-	else {
-		syslog('info', "cant't connect to db $!");
-		die $!;
-	}
 
 	# only react to meters we have sent a mqtt function to
 	$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
@@ -174,6 +165,15 @@ sub mqtt_handler {
 			syslog('info', "serial $meter_serial checksum error");     
 		}
 	}
+}
+
+# connect to db
+if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh->{'mysql_auto_reconnect'} = 1;
+}
+else {
+	syslog('info', "cant't connect to db $!");
+	die $!;
 }
 
 my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
