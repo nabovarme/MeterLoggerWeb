@@ -61,6 +61,9 @@
 	
 	<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
 	<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
+	
+	<script src="leaflet/leaflet-search/src/leaflet-search.js"></script>
+	<link rel="stylesheet" href="leaflet/leaflet-search/src/leaflet-search.css">
 
 	<style type="text/css">
 	.top {
@@ -162,7 +165,8 @@
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
 						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
-						riseOnHover: true
+						riseOnHover: true,
+						name: '[+ $d->{serial} +] [+ $d->{info} +]'
 					})
 				[$ if ($d->{last_updated} < time() - 3600) $]
 					.setZIndexOffset(1000)
@@ -207,23 +211,45 @@
 					.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
 				);
 				
-				var overlay_maps = {
-					"All<br>&nbsp;": g_all,
-				    "Heating meters": g_heat,
-				    "Water meters": g_water,
-				    "Electricity meters": g_electricity,
-				    "Heat production": g_heat_supply,
-				    "Heat sub meter": g_heat_sub,
-				    "Aggregated meters<br>&nbsp;": g_aggregated
-				};
-//				L.control.layers(null, overlay_maps).addTo(map);
+//				var overlay_maps = {
+//					"All<br>&nbsp;": g_all,
+//				    "Heating meters": g_heat,
+//				    "Water meters": g_water,
+//				    "Electricity meters": g_electricity,
+//				    "Heat production": g_heat_supply,
+//				    "Heat sub meter": g_heat_sub,
+//				    "Aggregated meters<br>&nbsp;": g_aggregated
+//				};
 				
-//				var overlay = {};
-				for (var i in g_meter_groups) {
-					overlay_maps[g_meter_groups[i].name] = g_meter_groups[i].group;
-				}
-				var c = L.control.layers(null, overlay_maps).addTo(map);
+//				for (var i in g_meter_groups) {
+//					overlay_maps[g_meter_groups[i].name] = g_meter_groups[i].group;
+//				}
+//				var c = L.control.layers(null, overlay_maps).addTo(map);
 
+				//... adding data in searchLayer ...
+				var controlSearch = new L.Control.Search({
+					position:'topright',		
+					layer: g_all,
+					//sourceData,
+					propertyName: 'name',
+					initial: false,
+					zoom: 19,
+					opacity: 1,
+					textErr: 'Not found',
+					hideMarkerOnCollapse: true,
+					marker: {
+						animate: true,
+						icon: false,
+						circle: {
+							stroke: false,
+							fill: true,
+							radius: 50,
+							weight: 0,
+							color: '#d13b2f'
+						}
+					},
+				});
+				map.addControl(controlSearch);
 /*
 				map.on("overlayadd overlayremove", function (event) {
 					var layer = event.layer;
