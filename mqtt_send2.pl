@@ -24,7 +24,8 @@ $nabovarme_mqtt->connect() || die $!;
 $nabovarme_mqtt->call({	serial => $ARGV[0] || '9999999',
 						function => $ARGV[1] || "version",
 						param => $ARGV[2] || '1',
-						callback => \&my_callback
+						callback => \&my_callback,
+						timeout => 20
 					});
 					
 1;
