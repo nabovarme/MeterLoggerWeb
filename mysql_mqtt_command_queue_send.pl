@@ -86,6 +86,11 @@ while (1) {
 		}
 
 		if ($d->{unix_time} + $d->{sent_count} * (DELAY_BETWEEN_RETRANSMIT / 1_000_000) < time()) {
+			# update send count
+			$dbh->do(qq[UPDATE command_queue SET \
+				`sent_count` = `sent_count` + 1 \
+				WHERE `id` = ] . $d->{id}) or warn $!;
+			
 			# send mqtt function to meter
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
@@ -98,13 +103,9 @@ while (1) {
 			my $iv = join('', map(chr(int rand(256)), 1..16));
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
-			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-			
+			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);			
+
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
-			$dbh->do(qq[UPDATE command_queue SET \
-				`sent_count` = `sent_count` + 1 \
-				WHERE `id` = ] . $d->{id}) or warn $!;
-			
 		}
 		
 		# remove timed out calls from db
