@@ -454,6 +454,12 @@ sub v2_mqtt_reset_reason_handler {
 			$reset_reason =~ s/[\x00\s]+$//;
 			$reset_reason .= '';
 
+			# handle long reset reason string
+			$_->{sw_version} =~ /[^-]+-(\d+)/;
+			if ($1 >= 1041) {
+				$reset_reason =~ s/&/ /m;
+			}
+			
 			my $quoted_reset_reason = $dbh->quote($reset_reason);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
