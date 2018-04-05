@@ -44,6 +44,7 @@ sub sig_int_handler {
 sub mqtt_handler {
 	my ($topic, $message) = @_;
 	
+	my $sw_version;
 	unless ($topic =~ m!/[^/]+/v2/([^/]+)/(\d+)!) {
 		return;
 	}
@@ -69,15 +70,6 @@ sub mqtt_handler {
 		return;
 	}
 
-	# handle special case
-	if ($function =~ /^scan_result$/i) {
-		warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-		syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-		# do mysql stuff here
-		$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
-		return;
-	}
-	
 	$sth = $dbh->prepare(qq[SELECT `key`, `sw_version` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
@@ -89,9 +81,26 @@ sub mqtt_handler {
 
 		# only for sw version higher than or equal to build #923
 		$d->{sw_version} =~ /[^-]+-(\d+)/;
-		if ($1 < 923) {
+		$sw_version = $1;
+		if ($sw_version < 923) {
 			return;
 		}
+		
+		# handle special case
+		if ($function =~ /^scan_result$/i) {
+			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
+			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
+			# do mysql stuff here
+			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
+			return;
+		}
+#		elsif ($function =~ /^open$/i && ($sw_version < 1033)) {
+#			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
+#			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
+#			# do mysql stuff here
+#			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'open_until%']) or warn $!;
+#			return;
+#		}
 		
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
@@ -119,7 +128,8 @@ sub mqtt_handler {
 				$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue \
 					WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 					AND `function` LIKE ] . $dbh->quote($function) . qq[ \
-					AND `param` LIKE ] . $dbh->quote($cleartext) . qq[ \
+					AND `param` > ] . $dbh->quote($cleartext - 1) . qq[ \
+					AND `param` < ] . $dbh->quote($cleartext + 1) . qq[ \
 					LIMIT 1]);
 				$sth->execute;
 				if ($sth->rows) {
