@@ -66,7 +66,6 @@ sub update_samples_calculated {
 								`unix_time`
 							FROM `samples` 
 							WHERE `serial` LIKE $quoted_serial 
-							AND effect IS NOT NULL 
 							GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) 
 							ORDER BY FROM_UNIXTIME(`unix_time`) ASC]) or warn $!;
 							

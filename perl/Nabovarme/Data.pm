@@ -123,7 +123,6 @@ sub handler {
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
 				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
-				AND effect IS NOT NULL \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;
 			if ($sth->rows) {
@@ -142,7 +141,6 @@ sub handler {
 				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
         				energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
         				AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
-        				AND effect IS NOT NULL \
         				ORDER BY `unix_time` DESC \
         				LIMIT 1]);
                         }
@@ -150,7 +148,6 @@ sub handler {
 			        $sth = $dbh->prepare(qq[SELECT \
 				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
         				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-        				AND effect IS NOT NULL \
         				ORDER BY `unix_time` DESC \
         				LIMIT 1]);                        
                         }
@@ -177,7 +174,7 @@ sub handler {
 					effect, \
 					hours, \
 					volume, \
-					energy FROM `samples` WHERE `serial` LIKE AND effect IS NOT NULL] . $quoted_serial . qq[ ORDER BY `unix_time` ASC]);
+					energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ ORDER BY `unix_time` ASC]);
 			}
 			else {
 				$sth = $dbh->prepare(qq[SELECT \
@@ -192,7 +189,6 @@ sub handler {
 					volume, \
 					energy FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 					AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
-					AND effect IS NOT NULL \
 					ORDER BY `unix_time` ASC]);
 			}
 			$sth->execute;
@@ -225,7 +221,6 @@ sub handler {
 					volume, \
 					energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 				    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
-					AND effect IS NOT NULL \
 					ORDER BY `unix_time` ASC]);
 				$sth->execute;
 				if ($sth->rows) {
