@@ -65,7 +65,7 @@ sub handler {
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		
-			$sth2 = $dbh->prepare(qq[SELECT last_volume FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
+			$sth2 = $dbh->prepare(qq[SELECT setup_value FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
 			$sth2->execute;
 			if ($d2 = $sth2->fetchrow_hashref) {
 				$setup_value = $d2->{setup_value};

@@ -80,7 +80,6 @@ sub default_price_for_serial {
 	my ($quoted_serial);
 	$quoted_serial = $self->{dbh}->quote($serial);
 
-
 	my $sth = $self->{dbh}->prepare(qq[SELECT `default_price` FROM `meters` WHERE `serial` LIKE $quoted_serial LIMIT 1]);
 	$sth->execute;
 	if (my $d = $sth->fetchrow_hashref) {
