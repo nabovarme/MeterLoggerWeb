@@ -30,22 +30,22 @@ my $mqtt_data = undef;
 
 my $dbh;
 my $sth;
-my $sth_kwh_left;
-my $sth_energy_now;
-my $sth_energy_last;
+my $sth_volume_left;
+my $sth_volume_now;
+my $sth_volume_last;
 my $d;
-my $d_energy_now;
-my $d_energy_last;
-my $d_kwh_left;
+my $d_volume_now;
+my $d_volume_last;
+my $d_volume_left;
 
-my $energy_now;
-my $energy_last;
+my $volume_now;
+my $volume_last;
 my $time_now;
 my $time_last;
-my $energy_last_day;
+my $volume_last_day;
 
-my $energy_left;
-my $energy_time_left;
+my $volume_left;
+my $volume_time_left;
 
 my $notification;
 
@@ -60,86 +60,86 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `type` = 'heat' AND (`email_notification` OR `sms_notification`)]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `type` = 'water' AND (`email_notification` OR `sms_notification`)]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 			
-		# get kWh left from db
-		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
-		(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
+		# get volume left from db
+		$sth_volume_left = $dbh->prepare(qq[SELECT ROUND( \
+		(SELECT SUM(amount/price) AS paid_volume FROM accounts WHERE serial = $quoted_serial) - \
 		(SELECT \
-			(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
-			(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-		), 2) AS kwh_left]);
-		$sth_kwh_left->execute;
+			(SELECT samples_cache.volume FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
+			(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_volume \
+		), 2) AS volume_left]);
+		$sth_volume_left->execute;
 
-		# get last days energy usage
-		$sth_energy_now = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+		# get last days volume usage
+		$sth_volume_now = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
-		$sth_energy_now->execute;
-		if ($sth_energy_now->rows) {
-			if ($d_energy_now = $sth_energy_now->fetchrow_hashref) {
-				$energy_now = $d_energy_now->{energy};
-				$time_now = $d_energy_now->{unix_time};
+		$sth_volume_now->execute;
+		if ($sth_volume_now->rows) {
+			if ($d_volume_now = $sth_volume_now->fetchrow_hashref) {
+				$volume_now = $d_volume_now->{volume};
+				$time_now = $d_volume_now->{unix_time};
 			}
 		}
 
-		$sth_energy_last = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+		$sth_volume_last = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial \
-			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d_energy_now->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
-		$sth_energy_last->execute;
-		if ($sth_energy_last->rows) {
-			if ($d_energy_last = $sth_energy_last->fetchrow_hashref) {
-				$energy_last = $d_energy_last->{energy};
-				$time_last = $d_energy_last->{unix_time};
+			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d_volume_now->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+		$sth_volume_last->execute;
+		if ($sth_volume_last->rows) {
+			if ($d_volume_last = $sth_volume_last->fetchrow_hashref) {
+				$volume_last = $d_volume_last->{volume};
+				$time_last = $d_volume_last->{unix_time};
 			}
 		}
 		if (($time_now - $time_last) > 0) {
-			$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+			$volume_last_day = ($volume_now - $volume_last) / (($time_now - $time_last) / 60 / 60);
 		}
 
-		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			$energy_left = $d_kwh_left->{kwh_left} - $d->{min_amount};
-			if ($energy_last_day <= 0.0) {
+		if ($d_volume_left = $sth_volume_left->fetchrow_hashref) {
+			$volume_left = $d_volume_left->{volume_left} - $d->{min_amount};
+			if ($volume_last_day <= 0.0) {
 				next;
 			}
 
-			$energy_time_left = $energy_left / $energy_last_day;
+			$volume_time_left = $volume_left / $volume_last_day;
 			
 			if (($d->{notification_state}) == 0) {		# send close warning notification if not sent before
-				if ($energy_time_left < CLOSE_WARNING_TIME) {	# 3 days
+				if ($volume_time_left < CLOSE_WARNING_TIME) {	# 3 days
 					# send close warning
 					syslog('info', "close warning sent for serial #" . $d->{serial} 
-						. ", energy left: " . $energy_left 
-						. ", energy now: " . $energy_now 
-						. ", energy last: " . $energy_last 
+						. ", volume left: " . $volume_left 
+						. ", volume now: " . $volume_now 
+						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme closing in ' . sprintf("%.0f", $energy_time_left) . ' hours. (' . $d->{serial} . ') ' . 
-						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
+					$notification = 'Nabovarme closing in ' . sprintf("%.0f", $volume_time_left) . ' hours. (' . $d->{serial} . ') ' . 
+						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 1, \
-						notification_sent_at = $energy_left \
+						notification_sent_at = $volume_left \
 						WHERE serial = $d->{serial}]) or warn $!;
-						warn "serial: " . $d->{serial} . ", energy_time_left: " . $energy_time_left . "\n";
+						warn "serial: " . $d->{serial} . ", volume_time_left: " . $volume_time_left . "\n";
 				}
 			}
 			elsif (($d->{notification_state}) == 1) {	# send close notification if not sent before
-				if ($energy_time_left <= 0) {			# no energy left
+				if ($volume_left <= 0.5) {			# no volume left	DEBUG: we send it before becouse of rounding error in firmware
 					# send close message
 					syslog('info', "close notice sent for serial #" . $d->{serial} 
-						. ", energy left: " . $energy_left 
-						. ", energy now: " . $energy_now 
-						. ", energy last: " . $energy_last 
+						. ", volume left: " . $volume_left 
+						. ", volume now: " . $volume_now 
+						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
 					$notification = 'Nabovarme closed. (' . $d->{serial} . ') ' . 
-						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
+						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
 					}
@@ -147,16 +147,16 @@ while (1) {
 						notification_state = 2 \
 						WHERE serial = $d->{serial}]) or warn $!;
 				}
-				elsif (($energy_time_left > 0) and ($energy_left > $d->{notification_sent_at})) {
+				elsif (($volume_left > 0.5) and ($volume_left > $d->{notification_sent_at})) {	# DEBUG: we send it before becouse of rounding error in firmware
 					# send open message
 					syslog('info', "open notice sent for serial #" . $d->{serial} 
-						. ", energy left: " . $energy_left 
-						. ", energy now: " . $energy_now 
-						. ", energy last: " . $energy_last 
+						. ", volume left: " . $volume_left 
+						. ", volume now: " . $volume_now 
+						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left) . ' hours left. (' . $d->{serial} . ') ' . 
-						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
+					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $volume_time_left) . ' hours left. (' . $d->{serial} . ') ' . 
+						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
 					}
@@ -166,16 +166,16 @@ while (1) {
 				}
 			}
 			elsif (($d->{notification_state}) == 2) {	# send open notification if not sent before
-				if ($energy_time_left > 0) {
+				if ($volume_left > 0.5) {	# DEBUG: we send it before becouse of rounding error in firmware
 					# send open message
 					syslog('info', "open notice sent for serial #" . $d->{serial} 
-						. ", energy left: " . $energy_left 
-						. ", energy now: " . $energy_now 
-						. ", energy last: " . $energy_last 
+						. ", volume left: " . $volume_left 
+						. ", volume now: " . $volume_now 
+						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
-						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
+					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $volume_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
 					}
