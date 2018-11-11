@@ -1,0 +1,28 @@
+version: '3.3'
+
+services:
+  db:
+    image: mysql:latest
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
+      MYSQL_DATABASE: meterlogger
+      MYSQL_USER: nabovarme
+      MYSQL_PASSWORD: seesha9eisheM1mo
+  
+  meterloggerweb:
+    build: '.'
+    depends_on:
+      - db
+    image: meterloggerweb:latest
+    ports:
+      - "8000:80"
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+volumes:
+    db_data:
