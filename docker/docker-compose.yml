@@ -19,6 +19,7 @@ services:
     image: meterloggerweb:latest
     ports:
       - "8000:80"
+	  - "4430:443"
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306
