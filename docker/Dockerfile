@@ -53,6 +53,7 @@ RUN cd /tmp/ && \
 	rsync -av /tmp/MeterLoggerWeb/default-ssl.conf /etc/apache2/sites-available/ && \
 	rsync -av /tmp/MeterLoggerWeb/perl /etc/apache2/
 RUN a2ensite default-ssl
+RUN a2enmod ssl
 
 # Crosstool demands non-root user for compilation
 #USER meterlogger
