@@ -12,6 +12,12 @@ services:
       MYSQL_USER: nabovarme
       MYSQL_PASSWORD: seesha9eisheM1mo
   
+  mqtt:
+    image: eclipse-mosquitto:latest
+    ports:
+      - "1883:1883"
+    restart: always
+
   meterloggerweb:
     build: '.'
     depends_on:
@@ -19,7 +25,7 @@ services:
     image: meterloggerweb:latest
     ports:
       - "8000:80"
-	  - "4430:443"
+      - "4430:443"
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306
