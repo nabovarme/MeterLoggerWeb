@@ -49,7 +49,8 @@ RUN apt-get update && apt-get install -y \
 	libembperl-perl \
 	libdbd-mysql-perl \
 	libdbi-perl \
-	libconfig-simple-perl
+	libconfig-simple-perl \
+	mysql-client
 
 ## Create our main work directory
 #RUN ls /meterlogger/MeterLogger/Makefile
