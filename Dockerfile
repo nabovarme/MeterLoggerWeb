@@ -51,16 +51,16 @@ RUN apt-get update && apt-get install -y \
 	libconfig-simple-perl \
 	mysql-client
 
-## Create our main work directory
-
-COPY htdocs /var/www/nabovarme
-COPY 000-default.conf /etc/apache2/sites-available/
-COPY perl /etc/apache2/
+USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 
-USER root
+COPY htdocs /var/www/nabovarme
+COPY ./000-default.conf /etc/apache2/sites-available/
+COPY ./perl /etc/apache2/perl
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./Nabovarme.conf /etc/
 
 CMD /docker-entrypoint.sh
 
