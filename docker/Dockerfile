@@ -21,9 +21,20 @@ RUN "echo" "deb http://http.us.debian.org/debian jessie non-free" >> /etc/apt/so
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
+	autoconf \
+	automake \
+	aptitude \
 	bash \
+	bison \
+	flex \
+	g++ \
+	gawk \
+	gcc \
 	git \
 	joe \
+	make \
+	sed \
+	texinfo \
 	sudo \
 	screen \
 	rsync \
@@ -34,7 +45,9 @@ RUN apt-get update && apt-get install -y \
 	libapache2-mod-perl2 \
 	libapache2-mod-perl2-dev \
 	libapache2-mod-perl2-doc \
-	libembperl-perl
+	libembperl-perl \
+	libdbi-perl \
+	libconfig-simple-perl
 
 ## Create our main work directory
 #RUN ls /meterlogger/MeterLogger/Makefile
@@ -51,6 +64,8 @@ RUN cd /tmp/ && \
 	rsync -av /tmp/MeterLoggerWeb/htdocs/ /var/www/nabovarme/ && \
 	rsync -av /tmp/MeterLoggerWeb/000-default.conf /etc/apache2/sites-available/ && \
 	rsync -av /tmp/MeterLoggerWeb/perl /etc/apache2/
+	
+RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 
 # Crosstool demands non-root user for compilation
 #USER meterlogger
