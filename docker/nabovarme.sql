@@ -5,9 +5,9 @@
 # http://www.sequelpro.com/
 # https://github.com/sequelpro/sequelpro
 #
-# Host: 127.0.0.1 (MySQL 5.5.59-0+deb8u1)
+# Host: 127.0.0.1 (MySQL 5.5.62)
 # Database: nabovarme
-# Generation Time: 2018-11-13 20:13:10 +0000
+# Generation Time: 2018-11-13 22:46:31 +0000
 # ************************************************************
 
 
@@ -106,6 +106,15 @@ CREATE TABLE `meter_groups` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+LOCK TABLES `meter_groups` WRITE;
+/*!40000 ALTER TABLE `meter_groups` DISABLE KEYS */;
+
+INSERT INTO `meter_groups` (`id`, `group`)
+VALUES
+	(0,'Main');
+
+/*!40000 ALTER TABLE `meter_groups` ENABLE KEYS */;
+UNLOCK TABLES;
 
 
 # Dump of table meters
@@ -147,6 +156,15 @@ CREATE TABLE `meters` (
   KEY `serial_idx` (`serial`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+LOCK TABLES `meters` WRITE;
+/*!40000 ALTER TABLE `meters` DISABLE KEYS */;
+
+INSERT INTO `meters` (`id`, `type`, `group`, `parent_serial`, `serial`, `info`, `setup_value`, `sw_version`, `key`, `valve_status`, `valve_installed`, `last_updated`, `uptime`, `reset_reason`, `ssid`, `rssi`, `min_amount`, `default_price`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at`, `wifi_status`, `wifi_set_ssid`, `wifi_set_pwd`, `ap_status`, `location_lat`, `location_long`, `comment`)
+VALUES
+	(1,'heat',0,NULL,'9999999','Test Meter',0,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,1,NULL,NULL,0,NULL,'disconnected',NULL,NULL,NULL,NULL,NULL,NULL);
+
+/*!40000 ALTER TABLE `meters` ENABLE KEYS */;
+UNLOCK TABLES;
 
 
 # Dump of table samples
@@ -272,6 +290,15 @@ CREATE TABLE `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+LOCK TABLES `users` WRITE;
+/*!40000 ALTER TABLE `users` DISABLE KEYS */;
+
+INSERT INTO `users` (`id`, `username`, `password`, `admin_group`, `name`, `mail`, `phone`, `address`, `meter_id`, `comment`)
+VALUES
+	(1,'Test','','0','test','','12345678',NULL,NULL,NULL);
+
+/*!40000 ALTER TABLE `users` ENABLE KEYS */;
+UNLOCK TABLES;
 
 
 # Dump of table wifi_scan

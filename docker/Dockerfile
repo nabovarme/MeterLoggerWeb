@@ -69,6 +69,7 @@ RUN cd /tmp/ && \
 	rsync -av /tmp/MeterLoggerWeb/perl /etc/apache2/
 	
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
+RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 
 # Crosstool demands non-root user for compilation
 #USER meterlogger

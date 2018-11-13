@@ -3,12 +3,16 @@ version: '3.3'
 services:
   db:
     image: mysql:5.5
+    ports:
+      - "3306:3306"
     volumes:
       - ./db_data:/var/lib/mysql
+      - ./nabovarme.sql:/tmp/nabovarme.sql
+      - ./nabovarme_import.sh:/tmp/nabovarme_import.sh
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
-      MYSQL_DATABASE: meterlogger
+      MYSQL_DATABASE: nabovarme
       MYSQL_USER: nabovarme
       MYSQL_PASSWORD: seesha9eisheM1mo
   
@@ -32,5 +36,3 @@ services:
       METERLOGGER_DB_HOST: meterlogger:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
-volumes:
-    db_data:
