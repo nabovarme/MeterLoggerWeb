@@ -4,7 +4,7 @@ services:
   db:
     image: mysql:latest
     volumes:
-      - db_data:/var/lib/mysql
+      - ./db_data:/var/lib/mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
@@ -23,9 +23,10 @@ services:
     depends_on:
       - db
     image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
     ports:
       - "8000:80"
-      - "4430:443"
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306

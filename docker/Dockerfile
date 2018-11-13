@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y \
 	gawk \
 	gcc \
 	git \
+	inetutils-telnet \
 	joe \
 	make \
 	sed \
@@ -46,6 +47,7 @@ RUN apt-get update && apt-get install -y \
 	libapache2-mod-perl2-dev \
 	libapache2-mod-perl2-doc \
 	libembperl-perl \
+	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl
 
