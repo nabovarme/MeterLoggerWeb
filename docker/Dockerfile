@@ -50,7 +50,6 @@ RUN cd /tmp/ && \
 	git clone https://github.com/nabovarme/MeterLoggerWeb && \
 	rsync -av /tmp/MeterLoggerWeb/htdocs/ /var/www/nabovarme/ && \
 	rsync -av /tmp/MeterLoggerWeb/000-default.conf /etc/apache2/sites-available/ && \
-	rsync -av /tmp/MeterLoggerWeb/default-ssl.conf /etc/apache2/sites-available/ && \
 	rsync -av /tmp/MeterLoggerWeb/perl /etc/apache2/
 
 # Crosstool demands non-root user for compilation
