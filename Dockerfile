@@ -56,14 +56,14 @@ USER root
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 
-RUN mkdir /var/www/nabovarme/sms_spool
-RUN chown www-data:www-data /var/www/nabovarme/sms_spool
-
 COPY htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
 COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./Nabovarme.conf /etc/
+
+RUN mkdir /var/www/nabovarme/sms_spool
+RUN chown www-data:www-data /var/www/nabovarme/sms_spool
 
 CMD /docker-entrypoint.sh
 
