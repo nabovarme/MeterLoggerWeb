@@ -104,36 +104,19 @@ services:
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
-  meter_alarm:
+  meter_sms:
     build:
         context: '.'
-        dockerfile: 'Dockerfile.meter_alarm'
+        dockerfile: 'Dockerfile.meter_sms'
     depends_on:
       db:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: meter_alarm  
+    container_name: meter_sms  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-    restart: always
-    environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
-
-  sms_code_queue_watcher:
-    build:
-        context: '.'
-        dockerfile: 'Dockerfile.sms_code_queue_watcher'
-    depends_on:
-      db:
-        condition: service_healthy
-      mqtt:
-        condition: service_started
-    container_name: sms_code_queue_watcher  
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
+      - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306
