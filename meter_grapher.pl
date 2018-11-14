@@ -7,11 +7,15 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config;
+use Config::Simple;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
+
+use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+
+my $config = new Config::Simple(CONFIG_FILE) || die $!;
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
@@ -28,13 +32,8 @@ my $wifi_status;
 my $ap_status;
 my $reset_reason;
 
-my $mqtt;
-if ($Config{osname} =~ /darwin/) {
-	$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
-}
-else {
-	$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-}
+my $mqtt = Net::MQTT::Simple->new($config->param('mqtt_host'));
+
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
