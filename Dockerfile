@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
 	aptitude \
 	bash \
 	bison \
+	daemon \
 	flex \
 	g++ \
 	gawk \
