@@ -1,4 +1,4 @@
-version: '3.3'
+version: '2.4'
 
 services:
   db:
@@ -11,6 +11,10 @@ services:
       - ./nabovarme.sql:/nabovarme.sql
       - ./nabovarme_import.sh:/nabovarme_import.sh
     restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
     environment:
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
       MYSQL_DATABASE: nabovarme
@@ -31,8 +35,10 @@ services:
   web:
     build: '.'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: web  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -49,8 +55,10 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.meter_grapher'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: meter_grapher  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -65,8 +73,10 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.mysql_mqtt_command_queue_receive'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: mysql_mqtt_command_queue_receive  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -81,8 +91,10 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.mysql_mqtt_command_queue_send'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: mysql_mqtt_command_queue_send  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -97,8 +109,10 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.meter_alarm'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: meter_alarm  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -113,8 +127,10 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.sms_code_queue_watcher'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     container_name: sms_code_queue_watcher  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
