@@ -111,7 +111,7 @@ LOCK TABLES `meter_groups` WRITE;
 
 INSERT INTO `meter_groups` (`id`, `group`)
 VALUES
-	(0,'Main');
+	(1,'Main');
 
 /*!40000 ALTER TABLE `meter_groups` ENABLE KEYS */;
 UNLOCK TABLES;
@@ -161,7 +161,7 @@ LOCK TABLES `meters` WRITE;
 
 INSERT INTO `meters` (`id`, `type`, `group`, `parent_serial`, `serial`, `info`, `setup_value`, `sw_version`, `key`, `valve_status`, `valve_installed`, `last_updated`, `uptime`, `reset_reason`, `ssid`, `rssi`, `min_amount`, `default_price`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at`, `wifi_status`, `wifi_set_ssid`, `wifi_set_pwd`, `ap_status`, `location_lat`, `location_long`, `comment`)
 VALUES
-	(1,'heat',0,NULL,'9999999','Test Meter',0,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,1,NULL,NULL,0,NULL,'disconnected',NULL,NULL,NULL,NULL,NULL,NULL);
+	(1,'heat',1,NULL,'9999999','Test Meter',0,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,1,NULL,NULL,0,NULL,'disconnected',NULL,NULL,NULL,NULL,NULL,NULL);
 
 /*!40000 ALTER TABLE `meters` ENABLE KEYS */;
 UNLOCK TABLES;
