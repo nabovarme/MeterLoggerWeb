@@ -5,7 +5,6 @@ use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Config;
-use Proc::Pidfile;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
@@ -16,9 +15,6 @@ use constant CLOSE_WARNING_TIME => 3 * 24;
 #$SIG{HUP} = \&get_version_and_status;
 
 #$SIG{INT} = \&sig_int_handler;
-
-my $pp = Proc::Pidfile->new();
-print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");

@@ -5,14 +5,11 @@ use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Config;
-use Proc::Pidfile;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
-
-my $pp = Proc::Pidfile->new();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");

@@ -56,7 +56,6 @@ USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
-RUN PERL_MM_USE_DEFAULT=1 cpan install Proc::Pidfile
 RUN PERL_MM_USE_DEFAULT=1 cpan install Crypt::Mode::CBC
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format

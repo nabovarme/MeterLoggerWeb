@@ -8,7 +8,6 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
-use Proc::Pidfile;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
@@ -28,8 +27,6 @@ use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
-
-my $pp = Proc::Pidfile->new();
 
 my $dbh;
 my $sth;

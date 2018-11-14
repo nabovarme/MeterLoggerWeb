@@ -5,7 +5,6 @@ use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Config;
-use Proc::Pidfile;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
@@ -20,9 +19,6 @@ $SIG{HUP} = \&get_version_and_status;
 $SIG{USR1} = \&get_wifi_scan_results;
 
 $SIG{INT} = \&sig_int_handler;
-
-my $pp = Proc::Pidfile->new();
-print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");

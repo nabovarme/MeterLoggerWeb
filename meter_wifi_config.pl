@@ -9,7 +9,6 @@ use Crypt::Mode::CBC;
 use Math::Random::Secure qw(rand);
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
-use Proc::Pidfile;
 use Time::HiRes qw( usleep );
 use threads;
 
@@ -21,9 +20,6 @@ use constant DELAY_AFTER_SENDING => 1_000_000;				# 1 second
 use constant DELAY_AFTER_SENDING_RECONNECT => 12_000_000;	# 12 seconds
 
 $SIG{INT} = \&sig_int_handler;
-
-my $pp = Proc::Pidfile->new();
-print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");

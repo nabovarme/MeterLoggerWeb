@@ -8,7 +8,6 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
-use Proc::Pidfile;
 use threads;
 use threads::shared;
 
@@ -27,10 +26,6 @@ $SIG{INT} = \&sig_int_handler;
 
 my %serials_watched :shared = ();
 my %mqtt_functions_watched :shared = ();
-
-my $pp = Proc::Pidfile->new();
-
-#print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");

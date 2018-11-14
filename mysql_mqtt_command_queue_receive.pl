@@ -8,7 +8,6 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
-use Proc::Pidfile;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl );
@@ -24,13 +23,9 @@ my $mqtt_port = $config->param('mqtt_port');
 
 $SIG{INT} = \&sig_int_handler;
 
-my $pp = Proc::Pidfile->new();
-
 my $dbh;
 my $sth;
 my $d;
-
-#print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
