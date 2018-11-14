@@ -7,8 +7,8 @@ services:
       - "3306:3306"
     volumes:
       - ./db_data:/var/lib/mysql
-      - ./nabovarme.sql:/tmp/nabovarme.sql
-      - ./nabovarme_import.sh:/tmp/nabovarme_import.sh
+      - ./nabovarme.sql:/nabovarme.sql
+      - ./nabovarme_import.sh:/nabovarme_import.sh
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
