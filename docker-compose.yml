@@ -26,11 +26,92 @@ services:
     build: '.'
     depends_on:
       - db
+      - mqtt
     image: meterloggerweb:latest
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     ports:
       - "8000:80"
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  meter_grapher:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.meter_grapher'
+    depends_on:
+      - db
+      - mqtt
+    image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  mysql_mqtt_command_queue_receive:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.mysql_mqtt_command_queue_receive'
+    depends_on:
+      - db
+      - mqtt
+    image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  mysql_mqtt_command_queue_send:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.mysql_mqtt_command_queue_send'
+    depends_on:
+      - db
+      - mqtt
+    image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  meter_alarm:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.meter_alarm'
+    depends_on:
+      - db
+      - mqtt
+    image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+    restart: always
+    environment:
+      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  meter_alarm:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.sms_code_queue_watcher'
+    depends_on:
+      - db
+      - mqtt
+    image: meterloggerweb:latest
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306
