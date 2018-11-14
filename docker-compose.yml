@@ -22,6 +22,10 @@ services:
     container_name: mqtt  
     ports:
       - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto_data:/mosquitto/data
+      - ./mosquitto_data/logs:/mosquitto/log
     restart: always
 
   web:
