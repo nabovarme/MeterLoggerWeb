@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
@@ -17,8 +16,7 @@ use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
+warn("starting...\n");
 
 my $protocol_version;
 my $unix_time;
@@ -41,10 +39,10 @@ my $mqtt_data = undef;
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	syslog('info', "connected to db");
+	warn("connected to db\n");
 }
 else {
-	syslog('info', "cant't connect to db $!");
+	warn("cant't connect to db $!\n");
 	die $!;
 }
 
@@ -83,7 +81,7 @@ sub v2_mqtt_version_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -103,15 +101,13 @@ sub v2_mqtt_version_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							sw_version = $quoted_sw_version, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-							syslog('info', $topic . "\t" . $sw_version);
-							warn $topic . "\t" . $sw_version;
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+							warn $topic . "\t" . $sw_version . "\n";
 		}
 		else {
 			# hmac sha256 not ok
-			syslog('info', $topic . "hmac error");
-			syslog('info', $topic . "\t" . unpack('H*', $message));
-			warn $topic . "\t" . unpack('H*', $message);
+			warn($topic . "hmac error\n");
+			warn $topic . "\t" . unpack('H*', $message) . "\n";
 		}
 	}
 }
@@ -134,7 +130,7 @@ sub v2_mqtt_status_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -154,14 +150,14 @@ sub v2_mqtt_status_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							valve_status = $quoted_valve_status, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn {valve_status => $valve_status};
-			syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("valve_status: $valve_status\n");
+			warn('valve_status changed' . " " . $meter_serial . " " . $valve_status . "\n");
 			
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -184,7 +180,7 @@ sub v2_mqtt_uptime_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -204,12 +200,12 @@ sub v2_mqtt_uptime_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							uptime = $quoted_uptime, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({uptime => $uptime});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("uptime: $uptime\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -232,7 +228,7 @@ sub v2_mqtt_ssid_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -252,12 +248,12 @@ sub v2_mqtt_ssid_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							ssid = $quoted_ssid, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({ssid => $ssid});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("ssid: $ssid\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -280,7 +276,7 @@ sub v2_mqtt_rssi_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -300,12 +296,12 @@ sub v2_mqtt_rssi_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							rssi = $quoted_rssi, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({rssi => $rssi});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("rssi: $rssi\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -328,7 +324,7 @@ sub v2_mqtt_wifi_status_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -348,12 +344,12 @@ sub v2_mqtt_wifi_status_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							wifi_status = $quoted_wifi_status, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({wifi_status => $wifi_status});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("wifi_status: $wifi_status\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -377,7 +373,7 @@ sub v2_mqtt_ap_status_handler {
 	$sth->execute;
 	if ($sth->rows) {
 		$_ = $sth->fetchrow_hashref;
-		my $key = $_->{key} || warn "no aes key found";
+		my $key = $_->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -401,7 +397,7 @@ sub v2_mqtt_ap_status_handler {
 				elsif ($orig_ap_status =~ /stopped/i) {
 					$ap_status = 'started';
 				}
-				syslog('info', 'reverse ap_status for sw version lower than or equal to build #942' . ", serial: $meter_serial, received ap_status: $orig_ap_status, saved ap_status: $ap_status");
+				warn('reverse ap_status for sw version lower than or equal to build #942' . ", serial: $meter_serial, received ap_status: $orig_ap_status, saved ap_status: $ap_status\n");
 			}
 
 			my $quoted_ap_status = $dbh->quote($ap_status);
@@ -410,12 +406,12 @@ sub v2_mqtt_ap_status_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							ap_status = $quoted_ap_status, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({ap_status => $ap_status});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("ap_status: $ap_status\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -439,7 +435,7 @@ sub v2_mqtt_reset_reason_handler {
 	$sth->execute;
 	if ($sth->rows) {
 		$_ = $sth->fetchrow_hashref;
-		my $key = $_->{key} || warn "no aes key found";
+		my $key = $_->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -465,12 +461,12 @@ sub v2_mqtt_reset_reason_handler {
 			$dbh->do(qq[UPDATE meters SET \
 						        reset_reason = $quoted_reset_reason, \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({reset_reason => $reset_reason});
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("reset_reason: $reset_reason\n");
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
@@ -497,7 +493,7 @@ sub v2_mqtt_scan_result_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -533,11 +529,10 @@ sub v2_mqtt_scan_result_handler {
 				$dbh->quote($mqtt_data->{rssi}) . ',' . 
 				$dbh->quote($mqtt_data->{channel}) . ',' . 
 				'UNIX_TIMESTAMP()' . qq[)]);
-			$sth->execute || syslog('info', "can't log to db");
+			$sth->execute || warn("can't log to db\n");
 			$sth->finish;
 		
-			syslog('info', $topic . " " . $message);
-			warn $topic . "\t" . $message;
+			warn $topic . "\t" . $message . "\n";
 		}
 		else {
 			# hmac sha256 not ok
@@ -569,7 +564,7 @@ sub v2_mqtt_sample_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -624,7 +619,7 @@ sub v2_mqtt_sample_handler {
 				$dbh->quote($mqtt_data->{v1}) . ',' . 
 				$dbh->quote($mqtt_data->{e1}) . ',' .
 				$dbh->quote($unix_time) . qq[)]);
-			$sth->execute || syslog('info', "can't log to db");
+			$sth->execute || warn("can't log to db\n");
 			$sth->finish;
 		
 			# update last_updated time stamp
@@ -632,10 +627,9 @@ sub v2_mqtt_sample_handler {
 			my $quoted_unix_time = $dbh->quote($unix_time);
 			$dbh->do(qq[UPDATE meters SET \
 							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial]) or warn $!;
-			warn Dumper({uptime => $uptime});
-			syslog('info', $topic . " " . $message);
-			warn $topic . "\t" . $message;
+							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
+			warn("uptime: $uptime\n");
+			warn $topic . "\t" . $message . "\n";
 		}
 		else {
 			# hmac sha256 not ok
@@ -664,7 +658,7 @@ sub v2_mqtt_crypto_test_handler {
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found\n";
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
 		my $hmac_sha256_key = substr($sha256, 16, 16);
@@ -685,7 +679,7 @@ sub v2_mqtt_crypto_test_handler {
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			warn("serial $meter_serial checksum error\n");
 		}
 	}
 }
