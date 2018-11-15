@@ -7,9 +7,9 @@
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-*/10 *	* * *	root	kill -HUP `cat /var/run/update_meters.pl.pid`
-57 *	* * *	root	kill -USR1 `cat /var/run/update_meters.pl.pid`
-0 *	* * *	root	kill -USR1 `cat /var/run/clean_samples_cache.pl.pid`
+*/10 *	* * *	root	killall -HUP update_meters.pl
+57 *	* * *	root	killall -USR1 update_meters.pl
+0 *	* * *	root	killall -USR1 clean_samples_cache.pl
 5 *	* * *	root	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
 0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
 0 1	* * *	root	/etc/apache2/perl/Nabovarme/bin/update_samples_calculated.pl

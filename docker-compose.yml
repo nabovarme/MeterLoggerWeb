@@ -3,7 +3,7 @@ version: '2.4'
 services:
   db:
     image: mysql:5.5
-    container_name: db  
+    container_name: db
     ports:
       - "3306:3306"
     volumes:
@@ -23,9 +23,12 @@ services:
 
   mqtt:
     image: eclipse-mosquitto:latest
-    container_name: mqtt  
+    container_name: mqtt
     ports:
       - "1883:1883"
+    depends_on:
+      meter_grapher:
+        condition: service_started
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./mosquitto_data:/mosquitto/data
@@ -39,7 +42,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: web  
+    container_name: web
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
@@ -58,9 +61,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      mqtt:
-        condition: service_started
-    container_name: meter_grapher  
+    container_name: meter_grapher
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
@@ -78,7 +79,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: mysql_mqtt_command_queue_receive  
+    container_name: mysql_mqtt_command_queue_receive
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
@@ -96,7 +97,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: mysql_mqtt_command_queue_send  
+    container_name: mysql_mqtt_command_queue_send
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
@@ -114,7 +115,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: meter_sms  
+    container_name: meter_sms
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
@@ -133,7 +134,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_started
-    container_name: meter_sms  
+    container_name: meter_cron
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./crontab:/etc/crontab

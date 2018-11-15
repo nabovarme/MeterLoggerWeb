@@ -52,6 +52,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+RUN PERL_MM_USE_DEFAULT=1 cpan install JSON::Create
 # we need a specific version here
 RUN PERL_MM_USE_DEFAULT=1 cpanp -i http://cpan.metacpan.org/authors/id/M/MI/MIK/CryptX-0.036.tar.gz
 
@@ -64,4 +65,6 @@ COPY ./clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
 COPY ./wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
 COPY ./update_samples_calculated.pl /etc/apache2/perl/Nabovarme/bin/update_samples_calculated.pl
 
-CMD cron -f
+CMD cron -f & \
+	/etc/apache2/perl/Nabovarme/bin/update_meters.pl & \
+	/etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl

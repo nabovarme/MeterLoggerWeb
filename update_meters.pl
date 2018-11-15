@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use DBI;
 use Config;
 use Time::HiRes qw( usleep );
@@ -20,8 +19,7 @@ $SIG{USR1} = \&get_wifi_scan_results;
 
 $SIG{INT} = \&sig_int_handler;
 
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
+warn("starting...\n");
 
 my $dbh;
 my $sth;
@@ -33,10 +31,10 @@ $nabovarme_mqtt->connect() || die $!;
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	syslog('info', "connected to db");
+	warn("connected to db\n");
 }
 else {
-	syslog('info', "cant't connect to db $!");
+	warn("cant't connect to db $!\n");
 	die $!;
 }
 
@@ -51,9 +49,9 @@ sub get_version_and_status {
 	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
-	syslog('info', "send mqtt retain to all meters for version and status");
+	warn("send mqtt retain to all meters for version and status\n");
 	while ($d = $sth->fetchrow_hashref) {
-		syslog('info', "    send mqtt version, status and uptime commands to " . $d->{serial});
+		warn("    send mqtt version, status and uptime commands to " . $d->{serial} . "\n");
 		
 		# send version
 		$nabovarme_mqtt->call({	serial => $d->{serial},
@@ -127,9 +125,9 @@ sub get_wifi_scan_results {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
-	syslog('info', "send mqtt scan command to all meters");
+	warn("send mqtt scan command to all meters\n");
 	while ($d = $sth->fetchrow_hashref) {
-		syslog('info', "    send mqtt scan commands to " . $d->{serial});
+		warn("    send mqtt scan commands to " . $d->{serial} . "\n");
 
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'scan',

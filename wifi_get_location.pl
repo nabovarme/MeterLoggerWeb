@@ -25,7 +25,7 @@ my ($d, $d2);
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
     $sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters]);
-    $sth->execute || warn $!;
+    $sth->execute || warn "$!\n";
 	if ($sth->rows) {
 		while ($d = $sth->fetchrow_hashref) {
 			my $nested = {	considerIp => 'false',
@@ -34,7 +34,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 			my $quoted_serial = $dbh->quote($d->{serial});
 			my $sth2 = $dbh->prepare(qq[SELECT `serial`, `ssid`, `bssid`, `rssi`, `channel`, `unix_time` from wifi_scan where `serial` LIKE ] . $quoted_serial . 
 									qq[ AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 3 DAY GROUP BY `bssid` ORDER BY `unix_time`]);
-			$sth2->execute || warn $!;
+			$sth2->execute || warn "$!\n";
 			if ($sth2->rows) {
 				# create data structure for json request
 				while ($d2 = $sth2->fetchrow_hashref) {
@@ -60,7 +60,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 					# insert into db
 					my $quoted_lat = $dbh->quote($loc->{'location'}->{'lat'});
 					my $quoted_long = $dbh->quote($loc->{'location'}->{'lng'});
-					$dbh->do(qq[UPDATE meters SET `location_lat` = $quoted_lat, `location_long` = $quoted_long WHERE `serial` LIKE $quoted_serial]) or warn $!;
+					$dbh->do(qq[UPDATE meters SET `location_lat` = $quoted_lat, `location_long` = $quoted_long WHERE `serial` LIKE $quoted_serial]) or warn "$!\n";
 #					print $loc->{'location'}->{'lat'} . ',' . $loc->{'location'}->{'lng'} . ',' . '"' . $d->{'serial'} . ' ' . $d->{'info'} . '"' . "\n";
 				}
 				else {
