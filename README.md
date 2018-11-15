@@ -6,5 +6,7 @@ MeterLoggerWeb is the backend system for MeterLogger
 
 docker-compose up --build
 
-docker exec -it meterlogger_db_1 /nabovarme_import.sh
+To initialize db (only do it first time!):
+
+docker exec -it db /nabovarme_import.sh
 
