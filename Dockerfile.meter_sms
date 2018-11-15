@@ -73,6 +73,9 @@ COPY ./meter_notify_water.pl /etc/apache2/perl/Nabovarme/bin/meter_notify_water.
 COPY ./meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
 COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
 
+RUN mkdir /var/www/nabovarme/sms_spool
+RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
+
 CMD /etc/apache2/perl/Nabovarme/bin/meter_notify.pl && \
 	/etc/apache2/perl/Nabovarme/bin/meter_notify_water.pl && \
 	/etc/apache2/perl/Nabovarme/bin/meter_alarm.pl && \

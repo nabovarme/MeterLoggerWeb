@@ -68,19 +68,11 @@ COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./Nabovarme.conf /etc/
 
-COPY ./meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
-COPY ./mysql_mqtt_command_queue_receive.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
-COPY ./mysql_mqtt_command_queue_send.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
-COPY ./meter_notify.pl /etc/apache2/perl/Nabovarme/bin/meter_notify.pl
-COPY ./meter_notify_water.pl /etc/apache2/perl/Nabovarme/bin/meter_notify_water.pl
-COPY ./meter_wifi_config.pl /etc/apache2/perl/Nabovarme/bin/meter_wifi_config.pl
-COPY ./meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
-COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
 
 RUN mkdir /var/www/nabovarme/sms_spool
-RUN chown www-data:www-data /var/www/nabovarme/sms_spool
+RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
 
 CMD /docker-entrypoint.sh
 
