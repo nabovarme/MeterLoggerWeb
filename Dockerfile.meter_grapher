@@ -26,7 +26,6 @@ RUN apt-get update && apt-get install -y \
 	bash \
 	bison \
 	cpanplus \
-	daemon \
 	flex \
 	g++ \
 	gawk \

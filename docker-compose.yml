@@ -20,6 +20,7 @@ services:
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: nabovarme
       MYSQL_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   mqtt:
     image: eclipse-mosquitto:latest
