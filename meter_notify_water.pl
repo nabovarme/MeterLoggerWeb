@@ -92,12 +92,12 @@ while (1) {
 				$time_last = $d_volume_last->{unix_time};
 			}
 		}
-		if (($time_now - $time_last) > 0) {
-			$volume_last_day = ($volume_now - $volume_last) / (($time_now - $time_last) / 60 / 60);
+		if ((($time_now || 0) - ($time_last || 0)) > 0) {
+			$volume_last_day = (($volume_now || 0) - ($volume_last || 0)) / ((($time_now || 0) - ($time_last || 0)) / 60 / 60);
 		}
 
 		if ($d_volume_left = $sth_volume_left->fetchrow_hashref) {
-			$volume_left = $d_volume_left->{volume_left} - $d->{min_amount};
+			$volume_left = ($d_volume_left->{volume_left} || 0) - ($d->{min_amount} || 0);
 			if ($volume_last_day <= 0.0) {
 				next;
 			}
