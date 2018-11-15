@@ -242,7 +242,8 @@ sub sms_send {
 	print $fh "Alphabet: UCS\n";
 	print $fh "\n";
 	print $fh $message . "\n";
-
+	close $fh;
+	
 	move($temp_file, SMS_SPOOL_DIR . '/' . $destination . '_' . basename($temp_file)) || die $!;
 }
 

@@ -70,8 +70,5 @@ COPY ./Nabovarme.conf /etc/
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
 
-RUN mkdir /var/www/nabovarme/sms_spool
-RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
-
 CMD /docker-entrypoint.sh
 
