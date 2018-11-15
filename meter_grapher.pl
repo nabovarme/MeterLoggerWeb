@@ -102,7 +102,7 @@ sub v2_mqtt_version_handler {
 							sw_version = $quoted_sw_version, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-							warn $topic . "\t" . $sw_version . "\n";
+			warn $topic . "\t" . $sw_version . "\n";
 		}
 		else {
 			# hmac sha256 not ok
@@ -151,9 +151,7 @@ sub v2_mqtt_status_handler {
 							valve_status = $quoted_valve_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("valve_status: $valve_status\n");
-			warn('valve_status changed' . " " . $meter_serial . " " . $valve_status . "\n");
-			
+			warn $topic . "\t" . $valve_status . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -201,7 +199,7 @@ sub v2_mqtt_uptime_handler {
 							uptime = $quoted_uptime, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("uptime: $uptime\n");
+			warn $topic . "\t" . $uptime . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -249,7 +247,7 @@ sub v2_mqtt_ssid_handler {
 							ssid = $quoted_ssid, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("ssid: $ssid\n");
+			warn $topic . "\t" . $ssid . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -297,7 +295,7 @@ sub v2_mqtt_rssi_handler {
 							rssi = $quoted_rssi, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("rssi: $rssi\n");
+			warn $topic . "\t" . $rssi . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -345,7 +343,7 @@ sub v2_mqtt_wifi_status_handler {
 							wifi_status = $quoted_wifi_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("wifi_status: $wifi_status\n");
+			warn $topic . "\t" . $wifi_status . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -407,7 +405,7 @@ sub v2_mqtt_ap_status_handler {
 							ap_status = $quoted_ap_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("ap_status: $ap_status\n");
+			warn $topic . "\t" . $ap_status . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -462,7 +460,7 @@ sub v2_mqtt_reset_reason_handler {
 						        reset_reason = $quoted_reset_reason, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("reset_reason: $reset_reason\n");
+			warn $topic . "\t" . $reset_reason . "\n";			
 		}
 		else {
 			# hmac sha256 not ok
@@ -628,7 +626,6 @@ sub v2_mqtt_sample_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
-			warn("uptime: $uptime\n");
 			warn $topic . "\t" . $message . "\n";
 		}
 		else {

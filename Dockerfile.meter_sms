@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
 	bash \
 	bison \
 	cpanplus \
+	cron \
 	daemon \
 	flex \
 	g++ \
@@ -76,7 +77,9 @@ COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_
 RUN mkdir /var/www/nabovarme/sms_spool
 RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
 
-CMD /etc/apache2/perl/Nabovarme/bin/meter_notify.pl && \
+CMD cron && \
+	tail -f /var/log/cron.log && \
+	/etc/apache2/perl/Nabovarme/bin/meter_notify.pl && \
 	/etc/apache2/perl/Nabovarme/bin/meter_notify_water.pl && \
 	/etc/apache2/perl/Nabovarme/bin/meter_alarm.pl && \
 	/etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh

@@ -20,7 +20,7 @@ services:
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: nabovarme
       MYSQL_PASSWORD: seesha9eisheM1mo
-  
+
   mqtt:
     image: eclipse-mosquitto:latest
     container_name: mqtt  
@@ -117,6 +117,7 @@ services:
     container_name: meter_sms  
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
+      - ./crontab:/etc/crontab
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:

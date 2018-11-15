@@ -1,0 +1,15 @@
+# /etc/crontab: system-wide crontab
+# Unlike any other crontab you don't have to run the `crontab'
+# command to install the new version when you edit this file
+# and files in /etc/cron.d. These files also have username fields,
+# that none of the other crontabs do.
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/10 *	* * *	root	kill -HUP `cat /var/run/update_meters.pl.pid`
+57 *	* * *	root	kill -USR1 `cat /var/run/update_meters.pl.pid`
+0 *	* * *	root	kill -USR1 `cat /var/run/clean_samples_cache.pl.pid`
+5 *	* * *	root	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
+0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
+0 1	* * *	root	/etc/apache2/perl/Nabovarme/bin/update_samples_calculated.pl

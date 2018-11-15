@@ -92,12 +92,12 @@ while (1) {
 				$time_last = $d_energy_last->{unix_time};
 			}
 		}
-		if (($time_now - $time_last) > 0) {
-			$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
+		if ((($time_now || 0) - ($time_last || 0)) > 0) {
+			$energy_last_day = (($energy_now || 0) - ($energy_last || 0)) / ((($time_now || 0) - ($time_last || 0)) / 60 / 60);
 		}
 
 		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			$energy_left = $d_kwh_left->{kwh_left} - $d->{min_amount};
+			$energy_left = ($d_kwh_left->{kwh_left} || 0) - ($d->{min_amount} || 0);
 			if ($energy_last_day <= 0.0) {
 				next;
 			}
