@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
 	aptitude \
 	bash \
 	bison \
+	cpanplus \
 	daemon \
 	flex \
 	g++ \
@@ -56,7 +57,8 @@ USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
-RUN PERL_MM_USE_DEFAULT=1 cpan install Crypt::Mode::CBC
+# we need a specific version here
+RUN PERL_MM_USE_DEFAULT=1 cpanp -i http://cpan.metacpan.org/authors/id/M/MI/MIK/CryptX-0.036.tar.gz
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 

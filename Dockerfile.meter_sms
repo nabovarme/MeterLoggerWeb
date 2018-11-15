@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
 	aptitude \
 	bash \
 	bison \
+	cpanplus \
 	daemon \
 	flex \
 	g++ \
@@ -46,7 +47,6 @@ RUN apt-get update && apt-get install -y \
 	libapache2-mod-perl2 \
 	libapache2-mod-perl2-dev \
 	libapache2-mod-perl2-doc \
-	libcrypt-cbc-perl \
 	libembperl-perl \
 	libdbd-mysql-perl \
 	libdbi-perl \
@@ -59,6 +59,8 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+# we need a specific version here
+RUN PERL_MM_USE_DEFAULT=1 cpanp -i http://cpan.metacpan.org/authors/id/M/MI/MIK/CryptX-0.036.tar.gz
 
 RUN mkdir /var/www/nabovarme
 RUN chown www-data:www-data /var/www/nabovarme
