@@ -7,6 +7,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
+      - ./my.cnf:/etc/mysql/my.cnf
       - ./db_data:/var/lib/mysql
       - ./nabovarme.sql:/nabovarme.sql
       - ./nabovarme_import.sh:/nabovarme_import.sh
