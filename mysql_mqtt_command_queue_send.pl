@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
@@ -34,8 +33,7 @@ my $d;
 
 #print Dumper $pp->pidfile();
 
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
+warn("starting...\n");
 
 
 sub sig_int_handler {
@@ -49,7 +47,6 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 }
 else {
-	syslog('info', "cant't connect to db $!");
 	warn "cant't connect to db $!\n";
 	die $!;
 }
@@ -89,7 +86,6 @@ while (1) {
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 			warn "send mqtt function " . $d->{function} . " to " . $d->{serial} . "\n";
-			syslog('info', "send mqtt function " . $d->{function} . " to " . $d->{serial});
 			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
 			my $message = $d->{param};
 			my $iv = join('', map(chr(int rand(256)), 1..16));
@@ -108,7 +104,6 @@ while (1) {
 		if ($d->{timeout}) {
 			if (time() - $d->{unix_time} > $d->{timeout}) {
 				warn "function " . $d->{function} . " to " . $d->{serial} . " timed out\n";
-				syslog('info', "function " . $d->{function} . " to " . $d->{serial} . " timed out");
 				if ($d->{has_callback}) {
 					$dbh->do(qq[UPDATE command_queue SET \
 						`state` = 'timeout' \
