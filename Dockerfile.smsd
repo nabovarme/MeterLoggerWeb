@@ -33,8 +33,8 @@ RUN apt-get update && apt-get install -y \
 USER root
 
 RUN mkdir /var/run/smstools
-RUN chown smsd:smsd /var/run/smstools
+RUN chown smsd:smsd /var/spool/sms/outgoing
 
-CMD smsd -c/etc/smsd.conf -usmsd -gdialout && tail -f /var/log/smstools/smsd.log
+CMD smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log
 
 

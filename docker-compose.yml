@@ -113,7 +113,9 @@ services:
         context: '.'
         dockerfile: 'Dockerfile.smsd'
     container_name: smsd
+    privileged: true
     volumes:
+#      - /dev/bus/usb:/dev/bus/usb
       - ./smsd.conf:/etc/smsd.conf
       - ./sms/outgoing:/var/spool/sms/outgoing
     restart: always
