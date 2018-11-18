@@ -108,6 +108,16 @@ services:
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
+  smsd:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.smsd'
+    container_name: smsd
+    volumes:
+      - ./smsd.conf:/etc/smsd.conf
+      - ./sms/outgoing:/var/spool/sms/outgoing
+    restart: always
+
   meter_sms:
     build:
         context: '.'
