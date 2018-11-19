@@ -32,6 +32,8 @@ RUN apt-get update && apt-get install -y \
 
 USER root
 
+RUN mkdir -p /var/run/smstools && \
+	chown -R smsd:smsd /var/run/smstools
 
 CMD mkdir -p /var/spool/sms/checked && \
 	mkdir -p /var/spool/sms/failed && \
