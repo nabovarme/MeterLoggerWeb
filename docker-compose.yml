@@ -116,7 +116,7 @@ services:
     volumes:
 #      - /dev/bus/usb:/dev/bus/usb
       - ./smsd.conf:/etc/smsd.conf
-      - ./sms/outgoing:/var/spool/sms/outgoing
+      - ./sms:/var/spool/sms
     restart: always
 
   meter_sms:
