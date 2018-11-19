@@ -32,8 +32,7 @@ RUN apt-get update && apt-get install -y \
 
 USER root
 
-RUN mkdir /var/spool/sms && \
-	mkdir /var/spool/sms/failed && \
+RUN mkdir /var/spool/sms/failed && \
 	mkdir /var/spool/sms/incoming && \
 	mkdir /var/spool/sms/outgoing && \
 	mkdir /var/spool/sms/sent
