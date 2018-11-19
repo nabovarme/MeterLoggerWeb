@@ -32,11 +32,14 @@ RUN apt-get update && apt-get install -y \
 
 USER root
 
-CMD mkdir -p /var/spool/sms/failed && \
+RUN mkdir -p /var/spool/sms/checked && \
+	mkdir -p /var/spool/sms/failed && \
 	mkdir -p /var/spool/sms/incoming && \
 	mkdir -p /var/spool/sms/outgoing && \
 	mkdir -p /var/spool/sms/sent && \
-	chown -R smsd:smsd /var/spool/sms && \
-	smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log
+	chown -R smsd:smsd /var/spool/sms
+RUN chown -R smsd:smsd /var/spool/sms
+
+CMD smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log
 
 
