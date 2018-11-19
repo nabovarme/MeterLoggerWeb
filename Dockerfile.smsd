@@ -32,8 +32,12 @@ RUN apt-get update && apt-get install -y \
 
 USER root
 
-RUN mkdir /var/run/smstools
-RUN chown -R smsd:smsd /var/spool/sms
+RUN mkdir /var/run/smstools && \
+	mkdir /var/run/smstools/failed && \
+	mkdir /var/run/smstools/incoming && \
+	mkdir /var/run/smstools/outgoing && \
+	mkdir /var/run/smstools/sent
+RUN chown smsd:smsd /var/spool/sms
 
 CMD smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log
 
