@@ -2,12 +2,11 @@ version: '2.4'
 
 services:
   db:
-    image: mysql:5.5
+    image: mariadb:10.4
     container_name: db
     ports:
       - "3306:3306"
     volumes:
-      - ./my.cnf:/etc/mysql/my.cnf
       - ./db_data:/var/lib/mysql
       - ./nabovarme.sql:/nabovarme.sql
       - ./nabovarme_import.sh:/nabovarme_import.sh
