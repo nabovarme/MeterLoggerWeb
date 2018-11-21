@@ -179,8 +179,8 @@ sub login_handler {
 		my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
 		if (index($r->uri, $login_path) || index($r->uri, $logged_out_path) || index($r->uri, $sms_code_path)) {
 			# if the requested url is a special one, go to default path
-			my $quoted_default_path = $dbh->quote($default_path);
-			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
+			my $quoted_uri = $dbh->quote($r->uri);
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 		}
 		else {
 			my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
