@@ -46,6 +46,8 @@ sub check_conditions {
 	$sth->execute;
 	if ($sth->rows) {
 		my $id;
+		my $quoted_id;
+		
 		my $serial;
 		my $quoted_serial;
 		my $info;
