@@ -26,13 +26,15 @@ use Nabovarme::Db;
 sub handler {
 	my $r = shift;
 
+	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
+
 	my ($dbh, $sth, $d);
 	$dbh = Nabovarme::Db->my_connect || die $!;
 
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	if ($passed_cookie) {
 		# first handle special url's
-		if ($r->uri =~ /logout/i) {
+		if (index($r->uri, $logout_path) > 0) {
 			# user wants to logout
 			return logout_handler($r);
 		}
@@ -45,6 +47,7 @@ sub login_handler {
 	my $r = shift;
 	
 	my $login_path = $r->dir_config('LoginPath') || '/private/login.epl';
+	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
 	my $default_path = $r->dir_config('DefaultPath') || '/';
@@ -177,14 +180,14 @@ sub login_handler {
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
 		my $quoted_remote_host = $dbh->quote($r->useragent_ip);
 		my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
-		if (index($r->uri, $login_path) || index($r->uri, $logged_out_path) || index($r->uri, $sms_code_path)) {
+		if (index($r->uri, $login_path) > 0 || index($r->uri, $logout_path) > 0 || index($r->uri, $logged_out_path) > 0 || index($r->uri, $sms_code_path) > 0) {
 			# if the requested url is a special one, go to default path
-			my $quoted_uri = $dbh->quote($r->uri);
-			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
+			my $quoted_default_path = $dbh->quote($default_path);
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 		}
 		else {
 			my $quoted_orig_uri = $dbh->quote($r->uri . ($r->args ? ('?' . $r->args) : ''));
-			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
+			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 		}
 
 		$r->err_headers_out->add('Set-Cookie' => $cookie);
