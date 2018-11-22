@@ -45,6 +45,7 @@ sub check_conditions {
 								FROM `alarms`, `meters` WHERE alarms.`serial` = meters.`serial`]);
 	$sth->execute;
 	if ($sth->rows) {
+		my $id;
 		my $serial;
 		my $quoted_serial;
 		my $info;
@@ -61,6 +62,9 @@ sub check_conditions {
 		my $d;
 		while ($d = $sth->fetchrow_hashref) {
 			# check every alarm in database
+			$id = $d->{id};
+			$quoted_id = $dbh->quote($id);
+			
 			$condition = $d->{condition};
 			$serial = $d->{serial};
 			$info = $d->{info};
@@ -165,7 +169,7 @@ sub check_conditions {
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
 										alarm_state = 1 \
-										WHERE `serial` like $quoted_serial]) or warn $!;
+										WHERE `id` like $quoted_id ]) or warn $!;
 						syslog('info', "serial $serial: down");
 						warn "down\n";
 					}
@@ -175,7 +179,7 @@ sub check_conditions {
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
 										alarm_state = 1 \
-										WHERE `serial` like $quoted_serial]) or warn $!;
+										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: down repeat");
 						warn "down repeat\n";
 					}
@@ -192,7 +196,7 @@ sub check_conditions {
 					$dbh->do(qq[UPDATE alarms SET \
 									last_notification = ] . time() . qq[, \
 									alarm_state = 0 \
-									WHERE `serial` like $quoted_serial]) or warn $!;
+									WHERE `id` like $quoted_id]) or warn $!;
 #					print "false\n";
 				}
 			}
