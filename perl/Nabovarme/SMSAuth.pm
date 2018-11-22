@@ -27,14 +27,20 @@ sub handler {
 	my $r = shift;
 
 	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 
+	if (index($r->uri, $logged_out_path) >= 0 || index($r->uri, '/favicon.ico') >= 0 ) {
+		warn Dumper "we dont handle this: " . $r->uri;
+		return Apache2::Const::OK;
+	}
+	
 	my ($dbh, $sth, $d);
 	$dbh = Nabovarme::Db->my_connect || die $!;
 
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	if ($passed_cookie) {
 		# first handle special url's
-		if (index($r->uri, $logout_path) > 0) {
+		if (index($r->uri, $logout_path) >= 0) {
 			# user wants to logout
 			return logout_handler($r);
 		}
@@ -180,7 +186,7 @@ sub login_handler {
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
 		my $quoted_remote_host = $dbh->quote($r->useragent_ip);
 		my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
-		if (index($r->uri, $login_path) > 0 || index($r->uri, $logout_path) > 0 || index($r->uri, $logged_out_path) > 0 || index($r->uri, $sms_code_path) > 0) {
+		if (index($r->uri, $login_path) >= 0 || index($r->uri, $logout_path) >= 0 || index($r->uri, $logged_out_path) >= 0 || index($r->uri, $sms_code_path) >= 0) {
 			# if the requested url is a special one, go to default path
 			my $quoted_default_path = $dbh->quote($default_path);
 			$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_default_path, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
