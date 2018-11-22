@@ -33,15 +33,11 @@ RUN apt-get update && apt-get install -y \
 
 USER root
 
+COPY ./docker-entrypoint_smsd.sh /docker-entrypoint.sh
+
 RUN mkdir -p /var/run/smstools && \
 	chown -R smsd:smsd /var/run/smstools
 
-CMD mkdir -p /var/spool/sms/checked && \
-	mkdir -p /var/spool/sms/failed && \
-	mkdir -p /var/spool/sms/incoming && \
-	mkdir -p /var/spool/sms/outgoing && \
-	mkdir -p /var/spool/sms/sent && \
-	chown -R smsd:smsd /var/spool/sms && \
-	smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log
+CMD /docker-entrypoint.sh
 
 
