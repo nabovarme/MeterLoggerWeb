@@ -119,6 +119,9 @@ services:
       - ./smsd.conf:/etc/smsd.conf
       - ./sms:/var/spool/sms
     restart: always
+    environment:
+      SMSD_HOST: ${SMSD_HOST}
+      SMSD_PORT: ${SMSD_PORT}
 
   meter_sms:
     build:
