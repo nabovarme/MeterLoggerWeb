@@ -35,8 +35,7 @@ USER root
 
 COPY ./docker-entrypoint_smsd.sh /docker-entrypoint.sh
 
-RUN mkdir -p /var/run/smstools && \
-	chown -R smsd:smsd /var/run/smstools
+RUN mkdir -p /var/run/smstools
 
 CMD /docker-entrypoint.sh
 

@@ -121,7 +121,7 @@ while (1) {
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 1, \
 						notification_sent_at = $energy_left \
-						WHERE serial = $d->{serial}]) or warn $!;
+						WHERE serial = $quoted_serial]) or warn $!;
 						warn "serial: " . $d->{serial} . ", energy_time_left: " . $energy_time_left . "\n";
 				}
 			}
@@ -141,7 +141,7 @@ while (1) {
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 2 \
-						WHERE serial = $d->{serial}]) or warn $!;
+						WHERE serial = $quoted_serial]) or warn $!;
 				}
 				elsif (($energy_time_left > 0) and ($energy_left > $d->{notification_sent_at})) {
 					# send open message
@@ -158,7 +158,7 @@ while (1) {
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 0 \
-						WHERE serial = $d->{serial}]) or warn $!;
+						WHERE serial = $quoted_serial]) or warn $!;
 				}
 			}
 			elsif (($d->{notification_state}) == 2) {	# send open notification if not sent before
@@ -177,7 +177,7 @@ while (1) {
 					}
 					$dbh->do(qq[UPDATE meters SET \
 						notification_state = 0 \
-						WHERE serial = $d->{serial}]) or warn $!;
+						WHERE serial = $quoted_serial]) or warn $!;
 				}
 			}
 		}

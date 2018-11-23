@@ -33,7 +33,8 @@ while (1) {
 # end of main
 
 sub check_conditions {
-	my $sth = $dbh->prepare(qq[SELECT alarms.`serial`, \
+	my $sth = $dbh->prepare(qq[SELECT alarms.`id`, \
+									alarms.`serial`, \
 									meters.`info`, \
 									alarms.`condition`, \
 									alarms.`last_notification`, \

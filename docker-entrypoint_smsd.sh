@@ -5,7 +5,6 @@ mkdir -p /var/spool/sms/failed &&
 mkdir -p /var/spool/sms/incoming &&
 mkdir -p /var/spool/sms/outgoing &&
 mkdir -p /var/spool/sms/sent &&
-chown -R smsd:smsd /var/spool/sms &&
 
 #daemon -r -n socat 
 socat -d -d pty,link=/tmp/ttyV0,raw,echo=0,wait-slave,b19200 tcp:$SMSD_HOST:$SMSD_PORT &
