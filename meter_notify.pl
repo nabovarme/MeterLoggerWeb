@@ -88,8 +88,8 @@ while (1) {
 		$sth_energy_last->execute;
 		if ($sth_energy_last->rows) {
 			if ($d_energy_last = $sth_energy_last->fetchrow_hashref) {
-				$energy_last = $d_energy_last->{energy};
-				$time_last = $d_energy_last->{unix_time};
+				$energy_last = $d_energy_last->{energy} || 0;
+				$time_last = $d_energy_last->{unix_time} || 0;
 			}
 		}
 		if ((($time_now || 0) - ($time_last || 0)) > 0) {
