@@ -173,6 +173,8 @@ sub login_handler {
 												-value => $passed_cookie_token);
 				}
 			}
+			# update unix_time to time last used
+			$dbh->do(qq[UPDATE sms_auth SET unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 			$r->err_headers_out->add('Set-Cookie' => $cookie);
 			return Apache2::Const::OK;
 		}
