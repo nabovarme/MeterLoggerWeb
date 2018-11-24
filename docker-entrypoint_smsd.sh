@@ -13,9 +13,9 @@ socat -d -d pty,link=$PSEUDO_TTY,raw,echo=0,wait-slave,b19200 tcp:$SMSD_HOST:$SM
 while [ ! -L $PSEUDO_TTY ]
 	do sleep 1; echo "waiting for $PSEUDO_TTY to be created"
 done
-ls -al $PSEUDO_TTY &&
 smsd -c/etc/smsd.conf && tail -f /var/log/smstools/smsd.log &
 while [ -L $PSEUDO_TTY ]
 	do sleep 10
 done
+echo "$PSEUDO_TTY went away, restarting"
 exit 1
