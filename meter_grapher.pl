@@ -98,7 +98,7 @@ sub v2_mqtt_version_handler {
 			my $quoted_sw_version = $dbh->quote($sw_version);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							sw_version = $quoted_sw_version, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -147,7 +147,7 @@ sub v2_mqtt_status_handler {
 			my $quoted_valve_status = $dbh->quote($valve_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							valve_status = $quoted_valve_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -195,7 +195,7 @@ sub v2_mqtt_uptime_handler {
 			my $quoted_uptime = $dbh->quote($uptime);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							uptime = $quoted_uptime, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -243,7 +243,7 @@ sub v2_mqtt_ssid_handler {
 			my $quoted_ssid = $dbh->quote($ssid);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							ssid = $quoted_ssid, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -291,7 +291,7 @@ sub v2_mqtt_rssi_handler {
 			my $quoted_rssi = $dbh->quote($rssi);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							rssi = $quoted_rssi, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -339,7 +339,7 @@ sub v2_mqtt_wifi_status_handler {
 			my $quoted_wifi_status = $dbh->quote($wifi_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							wifi_status = $quoted_wifi_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -401,7 +401,7 @@ sub v2_mqtt_ap_status_handler {
 			my $quoted_ap_status = $dbh->quote($ap_status);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							ap_status = $quoted_ap_status, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -456,7 +456,7 @@ sub v2_mqtt_reset_reason_handler {
 			my $quoted_reset_reason = $dbh->quote($reset_reason);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 						        reset_reason = $quoted_reset_reason, \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
@@ -623,7 +623,7 @@ sub v2_mqtt_sample_handler {
 			# update last_updated time stamp
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE LOW_PRIORITY meters SET \
+			$dbh->do(qq[UPDATE meters SET \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial]) or warn "$!\n";
 			warn $topic . "\t" . $message . "\n";
