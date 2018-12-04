@@ -57,6 +57,7 @@ COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 
 COPY ./meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
+COPY ./mqtt_log.pl /etc/apache2/perl/Nabovarme/bin/mqtt_log.pl
 
-CMD /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
+CMD /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl & /etc/apache2/perl/Nabovarme/bin/mqtt_log.pl
 
