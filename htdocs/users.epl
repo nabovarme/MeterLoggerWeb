@@ -1,0 +1,121 @@
+﻿[-
+	use DBI;
+	          
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Config;
+	use Nabovarme::Db;
+	
+-]
+<HTML>
+	<HEAD>
+	<meta name="robots" content="noindex">
+	<meta http-equiv="refresh" content="60">
+	<TITLE>MeterLogger users</TITLE>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 80%
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-small {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 60%;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	tr:nth-child(even) {
+		background: #DDD
+	}
+	tr:nth-child(odd) {
+		background: #FFF
+	}
+	</style>
+	</HEAD>
+	<BODY>
+    [- 
+	# get all meters
+          if ($dbh = Nabovarme::Db->my_connect) {
+			$sth = $dbh->prepare(qq[SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent, from_unixtime(`unix_time`) AS t FROM sms_auth ORDER BY `unix_time` desc]);
+			$sth->execute;			
+		  }
+
+          -]
+    <!-- <span class="default-bold">Meters</span> -->
+	<table border="0" align="left" cellpadding="6" cellspacing="0" class="top">
+	<tr align="left" valign="top">
+		<td align="left"><span class="default-bold">Phone</span></td>
+		<td align="left"><span class="default">&nbsp;</span></td>
+		<td align="left"><span class="default-bold">Name</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">Auth state</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">SMS code</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">Original uri</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">Remote host</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-bold">User agent</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Date</span></td>
+	</tr>
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+[- 
+	# get details about every meter
+	$name_info = '';
+	if ($d->{phone}) {
+		$quoted_phone = $dbh->quote(q[%] . $d->{phone} . q[%]);
+		$sth2 = $dbh->prepare(qq[SELECT `name` FROM users WHERE `phone` LIKE $quoted_phone LIMIT 1]);
+		$sth2->execute;
+		if ($sth2->rows) {
+			$d2 = $sth2->fetchrow_hashref;
+			$name_info = $d2->{name};
+		}
+		if (length($name_info) == 0) {
+			warn(qq[SELECT * FROM meters WHERE `sms_notification` LIKE $quoted_phone LIMIT 1]);
+			$sth3 = $dbh->prepare(qq[SELECT * FROM meters WHERE `sms_notification` LIKE $quoted_phone LIMIT 1]);
+			$sth3->execute;
+			if ($sth3->rows) {
+				$d3 = $sth3->fetchrow_hashref;
+				$name_info = $d3->{info};
+			}
+		}
+	}
+
+-]
+	<tr align="left" valign="top">
+		<td align="left"><span class="default">[+ $d->{phone} +]</span></td>
+		<td align="left"><span class="default">&nbsp;</span></td>
+		<td align="left"><span class="default">[+ $name_info +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d->{auth_state} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d->{sms_code} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d->{orig_uri} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default">[+ $d->{remote_host} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="default-small">[+ $d->{user_agent} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{t} +]</span></td>
+	</tr>
+
+[$ endwhile $]
+[$ endif $]
+	</table>
+	</BODY>
+</HTML>
