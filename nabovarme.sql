@@ -5,9 +5,9 @@
 # http://www.sequelpro.com/
 # https://github.com/sequelpro/sequelpro
 #
-# Host: 127.0.0.1 (MySQL 5.5.62)
+# Host: 127.0.0.1 (MySQL 5.5.59-0+deb8u1)
 # Database: nabovarme
-# Generation Time: 2018-11-13 22:46:31 +0000
+# Generation Time: 2018-12-12 21:58:09 +0000
 # ************************************************************
 
 
@@ -32,6 +32,7 @@ CREATE TABLE `accounts` (
   `amount` float NOT NULL DEFAULT '0',
   `info` varchar(256) NOT NULL DEFAULT '',
   `price` float NOT NULL DEFAULT '1',
+  `auto` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`)
@@ -52,6 +53,27 @@ then
 end if */;;
 DELIMITER ;
 /*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE */;
+
+
+# Dump of table accounts_auto
+# ------------------------------------------------------------
+
+DROP TABLE IF EXISTS `accounts_auto`;
+
+CREATE TABLE `accounts_auto` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `serial` varchar(16) DEFAULT NULL,
+  `payment_time` int(11) DEFAULT NULL,
+  `amount` float NOT NULL DEFAULT '0',
+  `info` varchar(256) NOT NULL DEFAULT '',
+  `price` float NOT NULL DEFAULT '1',
+  `phone` varchar(256) DEFAULT NULL,
+  `state` enum('new','accounted','error') DEFAULT 'new',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
+  KEY `serial_idx` (`serial`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 
 
 # Dump of table alarms
@@ -95,6 +117,22 @@ CREATE TABLE `command_queue` (
 
 
 
+# Dump of table log
+# ------------------------------------------------------------
+
+DROP TABLE IF EXISTS `log`;
+
+CREATE TABLE `log` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `serial` varchar(12) DEFAULT NULL,
+  `function` varchar(256) DEFAULT NULL,
+  `param` varchar(256) DEFAULT NULL,
+  `unix_time` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
 # Dump of table meter_groups
 # ------------------------------------------------------------
 
@@ -106,15 +144,6 @@ CREATE TABLE `meter_groups` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-LOCK TABLES `meter_groups` WRITE;
-/*!40000 ALTER TABLE `meter_groups` DISABLE KEYS */;
-
-INSERT INTO `meter_groups` (`id`, `group`)
-VALUES
-	(1,'Main');
-
-/*!40000 ALTER TABLE `meter_groups` ENABLE KEYS */;
-UNLOCK TABLES;
 
 
 # Dump of table meters
@@ -156,15 +185,6 @@ CREATE TABLE `meters` (
   KEY `serial_idx` (`serial`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-LOCK TABLES `meters` WRITE;
-/*!40000 ALTER TABLE `meters` DISABLE KEYS */;
-
-INSERT INTO `meters` (`id`, `type`, `group`, `parent_serial`, `serial`, `info`, `setup_value`, `sw_version`, `key`, `valve_status`, `valve_installed`, `last_updated`, `uptime`, `reset_reason`, `ssid`, `rssi`, `min_amount`, `default_price`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at`, `wifi_status`, `wifi_set_ssid`, `wifi_set_pwd`, `ap_status`, `location_lat`, `location_long`, `comment`)
-VALUES
-	(1,'heat',1,NULL,'9999999','Test Meter',0,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,1,NULL,NULL,0,NULL,'disconnected',NULL,NULL,NULL,NULL,NULL,NULL);
-
-/*!40000 ALTER TABLE `meters` ENABLE KEYS */;
-UNLOCK TABLES;
 
 
 # Dump of table samples
@@ -290,15 +310,6 @@ CREATE TABLE `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-LOCK TABLES `users` WRITE;
-/*!40000 ALTER TABLE `users` DISABLE KEYS */;
-
-INSERT INTO `users` (`id`, `username`, `password`, `admin_group`, `name`, `mail`, `phone`, `address`, `meter_id`, `comment`)
-VALUES
-	(1,'Test','','0','test','','12345678',NULL,NULL,NULL);
-
-/*!40000 ALTER TABLE `users` ENABLE KEYS */;
-UNLOCK TABLES;
 
 
 # Dump of table wifi_scan
@@ -316,31 +327,6 @@ CREATE TABLE `wifi_scan` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
-
-
-
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-
-
-# Dump of table log
-# ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `log`;
-
-CREATE TABLE `log` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
-  `function` varchar(256) DEFAULT NULL,
-  `param` varchar(256) DEFAULT NULL,
-  `unix_time` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
