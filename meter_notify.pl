@@ -56,7 +56,7 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `notification_state`, `notification_sent_at` FROM meters WHERE `type` = 'heat' AND (`email_notification` OR `sms_notification`)]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `close_notification_time`, `notification_state`, `notification_sent_at` FROM meters WHERE `type` = 'heat' AND (`email_notification` OR `sms_notification`)]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
@@ -105,7 +105,7 @@ while (1) {
 			$energy_time_left = $energy_left / $energy_last_day;
 			
 			if (($d->{notification_state}) == 0) {		# send close warning notification if not sent before
-				if ($energy_time_left < CLOSE_WARNING_TIME) {	# 3 days
+				if ($energy_time_left < (($d->{close_notification_time} / 3600) || CLOSE_WARNING_TIME)) {	# 3 days
 					# send close warning
 					syslog('info', "close warning sent for serial #" . $d->{serial} 
 						. ", energy left: " . $energy_left 
