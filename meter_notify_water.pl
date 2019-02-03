@@ -126,7 +126,7 @@ while (1) {
 				}
 			}
 			elsif (($d->{notification_state}) == 1) {	# send close notification if not sent before
-				if ($volume_left <= 0.5) {			# no volume left	DEBUG: we send it before becouse of rounding error in firmware
+				if ($volume_left <= 0.0) {			# no volume left	DEBUG: we send it before becouse of rounding error in firmware
 					# send close message
 					syslog('info', "close notice sent for serial #" . $d->{serial} 
 						. ", volume left: " . $volume_left 
@@ -143,7 +143,7 @@ while (1) {
 						notification_state = 2 \
 						WHERE serial = $quoted_serial]) or warn $!;
 				}
-				elsif (($volume_left > 0.5) and ($volume_left > $d->{notification_sent_at})) {	# DEBUG: we send it before becouse of rounding error in firmware
+				elsif (($volume_left > 0.0) and ($volume_left > $d->{notification_sent_at})) {	# DEBUG: we send it before becouse of rounding error in firmware
 					# send open message
 					syslog('info', "open notice sent for serial #" . $d->{serial} 
 						. ", volume left: " . $volume_left 
@@ -162,7 +162,7 @@ while (1) {
 				}
 			}
 			elsif (($d->{notification_state}) == 2) {	# send open notification if not sent before
-				if ($volume_left > 0.5) {	# DEBUG: we send it before becouse of rounding error in firmware
+				if ($volume_left > 0.0) {	# DEBUG: we send it before becouse of rounding error in firmware
 					# send open message
 					syslog('info', "open notice sent for serial #" . $d->{serial} 
 						. ", volume left: " . $volume_left 
