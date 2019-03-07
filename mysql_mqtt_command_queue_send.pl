@@ -87,7 +87,7 @@ while (1) {
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 			warn "send mqtt function " . $d->{function} . " to " . $d->{serial} . "\n";
 			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
-			my $message = $d->{param};
+			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
