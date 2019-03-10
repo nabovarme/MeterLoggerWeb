@@ -7,11 +7,15 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config;
+use Config::Simple;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
+
+use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+
+my $config = new Config::Simple(CONFIG_FILE) || die $!;
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
