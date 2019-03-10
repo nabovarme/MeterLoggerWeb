@@ -7,7 +7,7 @@
 #
 # Host: 127.0.0.1 (MySQL 5.5.59-0+deb8u1)
 # Database: nabovarme
-# Generation Time: 2018-12-12 21:58:09 +0000
+# Generation Time: 2019-03-10 23:46:26 +0000
 # ************************************************************
 
 
@@ -22,8 +22,6 @@
 
 # Dump of table accounts
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `accounts`;
 
 CREATE TABLE `accounts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -58,28 +56,55 @@ DELIMITER ;
 # Dump of table accounts_auto
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `accounts_auto`;
-
 CREATE TABLE `accounts_auto` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) DEFAULT NULL,
   `payment_time` int(11) DEFAULT NULL,
   `amount` float NOT NULL DEFAULT '0',
-  `info` varchar(256) NOT NULL DEFAULT '',
+  `info_row` varchar(512) NOT NULL DEFAULT '',
+  `info_detail` varchar(512) NOT NULL DEFAULT '',
   `price` float NOT NULL DEFAULT '1',
   `phone` varchar(256) DEFAULT NULL,
-  `state` enum('new','accounted','error') DEFAULT 'new',
+  `state` enum('new','partially_parsed','parsed','accounted','ignored','error') DEFAULT 'new',
+  `screenshot_row` longblob,
+  `screenshot_detail` longblob,
+  `info_row_hash` bigint(12) DEFAULT NULL,
+  `info_detail_hash` bigint(12) DEFAULT NULL,
+  `info_row_phash` varchar(512) DEFAULT NULL,
+  `duplicate_count` int(11) DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
+  UNIQUE KEY `unique_info_row_idx` (`info_row_hash`),
   KEY `serial_idx` (`serial`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DELIMITER ;;
+/*!50003 SET SESSION SQL_MODE="" */;;
+/*!50003 CREATE */ /*!50017 DEFINER=`root`@`localhost` */ /*!50003 TRIGGER `info_unique` BEFORE INSERT ON `accounts_auto` FOR EACH ROW if (new.info_row is not null)
+then 
+	SET new.info_row_hash = CRC32(new.info_row);
+	SET new.info_detail_hash = CRC32(new.info_detail);
+end if */;;
+DELIMITER ;
+/*!50003 SET SESSION SQL_MODE=@OLD_SQL_MODE */;
+
+
+# Dump of table accounts_auto_payers_learned
+# ------------------------------------------------------------
+
+CREATE TABLE `accounts_auto_payers_learned` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `serial` varchar(16) DEFAULT NULL,
+  `phone` varchar(256) DEFAULT NULL,
+  `comment` mediumtext,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
 
 # Dump of table alarms
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `alarms`;
 
 CREATE TABLE `alarms` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -100,8 +125,6 @@ CREATE TABLE `alarms` (
 # Dump of table command_queue
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `command_queue`;
-
 CREATE TABLE `command_queue` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) DEFAULT NULL,
@@ -120,8 +143,6 @@ CREATE TABLE `command_queue` (
 # Dump of table log
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `log`;
-
 CREATE TABLE `log` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) DEFAULT NULL,
@@ -136,8 +157,6 @@ CREATE TABLE `log` (
 # Dump of table meter_groups
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `meter_groups`;
-
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(256) NOT NULL DEFAULT '',
@@ -148,8 +167,6 @@ CREATE TABLE `meter_groups` (
 
 # Dump of table meters
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `meters`;
 
 CREATE TABLE `meters` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -172,6 +189,7 @@ CREATE TABLE `meters` (
   `default_price` float NOT NULL DEFAULT '1',
   `email_notification` varchar(256) DEFAULT NULL,
   `sms_notification` varchar(64) DEFAULT NULL,
+  `close_notification_time` int(11) DEFAULT '604800' COMMENT 'send notice this many seconds before we close (default 7 days)',
   `notification_state` int(1) unsigned NOT NULL DEFAULT '0',
   `notification_sent_at` float DEFAULT NULL,
   `wifi_status` varchar(32) DEFAULT 'disconnected',
@@ -189,8 +207,6 @@ CREATE TABLE `meters` (
 
 # Dump of table samples
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `samples`;
 
 CREATE TABLE `samples` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -222,8 +238,6 @@ DELIMITER ;
 # Dump of table samples_cache
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `samples_cache`;
-
 CREATE TABLE `samples_cache` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) DEFAULT NULL,
@@ -246,8 +260,6 @@ CREATE TABLE `samples_cache` (
 
 # Dump of table samples_calculated
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `samples_calculated`;
 
 CREATE TABLE `samples_calculated` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
@@ -272,8 +284,6 @@ CREATE TABLE `samples_calculated` (
 # Dump of table sms_auth
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `sms_auth`;
-
 CREATE TABLE `sms_auth` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `cookie_token` varchar(256) DEFAULT NULL,
@@ -294,8 +304,6 @@ CREATE TABLE `sms_auth` (
 # Dump of table users
 # ------------------------------------------------------------
 
-DROP TABLE IF EXISTS `users`;
-
 CREATE TABLE `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `username` varchar(256) NOT NULL DEFAULT '',
@@ -314,8 +322,6 @@ CREATE TABLE `users` (
 
 # Dump of table wifi_scan
 # ------------------------------------------------------------
-
-DROP TABLE IF EXISTS `wifi_scan`;
 
 CREATE TABLE `wifi_scan` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
