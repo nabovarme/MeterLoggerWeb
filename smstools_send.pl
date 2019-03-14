@@ -27,7 +27,13 @@ print $fh "Alphabet: UCS\n";
 print $fh "\n";
 print $fh $message . "\n";
 
+my $lock_file = SPOOL_DIR . '/' . $destination . '_' . basename($temp_file) . '.LOCK';
+open(LOCK_FILE, ">>" . $lock_file) || die "Cannot open file: " . $!;
+close(LOCK_FILE);
+
 move($temp_file, SPOOL_DIR . '/' . $destination . '_' . basename($temp_file)) || die $!;
+
+unlink $lock_file;
 
 # end of main
 
