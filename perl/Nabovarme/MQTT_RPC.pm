@@ -48,13 +48,27 @@ sub call {
 	
 	my $d = undef;
 
-	my $sth = $self->{dbh}->prepare(qq[SELECT `serial` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
+	my $sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		# insert into db mqtt command queue
-		$self->{dbh}->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-			VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', ] . ($callback ? 1 : 0) . qq[, $quoted_timeout)]);
-				
+		$sth = $self->{dbh}->prepare(qq[SELECT `id` FROM command_queue WHERE \
+											serial = $quoted_serial \
+											AND `function` = $quoted_mqtt_function \
+											AND `param` = $quoted_message \
+											AND `state` = 'sent' \
+											AND `has_callback` = ] . ($callback ? 1 : 0) . qq[\
+											LIMIT 1]);
+		$sth->execute;
+		if ($d = $sth->fetchrow_hashref) {
+			# update mqtt command queue
+			$self->{dbh}->do(qq[UPDATE command_queue SET `unix_time` = UNIX_TIMESTAMP(NOW()), `timeout` = $quoted_timeout WHERE \
+									`id` = ] . $d->{id});
+		}
+		else {
+			# insert into db mqtt command queue
+			$self->{dbh}->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+				VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', ] . ($callback ? 1 : 0) . qq[, $quoted_timeout)]);
+		}
 	}
 	
 	if ($callback) {
