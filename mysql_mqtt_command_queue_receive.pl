@@ -27,7 +27,7 @@ my $sth;
 my $d;
 
 warn("starting...\n");
-
+my $key_cache;
 
 sub sig_int_handler {
 
@@ -54,6 +54,7 @@ sub mqtt_handler {
 	
 	$message =~ /(.{32})(.{16})(.+)/s;
 
+	my $key = '';
 	my $mac = $1;
 	my $iv = $2;
 	my $ciphertext = $3;
@@ -63,22 +64,22 @@ sub mqtt_handler {
 		return;
 	}
 
-	$sth = $dbh->prepare(qq[SELECT `key`, `sw_version` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-	$sth->execute;
-	if ($sth->rows) {
-		$d = $sth->fetchrow_hashref;
-		my $key = $d->{key} || warn "no aes key found\n";
-		
-#		warn "received mqtt function " . $function . " to " . $meter_serial . "\n";
-#		syslog('info', "received mqtt function " . $function . " to " . $meter_serial);
+	if (exists($key_cache->{$meter_serial}) && ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
+		$key = $key_cache->{$meter_serial}->{key};
+	}
+	else {
+		$sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+		$sth->execute;
+		if ($sth->rows) {
+			$d = $sth->fetchrow_hashref;
+			$key_cache->{$meter_serial}->{key} = $d->{key};
+			$key_cache->{$meter_serial}->{cached_time} = time();
 
-		# only for sw version higher than or equal to build #923
-		$d->{sw_version} =~ /[^-]+-(\d+)/;
-		$sw_version = $1;
-		if ($sw_version < 923) {
-			return;
+			$key = $d->{key} || warn "no aes key found\n";
 		}
-		
+	}
+
+	if ($key) {
 		# handle special case
 		if ($function =~ /^scan_result$/i) {
 			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
@@ -86,13 +87,6 @@ sub mqtt_handler {
 			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
 			return;
 		}
-#		elsif ($function =~ /^open$/i && ($sw_version < 1033)) {
-#			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-#			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-#			# do mysql stuff here
-#			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'open_until%']) or warn $!;
-#			return;
-#		}
 		
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
@@ -135,7 +129,6 @@ sub mqtt_handler {
 			}
 
 			# handle general case
-			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
 
 			# mark it for deletion
 			$sth = $dbh->prepare(qq[SELECT `id`, `has_callback` FROM command_queue \
@@ -174,7 +167,27 @@ else {
 }
 
 my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
-$subscribe_mqtt->run(q[/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/cron/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ping/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/version/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/status/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/open_until/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/open_until_delta/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/uptime/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/stack_trace/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/vdd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/rssi/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ssid/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/set_ssid/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/set_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/set_ssid_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/scan_result/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/wifi_status/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ap_status/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/save/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/mem/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/reset_reason/#], \&mqtt_handler);
+$subscribe_mqtt->run();
 
 1;
 
