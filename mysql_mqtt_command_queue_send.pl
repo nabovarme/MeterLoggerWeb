@@ -99,6 +99,7 @@ while (1) {
 				`sent_count` = `sent_count` + 1 \
 				WHERE `id` = ] . $d->{id}) or warn $!;
 			
+			usleep(DELAY_BETWEEN_COMMAND);
 		}
 		
 		# remove timed out calls from db
@@ -117,7 +118,6 @@ while (1) {
 		}
 		
 		$last_function = $current_function;
-		usleep(DELAY_BETWEEN_COMMAND);
 	} 	   
 	# wait and retransmit     
 #	usleep(DELAY_BETWEEN_RETRANSMIT);
