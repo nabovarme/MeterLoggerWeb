@@ -18,6 +18,7 @@ use Nabovarme::Db;
 use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10 second
 use constant DELAY_BETWEEN_SERIALS => 1_000_000;		# 1 second
 use constant DB_POLL_DELAY => 1_000_000;					# 1 second
+use constant DELAY_BETWEEN_COMMAND => 150_000;	# 150 mS
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -116,6 +117,7 @@ while (1) {
 		}
 		
 		$last_function = $current_function;
+		usleep(DELAY_BETWEEN_COMMAND);
 	} 	   
 	# wait and retransmit     
 #	usleep(DELAY_BETWEEN_RETRANSMIT);
