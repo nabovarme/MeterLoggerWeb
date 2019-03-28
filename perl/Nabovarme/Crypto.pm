@@ -67,7 +67,7 @@ sub decrypt_topic_message_for_serial {
 		}
 	}
 
-	return '';
+	return undef;
 }
 
 1;
