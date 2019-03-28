@@ -19,6 +19,7 @@ use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
+my $config_cached_time = $config->param('cached_time') || 3600; # default 1 hour
 
 $SIG{INT} = \&sig_int_handler;
 
