@@ -59,20 +59,20 @@
 [- 
 	# get details about every meter
 	my $quoted_serial = $dbh->quote($d->{serial});
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 	$d2 = $sth2->fetchrow_hashref;
 
 	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
 	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 	(SELECT \
-		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 	), 2) AS kwh_left]);
 	$sth3->execute;
 
 	# get last days energy usage
-	$sth4 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+	$sth4 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
 	$sth4->execute;
 	if ($sth4->rows) {
@@ -81,7 +81,7 @@
 			$time_now = $d4->{unix_time};
 		}
 	}
-	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples \
+	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial \
 		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 	$sth5->execute;
@@ -102,13 +102,13 @@
 	$sth3_volume = $dbh->prepare(qq[SELECT ROUND( \
 	(SELECT SUM(amount/price) AS paid_m3 FROM accounts WHERE serial = $quoted_serial) - \
 	(SELECT \
-		(SELECT samples.volume FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
+		(SELECT samples_cache.volume FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_m3 \
 	), 2) AS m3_left]);
 	$sth3_volume->execute;
 
 	# get last days energy usage
-	$sth4_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples \
+	$sth4_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
 	$sth4_volume->execute;
 	if ($sth4_volume->rows) {
@@ -117,7 +117,7 @@
 			$time_now_volume = $d4_volume->{unix_time};
 		}
 	}
-	$sth5_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples \
+	$sth5_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 		WHERE `serial` = $quoted_serial \
 		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4_volume->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 	$sth5_volume->execute;
