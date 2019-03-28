@@ -10,7 +10,7 @@ use Nabovarme::Db;
 if ($dbh = Nabovarme::Db->my_connect) {
 	my $quoted_serial = $dbh->quote($fdat{'serial'});
 
-	$sth = $dbh->prepare(qq[SELECT hours, volume FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth = $dbh->prepare(qq[SELECT hours, volume FROM samples_cache WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth->execute;
 }
 -]
