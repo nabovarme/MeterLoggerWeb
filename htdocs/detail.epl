@@ -123,49 +123,97 @@ if ($sth->rows) {
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
     	<script type="text/javascript">
-			var data = [];
 			var colorSets = [
 				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
 				null
-			]
-			data = "data/[+ $fdat{'serial'} || '9999999' +]/[+ $fdat{'low'} +]";
-			g = new Dygraph(
-				document.getElementById("div_nabovarme"), data, {
-					colors: colorSets[0],
-					strokeWidth: 1.5,
-					animatedZooms: true,
-					showLabelsOnHighlight: true,
-					labelsDivStyles: {
-						'font-family': 'Verdana, Geneva, sans-serif',
-						'text-align': 'left',
-						'background': 'none'
-					},
-					labelsSeparateLines: true,
-					labelsDivWidth: 700,
-					axes: {
-						x: {
-							valueFormatter: function(x) {
-								return formatDate(new Date(x));
+			];
+			var g;
+			var drawGraph = function(data) {
+				g = new Dygraph(
+					document.getElementById("div_nabovarme"), data, {
+						delimiter: ',',
+						colors: colorSets[0],
+						strokeWidth: 1.5,
+						animatedZooms: true,
+						showLabelsOnHighlight: true,
+						labelsDivStyles: {
+							'font-family': 'Verdana, Geneva, sans-serif',
+							'text-align': 'left',
+							'background': 'none'
+						},
+						labelsSeparateLines: true,
+						labelsDivWidth: 700,
+						axes: {
+							x: {
+								valueFormatter: function(x) {
+									return formatDate(new Date(x));
+								}
 							}
-						}
-					},
-					highlightSeriesOpts: {
-						pointSize: 6,
-						highlightCircleSize: 6,
-						strokeWidth: 2,
-						strokeBorderWidth: 1,
-					},
-					showRangeSelector: true,
-					interactionModel: Dygraph.defaultInteractionModel,
-					dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
-				}
-			);
-			setInterval(function() {
+						},
+						highlightSeriesOpts: {
+							pointSize: 6,
+							highlightCircleSize: 6,
+							strokeWidth: 2,
+							strokeBorderWidth: 1,
+						},
+						showRangeSelector: true,
+						interactionModel: Dygraph.defaultInteractionModel,
+						dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
+					}
+				);
 				var range = g.xAxisRange();
-				// update data and pan right
 				range[0] += 60000;
 				range[1] += 60000;
-				g.updateOptions( { 'file': data, dateWindow: range } );
+				g.updateOptions( { dateWindow: range } );
+
+				g.ready(function () {
+					// stop spinner
+					spinner.stop();
+				});
+			}
+			
+			var data_url_new = "data/[+ $fdat{'serial'} || '9999999' +]/new_range";
+			var data_url_old = "data/[+ $fdat{'serial'} || '9999999' +]/old_range";
+			var data_new = '';
+			var data_old = '';
+
+			var xhttp_old = new XMLHttpRequest();
+			xhttp_old.onreadystatechange = function() {
+				if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
+					data_old = xhttp_old.responseText;
+					drawGraph(data_old + data_new);
+				}
+			}
+
+			var xhttp_new = new XMLHttpRequest();
+			xhttp_new.onreadystatechange = function() {
+				if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
+					data_new = xhttp_new.responseText;
+					xhttp_old.open('GET', data_url_old, true);
+					xhttp_old.send();
+				}
+			}
+			xhttp_new.open('GET', data_url_new, true);
+			xhttp_new.send();
+
+			setInterval(function() {
+				// update data and pan right
+				console.log("update data and pan right");
+				xhttp_new.onreadystatechange = function() {
+					if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
+						var data_new = xhttp_new.responseText;
+					
+						var xhttp_old = new XMLHttpRequest();
+						xhttp_old.onreadystatechange = function() {
+							if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
+								var data_old = xhttp_old.responseText;
+								drawGraph(data_old + data_new);
+							}
+						}
+					}
+				}				
+				xhttp_new.open('GET', data_url_new, true);
+				xhttp_new.send();
 				update_last_energy();
 			}, 60000);
 			
@@ -191,10 +239,6 @@ if ($sth->rows) {
 				g.setVisibility(parseInt(el.id), el.checked);
 			}
 
-			g.ready(function () {
-				// stop spinner
-				spinner.stop();
-			});
 		</script>
 		<br><br>
     	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">

@@ -15,6 +15,9 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
+	my $data_cache_path = $r->dir_config('DataCachePath') || '/cache';
+	my $document_root = $r->document_root();
+
 #	my ($serial, $option, $unix_time) = $r->uri =~ m|/([^/]+)(?:/([^/]+))?$|;
 	my ($serial, $option, $unix_time) = $r->uri =~ m|^/[^/]+/([^/]+)(?:/([^/]+))?(?:/([^/]+))?|;
 #	warn Dumper {uri => $r->uri, serial => $serial, option => $option, unix_time => $unix_time};
@@ -127,7 +130,7 @@ sub handler {
 			$sth->execute;
 			if ($sth->rows) {
 				unless ($csv_header_set) {
-					$r->print("Date,Temperature,Return temperature, Temperature diff.,Flow,Effect\n");
+					$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
@@ -162,6 +165,73 @@ sub handler {
 				}
 			}
 		}
+		elsif ($option =~ /new_range/) {		# new range looked up from db
+			$r->content_type('text/plain');
+			$sth = $dbh->prepare(qq[SELECT \
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+				serial, \
+				flow_temp, \
+				return_flow_temp, \
+				temp_diff, \
+				flow, \
+				effect, \
+				hours, \
+				volume, \
+				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
+				ORDER BY `unix_time` ASC]);
+			$sth->execute;
+			if ($sth->rows) {
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print($d->{flow_temp} . ',');
+					$r->print($d->{return_flow_temp} . ',');
+					$r->print($d->{temp_diff} . ',');
+					$r->print($d->{flow} . ',');
+					$r->print($d->{effect} . "\n");
+				}
+			}
+		}
+		elsif ($option =~ /old_range/) {		# old range cached from disk
+			if ( (-e $document_root . $data_cache_path . '/' . $serial . '.csv') && 
+				 ((time() - (stat($document_root . $data_cache_path . '/' . $serial . '.csv'))[9] < 3600)) ) {
+				warn Dumper "cached version exists: " . $document_root . $data_cache_path . '/' . $serial . '.csv' . " changed " . (time() - (stat($document_root . $data_cache_path . '/' . $serial . '.csv'))[9]) . " seconds ago";
+			}
+			else {
+				warn Dumper "no valid cache found: " . $document_root . $data_cache_path . '/' . $serial . '.csv' . " we need to create it";
+				
+				$sth = $dbh->prepare(qq[SELECT \
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+					serial, \
+					flow_temp, \
+					return_flow_temp, \
+					temp_diff, \
+					flow, \
+					effect, \
+					hours, \
+					volume, \
+					energy FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+					AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
+					ORDER BY `unix_time` ASC]);
+				$sth->execute;
+				if ($sth->rows) {
+					open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
+					print($fh "Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
+					while ($d = $sth->fetchrow_hashref) {
+						print($fh $d->{time_stamp_formatted} . ',');
+						print($fh $d->{flow_temp} . ',');
+						print($fh $d->{return_flow_temp} . ',');
+						print($fh $d->{temp_diff} . ',');
+						print($fh $d->{flow} . ',');
+						print($fh $d->{effect} . "\n");
+					}
+				}
+			}
+			#$r->content_type('text/plain');
+			#$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
+			$r->internal_redirect('/' . $data_cache_path . '/' . $serial . '.csv');
+			return Apache2::Const::OK;
+		}
 		else {		# detailed data
 			if ($option =~ /high/) {
 				$sth = $dbh->prepare(qq[SELECT \
@@ -195,7 +265,7 @@ sub handler {
 			if ($sth->rows) {
 				$r->content_type('text/plain');
     	
-				$r->print("Date,Temperature,Return temperature, Temperature diff.,Flow,Effect\n");
+				$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 				$csv_header_set = 1;
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
@@ -225,7 +295,7 @@ sub handler {
 				$sth->execute;
 				if ($sth->rows) {
 					unless ($csv_header_set) {
-						$r->print("Date,Temperature,Return temperature, Temperature diff.,Flow,Effect\n");
+						$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 					}
 					while ($d = $sth->fetchrow_hashref) {
 						$r->print($d->{time_stamp_formatted} . ',');

@@ -61,6 +61,9 @@ RUN PERL_MM_USE_DEFAULT=1 cpanp -i http://cpan.metacpan.org/authors/id/M/MI/MIK/
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
+RUN mkdir /var/www/nabovarme/cache
+RUN chown www-data:www-data /var/www/nabovarme/cache
+
 COPY htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
 COPY ./perl /etc/apache2/perl
