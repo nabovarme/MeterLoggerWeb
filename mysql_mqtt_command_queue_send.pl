@@ -18,7 +18,7 @@ use Nabovarme::Db;
 use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10 second
 use constant DELAY_BETWEEN_SERIALS => 1_000_000;		# 1 second
 use constant DB_POLL_DELAY => 1_000_000;					# 1 second
-use constant DELAY_BETWEEN_COMMAND => 150_000;	# 150 mS
+use constant DELAY_BETWEEN_COMMAND => 20_000;	# 20 mS
 
 $SIG{INT} = \&sig_int_handler;
 
