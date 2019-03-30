@@ -128,6 +128,7 @@ if ($sth->rows) {
 				null
 			];
 			var range = [ (Date.now() - 86400000), Date.now() ];
+			var reload_time = Date.now();
 			var g;
 			var drawGraph = function(data) {
 				g = new Dygraph(
@@ -169,8 +170,11 @@ if ($sth->rows) {
 				g.ready(function () {
 					// stop spinner
 					spinner.stop();
-					range[0] += 60000;
-					range[1] += 60000;
+					
+					var reload_time_diff = Date.now() - reload_time;
+					reload_time = Date.now();
+					range[0] += reload_time_diff;
+					range[1] += reload_time_diff;
 					g.updateOptions( { dateWindow: range } );
 				});
 			}
