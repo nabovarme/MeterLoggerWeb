@@ -122,12 +122,30 @@ if ($sth->rows) {
 			}
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
-    	<script type="text/javascript">
+		<script type="text/javascript">
+//			var re = '/#(.+?)\-(.+?)$/';
+//			var current_range_string = window.location.hash;
+////			var current_range = current_range_string.match(re);
+//			var current_range = current_range_string.match(/#(.+?)\-(.+?)$/);
+//			console.log(current_range_string);
+//			console.log(current_range);
+
+//			var current_url = window.location.href;
+//			current_url.replace(re, "");
+
 			var colorSets = [
 				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
 				null
 			];
-			var range = [ (Date.now() - 86400000), Date.now() ];
+			var range = [];
+//			if (current_range) {
+//				range.push(current_range[1]);
+//				range.push(current_range[2]);
+//				console.log(range);
+//			}
+//			else {
+				range = [ (Date.now() - 86400000), Date.now() ];
+//			}
 			var reload_time = Date.now();
 			var g;
 			var drawGraph = function(data) {
@@ -163,6 +181,7 @@ if ($sth->rows) {
 						dateWindow: range,
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
+//							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 						}
 					}
 				);

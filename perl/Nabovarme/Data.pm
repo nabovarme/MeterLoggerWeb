@@ -84,7 +84,7 @@ sub handler {
 			# get highres data
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-				volume FROM samples WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+				volume FROM samples_cache WHERE `serial` LIKE ] . $quoted_serial . qq[ \
 			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;
@@ -214,6 +214,7 @@ sub handler {
 					AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
 					ORDER BY `unix_time` ASC]);
 				$sth->execute;
+				open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
 				if ($sth->rows) {
 					open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
 					print($fh "Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
@@ -226,6 +227,7 @@ sub handler {
 						print($fh $d->{effect} . "\n");
 					}
 				}
+				close($fh);
 			}
 			#$r->content_type('text/plain');
 			#$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
