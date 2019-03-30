@@ -127,6 +127,7 @@ if ($sth->rows) {
 				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
 				null
 			];
+			var range = [ (Date.now() - 86400000), Date.now() ];
 			var g;
 			var drawGraph = function(data) {
 				g = new Dygraph(
@@ -158,17 +159,19 @@ if ($sth->rows) {
 						},
 						showRangeSelector: true,
 						interactionModel: Dygraph.defaultInteractionModel,
-						dateWindow: [ (Date.now() - 86400000), Date.now() ]	// 24 hour
+						dateWindow: range,
+						zoomCallback: function(minDate, maxDate, yRanges) {
+							range = g.xAxisRange();
+						}
 					}
 				);
-				var range = g.xAxisRange();
-				range[0] += 60000;
-				range[1] += 60000;
-				g.updateOptions( { dateWindow: range } );
 
 				g.ready(function () {
 					// stop spinner
 					spinner.stop();
+					range[0] += 60000;
+					range[1] += 60000;
+					g.updateOptions( { dateWindow: range } );
 				});
 			}
 			
@@ -199,21 +202,25 @@ if ($sth->rows) {
 			setInterval(function() {
 				// update data and pan right
 				console.log("update data and pan right");
+				var xhttp_old = new XMLHttpRequest();
+				xhttp_old.onreadystatechange = function() {
+					if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
+						data_old = xhttp_old.responseText;
+						drawGraph(data_old + data_new);
+					}
+				}
+
+				var xhttp_new = new XMLHttpRequest();
 				xhttp_new.onreadystatechange = function() {
 					if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
-						var data_new = xhttp_new.responseText;
-					
-						var xhttp_old = new XMLHttpRequest();
-						xhttp_old.onreadystatechange = function() {
-							if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
-								var data_old = xhttp_old.responseText;
-								drawGraph(data_old + data_new);
-							}
-						}
+						data_new = xhttp_new.responseText;
+						xhttp_old.open('GET', data_url_old, true);
+						xhttp_old.send();
 					}
-				}				
+				}
 				xhttp_new.open('GET', data_url_new, true);
 				xhttp_new.send();
+				
 				update_last_energy();
 			}, 60000);
 			
