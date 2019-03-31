@@ -123,29 +123,26 @@ if ($sth->rows) {
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
 		<script type="text/javascript">
-//			var re = '/#(.+?)\-(.+?)$/';
-//			var current_range_string = window.location.hash;
-////			var current_range = current_range_string.match(re);
-//			var current_range = current_range_string.match(/#(.+?)\-(.+?)$/);
-//			console.log(current_range_string);
-//			console.log(current_range);
+			var current_range_string = window.location.hash;
+			var current_range = current_range_string.match(/#(.+?)\-(.+?)$/);
 
-//			var current_url = window.location.href;
-//			current_url.replace(re, "");
+			// remove url after #
+			var current_url = window.location.href;
+			current_url = current_url.replace(/#.*$/, "");
 
 			var colorSets = [
 				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
 				null
 			];
 			var range = [];
-//			if (current_range) {
-//				range.push(current_range[1]);
-//				range.push(current_range[2]);
-//				console.log(range);
-//			}
-//			else {
+			if (current_range) {
+				range.push(current_range[1]);
+				range.push(current_range[2]);
+			}
+			else {
 				range = [ (Date.now() - 86400000), Date.now() ];
-//			}
+			}
+			console.log(range);
 			var reload_time = Date.now();
 			var g;
 			var drawGraph = function(data) {
@@ -181,21 +178,16 @@ if ($sth->rows) {
 						dateWindow: range,
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
-//							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
+							console.log('zoomCallback: ' + range);
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
+						},
+						clickCallback: function(e, x, points) {
+							range = g.xAxisRange();
+							console.log('clickCallback: ' + range);
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 						}
 					}
 				);
-
-				g.ready(function () {
-					// stop spinner
-					spinner.stop();
-					
-					var reload_time_diff = Date.now() - reload_time;
-					reload_time = Date.now();
-					range[0] += reload_time_diff;
-					range[1] += reload_time_diff;
-					g.updateOptions( { dateWindow: range } );
-				});
 			}
 			
 			var data_url_new = "data/[+ $fdat{'serial'} || '9999999' +]/new_range";
@@ -206,6 +198,9 @@ if ($sth->rows) {
 			var xhttp_old = new XMLHttpRequest();
 			xhttp_old.onreadystatechange = function() {
 				if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
+					// stop spinner
+					spinner.stop();
+					
 					data_old = xhttp_old.responseText;
 					drawGraph(data_old + data_new);
 				}
@@ -223,16 +218,20 @@ if ($sth->rows) {
 			xhttp_new.send();
 
 			setInterval(function() {
-				// update data and pan right
+				// update data
 				console.log("update data and pan right");
 				var xhttp_old = new XMLHttpRequest();
 				xhttp_old.onreadystatechange = function() {
 					if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
 						data_old = xhttp_old.responseText;
 						drawGraph(data_old + data_new);
+
+						range[0] += reload_time_diff;
+						range[1] += reload_time_diff;
+						g.updateOptions( { dateWindow: range } );
 					}
 				}
-
+				// ...and pan right
 				var xhttp_new = new XMLHttpRequest();
 				xhttp_new.onreadystatechange = function() {
 					if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
