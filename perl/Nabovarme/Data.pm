@@ -178,7 +178,7 @@ sub handler {
 				hours, \
 				volume, \
 				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
+				AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;
 			if ($sth->rows) {
