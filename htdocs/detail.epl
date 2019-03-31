@@ -136,8 +136,8 @@ if ($sth->rows) {
 			];
 			var range = [];
 			if (current_range) {
-				range.push(current_range[1]);
-				range.push(current_range[2]);
+				range.push(parseFloat(current_range[1]));
+				range.push(parseFloat(current_range[2]));
 			}
 			else {
 				range = [ (Date.now() - 86400000), Date.now() ];
@@ -198,6 +198,9 @@ if ($sth->rows) {
 						}
 					}
 				);
+//				g.ready(function () {
+//					console.log('range: ' + g.xAxisRange());
+//				});
 			}
 			
 			var data_url_new = "data/[+ $fdat{'serial'} || '9999999' +]/new_range";
