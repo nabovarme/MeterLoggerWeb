@@ -236,6 +236,8 @@ if ($sth->rows) {
 						data_old = xhttp_old.responseText;
 						drawGraph(data_old + data_new);
 
+						var reload_time_diff = Date.now() - reload_time;
+						reload_time = Date.now();
 						range[0] += reload_time_diff;
 						range[1] += reload_time_diff;
 						g.updateOptions( { dateWindow: range } );
