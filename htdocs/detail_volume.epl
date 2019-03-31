@@ -178,7 +178,7 @@ if ($sth->rows) {
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
 							console.log('zoomCallback: ' + range);
-							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1]) || (range[1] > Date.now())) {
+							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
 								console.log('range out of bounds: ' + range);
 								range = [ (Date.now() - 86400000), Date.now() ];
 								g.updateOptions( { dateWindow: range } );								
@@ -188,7 +188,7 @@ if ($sth->rows) {
 						clickCallback: function(e, x, points) {
 							range = g.xAxisRange();
 							console.log('clickCallback: ' + range);
-							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1]) || (range[1] > Date.now())) {
+							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
 								console.log('range out of bounds: ' + range);
 								range = [ (Date.now() - 86400000), Date.now() ];
 								g.updateOptions( { dateWindow: range } );								
