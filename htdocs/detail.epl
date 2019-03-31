@@ -241,6 +241,8 @@ if ($sth->rows) {
 						range[0] += reload_time_diff;
 						range[1] += reload_time_diff;
 						g.updateOptions( { dateWindow: range } );
+
+						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 					}
 				}
 				// ...and pan right
