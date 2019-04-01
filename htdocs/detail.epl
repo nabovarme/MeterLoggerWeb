@@ -187,6 +187,16 @@ if ($sth->rows) {
 						showRangeSelector: true,
 						interactionModel: Dygraph.defaultInteractionModel,
 						dateWindow: range,
+						unhighlightCallback: function(e) {
+							range = g.xAxisRange();
+//							console.log('unhighlightCallback: ' + range);
+							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+//								console.log('range out of bounds: ' + range);
+								range = [ (Date.now() - 86400000), Date.now() ];
+								g.updateOptions( { dateWindow: range } );								
+							}
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
+						},
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
 //							console.log('zoomCallback: ' + range);
@@ -210,17 +220,19 @@ if ($sth->rows) {
 					}
 				);
 				g.ready(function () {
-					g.setVisibility(0, document.getElementById("0").checked); 
-					g.setVisibility(1, document.getElementById("1").checked); 
-					g.setVisibility(2, document.getElementById("2").checked); 
-					g.setVisibility(3, document.getElementById("3").checked); 
-					g.setVisibility(4, document.getElementById("4").checked); 
-
+					// get state from url
 					document.getElementById("0").checked = ((data_series_enabled >> 0) & 1) ? true : false;
 					document.getElementById("1").checked = ((data_series_enabled >> 1) & 1) ? true : false;
 					document.getElementById("2").checked = ((data_series_enabled >> 2) & 1) ? true : false;
 					document.getElementById("3").checked = ((data_series_enabled >> 3) & 1) ? true : false;
 					document.getElementById("4").checked = ((data_series_enabled >> 4) & 1) ? true : false;
+
+					// update dygraphs to reflect state
+					g.setVisibility(0, document.getElementById("0").checked); 
+					g.setVisibility(1, document.getElementById("1").checked); 
+					g.setVisibility(2, document.getElementById("2").checked); 
+					g.setVisibility(3, document.getElementById("3").checked); 
+					g.setVisibility(4, document.getElementById("4").checked); 
 //					console.log('range: ' + g.xAxisRange());
 				});
 			}
