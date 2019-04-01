@@ -183,7 +183,7 @@ if ($sth->rows) {
 								range = [ (Date.now() - 86400000), Date.now() ];
 								g.updateOptions( { dateWindow: range } );								
 							}
-							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 						},
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
