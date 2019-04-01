@@ -178,7 +178,7 @@ sub handler {
 				hours, \
 				volume, \
 				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-				AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
+			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;
 			if ($sth->rows) {
@@ -199,6 +199,7 @@ sub handler {
 			}
 			else {
 				warn Dumper "no valid cache found: " . $document_root . $data_cache_path . '/' . $serial . '.csv' . " we need to create it";
+				$r->content_type('text/plain');
 				
 				$sth = $dbh->prepare(qq[SELECT \
 					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
@@ -215,9 +216,8 @@ sub handler {
 					ORDER BY `unix_time` ASC]);
 				$sth->execute;
 				open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
+				print($fh "Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 				if ($sth->rows) {
-					open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
-					print($fh "Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 					while ($d = $sth->fetchrow_hashref) {
 						print($fh $d->{time_stamp_formatted} . ',');
 						print($fh $d->{flow_temp} . ',');
@@ -265,10 +265,6 @@ sub handler {
 			}
 			$sth->execute;
 			if ($sth->rows) {
-				$r->content_type('text/plain');
-    	
-				$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
-				$csv_header_set = 1;
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
 					$r->print($d->{flow_temp} . ',');
