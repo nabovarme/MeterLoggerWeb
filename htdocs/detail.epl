@@ -289,15 +289,15 @@ if ($sth->rows) {
 		<br><br>
     	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
 			<tr align="left" valign="bottom">
-				<td align="left"><span class="default"><input type=checkbox id="0" checked onClick="change(this)">Temperature</label></span></td>
+				<td align="left"><span class="default"><input type=checkbox id="0" checked onClick="change(this)">Temperature</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="1" checked onClick="change(this)">Return temperature</label></span></td>
+				<td align="left"><span class="default"><input type=checkbox id="1" checked onClick="change(this)">Return temperature</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="2" checked onClick="change(this)">Temperature diff.</label></span></td>
+				<td align="left"><span class="default"><input type=checkbox id="2" checked onClick="change(this)">Temperature diff.</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="3" checked onClick="change(this)">Flow</label></span></td>
+				<td align="left"><span class="default"><input type=checkbox id="3" checked onClick="change(this)">Flow</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type=checkbox id="4" checked onClick="change(this)">Effect</label></span></td>
+				<td align="left"><span class="default"><input type=checkbox id="4" checked onClick="change(this)">Effect</span></td>
 			</tr>
 			<tr>
 				<td colspan="9">&nbsp;</td>
