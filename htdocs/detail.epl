@@ -123,27 +123,38 @@ if ($sth->rows) {
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
 		<script type="text/javascript">
-			var current_range_string = window.location.hash;
-			var current_range = current_range_string.match(/#(.+?)\-(.+?)$/);
+			var current_hash_string = window.location.hash;
+			var current_range = current_hash_string.match(/#(.+?)\-(.+?)(?:;\d+$)?$/);
 
 			// remove url after #
 			var current_url = window.location.href;
 			current_url = current_url.replace(/#.*$/, "");
 
-			var colorSets = [
-				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
-				null
-			];
 			var range = [];
 			if (current_range) {
 				range.push(parseFloat(current_range[1]));
 				range.push(parseFloat(current_range[2]));
 			}
 			else {
+				// set default
 				range = [ (Date.now() - 86400000), Date.now() ];
 			}
-			console.log(range);
+
+			var current_data_series_enabled = current_hash_string.match(/;(\d+)$/);
+			var data_series_enabled = 0;
+			if (current_data_series_enabled) {
+				data_series_enabled = current_data_series_enabled[1];
+			}
+			else {
+				// set default
+				data_series_enabled = 31;	// 0, 1, 3, 4, 5
+			}
+
 			var reload_time = Date.now();
+			var colorSets = [
+				['#a9000c', '#011091', '#d7c8dd', '#ad6933', '#00982f'],
+				null
+			];
 			var g;
 			var drawGraph = function(data) {
 				g = new Dygraph(
@@ -178,23 +189,23 @@ if ($sth->rows) {
 						dateWindow: range,
 						zoomCallback: function(minDate, maxDate, yRanges) {
 							range = g.xAxisRange();
-							console.log('zoomCallback: ' + range);
+//							console.log('zoomCallback: ' + range);
 							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
-								console.log('range out of bounds: ' + range);
+//								console.log('range out of bounds: ' + range);
 								range = [ (Date.now() - 86400000), Date.now() ];
 								g.updateOptions( { dateWindow: range } );								
 							}
-							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
 						},
 						clickCallback: function(e, x, points) {
 							range = g.xAxisRange();
-							console.log('clickCallback: ' + range);
+//							console.log('clickCallback: ' + range);
 							if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
-								console.log('range out of bounds: ' + range);
+//								console.log('range out of bounds: ' + range);
 								range = [ (Date.now() - 86400000), Date.now() ];
 								g.updateOptions( { dateWindow: range } );								
 							}
-							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
+							window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
 						}
 					}
 				);
@@ -204,6 +215,12 @@ if ($sth->rows) {
 					g.setVisibility(2, document.getElementById("2").checked); 
 					g.setVisibility(3, document.getElementById("3").checked); 
 					g.setVisibility(4, document.getElementById("4").checked); 
+
+					document.getElementById("0").checked = ((data_series_enabled >> 0) & 1) ? true : false;
+					document.getElementById("1").checked = ((data_series_enabled >> 1) & 1) ? true : false;
+					document.getElementById("2").checked = ((data_series_enabled >> 2) & 1) ? true : false;
+					document.getElementById("3").checked = ((data_series_enabled >> 3) & 1) ? true : false;
+					document.getElementById("4").checked = ((data_series_enabled >> 4) & 1) ? true : false;
 //					console.log('range: ' + g.xAxisRange());
 				});
 			}
@@ -237,7 +254,7 @@ if ($sth->rows) {
 
 			setInterval(function() {
 				// update data
-				console.log("update data and pan right");
+//				console.log("update data and pan right");
 				var xhttp_old = new XMLHttpRequest();
 				xhttp_old.onreadystatechange = function() {
 					if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
@@ -250,7 +267,7 @@ if ($sth->rows) {
 						range[1] += reload_time_diff;
 						g.updateOptions( { dateWindow: range } );
 
-						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
+						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
 					}
 				}
 				// ...and pan right
@@ -288,6 +305,15 @@ if ($sth->rows) {
 			
 			function change(el) {
 				g.setVisibility(parseInt(el.id), el.checked);
+				
+				if (el.checked) {
+					data_series_enabled += 1 << parseInt(el.id);
+				}
+				else {
+					data_series_enabled -= 1 << parseInt(el.id);
+				}
+//				console.log(data_series_enabled);
+				window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
 			}
 
 		</script>
