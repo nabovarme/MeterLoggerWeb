@@ -198,9 +198,14 @@ if ($sth->rows) {
 						}
 					}
 				);
-//				g.ready(function () {
+				g.ready(function () {
+					g.setVisibility(0, document.getElementById("0").checked); 
+					g.setVisibility(1, document.getElementById("1").checked); 
+					g.setVisibility(2, document.getElementById("2").checked); 
+					g.setVisibility(3, document.getElementById("3").checked); 
+					g.setVisibility(4, document.getElementById("4").checked); 
 //					console.log('range: ' + g.xAxisRange());
-//				});
+				});
 			}
 			
 			var data_url_new = "data/[+ $fdat{'serial'} || '9999999' +]/new_range";
