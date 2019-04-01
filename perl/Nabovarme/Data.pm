@@ -6,6 +6,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const;
 use DBI;
+use Fcntl qw(:flock);
 
 use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl );
@@ -216,6 +217,7 @@ sub handler {
 					ORDER BY `unix_time` ASC]);
 				$sth->execute;
 				open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
+				flock($fh, LOCK_EX) || return Apache2::Const::SERVER_ERROR;
 				print($fh "Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 				if ($sth->rows) {
 					while ($d = $sth->fetchrow_hashref) {
