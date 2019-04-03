@@ -219,10 +219,39 @@ if ($sth->rows) {
 						highlightCircleSize: 6,
 						strokeWidth: 2,
 						strokeBorderWidth: 1,
+					},
+					unhighlightCallback: function(e) {
+//						range = g.xAxisRange();
+//						console.log('unhighlightCallback: ' + range);
+//						if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+//							console.log('range out of bounds: ' + range);
+//							range = [ (Date.now() - 86400000), Date.now() ];
+//							g.updateOptions( { dateWindow: range } );								
+//						}
+//						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
+					},
+					zoomCallback: function(minDate, maxDate, yRanges) {
+						update_consumption();
+					},
+					clickCallback: function(e, x, points) {
+//						range = g.xAxisRange();
+//						console.log('clickCallback: ' + range);
+//						if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+//							console.log('range out of bounds: ' + range);
+//							range = [ (Date.now() - 86400000), Date.now() ];
+//							g.updateOptions( { dateWindow: range } );								
+//						}
+//						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
 					}
+					
 					//showRangeSelector: true, does not work with zoom
 				}
 			);
+			
+			g.ready(function () {
+				update_consumption();
+			});
+			
 			setInterval(function() {
 				var range = g.xAxisRange();
 				// update data and pan right
@@ -231,8 +260,40 @@ if ($sth->rows) {
 				g.updateOptions( { 'file': data, dateWindow: range } );
 				update_last_energy();
 				update_kwh_left();
+				update_consumption();
 			}, 60000);
 			
+			function update_consumption() {
+				range = g.xAxisRange();
+				console.log('update_consumption: ' + range);
+				var minYinRange;
+				var maxYinRange;
+				var i;
+				for (i = 0; i < g.rawData_.length; i++) {
+					if (g.rawData_[i][0] > range[0]) { 
+						minYinRange = parseFloat(g.rawData_[i][1]);
+						console.log('min value: ' + minYinRange);
+						break;
+					}
+				}
+				for (i = 0; i < g.rawData_.length; i++) {
+					if (g.rawData_[i][0] >= range[1]) { 
+						maxYinRange = parseFloat(g.rawData_[i][1]);
+						console.log('max value: ' + maxYinRange);
+						break;
+					}
+				}
+				var consumption = (maxYinRange - minYinRange);
+				console.log('used in period: ' + consumption);
+				
+				
+				document.getElementById('consumption_in_range').innerHTML = 
+					'<span class="default-bold">Consumption in selected period </span>' + 
+					'<span class="default">' + 
+					consumption.toFixed(2) + ' kWh' + 
+					'</span>'
+			}
+
 			function formatDate(d) {
 				var year = d.getFullYear(),
 				month = d.getMonth() + 1,
@@ -258,6 +319,24 @@ if ($sth->rows) {
 		</script>
 		<br>
 	    	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
+  			  <tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td align="left"><div id="consumption_in_range">&nbsp;</div></td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+  			  </tr>
+			  <tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+			  </tr>
 			  <tr align="left" valign="bottom">
 			    <td align="left"><span class="default-bold">Date</span></td>
 				<td>&nbsp;</td>
