@@ -231,9 +231,9 @@ if ($sth->rows) {
 					},
 					clickCallback: function(e, x, points) {
 						update_consumption();
-					}
-					
-					//showRangeSelector: true, does not work with zoom
+					},
+//					showRangeSelector: true,	// , does not work with zoom
+//					interactionModel: Dygraph.defaultInteractionModel
 				}
 			);
 			
