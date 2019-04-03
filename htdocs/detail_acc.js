@@ -64,19 +64,19 @@ setInterval(function() {
 }, 60000);
 
 function update_consumption() {
-	var range = g.xAxisRange();
+	var range = window.g.xAxisRange();
 	var minYinRange;
 	var maxYinRange;
 	var i;
-	for (i = 0; i < g.rawData_.length; i++) {
-		if (g.rawData_[i][0] >= range[0]) { 
-			minYinRange = parseFloat(g.rawData_[i][1]);
+	for (i = 0; i < window.g.rawData_.length; i++) {
+		if (window.g.rawData_[i][0] >= range[0]) { 
+			minYinRange = parseFloat(window.g.rawData_[i][1]);
 			break;
 		}
 	}
-	for (i = g.rawData_.length; i > 0; i--) {
-		if (g.rawData_[i - 1][0] <= range[1]) { 
-			maxYinRange = parseFloat(g.rawData_[i - 1][1]);
+	for (i = window.g.rawData_.length; i > 0; i--) {
+		if (window.g.rawData_[i - 1][0] <= range[1]) { 
+			maxYinRange = parseFloat(window.g.rawData_[i - 1][1]);
 			break;
 		}
 	}

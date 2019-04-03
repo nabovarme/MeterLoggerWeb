@@ -39,7 +39,7 @@ if ($sth->rows) {
 			}
 		</script>
 		<script type="text/javascript">
-			window.meter_serial = [+ $fdat{'serial'} +]
+			window.meter_serial = "[+ $fdat{'serial'} +]"
 		</script>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<script src="spinner/spin.js"></script>
