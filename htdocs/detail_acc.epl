@@ -288,7 +288,7 @@ if ($sth->rows) {
 				
 				
 				document.getElementById('consumption_in_range').innerHTML = 
-					'<span class="default-bold">Consumption in selected period </span>' + 
+					'<span class="default-bold">Consumption for selected period </span>' + 
 					'<span class="default">' + 
 					consumption.toFixed(2) + ' kWh' + 
 					'</span>'
