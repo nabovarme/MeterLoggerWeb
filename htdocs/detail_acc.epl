@@ -220,28 +220,17 @@ if ($sth->rows) {
 						strokeWidth: 2,
 						strokeBorderWidth: 1,
 					},
+					highlightCallback: function(e) {
+						update_consumption();
+					},
 					unhighlightCallback: function(e) {
-//						range = g.xAxisRange();
-//						console.log('unhighlightCallback: ' + range);
-//						if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
-//							console.log('range out of bounds: ' + range);
-//							range = [ (Date.now() - 86400000), Date.now() ];
-//							g.updateOptions( { dateWindow: range } );								
-//						}
-//						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
+						update_consumption();
 					},
 					zoomCallback: function(minDate, maxDate, yRanges) {
 						update_consumption();
 					},
 					clickCallback: function(e, x, points) {
-//						range = g.xAxisRange();
-//						console.log('clickCallback: ' + range);
-//						if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
-//							console.log('range out of bounds: ' + range);
-//							range = [ (Date.now() - 86400000), Date.now() ];
-//							g.updateOptions( { dateWindow: range } );								
-//						}
-//						window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1] + ';' + data_series_enabled);
+						update_consumption();
 					}
 					
 					//showRangeSelector: true, does not work with zoom
@@ -319,7 +308,7 @@ if ($sth->rows) {
   			  <tr align="left" valign="bottom">
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
-				<td align="left"><div id="consumption_in_range">&nbsp;</div></td>
+				<td colspan="5" align="left"><div id="consumption_in_range">&nbsp;</div></td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
