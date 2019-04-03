@@ -22,14 +22,12 @@ if ($sth->rows) {
 }
 -]
 <HTML>
- 
 	<HEAD>
 		<meta name="robots" content="noindex">
 		<TITLE>[+ $info +] MeterLogger</TITLE>
 		<script type="text/javascript">
 			window.meter_serial = [+ $fdat{'serial'} +]
 		</script>
-		<script src="detail.js"></script>
 		<script src="spinner/spin.js"></script>
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
@@ -135,3 +133,5 @@ if ($sth->rows) {
 		</table>
 	</BODY>
 </HTML>
+
+<script src="detail.js"></script>
