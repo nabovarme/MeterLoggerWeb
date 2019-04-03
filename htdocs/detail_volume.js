@@ -144,7 +144,6 @@ setInterval(function() {
 	xhttp_new.open('GET', data_url_new, true);
 	xhttp_new.send();
 	
-	update_last_energy();
 }, 60000);
 
 function formatDate(d) {
