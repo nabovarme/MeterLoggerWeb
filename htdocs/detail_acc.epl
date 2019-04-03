@@ -265,32 +265,29 @@ if ($sth->rows) {
 			
 			function update_consumption() {
 				range = g.xAxisRange();
-				console.log('update_consumption: ' + range);
 				var minYinRange;
 				var maxYinRange;
 				var i;
 				for (i = 0; i < g.rawData_.length; i++) {
 					if (g.rawData_[i][0] > range[0]) { 
 						minYinRange = parseFloat(g.rawData_[i][1]);
-						console.log('min value: ' + minYinRange);
 						break;
 					}
 				}
 				for (i = 0; i < g.rawData_.length; i++) {
 					if (g.rawData_[i][0] >= range[1]) { 
 						maxYinRange = parseFloat(g.rawData_[i][1]);
-						console.log('max value: ' + maxYinRange);
 						break;
 					}
 				}
 				var consumption = (maxYinRange - minYinRange);
-				console.log('used in period: ' + consumption);
-				
+				var average_consumption = consumption / ((range[1] - range[0]) / (1000 * 3600));				
 				
 				document.getElementById('consumption_in_range').innerHTML = 
 					'<span class="default-bold">Consumption for selected period </span>' + 
 					'<span class="default">' + 
-					consumption.toFixed(2) + ' kWh' + 
+					consumption.toFixed(2) + ' kWh, ' + 
+					'at ' + average_consumption.toFixed(2) + ' kW/h' + 
 					'</span>'
 			}
 
