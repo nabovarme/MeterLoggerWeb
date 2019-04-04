@@ -50,46 +50,46 @@ var drawGraph = function(data) {
 			},
 			showRangeSelector: true,
 			interactionModel: Dygraph.defaultInteractionModel,
-			dateWindow: window.range,
+			dateWindow: range,
 			unhighlightCallback: function(e) {
-				window.range = this.xAxisRange();
-				console.log('unhighlightCallback: ' + window.range);
-				if (isNaN(window.range[0]) || isNaN(window.range[1]) || (window.range[0] >= window.range[1])) {
-					console.log('range out of bounds: ' + window.range);
-					window.range = [ (Date.now() - 86400000), Date.now() ];
-					this.updateOptions( { dateWindow: window.range } );								
+				range = g.xAxisRange();
+				console.log('unhighlightCallback: ' + range);
+				if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+					console.log('range out of bounds: ' + range);
+					range = [ (Date.now() - 86400000), Date.now() ];
+					g.updateOptions( { dateWindow: range } );								
 				}
-				window.history.replaceState("", "", current_url + "#" + window.range[0] + "-" + window.range[1]);
+				window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 			},
 			zoomCallback: function(minDate, maxDate, yRanges) {
-				window.range = this.xAxisRange();
-				console.log('zoomCallback: ' + window.range);
-				if (isNaN(window.range[0]) || isNaN(window.range[1]) || (window.range[0] >= window.range[1])) {
-					console.log('range out of bounds: ' + window.range);
-					window.range = [ (Date.now() - 86400000), Date.now() ];
-					this.updateOptions( { dateWindow: window.range } );								
+				range = g.xAxisRange();
+				console.log('zoomCallback: ' + range);
+				if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+					console.log('range out of bounds: ' + range);
+					range = [ (Date.now() - 86400000), Date.now() ];
+					g.updateOptions( { dateWindow: range } );								
 				}
 				window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 			},
 			clickCallback: function(e, x, points) {
-				window.range = this.xAxisRange();
-				console.log('clickCallback: ' + window.range);
-				if (isNaN(window.range[0]) || isNaN(window.range[1]) || (window.range[0] >= window.range[1])) {
-					console.log('range out of bounds: ' + window.range);
-					window.range = [ (Date.now() - 86400000), Date.now() ];
-					this.updateOptions( { dateWindow: window.range } );								
+				range = g.xAxisRange();
+				console.log('clickCallback: ' + range);
+				if (isNaN(range[0]) || isNaN(range[1]) || (range[0] >= range[1])) {
+					console.log('range out of bounds: ' + range);
+					range = [ (Date.now() - 86400000), Date.now() ];
+					g.updateOptions( { dateWindow: range } );								
 				}
-				window.history.replaceState("", "", current_url + "#" + window.range[0] + "-" + window.range[1]);
+				window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 			}
 		}
 	);
 	g.ready(function () {
-		console.log('range: ' + this.xAxisRange());
+		console.log('range: ' + g.xAxisRange());
 	});
 }
 
-var data_url_new = 'data/' + window.meter_serial + '/new_range';
-var data_url_old = 'data/' + window.meter_serial + '/old_range';
+var data_url_new = 'data/' + meter_serial + '/new_range';
+var data_url_old = 'data/' + meter_serial + '/old_range';
 var data_new = '';
 var data_old = '';
 
@@ -99,16 +99,16 @@ xhttp_old.onreadystatechange = function() {
 		// stop spinner
 		spinner.stop();
 		
-		window.data_old = xhttp_old.responseText;
-		drawGraph(window.data_old + window.data_new);
+		data_old = xhttp_old.responseText;
+		drawGraph(data_old + data_new);
 	}
 }
 
 var xhttp_new = new XMLHttpRequest();
 xhttp_new.onreadystatechange = function() {
 	if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
-		window.data_new = xhttp_new.responseText;
-		xhttp_old.open('GET', window.data_url_old, true);
+		data_new = xhttp_new.responseText;
+		xhttp_old.open('GET', data_url_old, true);
 		xhttp_old.send();
 	}
 }
@@ -121,22 +121,22 @@ setInterval(function() {
 	var xhttp_old = new XMLHttpRequest();
 	xhttp_old.onreadystatechange = function() {
 		if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
-			window.data_old = xhttp_old.responseText;
+			data_old = xhttp_old.responseText;
 
-			var reload_time_diff = Date.now() - window.reload_time;
-			window.reload_time = Date.now();
-			window.range[0] += reload_time_diff;
-			window.range[1] += reload_time_diff;
-			window.g.updateOptions( { file: window.data_old + window.data_new, dateWindow: window.range } );
+			var reload_time_diff = Date.now() - reload_time;
+			reload_time = Date.now();
+			range[0] += reload_time_diff;
+			range[1] += reload_time_diff;
+			g.updateOptions( { file: data_old + data_new, dateWindow: range } );
 
-			window.history.replaceState("", "", current_url + "#" + window.range[0] + "-" + window.range[1]);
+			window.history.replaceState("", "", current_url + "#" + range[0] + "-" + range[1]);
 		}
 	}
 
 	var xhttp_new = new XMLHttpRequest();
 	xhttp_new.onreadystatechange = function() {
 		if (xhttp_new.readyState == 4 && xhttp_new.status == 200) {
-			window.data_new = xhttp_new.responseText;
+			data_new = xhttp_new.responseText;
 			xhttp_old.open('GET', data_url_old, true);
 			xhttp_old.send();
 		}
@@ -165,6 +165,6 @@ function formatDate(d) {
 }
 
 function change(el) {
-	window.g.setVisibility(parseInt(el.id), el.checked);
+	g.setVisibility(parseInt(el.id), el.checked);
 }
 

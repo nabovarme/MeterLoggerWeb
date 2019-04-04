@@ -3,7 +3,7 @@ var colorSets = [
 	['#999999'],
 	null
 ]
-var data = 'data/' + window.meter_serial + '/acc_low';
+var data = 'data/' + meter_serial + '/acc_low';
 var g = new Dygraph(
 	document.getElementById("div_nabovarme"), data, {
 		colors: colorSets[0],
@@ -64,19 +64,19 @@ setInterval(function() {
 }, 60000);
 
 function update_consumption() {
-	var range = window.g.xAxisRange();
+	var range = g.xAxisRange();
 	var minYinRange;
 	var maxYinRange;
 	var i;
-	for (i = 0; i < window.g.rawData_.length; i++) {
-		if (window.g.rawData_[i][0] >= range[0]) { 
-			minYinRange = parseFloat(window.g.rawData_[i][1]);
+	for (i = 0; i < g.rawData_.length; i++) {
+		if (g.rawData_[i][0] >= range[0]) { 
+			minYinRange = parseFloat(g.rawData_[i][1]);
 			break;
 		}
 	}
-	for (i = window.g.rawData_.length; i > 0; i--) {
-		if (window.g.rawData_[i - 1][0] <= range[1]) { 
-			maxYinRange = parseFloat(window.g.rawData_[i - 1][1]);
+	for (i = g.rawData_.length; i > 0; i--) {
+		if (g.rawData_[i - 1][0] <= range[1]) { 
+			maxYinRange = parseFloat(g.rawData_[i - 1][1]);
 			break;
 		}
 	}
@@ -121,7 +121,7 @@ function update_last_energy() {
 			document.getElementById("last_energy").innerHTML = xhttp.responseText;
 		}
 	};
-	xhttp.open("GET", 'last_energy.epl?serial=' + window.meter_serial, true);
+	xhttp.open("GET", 'last_energy.epl?serial=' + meter_serial, true);
 	xhttp.send();
 }
 
@@ -132,6 +132,6 @@ function update_kwh_left() {
 			document.getElementById("kwh_left").innerHTML = xhttp.responseText;
 		}
 	};
-	xhttp.open("GET", 'kwh_left.epl?serial=' + window.meter_serial, true);
+	xhttp.open("GET", 'kwh_left.epl?serial=' + meter_serial, true);
 	xhttp.send();
 }
