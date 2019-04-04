@@ -113,8 +113,8 @@ sub v2_mqtt_status_handler {
 	$meter_serial = $1;
 	$unix_time = $2;
 
-	$sw_version = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($sw_version) {	
+	$valve_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($valve_status) {	
 		# remove trailing nulls
 		$valve_status =~ s/[\x00\s]+$//;
 		$valve_status .= '';
