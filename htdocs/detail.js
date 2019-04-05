@@ -146,7 +146,6 @@ setInterval(function() {
 	xhttp_old.onreadystatechange = function() {
 		if (xhttp_old.readyState == 4 && xhttp_old.status == 200) {
 			data_old = xhttp_old.responseText;
-			drawGraph(data_old + data_new);
 
 			var reload_time_diff = Date.now() - reload_time;
 			reload_time = Date.now();
