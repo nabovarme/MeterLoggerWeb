@@ -232,7 +232,6 @@ sub handler {
 			}
 			#$r->content_type('text/plain');
 			#$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
-			$r->content_type('text/plain');
 			$r->internal_redirect('/' . $data_cache_path . '/' . $serial . '.csv');
 			return Apache2::Const::OK;
 		}
