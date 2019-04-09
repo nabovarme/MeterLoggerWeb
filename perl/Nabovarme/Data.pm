@@ -200,7 +200,6 @@ sub handler {
 			}
 			else {
 				warn Dumper "no valid cache found: " . $document_root . $data_cache_path . '/' . $serial . '.csv' . " we need to create it";
-				$r->content_type('text/plain');
 				
 				$sth = $dbh->prepare(qq[SELECT \
 					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
@@ -233,6 +232,7 @@ sub handler {
 			}
 			#$r->content_type('text/plain');
 			#$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
+			$r->content_type('text/plain');
 			$r->internal_redirect('/' . $data_cache_path . '/' . $serial . '.csv');
 			return Apache2::Const::OK;
 		}
