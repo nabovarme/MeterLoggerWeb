@@ -30,7 +30,6 @@ sub handler {
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $public_access = $r->dir_config('PublicAccess') || '';
 	
-	warn Dumper $r->uri;
 	if ($public_access) {
 		foreach (split(/,\s*/, $public_access)) {
 			if ($r->uri eq $_) {
