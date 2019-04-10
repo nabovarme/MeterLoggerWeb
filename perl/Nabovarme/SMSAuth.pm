@@ -28,8 +28,19 @@ sub handler {
 
 	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
-
-	if (index($r->uri, $logged_out_path) >= 0 || index($r->uri, '/favicon.ico') >= 0 ) {
+	my $public_access = $r->dir_config('PublicAccess') || '';
+	
+	warn Dumper $r->uri;
+	if ($public_access) {
+		foreach (split(/,\s*/, $public_access)) {
+			if ($r->uri eq $_) {
+				warn Dumper "we dont handle this: " . $r->uri;
+				return Apache2::Const::OK;
+			}
+		}
+	}
+	
+	if ($r->uri eq $logged_out_path) {
 		warn Dumper "we dont handle this: " . $r->uri;
 		return Apache2::Const::OK;
 	}
