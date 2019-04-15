@@ -34,7 +34,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth3->execute;
 
 	# get list of payments
-	$sth4 = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, info, amount, price \
+	$sth4 = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, type, info, amount, price \
 		FROM accounts WHERE serial = $quoted_serial ORDER BY payment_time ASC]);
 	$sth4->execute;
 
@@ -201,7 +201,7 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [+ $d->{info} +] </span></td>
+				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
