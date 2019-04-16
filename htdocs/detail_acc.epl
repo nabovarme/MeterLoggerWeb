@@ -205,7 +205,7 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[+ $d->{price} || "0" +]  kr/kWh</span></td>
+				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ $d->{price} || "0" +]  kr/kWh[$ endif $]</span></td>
   			  </tr>
 			[$ endwhile $]
 			[$ endif $]
