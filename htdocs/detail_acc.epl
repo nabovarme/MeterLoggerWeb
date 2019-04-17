@@ -12,7 +12,7 @@ $admin = new Nabovarme::Admin;
 $is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
 
 if ($is_admin && ($fdat{add_state} =~ /add/i)) {
-	$admin->add($fdat{serial}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});	# $serial, $date, $info, $amount, $price
+	$admin->add_payment($fdat{serial}, $fdat{type}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});	# $serial, $date, $info, $amount, $price
 	$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial} . "&low=1";
 }
 
@@ -167,17 +167,13 @@ if ($sth->rows) {
 			var spinner = new Spinner(opts).spin(document.getElementById("spinner"));
 		</script>
 		<br>
-	    	<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
-  			  <tr align="left" valign="bottom">
+		<table border="0" align="left" cellpadding="0" cellspacing="6" width="800">
+			<tr align="left" valign="bottom">
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
-				<td colspan="5" align="left"><div id="consumption_in_range">&nbsp;</div></td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-  			  </tr>
-			  <tr align="left" valign="bottom">
+				<td colspan="6" align="left"><div id="consumption_in_range">&nbsp;</div></td>
+			</tr>
+			<tr align="left" valign="bottom">
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
@@ -185,28 +181,29 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
-			  </tr>
-			  <tr align="left" valign="bottom">
-			    <td align="left"><span class="default-bold">Date</span></td>
 				<td>&nbsp;</td>
-			    <td align="left"><span class="default-bold">Info</span></td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td align="left"><span class="default-bold">Date</span></td>
 				<td>&nbsp;</td>
-			    <td align="right"><span class="default-bold">Amount</span></td>
+				<td align="left" colspan="2"><span class="default-bold">Info</span></td>
 				<td>&nbsp;</td>
-			    <td align="left"><span class="default-bold">Price</span></td>
-	    	  </tr>
+				<td align="right"><span class="default-bold">Amount</span></td>
+				<td>&nbsp;</td>
+				<td align="left"><span class="default-bold">Price</span></td>
+			</tr>
 		
-	  		[$ if ($sth4->rows) $]
+			[$ if ($sth4->rows) $]
 			[$ while ($d = $sth4->fetchrow_hashref) $]
-			  <tr align="left" valign="bottom">
+			<tr align="left" valign="bottom">
 				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
+				<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ $d->{price} || "0" +]  kr/kWh[$ endif $]</span></td>
-  			  </tr>
+				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ $d->{price} || "0" +] kr/kWh[$ endif $]</span></td>
+			</tr>
 			[$ endwhile $]
 			[$ endif $]
 			[$ if ($is_admin) $]
@@ -215,7 +212,7 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td><span class="default-highlight">[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]</span></td>
 				<td>&nbsp;</td>
-				<td><span class="default-highlight">[+ sprintf("%.0f", ($fdat{amount} / $fdat{price})) . " kWh" +] [+ $fdat{info} +]</span></td>
+				<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", ($fdat{amount} / $fdat{price})) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default-highlight">[+ $fdat{amount} +] kr</span></td>
 				<td>&nbsp;</td>
@@ -226,6 +223,7 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td>
 					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+					<input type="hidden" name="type" value="[+ $fdat{type} +]">
 					<input type="hidden" name="low" value="[+ $fdat{low} +]">
 					<input type="hidden" name="unix_time" value="[+ time() +]">
 					<input type="hidden" name="info" value="[+ $fdat{info} +]">
@@ -238,14 +236,23 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
 			  </tr>
 			  </form>
 				[$ else $]
 			  <form method="GET" action="">
 			  <tr align="left" valign="bottom">
-				<td><!-- <span class="default"><input type="text" inputmode="text" name="date" value="" size="12"></span> --></td>
 				<td>&nbsp;</td>
-				<td><span class="default"><input type="text" inputmode="text" name="info" value="" size="22"></span></td>
+				<td>&nbsp;</td>
+				<td>
+					<select name="type">
+						<option value="payment">Payment</option>
+						<option value="membership">Membership</option>
+						<option value="charge">Charge</option>
+					</select>
+				</td>
+				<td><span class="default"><input type="text" inputmode="text" name="info" value="" size="32"></span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default"><input type="text" inputmode="text" name="amount" value="" size="5"></span></td>
 				<td>&nbsp;</td>
@@ -255,21 +262,18 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
-				<td>
+				<td colspan="6">
 					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 					<input type="hidden" name="low" value="[+ $fdat{low} +]">
 					<input type="hidden" name="add_state" value="preview">
 					<input type="submit" name="add" value="Preview" style="width: 100px;">
 				</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
 			  </tr>
 			  </form>
 				[$ endif $]
 			[$ endif $]
 			  <tr align="left" valign="bottom">
+				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
@@ -304,17 +308,13 @@ if ($sth->rows) {
 						$energy_time_left_str = '∞';
 					}
 				-]
-  			  <tr align="left" valign="bottom">
-  				<td>&nbsp;</td>
-  				<td>&nbsp;</td>
-  				<td align="left"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h</div></span></td>
-  				<td>&nbsp;</td>
-  				<td>&nbsp;</td>
-  				<td>&nbsp;</td>
-  				<td>&nbsp;</td>
-  			  </tr>
-	  			[$ endif $]
-	  		[$ endif $]
+			  <tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td align="left" colspan="6"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h</div></span></td>
+			  </tr>
+				[$ endif $]
+			[$ endif $]
 			<tr>
 				<td colspan="8">&nbsp;</td>
 			</tr>

@@ -60,18 +60,19 @@ sub cookie_is_admin {
 	return 0;
 }
 
-sub add {
-	my ($self, $serial, $date, $info, $amount, $price) = @_;
+sub add_payment {
+	my ($self, $serial, $type, $date, $info, $amount, $price) = @_;
 
-	my ($quoted_serial, $quoted_unix_time, $quoted_info, $quoted_amount, $quoted_price);
+	my ($quoted_serial, $quoted_type, $quoted_unix_time, $quoted_info, $quoted_amount, $quoted_price);
 	$quoted_serial = $self->{dbh}->quote($serial);
+	$quoted_type = $self->{dbh}->quote($type);
 	$quoted_unix_time = $self->{dbh}->quote($date);
 	$quoted_info = $self->{dbh}->quote($info);
 	$quoted_amount = $self->{dbh}->quote($amount);
 	$quoted_price = $self->{dbh}->quote($price);
 
-	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_info, $quoted_amount, $quoted_price)];
-	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
+	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)];
+	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
 }
 
 sub default_price_for_serial {
