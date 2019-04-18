@@ -1,0 +1,138 @@
+﻿[-
+	use utf8;
+	use DBI;
+	use Config;
+
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Nabovarme::Db;
+	use Nabovarme::Admin;
+	use Data::Dumper;
+	
+	$admin = new Nabovarme::Admin;
+-]
+<HTML>
+	<HEAD>
+	<meta name="robots" content="noindex">
+	<TITLE>MeterLogger Valve control</TITLE>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-small {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 80%;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	</style>
+	</HEAD>
+	<BODY>
+	[- 
+	# get all meters
+	if ($dbh = Nabovarme::Db->my_connect) {
+		$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`type`, meters.`serial`, meters.`valve_status`, meters.`info`, meters.`valve_installed`, meters.`comment` FROM meters, meter_groups WHERE meters.`sw_version` LIKE '%NO_AUTO_CLOSE%' AND meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+		$sth->execute;
+	}
+	$last_group = '';
+	$is_first = 1;
+	-]
+	<form method="POST" action="">
+	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+[-
+	$is_admin = $admin->cookie_is_admin($req_rec, $d->{serial});
+	if ($is_admin && ($fdat{update})) {
+		my $key = 'valve_status_' . $d->{serial};
+		if ($fdat{$key} ne $d->{valve_status}) {
+			# changed value
+			$admin->meter_change_valve_status($d->{serial}, $fdat{$key});
+		}
+	}
+-]
+[$ if (($last_group ne $d->{'group'}) and ($is_first == 0)) $]
+	<tr>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+	</tr>
+[$ endif $]
+[- $is_first = 0; -]
+[$ if ($last_group ne $d->{'group'}) $]
+	<tr>
+		<td align="left" colspan=5><span class="default-group">[+ $d->{'group'} +]</span></td>
+	</tr>
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default-bold">Serial</span></td>
+		<td align="left"><span class="default-bold">Info</span></td>
+		<td align="right"><span class="default-bold">State</span></td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+	</tr>
+[$ endif $]
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
+		<td align="right">
+			[$ if ($is_admin) $]
+				<select name="valve_status_[+ $d->{serial} +]">
+				[$ if ($d->{valve_status} =~ /open/i) $]
+					<option value="open" selected>On</option>
+					<option value="close">Off</option>
+				[$ else $]
+					<option value="open">On</option>
+					<option value="close" selected>Off</option>
+				[$ endif $]
+				</select>
+			[$ else $]
+				[$ if ($d->{valve_status} =~ /open/i) $]
+					<span class="default">On</span>
+				[$ else $]
+					<span class="default">Off</span>
+				[$ endif $]
+			[$ endif $]
+		</td>
+		<td>&nbsp;</td>
+		<td align="left">
+			<span class="default-small">[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</span>
+		</td>
+	</tr>
+
+[- $last_group = $d->{'group'};  -]
+[$ endwhile $]
+[$ endif $]
+	<tr>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+	</tr>
+	<tr>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td align="right">
+			<input type="submit" name="update" value="Update" style="width: 100px;">
+		</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+	</tr>
+	</table>
+	</form>
+	</BODY>
+</HTML>

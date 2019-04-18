@@ -2,11 +2,14 @@
 
 use strict;
 use Data::Dumper;
+use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
+use Proc::Pidfile;
+use Time::HiRes qw( gettimeofday tv_interval );
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl );
@@ -19,16 +22,24 @@ use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
-my $config_cached_time = $config->param('cached_time') || 3600; # default 1 hour
+
+my $config_cached_time = $config->param('cached_time') || 3600;	# default 1 hour
 
 $SIG{INT} = \&sig_int_handler;
+
+my $pp = Proc::Pidfile->new();
 
 my $dbh;
 my $sth;
 my $d;
 
-warn("starting...\n");
 my $key_cache;
+
+#print Dumper $pp->pidfile();
+
+openlog($0, "ndelay,pid", "local0");
+syslog('info', "starting...");
+
 
 sub sig_int_handler {
 
@@ -38,6 +49,7 @@ sub sig_int_handler {
 sub mqtt_handler {
 	my ($topic, $message) = @_;
 	
+	my $t0 = [gettimeofday()];
 	my $sw_version;
 	unless ($topic =~ m!/[^/]+/v2/([^/]+)/(\d+)!) {
 		return;
@@ -52,6 +64,7 @@ sub mqtt_handler {
 	unless ($sth->rows) {
 		return;
 	}
+#	print Dumper tv_interval($t0);
 	
 	$message =~ /(.{32})(.{16})(.+)/s;
 
@@ -84,9 +97,17 @@ sub mqtt_handler {
 		# handle special case
 		if ($function =~ /^scan_result$/i) {
 			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
+			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
 			# do mysql stuff here
 			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
 			return;
+		}
+		if ($function =~ /^status$/i) {
+			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
+			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
+			# do mysql stuff here
+			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` IN ('open', 'close')]) or warn $!;
+			# continue to process encrypted message
 		}
 		
 		my $sha256 = sha256(pack('H*', $key));
@@ -121,15 +142,18 @@ sub mqtt_handler {
 				$sth->execute;
 				if ($sth->rows) {
 					warn "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue\n";
+					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue");
 					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
 				}
 				else {
 					warn "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value\n";
+					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value");
 				}
 				return;
 			}
 
 			# handle general case
+#			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
 
 			# mark it for deletion
 			$sth = $dbh->prepare(qq[SELECT `id`, `has_callback` FROM command_queue \
@@ -138,6 +162,7 @@ sub mqtt_handler {
 			if ($d = $sth->fetchrow_hashref) {
 				if ($d->{has_callback}) {
 					warn "mark serial $meter_serial, command $function for deletion\n";
+					syslog('info', "mark serial $meter_serial, command $function for deletion");
 					$dbh->do(qq[UPDATE command_queue SET \
 						`state` = 'received', \
 					    `param` = ] . $dbh->quote($cleartext) . qq[ \
@@ -146,6 +171,7 @@ sub mqtt_handler {
 				else {
 					# delete if has_callback not set
 					warn "deleting serial $meter_serial, command $function from mysql queue\n";
+					syslog('info', "deleting serial $meter_serial, command $function from mysql queue");
 #					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
 					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ AND `state` = 'sent']);
 				}
@@ -154,6 +180,7 @@ sub mqtt_handler {
 		else {
 			# hmac sha256 not ok
 			warn "serial $meter_serial checksum error\n";  
+			syslog('info', "serial $meter_serial checksum error");     
 		}
 	}
 }
@@ -163,7 +190,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 }
 else {
-	warn("cant't connect to db $!\n");
+	syslog('info', "cant't connect to db $!");
 	die $!;
 }
 

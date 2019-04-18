@@ -9,12 +9,16 @@ use Sys::Syslog;
 use lib qw( /etc/apache2/perl );
 #use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
+use Nabovarme::MQTT_RPC;
 
 sub new {
 	my $class = shift;
 
 	my $self = {};
 	$self->{dbh} = Nabovarme::Db->my_connect || die $!;
+	
+	$self->{mqtt_rpc} = new Nabovarme::MQTT_RPC;
+	$self->{mqtt_rpc}->connect() || die $!;
 
 	return bless $self, $class;
 }
@@ -87,6 +91,26 @@ sub default_price_for_serial {
 		# get default price for meter
 		return $d->{default_price};
 	}
+}
+
+sub meter_change_valve_status {
+	my ($self, $serial, $status) = @_;
+
+	warn "\n\tChanged valve status for serial: " . $serial . " to " . $status . "\n\n";
+
+	$self->{mqtt_rpc}->call({	serial => $serial,
+							function => $status,
+							param => '1',
+							callback => undef,
+							timeout => undef
+						});
+
+	$self->{mqtt_rpc}->call({	serial => $serial,
+							function => 'status',
+							param => '1',
+							callback => undef,
+							timeout => undef
+						});
 }
 
 1;
