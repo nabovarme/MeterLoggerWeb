@@ -102,13 +102,6 @@ sub mqtt_handler {
 			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
 			return;
 		}
-		if ($function =~ /^status$/i) {
-			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-			# do mysql stuff here
-			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` IN ('open', 'close')]) or warn $!;
-			# continue to process encrypted message
-		}
 		
 		my $sha256 = sha256(pack('H*', $key));
 		my $aes_key = substr($sha256, 0, 16);
@@ -149,6 +142,13 @@ sub mqtt_handler {
 					warn "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value\n";
 					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value");
 				}
+				return;
+			}
+			if ($function =~ /^status$/i) {
+				warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
+				syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
+				# do mysql stuff here
+				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($cleartext)) or warn $!;
 				return;
 			}
 
