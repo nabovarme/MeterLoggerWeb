@@ -46,7 +46,7 @@
 	[- 
 	# get all meters
 		if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters WHERE FROM_UNIXTIME(`last_updated`) < NOW() - INTERVAL 1 HOUR ORDER BY `info` ASC]);
+			$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters WHERE `enabled` AND FROM_UNIXTIME(`last_updated`) < NOW() - INTERVAL 1 HOUR ORDER BY `info` ASC]);
 			$sth->execute;			
 		}
 	-]
