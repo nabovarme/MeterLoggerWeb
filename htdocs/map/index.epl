@@ -151,7 +151,7 @@
 
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `valve_installed`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
+		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `valve_installed`, `ap_status`, `sw_version`, `comment` FROM `meters` WHERE `enabled` AND `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
