@@ -8,7 +8,6 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
-use Proc::Pidfile;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use lib qw( /etc/apache2/perl );
@@ -27,15 +26,11 @@ my $config_cached_time = $config->param('cached_time') || 3600;	# default 1 hour
 
 $SIG{INT} = \&sig_int_handler;
 
-my $pp = Proc::Pidfile->new();
-
 my $dbh;
 my $sth;
 my $d;
 
 my $key_cache;
-
-#print Dumper $pp->pidfile();
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
