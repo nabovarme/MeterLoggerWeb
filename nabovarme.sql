@@ -1,13 +1,13 @@
 # ************************************************************
 # Sequel Pro SQL dump
-# Version 4541
+# Version 5446
 #
-# http://www.sequelpro.com/
+# https://www.sequelpro.com/
 # https://github.com/sequelpro/sequelpro
 #
-# Host: 127.0.0.1 (MySQL 5.5.59-0+deb8u1)
+# Host: 127.0.0.1 (MySQL 5.5.62-0+deb8u1)
 # Database: nabovarme
-# Generation Time: 2019-03-10 23:46:26 +0000
+# Generation Time: 2019-08-14 14:15:49 +0000
 # ************************************************************
 
 
@@ -15,6 +15,7 @@
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8 */;
+SET NAMES utf8mb4;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
@@ -25,6 +26,7 @@
 
 CREATE TABLE `accounts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `type` enum('payment','membership','charge') DEFAULT 'payment',
   `serial` varchar(16) DEFAULT NULL,
   `payment_time` int(11) DEFAULT NULL,
   `amount` float NOT NULL DEFAULT '0',
@@ -170,6 +172,7 @@ CREATE TABLE `meter_groups` (
 
 CREATE TABLE `meters` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `enabled` tinyint(1) DEFAULT '1',
   `type` enum('heat','water','electricity','aggregated','heat_supply','heat_sub') NOT NULL DEFAULT 'heat',
   `group` int(3) unsigned NOT NULL DEFAULT '0',
   `parent_serial` varchar(16) DEFAULT NULL,
@@ -180,7 +183,7 @@ CREATE TABLE `meters` (
   `key` varchar(32) DEFAULT NULL,
   `valve_status` varchar(256) DEFAULT NULL,
   `valve_installed` tinyint(1) NOT NULL DEFAULT '1',
-  `last_updated` int(11) DEFAULT NULL,
+  `last_updated` int(11) DEFAULT '0',
   `uptime` int(11) DEFAULT NULL,
   `reset_reason` varchar(255) DEFAULT NULL,
   `ssid` varchar(32) DEFAULT NULL,
