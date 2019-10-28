@@ -103,14 +103,15 @@ sub login_handler {
 			# look up phone number
 			my ($id) = $r->args =~ /id=([^&]*)/i;
 			my $quoted_id = $dbh->quote($id);
+			my $quoted_wildcard_id = $dbh->quote('%' . $id . '%');
 			
 			# check in meters db
-			$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_id LIMIT 1]);
+			$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_wildcard_id LIMIT 1]);
 			$sth->execute;
 			my $user_is_in_db = $sth->rows;
 			
 			# check in users db
-			$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_id LIMIT 1]);
+			$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_wildcard_id LIMIT 1]);
 			$sth->execute;
 			$user_is_in_db |= $sth->rows;
 			
