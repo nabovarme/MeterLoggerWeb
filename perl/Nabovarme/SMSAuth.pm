@@ -104,16 +104,24 @@ sub login_handler {
 			my ($id) = $r->args =~ /id=([^&]*)/i;
 			my $quoted_id = $dbh->quote($id);
 			my $quoted_wildcard_id = $dbh->quote('%' . $id . '%');
+			my $user_is_in_db = undef;
 			
-			# check in meters db
-			$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_wildcard_id LIMIT 1]);
-			$sth->execute;
-			my $user_is_in_db = $sth->rows;
+			warn Dumper $id;
+			if ($id) {
+				# check in meters db
+#				warn Dumper(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_wildcard_id LIMIT 1]);
+				$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_wildcard_id LIMIT 1]);
+				$sth->execute;
+				$user_is_in_db = $sth->rows;
+				warn Dumper $user_is_in_db;
 			
-			# check in users db
-			$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_wildcard_id LIMIT 1]);
-			$sth->execute;
-			$user_is_in_db |= $sth->rows;
+				# check in users db
+#				warn Dumper(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_wildcard_id LIMIT 1]);
+				$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_wildcard_id LIMIT 1]);
+				$sth->execute;
+				$user_is_in_db |= $sth->rows;
+				warn Dumper $user_is_in_db;
+			}
 			
 			if ($user_is_in_db) {
 				# if user has a phone number in database generate and send sms code
