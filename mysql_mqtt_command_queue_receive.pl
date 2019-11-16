@@ -124,8 +124,8 @@ sub mqtt_handler {
 				$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue \
 					WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 					AND `function` LIKE ] . $dbh->quote($function) . qq[ \
-					AND `param` > ] . $dbh->quote($cleartext - 1) . qq[ \
-					AND `param` < ] . $dbh->quote($cleartext + 1) . qq[ \
+					AND `param` > ] . ($cleartext - 1) . qq[ \
+					AND `param` < ] . ($cleartext + 1) . qq[ \
 					LIMIT 1]);
 				$sth->execute;
 				if ($sth->rows) {
