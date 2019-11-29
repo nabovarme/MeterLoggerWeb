@@ -224,7 +224,7 @@
 	<tr align="left" valign="bottom">
 		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
 		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
-		<td align="right"><span class="default">[$ if (!$d->{type} =~ /^water$/i) $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
+		<td align="right"><span class="default">[$ if (!$d->{type} =~ /^water$/i) $][$ else $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
 		<td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
 		<td>&nbsp;</td>
