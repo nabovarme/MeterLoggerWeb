@@ -151,7 +151,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -170,7 +170,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme opened. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
