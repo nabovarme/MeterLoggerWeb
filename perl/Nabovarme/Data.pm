@@ -140,21 +140,21 @@ sub handler {
 			}
 		}
 		elsif ($option =~ /last/) {		# last accumulated
-		        if ($unix_time) {
-			        $sth = $dbh->prepare(qq[SELECT \
-				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-        				energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-        				AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
-        				ORDER BY `unix_time` DESC \
-        				LIMIT 1]);
-                        }
-                        else {
-			        $sth = $dbh->prepare(qq[SELECT \
-				        DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-        				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-        				ORDER BY `unix_time` DESC \
-        				LIMIT 1]);                        
-                        }
+				if ($unix_time) {
+					$sth = $dbh->prepare(qq[SELECT \
+						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+						energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+						AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
+						ORDER BY `unix_time` DESC \
+						LIMIT 1]);
+						}
+						else {
+					$sth = $dbh->prepare(qq[SELECT \
+						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+						energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+						ORDER BY `unix_time` DESC \
+						LIMIT 1]);
+					}
 			$sth->execute;
 			if ($sth->rows) {
 				unless ($csv_header_set) {
