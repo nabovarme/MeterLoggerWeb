@@ -158,7 +158,7 @@ sub handler {
 			$sth->execute;
 			if ($sth->rows) {
 				unless ($csv_header_set) {
-				        $r->print("Date,Energy\n");
+					$r->print("Date,Energy\n");
 				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
