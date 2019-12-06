@@ -139,33 +139,6 @@ sub handler {
 				}
 			}
 		}
-		elsif ($option =~ /last/) {		# last accumulated
-				if ($unix_time) {
-					$sth = $dbh->prepare(qq[SELECT \
-						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-						energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-						AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
-						ORDER BY `unix_time` DESC \
-						LIMIT 1]);
-						}
-						else {
-					$sth = $dbh->prepare(qq[SELECT \
-						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-						energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-						ORDER BY `unix_time` DESC \
-						LIMIT 1]);
-					}
-			$sth->execute;
-			if ($sth->rows) {
-				unless ($csv_header_set) {
-					$r->print("Date,Energy\n");
-				}
-				while ($d = $sth->fetchrow_hashref) {
-					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{energy} - $setup_value) . "\n");
-				}
-			}
-		}
 		elsif ($option =~ /new_range/) {		# new range looked up from db
 			$r->content_type('text/plain');
 			$sth = $dbh->prepare(qq[SELECT \
@@ -234,6 +207,54 @@ sub handler {
 			#$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 			$r->internal_redirect('/' . $data_cache_path . '/' . $serial . '.csv');
 			return Apache2::Const::OK;
+		}
+		elsif ($option =~ /last/) {		# last accumulated
+			$sth = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE `serial` LIKE $quoted_serial]);
+			$sth->execute;
+			unless ($sth->rows) {
+				warn Dumper(qq[SELECT `serial` FROM meters WHERE `info` LIKE $quoted_serial]);
+				$sth2 = $dbh->prepare(qq[SELECT `serial` FROM meters WHERE `info` LIKE $quoted_serial]);
+				$sth2->execute;
+				unless ($sth2->rows) {
+					return Apache2::Const::NOT_FOUND;
+				}
+				else {
+					if ($d2 = $sth2->fetchrow_hashref) {
+						$serial = $d2->{serial};
+						$quoted_serial = $dbh->quote($serial);
+					}
+					else {
+						return Apache2::Const::NOT_FOUND;
+					}
+				}
+#					return Apache2::Const::NOT_FOUND;
+			}
+		
+			if ($unix_time) {
+				$sth = $dbh->prepare(qq[SELECT \
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+					energy FROM `samples` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+					AND `unix_time` <= ] . $dbh->quote($unix_time) . qq[ \
+					ORDER BY `unix_time` DESC \
+					LIMIT 1]);
+					}
+					else {
+				$sth = $dbh->prepare(qq[SELECT \
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
+					energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
+					ORDER BY `unix_time` DESC \
+					LIMIT 1]);
+			}
+			$sth->execute;
+			if ($sth->rows) {
+				unless ($csv_header_set) {
+					$r->print("Date,Energy\n");
+				}
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print(($d->{energy} - $setup_value) . "\n");
+				}
+			}
 		}
 		else {		# detailed data
 			if ($option =~ /high/) {
