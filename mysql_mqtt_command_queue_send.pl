@@ -71,7 +71,10 @@ while (1) {
 			command_queue.`sent_count`, \
 			meters.`key` \
 		FROM command_queue, meters \
-		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() AND command_queue.`serial` LIKE meters.`serial` AND `state` = 'sent' ORDER BY `function` \
+		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() \
+		AND command_queue.`serial` LIKE meters.`serial` \
+		AND `state` = 'sent' \
+		ORDER BY `function` ASC, `unix_time` ASC \
 	]);
 	$sth->execute || warn $!;
 	while ($d = $sth->fetchrow_hashref) {
