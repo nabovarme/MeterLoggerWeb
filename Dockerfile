@@ -75,7 +75,7 @@ COPY ./000-default.conf /etc/apache2/sites-available/
 COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./Nabovarme.conf /etc/
-COPY ./template.text /var/www/nabovarme/qr/
+COPY ./template.tex /var/www/nabovarme/qr/
 
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
