@@ -50,7 +50,11 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
-	mysql-client
+	mysql-client\
+	software-properties-common \
+	texlive \
+	texlive-latex-base \
+	texlive-latex-extra
 
 USER root
 
@@ -62,13 +66,16 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
 RUN mkdir -p /var/www/nabovarme/cache
+RUN mkdir -p /var/www/nabovarme/qr
 RUN chown www-data:www-data /var/www/nabovarme/cache
+RUN chown www-data:www-data /var/www/nabovarme/qr
 
 COPY htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
 COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./Nabovarme.conf /etc/
+COPY ./template.text /var/www/nabovarme/qr/
 
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
