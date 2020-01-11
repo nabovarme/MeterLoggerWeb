@@ -1,14 +1,16 @@
 \documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{float}
 
-\usepackage{pstricks}
-\usepackage{pst-barcode}
+%\usepackage{pstricks}
+%\usepackage{pst-barcode}
 \usepackage[a4paper,margin=20mm,landscape,twocolumn]{geometry}
 
 %\newcommand{\varserial}{9999999}
-\newcommand{\varmobilepay}{28490157}
-\newcommand{\varmobilepayurl}{https://meterlogger.net/detail_acc.epl?serial=\varserial&low=1}
+%\newcommand{\varmobilepay}{28490157}
+%\newcommand{\varmobilepayurl}{https://meterlogger.net/detail_acc.epl?serial=\varserial&low=1}
 
 \begin{document}
 \thispagestyle{empty}
@@ -17,10 +19,13 @@
 
 \textsf{\varinfo}
 
-\begin{pspicture}(60mm,60mm)
+%\begin{pspicture}(50mm,50mm)
 
-\psbarcode{\varmobilepayurl}{eclevel=H width=2.0 height=2.0}{qrcode}
-\end{pspicture}
+%\psbarcode{\varmobilepayurl}{eclevel=H width=2.0 height=2.0}{qrcode}
+\begin{figure}[H]
+\includegraphics{qr_meterlogger.png}
+\end{figure}
+%\end{pspicture}
 
 \textsf{Log ind med dit mobilnummer \varsms}
 
@@ -28,9 +33,12 @@
 
 \textsf{{\fontsize{50}{60}\selectfont \textbf{MobilePay}}}
 
-\begin{pspicture}(60mm,60mm)
-\psbarcode{https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=\varmobilepay&amount=&comment=\varserial, NV}{eclevel=H width=2.0 height=2.0}{qrcode}
-\end{pspicture}
+%\begin{pspicture}(50mm,50mm)
+%\psbarcode{https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=\varmobilepay&amount=&comment=\varserial, NV}{eclevel=H width=2.0 height=2.0}{qrcode}
+\begin{figure}[H]
+\includegraphics{qr_mobilepay.png}
+\end{figure}
+%\end{pspicture}
 
 \textsf{Send ønsket beløb til MobilePay \varmobilepay}
 

@@ -54,7 +54,10 @@ RUN apt-get update && apt-get install -y \
 	software-properties-common \
 	texlive \
 	texlive-latex-base \
-	texlive-latex-extra
+	texlive-latex-extra \
+	texlive-fonts-extra \
+	qrencode \
+	imagemagick
 
 USER root
 

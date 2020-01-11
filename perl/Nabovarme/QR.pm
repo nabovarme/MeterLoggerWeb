@@ -17,6 +17,7 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
+	my $mobilepay_receiver = $r->dir_config('QRMobilePayReceiver') || '28490157';
 	my $qr_path = $r->dir_config('QRPath') || '/qr';
 	my $latex_template_name = $r->dir_config('QRLatexTemplateName') || 'template.tex';
 	my $document_root = $r->document_root();
@@ -48,12 +49,26 @@ sub handler {
 					my $sms = $d->{sms_notification};
 					utf8::decode($info);
 					utf8::decode($sms);
-					system(qq[cd $document_root$qr_path && \
-					latex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\input{$latex_template_name}" && \
-					dvips template.dvi && \
-					ps2pdf template.ps && \
-					mv template.pdf $serial.pdf && \
-					rm template.dvi template.ps template.aux template.log]) ;
+					eval {
+						warn(qq[cd $document_root$qr_path && \
+						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial&low=1" ; \
+						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$serial, NV" ; \ 
+						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
+						pdflatex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\newcommand{\\varmobilepay}{$mobilepay_receiver} \\input{$latex_template_name}" ; \
+						mv template.pdf $serial.pdf ; \
+						rm qr_mobilepay.png qr_meterlogger.png]);
+
+						system(qq[cd $document_root$qr_path && \
+						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial&low=1" ; \
+						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$serial, NV" ; \ 
+						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
+						pdflatex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\newcommand{\\varmobilepay}{$mobilepay_receiver} \\input{$latex_template_name}" ; \
+						mv template.pdf $serial.pdf ; \
+						rm qr_mobilepay.png qr_meterlogger.png]);
+					};
+					if ($@) {
+						warn "Something bad happened: $@\n";
+					}
 				}
 			}
 			else {
