@@ -40,6 +40,7 @@ sub check_conditions {
 									alarms.`last_notification`, \
 									alarms.`alarm_state`, \
 									alarms.`repeat`, \
+									alarms.`snooze`, \
 									alarms.`sms_notification`, \
 									alarms.`down_message`, \
 									alarms.`up_message` \
@@ -176,12 +177,13 @@ sub check_conditions {
 						syslog('info', "serial $serial: down");
 						warn "down\n";
 					}
-					elsif ($d->{repeat} && (($d->{last_notification} + $d->{repeat}) < time())) {
+					elsif ($d->{repeat} && (($d->{last_notification} + $d->{repeat} + $d->{snooze}) < time())) {
 						# repeat down notification every 'repeat' time interval
 						sms_send($d->{sms_notification}, $down_message);
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
-										alarm_state = 1 \
+										alarm_state = 1, \
+										snooze = 0 \
 										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: down repeat");
 						warn "down repeat\n";
