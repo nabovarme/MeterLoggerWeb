@@ -200,7 +200,8 @@ sub check_conditions {
 					}
 					$dbh->do(qq[UPDATE alarms SET \
 									last_notification = ] . time() . qq[, \
-									alarm_state = 0 \
+									alarm_state = 0, \
+									snooze = 0 \
 									WHERE `id` like $quoted_id]) or warn $!;
 #					print "false\n";
 				}
