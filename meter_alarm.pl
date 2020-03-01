@@ -201,7 +201,8 @@ sub check_conditions {
 						sms_send($d->{sms_notification}, $down_message);
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
-										alarm_state = 1 \
+										alarm_state = 1, \
+										snooze_auth_key = $quoted_snooze_auth_key \
 										WHERE `id` like $quoted_id ]) or warn $!;
 						syslog('info', "serial $serial: down");
 						warn "down\n";
