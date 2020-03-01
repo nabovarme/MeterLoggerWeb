@@ -193,8 +193,7 @@ sub check_conditions {
 						sms_send($d->{sms_notification}, $down_message);
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
-										alarm_state = 1, \
-										snooze_auth_key = $quoted_snooze_auth_key \
+										alarm_state = 1 \
 										WHERE `id` like $quoted_id ]) or warn $!;
 						syslog('info', "serial $serial: down");
 						warn "down\n";
@@ -222,7 +221,7 @@ sub check_conditions {
 										last_notification = ] . time() . qq[, \
 										alarm_state = 0, \
 										snooze = 0, \
-										snooze_auth_key = $quoted_snooze_auth_key \
+										snooze_auth_key = 0 \
 										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: up");
 						warn "up\n";
