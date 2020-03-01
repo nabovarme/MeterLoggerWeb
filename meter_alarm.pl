@@ -56,6 +56,7 @@ sub check_conditions {
 		my $serial;
 		my $quoted_serial;
 		my $info;
+		my $default_snooze;
 		my $condition;
 		my $condition_var;
 		my @condition_vars;
@@ -79,6 +80,7 @@ sub check_conditions {
 			$condition = $d->{condition};
 			$serial = $d->{serial};
 			$info = $d->{info};
+			$default_snooze = $d->{default_snooze};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
 			
@@ -89,6 +91,10 @@ sub check_conditions {
 			# replace $snooze_auth_key with generated key
 			$down_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
 			$up_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
+			
+			# replace $default_snooze with the one in alarms db
+			$down_message =~ s/\$default_snooze/$default_snooze/x;
+			$up_message =~ s/\$default_snooze/$default_snooze/x;
 			
 			# replace $serial with actual serial in message texts
 			$down_message =~ s/\$serial/$serial/x;
