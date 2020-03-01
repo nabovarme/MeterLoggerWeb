@@ -42,6 +42,8 @@ sub check_conditions {
 									alarms.`alarm_state`, \
 									alarms.`repeat`, \
 									alarms.`snooze`, \
+									alarms.`default_snooze`, \
+									alarms.`snooze_auth_key`, \
 									alarms.`sms_notification`, \
 									alarms.`down_message`, \
 									alarms.`up_message` \
@@ -81,7 +83,7 @@ sub check_conditions {
 			$up_message = $d->{up_message} || 'normal';
 			
 			# create random key for snooze auth
-			$snooze_auth_key = join(q[], map(sprintf("%02x", int rand(256)), 1..16));
+			$snooze_auth_key = $d->{snooze_auth_key} || join(q[], map(sprintf("%02x", int rand(256)), 1..16));
 			$quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
 
 			# replace $snooze_auth_key with generated key
