@@ -33,6 +33,7 @@ if ($is_admin && $fdat{'auth'}) {
 -] 
 	<HEAD>
 		<meta name="robots" content="noindex">
+		<meta name="viewport" content="width=600, initial-scale=2">
 		<TITLE>MeterLogger Snoozed</TITLE>
 		<style type="text/css">
 		.default {
