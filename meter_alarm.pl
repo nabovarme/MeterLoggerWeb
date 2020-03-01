@@ -223,7 +223,7 @@ sub check_conditions {
 										last_notification = ] . time() . qq[, \
 										alarm_state = 0, \
 										snooze = 0, \
-										snooze_auth_key = 0 \
+										snooze_auth_key = '' \
 										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: up");
 						warn "up\n";
