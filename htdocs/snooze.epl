@@ -70,7 +70,7 @@ if ($is_admin && $fdat{'auth'}) {
 					<input type="submit" name="update" value="Snooze" style="width: 100px;">
 			  </form>
 		[$ else $]
-			<span class="default">Not authorized to snooze that alarm</span>
+			<span class="default">Not found</span>
 		[$ endif $]
 		<br>
 		<br>
