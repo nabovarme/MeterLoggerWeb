@@ -5,6 +5,7 @@ use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Statistics::Basic qw( :all );
+use Math::Random::Secure qw(rand);
 use Config;
 
 use lib qw( /etc/apache2/perl );
@@ -64,6 +65,10 @@ sub check_conditions {
 		my $down_message;
 		my $up_message;
 		my $d;
+		
+		my $snooze_auth_key;
+		my $quoted_snooze_auth_key;
+		
 		while ($d = $sth->fetchrow_hashref) {
 			# check every alarm in database
 			$id = $d->{id};
@@ -74,6 +79,10 @@ sub check_conditions {
 			$info = $d->{info};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
+			
+			# create random key for snooze auth
+			$snooze_auth_key = join(q[], map(sprintf("%02x", int rand(256)), 1..16));
+			$quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
 			
 			# replace $serial with actual serial in message texts
 			$down_message =~ s/\$serial/$serial/x;
@@ -180,7 +189,8 @@ sub check_conditions {
 						sms_send($d->{sms_notification}, $down_message);
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
-										alarm_state = 1 \
+										alarm_state = 1, \
+										snooze_auth_key = $quoted_snooze_auth_key \
 										WHERE `id` like $quoted_id ]) or warn $!;
 						syslog('info', "serial $serial: down");
 						warn "down\n";
@@ -191,7 +201,8 @@ sub check_conditions {
 						$dbh->do(qq[UPDATE alarms SET \
 										last_notification = ] . time() . qq[, \
 										alarm_state = 1, \
-										snooze = 0 \
+										snooze = 0, \
+										snooze_auth_key = $quoted_snooze_auth_key \
 										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: down repeat");
 						warn "down repeat\n";
@@ -203,14 +214,15 @@ sub check_conditions {
 					if ($d->{alarm_state} == 1) {
 						# changed from alarm to no alarm - send sms
 						sms_send($d->{sms_notification}, $up_message);
+						$dbh->do(qq[UPDATE alarms SET \
+										last_notification = ] . time() . qq[, \
+										alarm_state = 0, \
+										snooze = 0, \
+										snooze_auth_key = $quoted_snooze_auth_key \
+										WHERE `id` like $quoted_id]) or warn $!;
 						syslog('info', "serial $serial: up");
 						warn "up\n";
 					}
-					$dbh->do(qq[UPDATE alarms SET \
-									last_notification = ] . time() . qq[, \
-									alarm_state = 0, \
-									snooze = 0 \
-									WHERE `id` like $quoted_id]) or warn $!;
 #					print "false\n";
 				}
 			}
