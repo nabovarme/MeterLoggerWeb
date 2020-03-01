@@ -83,6 +83,10 @@ sub check_conditions {
 			$down_message =~ s/\$info/$info/x;
 			$up_message =~ s/\$info/$info/x;
 			
+			# replace $id_hash with hashed id of the alarm record 
+			$down_message =~ s/\$id/$id/x;
+			$up_message =~ s/\$id/$id/x;
+			
 			@down_message_vars = ($down_message =~ /\$(\w+)/g);
 			if (scalar(@down_message_vars) == 0) {
 				@down_message_vars = ();
@@ -90,6 +94,8 @@ sub check_conditions {
 			else {
 				# we need to look up symbolic variables
 				for $down_message_var (@down_message_vars) {
+					next if $down_message_var =~ /id/;	# dont lookup $id
+					
 					my $quoted_down_message_var = '`' . $down_message_var . '`';
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
@@ -114,6 +120,8 @@ sub check_conditions {
 			else {
 				# we need to look up symbolic variables
 				for $up_message_var (@up_message_vars) {
+					next if $up_message_var =~ /id/;	# dont lookup $id
+
 					my $quoted_up_message_var = '`' . $up_message_var . '`';
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
