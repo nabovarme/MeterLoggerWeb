@@ -83,6 +83,10 @@ sub check_conditions {
 			# create random key for snooze auth
 			$snooze_auth_key = join(q[], map(sprintf("%02x", int rand(256)), 1..16));
 			$quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
+
+			# replace $snooze_auth_key with generated key
+			$down_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
+			$up_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
 			
 			# replace $serial with actual serial in message texts
 			$down_message =~ s/\$serial/$serial/x;
