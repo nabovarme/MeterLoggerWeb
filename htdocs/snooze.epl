@@ -63,6 +63,7 @@ if ($is_admin && $fdat{'auth'}) {
 						<option value="3600">1 hour</option>
 						<option value="86400">1 day</option>
 						<option value="604800">1 week</option>
+						<option value="2678400">1 month</option>	# 31 days
 					</select>
 
 					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
