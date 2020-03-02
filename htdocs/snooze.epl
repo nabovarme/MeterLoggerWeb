@@ -6,16 +6,15 @@ use Time::Format qw( time_format );
 use lib qw( /var/www/lib/perl );
 #use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
-use Nabovarme::Admin;
 
-$admin = new Nabovarme::Admin;
-$is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
 $is_authorized = 0;
 
-if ($is_admin && $fdat{'auth'}) {
+if ($fdat{'auth'}) {
 	if ($dbh = Nabovarme::Db->my_connect) {
 		my $quoted_serial = $dbh->quote($fdat{'serial'});
 		my $quoted_snooze_auth_key = $dbh->quote($fdat{'auth'});
+		warn Dumper(qq[SELECT * FROM alarms \
+			WHERE `serial` LIKE $quoted_serial AND `snooze_auth_key` LIKE $quoted_snooze_auth_key]);
 		$sth = $dbh->prepare(qq[SELECT * FROM alarms \
 			WHERE `serial` LIKE $quoted_serial AND `snooze_auth_key` LIKE $quoted_snooze_auth_key]);
 		$sth->execute;
