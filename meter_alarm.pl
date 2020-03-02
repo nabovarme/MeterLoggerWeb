@@ -47,7 +47,9 @@ sub check_conditions {
 									alarms.`sms_notification`, \
 									alarms.`down_message`, \
 									alarms.`up_message` \
-								FROM `alarms`, `meters` WHERE alarms.`serial` = meters.`serial`]);
+								FROM `alarms`, `meters \
+								WHERE alarms.`serial` = meters.`serial` \
+								AND alarms.`enabled`]);
 	$sth->execute;
 	if ($sth->rows) {
 		my $id;
