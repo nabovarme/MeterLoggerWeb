@@ -91,24 +91,25 @@ sub check_conditions {
 			$quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
 
 			# replace $snooze_auth_key with generated key
-			$down_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
-			$up_message =~ s/\$snooze_auth_key/$snooze_auth_key/x;
+			$down_message =~ s/\$snooze_auth_key/$snooze_auth_key/gx;
+			$up_message =~ s/\$snooze_auth_key/$snooze_auth_key/gx;
 			
 			# replace $default_snooze with the one in alarms db
-			$down_message =~ s/\$default_snooze/$default_snooze/x;
-			$up_message =~ s/\$default_snooze/$default_snooze/x;
+			$down_message =~ s/\$default_snooze/$default_snooze/gx;
+			$up_message =~ s/\$default_snooze/$default_snooze/gx;
 			
 			# replace $serial with actual serial in message texts
-			$down_message =~ s/\$serial/$serial/x;
-			$up_message =~ s/\$serial/$serial/x;
+			$down_message =~ s/\$serial/$serial/gx;
+			$up_message =~ s/\$serial/$serial/gx;
+			warn $down_message;
 			
 			# replace $info with info for serial in message texts
-			$down_message =~ s/\$info/$info/x;
-			$up_message =~ s/\$info/$info/x;
+			$down_message =~ s/\$info/$info/gx;
+			$up_message =~ s/\$info/$info/gx;
 			
 			# replace $id_hash with hashed id of the alarm record 
-			$down_message =~ s/\$id/$id/x;
-			$up_message =~ s/\$id/$id/x;
+			$down_message =~ s/\$id/$id/gx;
+			$up_message =~ s/\$id/$id/gx;
 			
 			@down_message_vars = ($down_message =~ /\$(\w+)/g);
 			if (scalar(@down_message_vars) == 0) {
