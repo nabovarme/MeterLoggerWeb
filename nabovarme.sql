@@ -7,7 +7,7 @@
 #
 # Host: 127.0.0.1 (MySQL 5.5.62-0+deb8u1)
 # Database: nabovarme
-# Generation Time: 2019-08-14 14:15:49 +0000
+# Generation Time: 2020-04-01 02:32:01 +0000
 # ************************************************************
 
 
@@ -26,17 +26,17 @@ SET NAMES utf8mb4;
 
 CREATE TABLE `accounts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `type` enum('payment','membership','charge') DEFAULT 'payment',
-  `serial` varchar(16) DEFAULT NULL,
+  `type` enum('payment','membership','charge') COLLATE utf8mb4_unicode_ci DEFAULT 'payment',
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `payment_time` int(11) DEFAULT NULL,
   `amount` float NOT NULL DEFAULT '0',
-  `info` varchar(256) NOT NULL DEFAULT '',
+  `info` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT '',
   `price` float NOT NULL DEFAULT '1',
   `auto` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 DELIMITER ;;
@@ -60,25 +60,25 @@ DELIMITER ;
 
 CREATE TABLE `accounts_auto` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) DEFAULT NULL,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `payment_time` int(11) DEFAULT NULL,
   `amount` float NOT NULL DEFAULT '0',
-  `info_row` varchar(512) NOT NULL DEFAULT '',
-  `info_detail` varchar(512) NOT NULL DEFAULT '',
+  `info_row` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `info_detail` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `price` float NOT NULL DEFAULT '1',
-  `phone` varchar(256) DEFAULT NULL,
-  `state` enum('new','partially_parsed','parsed','accounted','ignored','error') DEFAULT 'new',
+  `phone` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `state` enum('new','partially_parsed','parsed','accounted','ignored','error') COLLATE utf8mb4_unicode_ci DEFAULT 'new',
   `screenshot_row` longblob,
   `screenshot_detail` longblob,
   `info_row_hash` bigint(12) DEFAULT NULL,
   `info_detail_hash` bigint(12) DEFAULT NULL,
-  `info_row_phash` varchar(512) DEFAULT NULL,
+  `info_row_phash` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `duplicate_count` int(11) DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   UNIQUE KEY `unique_info_row_idx` (`info_row_hash`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 DELIMITER ;;
@@ -97,11 +97,11 @@ DELIMITER ;
 
 CREATE TABLE `accounts_auto_payers_learned` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) DEFAULT NULL,
-  `phone` varchar(256) DEFAULT NULL,
-  `comment` mediumtext,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -110,17 +110,21 @@ CREATE TABLE `accounts_auto_payers_learned` (
 
 CREATE TABLE `alarms` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) DEFAULT NULL,
-  `condition` mediumtext NOT NULL,
+  `enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `condition` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `last_notification` int(11) DEFAULT NULL,
   `alarm_state` int(1) unsigned NOT NULL DEFAULT '0',
   `repeat` int(11) NOT NULL DEFAULT '0',
-  `sms_notification` varchar(64) DEFAULT NULL,
-  `down_message` mediumtext,
-  `up_message` mediumtext,
-  `comment` mediumtext,
+  `snooze` int(11) NOT NULL DEFAULT '0',
+  `default_snooze` int(11) NOT NULL DEFAULT '1800',
+  `snooze_auth_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `sms_notification` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `down_message` longtext COLLATE utf8mb4_unicode_ci,
+  `up_message` longtext COLLATE utf8mb4_unicode_ci,
+  `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -129,16 +133,16 @@ CREATE TABLE `alarms` (
 
 CREATE TABLE `command_queue` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) DEFAULT NULL,
-  `function` varchar(256) DEFAULT NULL,
-  `param` varchar(256) DEFAULT NULL,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `function` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `param` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
-  `state` enum('sent','received','timeout') NOT NULL DEFAULT 'sent',
+  `state` enum('sent','received','timeout') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sent',
   `has_callback` tinyint(1) NOT NULL DEFAULT '0',
   `timeout` int(11) NOT NULL DEFAULT '0',
   `sent_count` int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -147,12 +151,12 @@ CREATE TABLE `command_queue` (
 
 CREATE TABLE `log` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
-  `function` varchar(256) DEFAULT NULL,
-  `param` varchar(256) DEFAULT NULL,
+  `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `function` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `param` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -161,9 +165,9 @@ CREATE TABLE `log` (
 
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `group` varchar(256) NOT NULL DEFAULT '',
+  `group` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -173,38 +177,38 @@ CREATE TABLE `meter_groups` (
 CREATE TABLE `meters` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `enabled` tinyint(1) DEFAULT '1',
-  `type` enum('heat','water','electricity','aggregated','heat_supply','heat_sub') NOT NULL DEFAULT 'heat',
+  `type` enum('heat','water','electricity','aggregated','heat_supply','heat_sub') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'heat',
   `group` int(3) unsigned NOT NULL DEFAULT '0',
-  `parent_serial` varchar(16) DEFAULT NULL,
-  `serial` varchar(16) DEFAULT NULL,
-  `info` varchar(256) NOT NULL DEFAULT '',
+  `parent_serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `info` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `setup_value` float NOT NULL DEFAULT '0',
-  `sw_version` varchar(256) DEFAULT NULL,
-  `key` varchar(32) DEFAULT NULL,
-  `valve_status` varchar(256) DEFAULT NULL,
+  `sw_version` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `key` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `valve_status` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `valve_installed` tinyint(1) NOT NULL DEFAULT '1',
   `last_updated` int(11) DEFAULT '0',
   `uptime` int(11) DEFAULT NULL,
-  `reset_reason` varchar(255) DEFAULT NULL,
-  `ssid` varchar(32) DEFAULT NULL,
+  `reset_reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ssid` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rssi` int(8) DEFAULT NULL,
   `min_amount` float NOT NULL DEFAULT '0',
   `default_price` float NOT NULL DEFAULT '1',
-  `email_notification` varchar(256) DEFAULT NULL,
-  `sms_notification` varchar(64) DEFAULT NULL,
+  `email_notification` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sms_notification` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `close_notification_time` int(11) DEFAULT '604800' COMMENT 'send notice this many seconds before we close (default 7 days)',
   `notification_state` int(1) unsigned NOT NULL DEFAULT '0',
   `notification_sent_at` float DEFAULT NULL,
-  `wifi_status` varchar(32) DEFAULT 'disconnected',
-  `wifi_set_ssid` varchar(32) DEFAULT NULL,
-  `wifi_set_pwd` varchar(64) DEFAULT NULL,
-  `ap_status` varchar(32) DEFAULT NULL,
+  `wifi_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT 'disconnected',
+  `wifi_set_ssid` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `wifi_set_pwd` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ap_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `location_lat` decimal(12,8) DEFAULT NULL,
   `location_long` decimal(12,8) DEFAULT NULL,
-  `comment` mediumtext,
+  `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -213,7 +217,7 @@ CREATE TABLE `meters` (
 
 CREATE TABLE `samples` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
+  `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `heap` int(11) unsigned DEFAULT NULL,
   `flow_temp` float DEFAULT NULL,
   `return_flow_temp` float DEFAULT NULL,
@@ -227,7 +231,7 @@ CREATE TABLE `samples` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 DELIMITER ;;
@@ -243,7 +247,7 @@ DELIMITER ;
 
 CREATE TABLE `samples_cache` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
+  `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `heap` int(11) unsigned DEFAULT NULL,
   `flow_temp` float DEFAULT NULL,
   `return_flow_temp` float DEFAULT NULL,
@@ -257,7 +261,7 @@ CREATE TABLE `samples_cache` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -266,7 +270,7 @@ CREATE TABLE `samples_cache` (
 
 CREATE TABLE `samples_calculated` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
+  `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `heap` int(11) unsigned DEFAULT NULL,
   `flow_temp` float DEFAULT NULL,
   `return_flow_temp` float DEFAULT NULL,
@@ -280,7 +284,7 @@ CREATE TABLE `samples_calculated` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -289,18 +293,18 @@ CREATE TABLE `samples_calculated` (
 
 CREATE TABLE `sms_auth` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `cookie_token` varchar(256) DEFAULT NULL,
+  `cookie_token` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `session` tinyint(1) NOT NULL DEFAULT '0',
-  `serial` varchar(16) DEFAULT NULL,
-  `auth_state` set('new','login','sms_code_sent','sms_code_verified','deny') DEFAULT 'new',
-  `phone` varchar(64) DEFAULT NULL,
-  `sms_code` varchar(256) DEFAULT NULL,
-  `orig_uri` mediumtext,
-  `remote_host` varchar(256) DEFAULT NULL,
-  `user_agent` mediumtext,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `auth_state` set('new','login','sms_code_sent','sms_code_verified','deny') COLLATE utf8mb4_unicode_ci DEFAULT 'new',
+  `phone` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sms_code` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orig_uri` longtext COLLATE utf8mb4_unicode_ci,
+  `remote_host` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` longtext COLLATE utf8mb4_unicode_ci,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -309,17 +313,17 @@ CREATE TABLE `sms_auth` (
 
 CREATE TABLE `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(256) NOT NULL DEFAULT '',
-  `password` varchar(256) NOT NULL DEFAULT '',
-  `admin_group` varchar(256) DEFAULT NULL,
-  `name` varchar(256) NOT NULL DEFAULT '',
-  `mail` varchar(256) NOT NULL DEFAULT '',
-  `phone` varchar(256) NOT NULL DEFAULT '',
-  `address` varchar(256) DEFAULT NULL,
+  `username` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `password` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `admin_group` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `name` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `mail` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `phone` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `address` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `meter_id` int(255) DEFAULT NULL,
-  `comment` varchar(256) DEFAULT NULL,
+  `comment` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
@@ -328,15 +332,15 @@ CREATE TABLE `users` (
 
 CREATE TABLE `wifi_scan` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) DEFAULT NULL,
-  `ssid` varchar(64) DEFAULT NULL,
-  `bssid` varchar(64) DEFAULT NULL,
+  `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ssid` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bssid` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rssi` int(11) DEFAULT NULL,
   `channel` int(11) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 
