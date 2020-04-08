@@ -113,7 +113,7 @@ while (1) {
 						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme closing in ' . sprintf("%.0f", $volume_time_left / 24) . ' days. (' . $d->{serial} . ') ' . 
+					$notification = 'Water closing in ' . sprintf("%.0f", $volume_time_left / 24) . ' days. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -134,7 +134,7 @@ while (1) {
 						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme closed. (' . $d->{serial} . ') ' . 
+					$notification = 'Water closed. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -151,7 +151,7 @@ while (1) {
 						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme open. ' . sprintf("%.0f", $volume_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Water open. ' . sprintf("%.0f", $volume_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -170,7 +170,7 @@ while (1) {
 						. ", volume last: " . $volume_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme open. ' . sprintf("%.0f", $volume_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Water open. ' . sprintf("%.0f", $volume_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_volume_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
