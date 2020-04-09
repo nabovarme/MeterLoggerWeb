@@ -61,7 +61,6 @@ while (1) {
 	
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
-		my $quoted_info = $dbh->quote($d->{info});
 			
 		# get kWh left from db
 		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
@@ -114,7 +113,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme ' . $quoted_info . ' closing in ' . sprintf("%.0f", $energy_time_left / 24) . ' days. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme ' . $d->{info} . ' closing in ' . sprintf("%.0f", $energy_time_left / 24) . ' days. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -135,7 +134,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme ' . $quoted_info . ' closed. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme ' . $d->{info} . ' closed. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -152,7 +151,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme ' . $quoted_info . ' open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme ' . $d->{info} . ' open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
@@ -171,7 +170,7 @@ while (1) {
 						. ", energy last: " . $energy_last 
 						. ", time now: " . $time_now 
 						. ", time last: " . $time_last);
-					$notification = 'Nabovarme ' . $quoted_info . ' open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
+					$notification = 'Nabovarme ' . $d->{info} . ' open. ' . sprintf("%.0f", $energy_time_left / 24) . ' days left. (' . $d->{serial} . ') ' . 
 						'https://meterlogger.net/detail_acc.epl?serial=' . $d->{serial};
 					if ($d->{sms_notification}) {
 						sms_send($d->{sms_notification}, $notification);
