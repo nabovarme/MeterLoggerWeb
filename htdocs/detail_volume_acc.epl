@@ -24,7 +24,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth2 = $dbh->prepare(qq[SELECT hours, volume FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 
-	# get kWh left
+	# get m3 left
 	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
 	(SELECT SUM(amount/price) AS paid_m3 FROM accounts WHERE serial = $quoted_serial) - \
 	(SELECT \
@@ -280,7 +280,7 @@ if ($sth->rows) {
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[+ $d->{price} || "0" +]  kr/kWh</span></td>
+				<td align="left"><span class="default">[+ $d->{price} || "0" +]  kr/m<sup>3</sup></span></td>
   			  </tr>
 			[$ endwhile $]
 			[$ endif $]
@@ -290,11 +290,11 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td><span class="default-highlight">[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]</span></td>
 				<td>&nbsp;</td>
-				<td><span class="default-highlight">[+ sprintf("%.0f", ($fdat{amount} / $fdat{price})) . " kWh" +] [+ $fdat{info} +]</span></td>
+				<td><span class="default-highlight">[+ sprintf("%.0f", ($fdat{amount} / $fdat{price})) . " m<sup>3</sup>" +] [+ $fdat{info} +]</span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default-highlight">[+ $fdat{amount} +] kr</span></td>
 				<td>&nbsp;</td>
-				<td><span class="default-highlight">[+ $fdat{price} +] kr/kWh</span></td>
+				<td><span class="default-highlight">[+ $fdat{price} +] kr/m<sup>3</sup></span></td>
 			  </tr>
 			  <tr align="left" valign="bottom">
 				<td>&nbsp;</td>
