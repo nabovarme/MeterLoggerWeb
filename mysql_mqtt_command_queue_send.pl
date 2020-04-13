@@ -36,12 +36,12 @@ my $d;
 
 warn("starting...\n");
 
+my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
 sub sig_int_handler {
+	$publish_mqtt->disconnect();
 	die $!;
 }
-
-my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {

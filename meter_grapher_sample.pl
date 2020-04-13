@@ -15,6 +15,8 @@ use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 use Nabovarme::Crypto;
 
+$SIG{INT} = \&sig_int_handler;
+
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
@@ -39,6 +41,10 @@ else {
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
 
+sub sig_int_handler {
+	$mqtt->disconnect();
+	die $!;
+}
 # connect to db
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {

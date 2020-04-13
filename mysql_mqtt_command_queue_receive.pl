@@ -35,9 +35,10 @@ my $key_cache;
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
+my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
 sub sig_int_handler {
-
+	$publish_mqtt->disconnect();
 	die $!;
 }
 
@@ -192,7 +193,6 @@ else {
 	die $!;
 }
 
-my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 $subscribe_mqtt->subscribe(q[/cron/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ping/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/version/#], \&mqtt_handler);
