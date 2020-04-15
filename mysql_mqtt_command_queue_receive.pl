@@ -38,7 +38,7 @@ syslog('info', "starting...");
 my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
 sub sig_int_handler {
-	$publish_mqtt->disconnect();
+	$subscribe_mqtt->disconnect();
 	die $!;
 }
 
