@@ -1,1 +1,4 @@
 /build/*
+db_data/
+sms_spool/
+mosquitto_data/
