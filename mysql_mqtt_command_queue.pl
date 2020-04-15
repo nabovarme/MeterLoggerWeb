@@ -91,6 +91,10 @@ sub mqtt_handler {
 			my $m = Crypt::Mode::CBC->new('AES');
 			my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
 
+			# remove trailing nulls
+			$cleartext =~ s/[\x00\s]+$//;
+			$cleartext .= '';
+
 			# only react to functions we have sent a mqtt function for
 			my ($function) = $topic =~ m!/([^/]+)!;
 			unless (grep(/$function/, keys %mqtt_functions_watched)) {

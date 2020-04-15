@@ -501,6 +501,10 @@ sub v2_mqtt_scan_result_handler {
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
 			
+			# remove trailing nulls
+			$message =~ s/[\x00\s]+$//;
+			$message .= '';
+
 			# parse message
 			$message =~ s/&$//;
 	
@@ -572,6 +576,10 @@ sub v2_mqtt_sample_handler {
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
 			
+			# remove trailing nulls
+			$message =~ s/[\x00\s]+$//;
+			$message .= '';
+
 			# parse message
 			$message =~ s/&$//;
 	
@@ -664,6 +672,11 @@ sub v2_mqtt_crypto_test_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
+
+			# remove trailing nulls
+			$message =~ s/[\x00\s]+$//;
+			$message .= '';
+
 			warn Dumper({	"message" => unpack('H*', $message),
 							"aes key" => unpack('H*', $aes_key),
 							"hmac sha256 key" => unpack('H*', $hmac_sha256_key),
