@@ -118,7 +118,7 @@ sub check_conditions {
 			else {
 				# we need to look up symbolic variables
 				for $down_message_var (@down_message_vars) {
-					next if $up_message_var =~ /^id$/;	# dont lookup $id
+					next if $down_message_var =~ /^id$/;	# dont lookup $id
 					
 					my $quoted_down_message_var = '`' . $down_message_var . '`';
 					$quoted_serial = $dbh->quote($serial);
