@@ -5,7 +5,7 @@ services:
     image: mariadb:10.4
     container_name: db
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - ./my.cnf:/etc/mysql/my.cnf
       - ./db_data:/var/lib/mysql
@@ -49,7 +49,7 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
     ports:
-      - "8000:80"
+      - "127.0.0.1:8000:80"
     restart: always
     environment:
       METERLOGGER_DB_HOST: meterlogger:3306
