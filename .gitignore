@@ -1,4 +1,9 @@
 /build/*
+db_data/ib_logfile*
+db_data/mysql-bin.*
+db_data/aria_log.*
+db_data/aria_log_control 
+db_data/ibdata1
 sms_spool/
 mosquitto_data/
 **/.DS_Store
