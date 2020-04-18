@@ -8,9 +8,12 @@ services:
       - "127.0.0.1:3306:3306"
     volumes:
       - ./my.cnf:/etc/mysql/my.cnf
-      - ./db_data:/var/lib/mysql
+      - ./db_data:/var/lib/mysql:delegated
       - ./nabovarme.sql:/nabovarme.sql
+      - ./nabovarme_triggers.sql:/nabovarme_triggers.sql
+      - ./nabovarme_setup.sh:/nabovarme_setup.sh
       - ./nabovarme_import.sh:/nabovarme_import.sh
+      - ./nabovarme_triggers.sh:/nabovarme_triggers.sh
     restart: always
     healthcheck:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
