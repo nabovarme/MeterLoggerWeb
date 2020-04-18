@@ -84,7 +84,7 @@ while (1) {
 
 		$sth_energy_last = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial \
-			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d_energy_now->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($time_now) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 		$sth_energy_last->execute;
 		if ($sth_energy_last->rows) {
 			if ($d_energy_last = $sth_energy_last->fetchrow_hashref) {

@@ -84,7 +84,7 @@ while (1) {
 
 		$sth_volume_last = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial \
-			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d_volume_now->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
+			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($time_now) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
 		$sth_volume_last->execute;
 		if ($sth_volume_last->rows) {
 			if ($d_volume_last = $sth_volume_last->fetchrow_hashref) {
