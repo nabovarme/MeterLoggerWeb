@@ -147,7 +147,7 @@ sub mqtt_handler {
 				warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
 				syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
 				# do mysql stuff here
-				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `timeout` <> 0] . qq[ \
+				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
 					AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
 				return;
 			}

@@ -57,6 +57,7 @@ sub call {
 											AND `param` = $quoted_message \
 											AND `state` = 'sent' \
 											AND `has_callback` = ] . ($callback ? 1 : 0) . qq[\
+											AND `timeout` <> 0 \
 											LIMIT 1]);
 		$sth->execute;
 		if ($d = $sth->fetchrow_hashref) {
