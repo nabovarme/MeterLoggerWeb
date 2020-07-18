@@ -149,6 +149,8 @@ sub mqtt_handler {
 				# do mysql stuff here
 				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
 					AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
+				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
+					AND `function` LIKE ] . $dbh->quote($cleartext)) or warn $!;
 				return;
 			}
 
