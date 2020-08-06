@@ -24,8 +24,13 @@ my ($d, $d2);
 
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-    $sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters]);
-    $sth->execute || warn "$!\n";
+	if ($ARGV[0]) {
+		$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters WHERE `serial` LIKE ] . $dbh->quote($ARGV[0]));
+	}
+	else {
+		$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters]);
+	}
+	$sth->execute || warn "$!\n";
 	if ($sth->rows) {
 		while ($d = $sth->fetchrow_hashref) {
 			my $nested = {	considerIp => 'false',
