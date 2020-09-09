@@ -95,7 +95,7 @@ sub mqtt_handler {
 			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
 			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
 			# do mysql stuff here
-			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `timeout` <> 0] . qq[ AND `function` LIKE 'scan']) or warn $!;
+			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
 			return;
 		}
 		
@@ -134,7 +134,6 @@ sub mqtt_handler {
 					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue");
 					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
 						AND `function` LIKE ] . $dbh->quote($function) . qq[\ 
-						AND `timeout` <> 0 \
 						AND `param` <= ] . ($cleartext + 1)) or warn $!;
 				}
 				else {
@@ -175,7 +174,7 @@ sub mqtt_handler {
 					warn "deleting serial $meter_serial, command $function from mysql queue\n";
 					syslog('info', "deleting serial $meter_serial, command $function from mysql queue");
 #					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
-					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ AND `timeout` <> 0] . qq[ AND `state` = 'sent']);
+					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ AND `state` = 'sent']);
 				}
 			}
 		}
