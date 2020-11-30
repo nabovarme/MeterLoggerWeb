@@ -43,7 +43,8 @@ sub update_samples_calculated {
 		warn("    update samples_calculated for " . $d->{serial} . "\n");
 		# re calculate in transaction
 		eval {
-			$dbh->do(qq[DELETE FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial) || warn "$!\n";
+			$dbh->do(qq[DELETE FROM `samples_calculated` WHERE `serial` LIKE $quoted_serial 
+				AND `unix_time` >= UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)]) || warn "$!\n";
 			$dbh->do(qq[INSERT INTO `samples_calculated` (`serial`, `heap`, `flow_temp`, `return_flow_temp`, `temp_diff`, `t3`, `flow`, `effect`, `hours`, `volume`, `energy`, `unix_time`)
 							SELECT 
 								`serial`, 
@@ -60,6 +61,7 @@ sub update_samples_calculated {
 								`unix_time`
 							FROM `samples` 
 							WHERE `serial` LIKE $quoted_serial 
+							AND `unix_time` >= UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY) 
 							GROUP BY DATE( FROM_UNIXTIME(`unix_time`) ), HOUR( FROM_UNIXTIME(`unix_time`) ) 
 							ORDER BY FROM_UNIXTIME(`unix_time`) ASC]) or warn "$!\n";
 							

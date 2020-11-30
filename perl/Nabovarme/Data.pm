@@ -151,8 +151,8 @@ sub handler {
 				effect, \
 				hours, \
 				volume, \
-				energy FROM `samples_cache` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
+				energy FROM `samples_cache` WHERE `serial` = ] . $quoted_serial . qq[ \
+				AND `unix_time` >= UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY) \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;
 			if ($sth->rows) {
@@ -184,8 +184,8 @@ sub handler {
 					effect, \
 					hours, \
 					volume, \
-					energy FROM `samples_calculated` WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-					AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
+					energy FROM `samples_calculated` WHERE `serial` = ] . $quoted_serial . qq[ \
+					AND `unix_time` < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY) \
 					ORDER BY `unix_time` ASC]);
 				$sth->execute;
 				open(my $fh, '>', $document_root . $data_cache_path . '/' . $serial . '.csv') || warn $!;
