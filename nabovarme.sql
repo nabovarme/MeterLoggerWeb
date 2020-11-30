@@ -1,31 +1,27 @@
-# ************************************************************
-# Sequel Pro SQL dump
-# Version 5446
-#
-# https://www.sequelpro.com/
-# https://github.com/sequelpro/sequelpro
-#
-# Host: 127.0.0.1 (MySQL 5.5.62-0+deb8u1)
-# Database: nabovarme
-# Generation Time: 2020-11-30 21:17:27 +0000
-# ************************************************************
-
+-- MySQL dump 10.13  Distrib 5.5.62, for debian-linux-gnu (x86_64)
+--
+-- Host: localhost    Database: nabovarme
+-- ------------------------------------------------------
+-- Server version	5.5.62-0+deb8u1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8 */;
-SET NAMES utf8mb4;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
-
-# Dump of table accounts
-# ------------------------------------------------------------
+--
+-- Table structure for table `accounts`
+--
 
 DROP TABLE IF EXISTS `accounts`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `accounts` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `type` enum('payment','membership','charge') COLLATE utf8mb4_unicode_ci DEFAULT 'payment',
@@ -38,15 +34,16 @@ CREATE TABLE `accounts` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2172 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table accounts_auto
-# ------------------------------------------------------------
+--
+-- Table structure for table `accounts_auto`
+--
 
 DROP TABLE IF EXISTS `accounts_auto`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `accounts_auto` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -67,30 +64,32 @@ CREATE TABLE `accounts_auto` (
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   UNIQUE KEY `unique_info_row_idx` (`info_row_hash`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3416 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table accounts_auto_payers_learned
-# ------------------------------------------------------------
+--
+-- Table structure for table `accounts_auto_payers_learned`
+--
 
 DROP TABLE IF EXISTS `accounts_auto_payers_learned`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `accounts_auto_payers_learned` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `phone` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table alarms
-# ------------------------------------------------------------
+--
+-- Table structure for table `alarms`
+--
 
 DROP TABLE IF EXISTS `alarms`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `alarms` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `enabled` tinyint(1) NOT NULL DEFAULT '1',
@@ -107,15 +106,16 @@ CREATE TABLE `alarms` (
   `up_message` longtext COLLATE utf8mb4_unicode_ci,
   `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table command_queue
-# ------------------------------------------------------------
+--
+-- Table structure for table `command_queue`
+--
 
 DROP TABLE IF EXISTS `command_queue`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `command_queue` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -127,15 +127,16 @@ CREATE TABLE `command_queue` (
   `timeout` int(11) NOT NULL DEFAULT '0',
   `sent_count` int(11) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=195767784 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table log
-# ------------------------------------------------------------
+--
+-- Table structure for table `log`
+--
 
 DROP TABLE IF EXISTS `log`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `log` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -143,28 +144,30 @@ CREATE TABLE `log` (
   `param` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=35995078 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table meter_groups
-# ------------------------------------------------------------
+--
+-- Table structure for table `meter_groups`
+--
 
 DROP TABLE IF EXISTS `meter_groups`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table meters
-# ------------------------------------------------------------
+--
+-- Table structure for table `meters`
+--
 
 DROP TABLE IF EXISTS `meters`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `meters` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `enabled` tinyint(1) DEFAULT '1',
@@ -200,15 +203,16 @@ CREATE TABLE `meters` (
   `comment` longtext COLLATE utf8mb4_unicode_ci,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=328 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table samples
-# ------------------------------------------------------------
+--
+-- Table structure for table `samples`
+--
 
 DROP TABLE IF EXISTS `samples`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `samples` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -225,15 +229,16 @@ CREATE TABLE `samples` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=298034942 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table samples_cache
-# ------------------------------------------------------------
+--
+-- Table structure for table `samples_cache`
+--
 
 DROP TABLE IF EXISTS `samples_cache`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `samples_cache` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -250,15 +255,16 @@ CREATE TABLE `samples_cache` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=297783923 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table samples_calculated
-# ------------------------------------------------------------
+--
+-- Table structure for table `samples_calculated`
+--
 
 DROP TABLE IF EXISTS `samples_calculated`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `samples_calculated` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -275,15 +281,16 @@ CREATE TABLE `samples_calculated` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3857986737 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table sms_auth
-# ------------------------------------------------------------
+--
+-- Table structure for table `sms_auth`
+--
 
 DROP TABLE IF EXISTS `sms_auth`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sms_auth` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `cookie_token` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -297,15 +304,16 @@ CREATE TABLE `sms_auth` (
   `user_agent` longtext COLLATE utf8mb4_unicode_ci,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=428845 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table users
-# ------------------------------------------------------------
+--
+-- Table structure for table `users`
+--
 
 DROP TABLE IF EXISTS `users`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `username` varchar(256) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
@@ -318,15 +326,16 @@ CREATE TABLE `users` (
   `meter_id` int(255) DEFAULT NULL,
   `comment` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=86 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-
-
-# Dump of table wifi_scan
-# ------------------------------------------------------------
+--
+-- Table structure for table `wifi_scan`
+--
 
 DROP TABLE IF EXISTS `wifi_scan`;
-
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `wifi_scan` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -337,14 +346,16 @@ CREATE TABLE `wifi_scan` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=90947432 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-
-
-
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2020-11-30 22:47:09
