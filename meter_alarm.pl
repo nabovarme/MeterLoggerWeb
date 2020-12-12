@@ -111,11 +111,7 @@ sub check_conditions {
 			$down_message =~ s/\$id/$id/g;
 			$up_message =~ s/\$id/$id/g;
 			
-			@down_message_vars = ($down_message =~ /\$(\w+)/g);
-			if (scalar(@down_message_vars) == 0) {
-				@down_message_vars = ();
-			}
-			else {
+			if (@down_message_vars = ($down_message =~ /\$(\w+)/g)) {
 				# we need to look up symbolic variables
 				for $down_message_var (@down_message_vars) {
 					next if $down_message_var =~ /^id$/;	# dont lookup $id
@@ -137,11 +133,7 @@ sub check_conditions {
 				
 			}
 			
-			@up_message_vars = ($up_message =~ /\$(\w+)/g);
-			if (scalar(@up_message_vars) == 0) {
-				@up_message_vars = ();
-			}
-			else {
+			if (@up_message_vars = ($up_message =~ /\$(\w+)/g)) {
 				# we need to look up symbolic variables
 				for $up_message_var (@up_message_vars) {
 					next if $up_message_var =~ /^id$/;	# dont lookup $id
@@ -163,11 +155,7 @@ sub check_conditions {
 				
 			}
 			
-			@condition_vars = ($condition =~ /\$(\w+)/g);
-			if (scalar(@condition_vars) == 0) {
-				@condition_vars = ();
-			}
-			else {
+			if (@condition_vars = ($condition =~ /\$(\w+)/g)) {
 				# we need to look up median value for passed condition variables
 				for $condition_var (@condition_vars) {
 					my $quoted_condition_var = '`' . $condition_var . '`';
