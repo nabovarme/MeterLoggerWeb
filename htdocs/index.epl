@@ -30,6 +30,10 @@
 	.default {
 		font-family: Verdana, Geneva, sans-serif;
 	}
+	.default-disabled {
+		font-family: Verdana, Geneva, sans-serif;
+		color: #9c9c9c;
+	}
 	.default-bold {
 		font-family: Verdana, Geneva, sans-serif;
 		font-weight: bold;
@@ -45,7 +49,7 @@
     [- 
 	# get all meters
           if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`type`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`enabled`, meters.`type`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
 			$sth->execute;			
 		  }
 	$last_group = '';
@@ -222,19 +226,19 @@
 	</tr>
 [$ endif $]
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
-		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
-		<td align="right"><span class="default">[$ if (!$d->{type} =~ /^water$/i) $][$ else $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
+		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} +]</span></td>
+		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if (!$d->{type} =~ /^water$/i) $][$ else $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
+		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
+		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[$ if ($d->{type} =~ /^water$/i) $][+ sprintf("%.0f", $d3_volume->{m3_left}) || "0" +] m<sup>3</sup>[$ else $][+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kWh[$ endif $]</span></td>
+		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{type} =~ /^water$/i) $][+ sprintf("%.0f", $d3_volume->{m3_left}) || "0" +] m<sup>3</sup>[$ else $][+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kWh[$ endif $]</span></td>
 		<td>&nbsp;</td>
-		<td align="right"><span class="default">[$ if ($d->{type} =~ /^water$/i) $][+ $volume_time_left_str +][$ else $][+ $energy_time_left_str +][$ endif $]</lefts></td>
+		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{type} =~ /^water$/i) $][+ $volume_time_left_str +][$ else $][+ $energy_time_left_str +][$ endif $]</lefts></td>
 		<td>&nbsp;</td>
-		<td align="left"><span class="default"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
+		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
 [-
 #		<td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
 -]
