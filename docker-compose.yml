@@ -66,6 +66,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     container_name: meter_grapher
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -164,3 +166,9 @@ services:
       METERLOGGER_DB_HOST: meterlogger:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+
+  redis:
+    image: redis
+    container_name: redis
+    restart: always
+

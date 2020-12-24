@@ -38,8 +38,6 @@ RUN apt-get update && apt-get install -y \
 	texinfo \
 	sudo \
 	screen \
-	redis-server \
-	redis-tools \
 	rsync \
 	libdbd-mysql-perl \
 	libdbi-perl \
