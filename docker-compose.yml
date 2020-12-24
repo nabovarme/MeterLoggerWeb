@@ -168,7 +168,7 @@ services:
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
   redis:
-    image: redis
+    image: redis:latest
     container_name: redis
     restart: always
 
