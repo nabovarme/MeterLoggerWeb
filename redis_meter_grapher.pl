@@ -12,7 +12,7 @@ use Config;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
-use lib qw( /Users/stoffer/esp8266/MeterLoggerWeb/perl/ );
+
 use Nabovarme::Db;
 use Nabovarme::Crypto;
 
