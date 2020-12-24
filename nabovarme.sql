@@ -345,7 +345,8 @@ CREATE TABLE `wifi_scan` (
   `channel` int(11) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `serial_unix_time_idx` (`serial`,`unix_time`)
+  KEY `serial_unix_time_idx` (`serial`,`unix_time`),
+  KEY `ssid_idx` (`ssid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=90947432 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
