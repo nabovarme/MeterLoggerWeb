@@ -52,6 +52,8 @@ else {
 	die $!;
 }
 
+my $crypto = new Nabovarme::Crypto;
+
 # start mqtt run loop
 while (1) {
 	my ($queue, $job_id) = $redis->blpop(join(':', $queue_name, 'queue'), $timeout);
@@ -94,7 +96,6 @@ sub mqtt_offline_handler {
 
 sub mqtt_flash_error_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/flash_error/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -103,45 +104,28 @@ sub mqtt_flash_error_handler {
 	$unix_time = $2;
 
 	$message =~ /(.{32})(.{16})(.+)/s;
-	my $mac = $1;
-	my $iv = $2;
-	my $ciphertext = $3;
+	$flash_error = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($flash_error) {
+		# remove trailing nulls
+		$flash_error =~ s/[\x00\s]+$//;
+		$flash_error .= '';
+
+		my $quoted_flash_error = $dbh->quote($flash_error);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
+		syslog('info', $topic . "\t" . 'flash_error');
 		
-	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-	$sth->execute;
-	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
-		my $sha256 = sha256(pack('H*', $key));
-		my $aes_key = substr($sha256, 0, 16);
-		my $hmac_sha256_key = substr($sha256, 16, 16);
-
-		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-			# hmac sha256 ok
-			$m = Crypt::Mode::CBC->new('AES');
-			$flash_error = $m->decrypt($ciphertext, $aes_key, $iv);
-			
-			# remove trailing nulls
-			$flash_error =~ s/[\x00\s]+$//;
-			$flash_error .= '';
-
-			my $quoted_flash_error = $dbh->quote($flash_error);
-			my $quoted_meter_serial = $dbh->quote($meter_serial);
-			my $quoted_unix_time = $dbh->quote($unix_time);
-				$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
-			syslog('info', $topic . "\t" . 'flash_error');
-			
-		}
-		else {
-			# hmac sha256 not ok
-			syslog('info', $topic . "hmac error");
-			syslog('info', $topic . "\t" . unpack('H*', $message));
-		}
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
 sub mqtt_reset_reason_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/reset_reason/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -150,38 +134,22 @@ sub mqtt_reset_reason_handler {
 	$unix_time = $2;
 
 	$message =~ /(.{32})(.{16})(.+)/s;
-	my $mac = $1;
-	my $iv = $2;
-	my $ciphertext = $3;
-		
-	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-	$sth->execute;
-	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
-		my $sha256 = sha256(pack('H*', $key));
-		my $aes_key = substr($sha256, 0, 16);
-		my $hmac_sha256_key = substr($sha256, 16, 16);
+	$reset_reason = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($reset_reason) {
+		# remove trailing nulls
+		$reset_reason =~ s/[\x00\s]+$//;
+		$reset_reason .= '';
 
-		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-			# hmac sha256 ok
-			$m = Crypt::Mode::CBC->new('AES');
-			$reset_reason = $m->decrypt($ciphertext, $aes_key, $iv);
-			
-			# remove trailing nulls
-			$reset_reason =~ s/[\x00\s]+$//;
-			$reset_reason .= '';
-
-			my $quoted_reset_reason = $dbh->quote($reset_reason);
-			my $quoted_meter_serial = $dbh->quote($meter_serial);
-			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
-			syslog('info', $topic . "\t" . 'reset_reason');			
-		}
-		else {
-			# hmac sha256 not ok
-			syslog('info', $topic . "hmac error");
-			syslog('info', $topic . "\t" . unpack('H*', $message));
-		}
+		my $quoted_reset_reason = $dbh->quote($reset_reason);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
+		syslog('info', $topic . "\t" . 'reset_reason');			
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
