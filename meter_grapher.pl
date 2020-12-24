@@ -120,7 +120,6 @@ while (1) {
 
 sub v2_mqtt_sample_handler {
 	my ($topic, $message) = @_;
-	my $m;
 
 	unless ($topic =~ m!/sample/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -197,7 +196,6 @@ sub v2_mqtt_sample_handler {
 
 sub v2_mqtt_version_handler {
 	my ($topic, $message) = @_;
-	my $m;
 
 	unless ($topic =~ m!/version/v\d+/([^/]+)/(\d+)!) {
 	        return;
@@ -229,7 +227,6 @@ sub v2_mqtt_version_handler {
 
 sub v2_mqtt_status_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/status/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -262,7 +259,6 @@ sub v2_mqtt_status_handler {
 
 sub v2_mqtt_uptime_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/uptime/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -293,7 +289,6 @@ sub v2_mqtt_uptime_handler {
 
 sub v2_mqtt_ssid_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/ssid/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -324,7 +319,6 @@ sub v2_mqtt_ssid_handler {
 
 sub v2_mqtt_rssi_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/rssi/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -355,7 +349,6 @@ sub v2_mqtt_rssi_handler {
 
 sub v2_mqtt_wifi_status_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/wifi_status/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -386,7 +379,6 @@ sub v2_mqtt_wifi_status_handler {
 
 sub v2_mqtt_ap_status_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/ap_status/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -417,7 +409,6 @@ sub v2_mqtt_ap_status_handler {
 
 sub v2_mqtt_reset_reason_handler {
 	my ($topic, $message) = @_;
-	my $m;
 	
 	unless ($topic =~ m!/reset_reason/v\d+/([^/]+)/(\d+)!) {
 		return;
@@ -451,7 +442,6 @@ sub v2_mqtt_reset_reason_handler {
 
 sub v2_mqtt_scan_result_handler {
 	my ($topic, $message) = @_;
-	my $m;
 
 	unless ($topic =~ m!/scan_result/v\d+/([^/]+)/(\d+)!) {
 		return;
