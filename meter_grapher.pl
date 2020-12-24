@@ -100,6 +100,15 @@ while (1) {
 		elsif ($data{topic} =~ /scan_result\/v2/) {
 			v2_mqtt_scan_result_handler($data{topic}, $data{message});
 		}
+		elsif ($data{topic} =~ /offline\/v1\//) {
+			mqtt_offline_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /flash_error\/v2/) {
+			mqtt_flash_error_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /reset_reason\/v2/) {
+			mqtt_reset_reason_handler($data{topic}, $data{message});
+		}
 		
 		# remove data for job
 		$redis->del($job_id);
@@ -492,5 +501,77 @@ sub v2_mqtt_scan_result_handler {
 	$mqtt_data = undef;
 }
 
+sub mqtt_offline_handler {
+	my ($topic, $message) = @_;
+
+	unless ($topic =~ m!/offline/v\d+/([^/]+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = time();
+
+	my $quoted_meter_serial = $dbh->quote($meter_serial);
+	my $quoted_unix_time = $dbh->quote($unix_time);
+	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES ($quoted_meter_serial, 'offline', $quoted_unix_time)]) or warn $!;
+	syslog('info', $topic . "\t" . 'offline');
+}
+
+sub mqtt_flash_error_handler {
+	my ($topic, $message) = @_;
+	
+	unless ($topic =~ m!/flash_error/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$message =~ /(.{32})(.{16})(.+)/s;
+	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($message) {
+		# remove trailing nulls
+		$message =~ s/[\x00\s]+$//;
+		$message .= '';
+
+		my $quoted_flash_error = $dbh->quote($message);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
+		syslog('info', $topic . "\t" . 'flash_error');
+		
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
+	}
+}
+
+sub mqtt_reset_reason_handler {
+	my ($topic, $message) = @_;
+	
+	unless ($topic =~ m!/reset_reason/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$message =~ /(.{32})(.{16})(.+)/s;
+	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($message) {
+		# remove trailing nulls
+		$message =~ s/[\x00\s]+$//;
+		$message .= '';
+
+		my $quoted_reset_reason = $dbh->quote($message);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
+		syslog('info', $topic . "\t" . 'reset_reason');			
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
+	}
+}
 __END__
-s
