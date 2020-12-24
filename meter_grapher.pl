@@ -175,15 +175,12 @@ sub v2_mqtt_sample_handler {
 		$dbh->do(qq[UPDATE meters SET \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn Dumper({uptime => $uptime});
 		syslog('info', $topic . " " . $message);
-#		warn $topic . "\t" . $message;
 	}
 	else {
 		# hmac sha256 not ok
 		syslog('info', $topic . "hmac error");
 		syslog('info', $topic . "\t" . unpack('H*', $message));
-		warn $topic . "\t" . unpack('H*', $message);
 	}
 	$mqtt_data = undef;
 #	print "*** " . tv_interval($t0) . " ***\n";
@@ -213,13 +210,11 @@ sub v2_mqtt_version_handler {
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
 						syslog('info', $topic . "\t" . $sw_version);
-#						warn $topic . "\t" . $sw_version;
 	}
 	else {
 		# hmac sha256 not ok
 		syslog('info', $topic . "hmac error");
 		syslog('info', $topic . "\t" . unpack('H*', $message));
-		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -246,13 +241,13 @@ sub v2_mqtt_status_handler {
 						valve_status = $quoted_valve_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $valve_status;
 		syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
 		
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -279,11 +274,11 @@ sub v2_mqtt_uptime_handler {
 						uptime = $quoted_uptime, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $uptime;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -310,11 +305,11 @@ sub v2_mqtt_ssid_handler {
 						ssid = $quoted_ssid, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $ssid;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -341,11 +336,11 @@ sub v2_mqtt_rssi_handler {
 						rssi = $quoted_rssi, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $rssi;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -372,11 +367,11 @@ sub v2_mqtt_wifi_status_handler {
 						wifi_status = $quoted_wifi_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $wifi_status;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -403,11 +398,11 @@ sub v2_mqtt_ap_status_handler {
 						ap_status = $quoted_ap_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $ap_status;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -437,11 +432,11 @@ sub v2_mqtt_reset_reason_handler {
 						reset_reason = $quoted_reset_reason, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-#		warn $topic . "\t" . $reset_reason;
 	}
 	else {
 		# hmac sha256 not ok
-		warn Dumper("serial $meter_serial checksum error");
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 }
 
@@ -488,11 +483,11 @@ sub v2_mqtt_scan_result_handler {
 		$sth->finish;
 	
 		syslog('info', $topic . " " . $message);
-#		warn $topic . "\t" . $message;
 	}
 	else {
 		# hmac sha256 not ok
-
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
 	}
 	$mqtt_data = undef;
 }

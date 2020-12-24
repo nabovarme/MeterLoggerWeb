@@ -53,7 +53,9 @@ $mqtt->run(	q[/sample/v2/#] => \&v2_mqtt_handler,
 	q[/ap_status/v2/#] => \&v2_mqtt_handler,
 	q[/reset_reason/v2/#] => \&v2_mqtt_handler,
 	q[/scan_result/v2/#] => \&v2_mqtt_handler,
-	q[/crypto/v2/#] => \&v2_mqtt_handler
+	q[/offline/v1/#] => \&v2_mqtt_handler,
+	q[/flash_error/v2/#] => \&v2_mqtt_handler,
+	q[/reset_reason/v2/#] => \&v2_mqtt_handler
 );
 
 # end of main

@@ -3,7 +3,7 @@
 use strict;
 use Data::Dumper;
 use Sys::Syslog;
-use Net::MQTT::Simple;
+use Redis;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
@@ -11,7 +11,9 @@ use Config::Simple;
 
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
+
 use Nabovarme::Db;
+use Nabovarme::Crypto;
 
 use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 
@@ -25,7 +27,16 @@ my $meter_serial;
 my $flash_error;
 my $reset_reason;
 
-my $mqtt = Net::MQTT::Simple->new($config->param('mqtt_host'));
+#my $mqtt = Net::MQTT::Simple->new($config->param('mqtt_host'));
+
+my $redis_host = $config->param('redis_host') || '127.0.0.1';
+my $redis_port = $config->param('redis_port') || '6379';
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+);
+
+my $queue_name	= 'mqtt';
+my $timeout		= 86400;
 
 my $mqtt_data = undef;
 #my $mqtt_count = 0;
@@ -42,10 +53,26 @@ else {
 }
 
 # start mqtt run loop
-$mqtt->run(	q[/offline/v1/#] => \&mqtt_offline_handler,
-	q[/flash_error/v2/#] => \&mqtt_flash_error_handler,
-	q[/reset_reason/v2/#] => \&mqtt_reset_reason_handler,
-);
+while (1) {
+	my ($queue, $job_id) = $redis->blpop(join(':', $queue_name, 'queue'), $timeout);
+	if ($job_id) {
+	
+		my %data = $redis->hgetall($job_id);
+	
+		if ($data{topic} =~ /offline\/v1\//) {
+			mqtt_offline_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /flash_error\/v2/) {
+			mqtt_flash_error_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /reset_reason\/v2/) {
+			mqtt_reset_reason_handler($data{topic}, $data{message});
+		}
+		
+		# remove data for job
+		$redis->del($job_id);
+	}
+}
 
 # end of main
 
@@ -62,8 +89,7 @@ sub mqtt_offline_handler {
 	my $quoted_meter_serial = $dbh->quote($meter_serial);
 	my $quoted_unix_time = $dbh->quote($unix_time);
 	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES ($quoted_meter_serial, 'offline', $quoted_unix_time)]) or warn $!;
-        syslog('info', $topic . "\t" . 'offline');
-	warn $topic . "\t" . 'offline' . "\n";
+	syslog('info', $topic . "\t" . 'offline');
 }
 
 sub mqtt_flash_error_handler {
@@ -101,14 +127,14 @@ sub mqtt_flash_error_handler {
 			my $quoted_flash_error = $dbh->quote($flash_error);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-                	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
+				$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
 			syslog('info', $topic . "\t" . 'flash_error');
-			warn $topic . "\t" . 'flash_error' . "\n";
 			
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			syslog('info', $topic . "hmac error");
+			syslog('info', $topic . "\t" . unpack('H*', $message));
 		}
 	}
 }
@@ -148,14 +174,13 @@ sub mqtt_reset_reason_handler {
 			my $quoted_reset_reason = $dbh->quote($reset_reason);
 			my $quoted_meter_serial = $dbh->quote($meter_serial);
 			my $quoted_unix_time = $dbh->quote($unix_time);
-                	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
-			syslog('info', $topic . "\t" . 'reset_reason');
-			warn $topic . "\t" . 'reset_reason' . "\n";
-			
+			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
+			syslog('info', $topic . "\t" . 'reset_reason');			
 		}
 		else {
 			# hmac sha256 not ok
-			warn Dumper("serial $meter_serial checksum error");
+			syslog('info', $topic . "hmac error");
+			syslog('info', $topic . "\t" . unpack('H*', $message));
 		}
 	}
 }
