@@ -56,7 +56,7 @@ else {
 }
 
 while (1) {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `close_notification_time`, `notification_state`, `notification_sent_at` FROM meters WHERE `type` = 'heat' AND (`email_notification` OR `sms_notification`)]);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `min_amount`, `valve_status`, `sw_version`, `email_notification`, `sms_notification`, `close_notification_time`, `notification_state`, `notification_sent_at` FROM meters WHERE `enabled` AND `type` = 'heat' AND (`email_notification` OR `sms_notification`)]);
 	$sth->execute;
 	
 	while ($d = $sth->fetchrow_hashref) {
