@@ -125,7 +125,7 @@ sub check_conditions {
 					$sth_down_message_vars->execute;
 					if ($sth_down_message_vars->rows) {
 						$values = $sth_down_message_vars->fetchall_arrayref;
-						$median = median(@$values) + 0.0;	# hack to convert , to .
+						$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
 						# replace symbol with value from database
 						$down_message =~ s/\$$down_message_var/$median/x;
 					}
@@ -143,11 +143,11 @@ sub check_conditions {
 					my $values = [];
 					my $median;
 					my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
-																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 3]);
+																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
 					$sth_up_message_vars->execute;
 					if ($sth_up_message_vars->rows) {
 						$values = $sth_up_message_vars->fetchall_arrayref;
-						$median = median(@$values) + 0.0;	# hack to convert , to .
+						$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
 						# replace symbol with value from database
 						$up_message =~ s/\$$up_message_var/$median/x;
 					}
@@ -163,11 +163,11 @@ sub check_conditions {
 					my $values = [];
 					my $median;
 					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[ FROM `samples_cache` \
-																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 3]);
+																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
 					if ($sth_condition_vars->execute) {
 						if (!$@ and $sth_condition_vars->rows) {
 							$values = $sth_condition_vars->fetchall_arrayref;
-							$median = median(@$values) + 0.0;	# hack to convert , to .
+							$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
 							# replace symbol with value from database
 							$condition =~ s/\$$condition_var/$median/x;
 							$down_message =~ s/\$$condition_var/$median/x;
