@@ -12,11 +12,11 @@
 # 4. # docker run -t -i -p 8080:80 meterloggerweb:latest
 
 
-FROM debian:jessie
+FROM debian:buster
 
 MAINTAINER Kristoffer Ek <stoffer@skulp.net>
 
-RUN "echo" "deb http://http.us.debian.org/debian jessie non-free" >> /etc/apt/sources.list
+RUN "echo" "deb http://http.us.debian.org/debian buster non-free" >> /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
-	mysql-client\
+	default-mysql-client\
 	software-properties-common \
 	texlive \
 	texlive-latex-base \

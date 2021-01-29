@@ -12,11 +12,11 @@
 # 4. # docker run -t -i -p 8080:80 meterloggerweb:latest
 
 
-FROM debian:jessie
+FROM debian:buster
 
 MAINTAINER Kristoffer Ek <stoffer@skulp.net>
 
-RUN "echo" "deb http://http.us.debian.org/debian jessie non-free" >> /etc/apt/sources.list
+RUN "echo" "deb http://http.us.debian.org/debian buster non-free" >> /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
-	mysql-client
+	default-mysql-client
 
 USER root
 
@@ -50,6 +50,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+RUN PERL_MM_USE_DEFAULT=1 cpan install Crypt::Mode::CBC
 RUN PERL_MM_USE_DEFAULT=1 cpan install Redis
 # we need a specific version here
 RUN PERL_MM_USE_DEFAULT=1 cpanp -i http://cpan.metacpan.org/authors/id/M/MI/MIK/CryptX-0.036.tar.gz
