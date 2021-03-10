@@ -55,7 +55,7 @@ services:
       - "127.0.0.1:8000:80"
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
@@ -73,7 +73,7 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
@@ -91,7 +91,7 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
@@ -109,7 +109,7 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
@@ -144,7 +144,7 @@ services:
       - ./sms/outgoing:/var/spool/sms/outgoing
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
@@ -163,7 +163,7 @@ services:
       - ./crontab:/etc/crontab
     restart: always
     environment:
-      METERLOGGER_DB_HOST: meterlogger:3306
+      METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
