@@ -112,8 +112,8 @@ services:
     privileged: true
     volumes:
 #      - /dev/bus/usb:/dev/bus/usb
-      - ./smsd.conf:/etc/smsd.conf
-      - ./sms:/var/spool/sms
+      - /dev/ttyUSB0:/dev/ttyUSB0
+#      - ./sms:/var/spool/sms
     restart: always
     environment:
       SMSD_HOST: ${SMSD_HOST}
@@ -129,8 +129,8 @@ services:
     container_name: meter_sms
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-      - ./sms_spool:/var/www/nabovarme/sms_spool
-      - ./sms/outgoing:/var/spool/sms/outgoing
+#      - ./sms_spool:/var/www/nabovarme/sms_spool
+#      - ./sms/outgoing:/var/spool/sms/outgoing
     restart: always
     environment:
       METERLOGGER_DB_HOST: db:3306
@@ -158,6 +158,17 @@ services:
     image: redis:latest
     container_name: redis
     restart: always
+
+  postfix:
+    image: boky/postfix
+    container_name: postfix
+    volumes:
+      - ./postfix_custom_config:/docker-init.db/
+    restart: always
+    environment:
+      HOSTNAME: meterlogger
+      ALLOWED_SENDER_DOMAINS: meterlogger
+      RELAYHOST: smsd
 
 networks:
   default:

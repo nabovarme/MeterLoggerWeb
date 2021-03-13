@@ -12,10 +12,9 @@ use Math::Random::Secure qw(rand);
 use DBI;
 use utf8;
 
-use File::Temp qw( tempfile );
-use File::Basename;
-use File::Copy;
 use Encode qw( encode decode );
+
+use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
 
@@ -262,19 +261,24 @@ sub logout_handler {
 sub sms_send {
 	my ($destination, $message) = @_;
 	$destination = '45' . $destination;
+
+	my $smtp = Net::SMTP->new('postfix');	
 		
 	# convert message from UTF-8 to UCS
 	$message = encode('UCS-2BE', decode('UTF-8', $message));
 
-	my ($fh, $temp_file) = tempfile();
+	$smtp->mail('meterlogger');
+	if ($smtp->to($destination . '@meterlogger')) {
+		$smtp->data();
+		$smtp->datasend("$message\n");
+		$smtp->datasend("\n");
+		$smtp->datasend("\n");
+		$smtp->dataend();
+	} else {
+		print "Error: ", $smtp->message();
+	}
 
-	print $fh "To: " . $destination . "\n";
-	print $fh "Alphabet: UCS\n";
-	print $fh "\n";
-	print $fh $message . "\n";
-	close $fh;
-	
-	move($temp_file, SMS_SPOOL_DIR . '/' . $destination . '_' . basename($temp_file)) || die $!;
+	$smtp->quit;
 }
 
 1;
