@@ -214,8 +214,7 @@ CREATE TABLE `samples` (
   `energy` float DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `serial_unix_time_idx` (`serial`,`unix_time`),
-  KEY `unix_time_idx` (`unix_time`)
+  KEY `serial_unix_time_idx` (`serial`,`unix_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
