@@ -32,8 +32,7 @@ RUN apt-get update && apt-get install -y \
 	rsync \
 	smstools \
 	libnet-smtp-server-perl \
-	libemail-simple-perl \
-	socat
+	libemail-simple-perl
 
 USER root
 
