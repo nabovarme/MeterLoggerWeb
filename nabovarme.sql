@@ -215,7 +215,7 @@ CREATE TABLE `samples` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`),
-  KEY `unix_time` (`unix_time`)
+  KEY `unix_time_idx` (`unix_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
