@@ -63,9 +63,9 @@ HTMLclass: 'green'
 
 
 
-	if ( timeSinceLast > 3600){
+	if ( timeSinceLast > 86400){
 n.HTMLclass = 'red';
-	} else if (timeSinceLast > 1800){
+	} else if (timeSinceLast > 3600){
 n.HTMLclass = 'yellow';
 } 
 
