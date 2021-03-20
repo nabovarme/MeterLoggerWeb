@@ -164,13 +164,13 @@
 		-]
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
-						icon: [$ if ($d->{last_updated} < time() - 3600) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 1800) $]semiOfflineMarker[$ else $][$ if (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
+						icon: [$ if ($d->{last_updated} < time() - 86400) $]offlineMarker[$ elsif ($d->{last_updated} < time() - 3600) $]semiOfflineMarker[$ else $][$ if (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]onlineCloseMarker[$ else $]onlineOpenMarker[$ endif $][$ endif $],
 						riseOnHover: true,
 						name: '[+ $d->{serial} +] [+ $d->{info} +]'
 					})
-				[$ if ($d->{last_updated} < time() - 3600) $]
+				[$ if ($d->{last_updated} < time() - 86400) $]
 					.setZIndexOffset(1000)
-				[$ elsif ($d->{last_updated} < time() - 1800) $]
+				[$ elsif ($d->{last_updated} < time() - 3600) $]
 					.setZIndexOffset(900)
 				[$ elsif (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]
 					.setZIndexOffset(800)
