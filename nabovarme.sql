@@ -54,7 +54,6 @@ CREATE TABLE `accounts_auto` (
   `amount` float NOT NULL DEFAULT 0,
   `info` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `transaction_id` varchar(1024) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `price` float NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   UNIQUE KEY `transaction_id` (`transaction_id`) USING HASH
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
