@@ -111,6 +111,7 @@ services:
     container_name: smsd
     privileged: true
     volumes:
+      - ./smstools_spool:/var/spool/sms
 #      - /dev/bus/usb:/dev/bus/usb
       - /dev/ttyUSB0:/dev/ttyUSB0
 #      - ./sms:/var/spool/sms
