@@ -270,9 +270,7 @@ sub sms_send {
 	$smtp->mail('meterlogger');
 	if ($smtp->to($destination . '@meterlogger')) {
 		$smtp->data();
-		$smtp->datasend("$message\n");
-		$smtp->datasend("\n");
-		$smtp->datasend("\n");
+		$smtp->datasend("$message");
 		$smtp->dataend();
 	} else {
 		print "Error: ", $smtp->message();
