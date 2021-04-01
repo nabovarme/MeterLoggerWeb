@@ -56,6 +56,7 @@ while (my $conn = $server->accept()) {
 		print $fh "Alphabet: UCS\n";
 		print $fh "\n";
 		print $fh $message . "\n";
+		close($fh);
 
 		my $message_file = SPOOL_DIR . '/' . $destination . '_' . basename($temp_file);
 		my $lock_file = $message_file . '.LOCK';
