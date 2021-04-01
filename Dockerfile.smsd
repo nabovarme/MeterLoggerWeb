@@ -43,6 +43,8 @@ COPY ./smtp_server.pl .
 COPY ./docker-entrypoint_smsd.sh /docker-entrypoint.sh
 
 RUN mkdir -p /var/run/smstools
+RUN chown smsd:smsd /var/run/smstools
+RUN chown -R smsd:smsd /var/spool/sms
 
 CMD /docker-entrypoint.sh
 
