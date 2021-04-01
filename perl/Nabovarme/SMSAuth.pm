@@ -12,8 +12,6 @@ use Math::Random::Secure qw(rand);
 use DBI;
 use utf8;
 
-use Encode qw( encode decode );
-
 use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
@@ -264,9 +262,6 @@ sub sms_send {
 
 	my $smtp = Net::SMTP->new('postfix');	
 		
-	# convert message from UTF-8 to UCS
-	$message = encode('UCS-2BE', decode('UTF-8', $message));
-
 	$smtp->mail('meterlogger');
 	if ($smtp->to($destination . '@meterlogger')) {
 		$smtp->data();
