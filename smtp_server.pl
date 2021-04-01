@@ -57,11 +57,14 @@ while (my $conn = $server->accept()) {
 		print $fh "\n";
 		print $fh $message . "\n";
 
-		my $lock_file = SPOOL_DIR . '/' . $destination . '_' . basename($temp_file) . '.LOCK';
+		my $message_file = SPOOL_DIR . '/' . $destination . '_' . basename($temp_file);
+		my $lock_file = $message_file . '.LOCK';
 		open(LOCK_FILE, ">>" . $lock_file) || die "Cannot open file: " . $!;
 		close(LOCK_FILE);
+		chown USER, GROUP, $lock_file;
 
-		move($temp_file, SPOOL_DIR . '/' . $destination . '_' . basename($temp_file)) || die $!;
+		move($temp_file, $message_file) || die $!;
+		chown USER, GROUP, $message_file;
 
 		unlink $lock_file;		
 	}
