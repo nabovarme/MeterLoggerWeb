@@ -111,10 +111,8 @@ services:
     container_name: smsd
     privileged: true
     volumes:
-#      - ./smstools_spool:/var/spool/sms
-#      - /dev/bus/usb:/dev/bus/usb
+      - ./smstools_spool:/var/spool/sms
       - /dev/ttyUSB0:/dev/ttyUSB0
-#      - ./sms:/var/spool/sms
     restart: always
     environment:
       SMSD_HOST: ${SMSD_HOST}
