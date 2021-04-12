@@ -1,5 +1,5 @@
 /build/*
 db_data/*
-sms_spool/
+smstools_spool/
 mosquitto_data/
 **/.DS_Store
