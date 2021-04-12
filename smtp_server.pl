@@ -47,6 +47,7 @@ while (my $conn = $server->accept()) {
 
 		# convert message from UTF-8 to UCS
 		$message = encode('UCS-2BE', decode('UTF-8', $message));
+		$message =~ s/\r$//;	# remove trailing carriage return
 
 		my ($fh, $temp_file) = tempfile();
 		#binmode( $fh, ":utf8" );
@@ -55,7 +56,7 @@ while (my $conn = $server->accept()) {
 		print $fh "To: " . $destination . "\n";
 		print $fh "Alphabet: UCS\n";
 		print $fh "\n";
-		print $fh $message . "\n";
+		print $fh $message;
 		close($fh);
 
 		my $message_file = SPOOL_DIR . '/' . $destination . '_' . basename($temp_file);
