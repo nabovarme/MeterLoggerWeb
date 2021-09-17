@@ -176,7 +176,7 @@ sub v2_mqtt_sample_handler {
 			$dbh->quote($unix_time) . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
-			syslog('info', $sth->err . ": " . $sth->errstr);
+			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis");
 			
 			# re-insert to redis
 			# Create the next id
@@ -215,7 +215,7 @@ sub v2_mqtt_version_handler {
 	my ($topic, $message) = @_;
 
 	unless ($topic =~ m!/version/v\d+/([^/]+)/(\d+)!) {
-	        return;
+		return;
 	}
 	$meter_serial = $1;
 	$unix_time = $2;
@@ -233,7 +233,7 @@ sub v2_mqtt_version_handler {
 						sw_version = $quoted_sw_version, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-						syslog('info', $topic . "\t" . $sw_version);
+		syslog('info', $topic . "\t" . $sw_version);
 	}
 	else {
 		# hmac sha256 not ok
@@ -265,7 +265,6 @@ sub v2_mqtt_status_handler {
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
 		syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
-		
 	}
 	else {
 		# hmac sha256 not ok
@@ -318,7 +317,7 @@ sub v2_mqtt_ssid_handler {
 		# remove trailing nulls
 		$ssid =~ s/[\x00\s]+$//;
 		$ssid .= '';
-       
+
 		my $quoted_ssid = $dbh->quote($ssid);
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
