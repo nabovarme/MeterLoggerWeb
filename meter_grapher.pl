@@ -176,7 +176,7 @@ sub v2_mqtt_sample_handler {
 			$dbh->quote($unix_time) . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
-			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis");
+			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message);
 			
 			# re-insert to redis
 			# Create the next id
@@ -494,10 +494,27 @@ sub v2_mqtt_scan_result_handler {
 			$dbh->quote($mqtt_data->{rssi}) . ',' . 
 			$dbh->quote($mqtt_data->{channel}) . ',' . 
 			'UNIX_TIMESTAMP()' . qq[)]);
-		$sth->execute || syslog('info', "can't log to db");
+		$sth->execute;
+		if ($sth->err) {
+			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message);
+			
+			# re-insert to redis
+			# Create the next id
+			my $id = $redis->incr(join(':',$queue_name, 'id'));
+			my $job_id = join(':', $queue_name, $id);
+
+			my %data = (topic => $topic, message => $message);
+
+			# Set the data first
+			$redis->hmset($job_id, %data);
+
+			# Then add the job to the queue
+			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
+		}
+		else {
+			syslog('info', $topic . " " . $message);
+		}	
 		$sth->finish;
-	
-		syslog('info', $topic . " " . $message);
 	}
 	else {
 		# hmac sha256 not ok
