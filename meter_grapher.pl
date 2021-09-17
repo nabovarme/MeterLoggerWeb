@@ -191,15 +191,16 @@ sub v2_mqtt_sample_handler {
 			# Then add the job to the queue
 			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
 		}
+		else {
+			# update last_updated time stamp
+			my $quoted_meter_serial = $dbh->quote($meter_serial);
+			my $quoted_unix_time = $dbh->quote($unix_time);
+			$dbh->do(qq[UPDATE meters SET \
+							last_updated = $quoted_unix_time \
+							WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
+			syslog('info', $topic . " " . $message);			
+		}
 		$sth->finish;
-		
-		# update last_updated time stamp
-		my $quoted_meter_serial = $dbh->quote($meter_serial);
-		my $quoted_unix_time = $dbh->quote($unix_time);
-		$dbh->do(qq[UPDATE meters SET \
-						last_updated = $quoted_unix_time \
-						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . " " . $message);
 	}
 	else {
 		# hmac sha256 not ok
