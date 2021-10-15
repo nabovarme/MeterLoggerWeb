@@ -143,6 +143,10 @@ sub v2_mqtt_sample_handler {
 						$value *= 1000;
 						$unit = 'kWh';
 					}
+					if ($unit =~ /^Gj$/i) {
+						$value *= 277.77777777778;
+						$unit = 'kWh';
+					}
 				}
 				$mqtt_data->{$key} = $value;
 			}
