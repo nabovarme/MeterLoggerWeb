@@ -490,6 +490,13 @@ sub v2_mqtt_scan_result_handler {
 			`bssid`,
 			`rssi`,
 			`channel`,
+			`auth_mode`,
+			`pairwise_cipher`,
+			`group_cipher`,
+			`phy_11b`,
+			`phy_11g`,
+			`phy_11n`,
+			`wps`,
 			`unix_time`
 			) VALUES (] . 
 			$dbh->quote($meter_serial) . ',' . 
@@ -497,6 +504,13 @@ sub v2_mqtt_scan_result_handler {
 			$dbh->quote($mqtt_data->{bssid}) . ',' . 
 			$dbh->quote($mqtt_data->{rssi}) . ',' . 
 			$dbh->quote($mqtt_data->{channel}) . ',' . 
+			$dbh->quote($mqtt_data->{auth_mode}) . ',' . 
+			$dbh->quote($mqtt_data->{pairwise_cipher}) . ',' . 
+			$dbh->quote($mqtt_data->{group_cipher}) . ',' . 
+			$dbh->quote($mqtt_data->{phy_11b}) . ',' . 
+			$dbh->quote($mqtt_data->{phy_11g}) . ',' . 
+			$dbh->quote($mqtt_data->{phy_11n}) . ',' . 
+			$dbh->quote($mqtt_data->{wps}) . ',' . 
 			'UNIX_TIMESTAMP()' . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
