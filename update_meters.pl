@@ -118,6 +118,22 @@ sub get_version_and_status {
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
+
+		# send flash_id
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'flash_id',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
+
+		# send flash_size
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'flash_size',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
 	}
 }
 

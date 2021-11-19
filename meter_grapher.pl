@@ -35,6 +35,8 @@ my $rssi;
 my $wifi_status;
 my $ap_status;
 my $reset_reason;
+my $flash_id;
+my $flash_size;
 
 my $redis_host = $config->param('redis_host') || '127.0.0.1';
 my $redis_port = $config->param('redis_port') || '6379';
@@ -102,6 +104,12 @@ while (1) {
 		}
 		elsif ($data{topic} =~ /offline\/v1\//) {
 			mqtt_offline_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /flash_id\/v2/) {
+			mqtt_flash_id_handler($data{topic}, $data{message});
+		}
+		elsif ($data{topic} =~ /flash_size\/v2/) {
+			mqtt_flash_size_handler($data{topic}, $data{message});
 		}
 		elsif ($data{topic} =~ /flash_error\/v2/) {
 			mqtt_flash_error_handler($data{topic}, $data{message});
@@ -555,6 +563,68 @@ sub mqtt_offline_handler {
 	my $quoted_unix_time = $dbh->quote($unix_time);
 	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES ($quoted_meter_serial, 'offline', $quoted_unix_time)]) or warn $!;
 	syslog('info', $topic . "\t" . 'offline');
+}
+
+sub mqtt_flash_id_handler {
+	my ($topic, $message) = @_;
+
+	unless ($topic =~ m!/flash_id/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$flash_id = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($sw_version) {	
+		# remove trailing nulls
+		$sw_version =~ s/[\x00\s]+$//;
+		$sw_version .= '';
+
+		my $quoted_flash_id = $dbh->quote($flash_id);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[UPDATE meters SET \
+						flash_id = $quoted_flash_id, \
+						last_updated = $quoted_unix_time \
+						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
+		syslog('info', $topic . "\t" . $flash_id);
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
+	}
+}
+
+sub mqtt_flash_size_handler {
+	my ($topic, $message) = @_;
+
+	unless ($topic =~ m!/flash_size/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	$flash_size = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if ($sw_version) {	
+		# remove trailing nulls
+		$sw_version =~ s/[\x00\s]+$//;
+		$sw_version .= '';
+
+		my $quoted_flash_size = $dbh->quote($flash_size);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[UPDATE meters SET \
+						flash_size = $quoted_flash_size, \
+						last_updated = $quoted_unix_time \
+						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
+		syslog('info', $topic . "\t" . $flash_size);
+	}
+	else {
+		# hmac sha256 not ok
+		syslog('info', $topic . "hmac error");
+		syslog('info', $topic . "\t" . unpack('H*', $message));
+	}
 }
 
 sub mqtt_flash_error_handler {

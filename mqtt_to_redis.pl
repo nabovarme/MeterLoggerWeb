@@ -54,6 +54,8 @@ $mqtt->run(	q[/sample/v2/#] => \&v2_mqtt_handler,
 	q[/reset_reason/v2/#] => \&v2_mqtt_handler,
 	q[/scan_result/v2/#] => \&v2_mqtt_handler,
 	q[/offline/v1/#] => \&v2_mqtt_handler,
+	q[/flash_id/v2/#] => \&v2_mqtt_handler,
+	q[/flash_size/v2/#] => \&v2_mqtt_handler,
 	q[/flash_error/v2/#] => \&v2_mqtt_handler,
 	q[/reset_reason/v2/#] => \&v2_mqtt_handler
 );
