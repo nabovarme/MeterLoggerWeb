@@ -186,6 +186,8 @@ CREATE TABLE `meters` (
   `ap_status` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `location_lat` decimal(12,8) DEFAULT NULL,
   `location_long` decimal(12,8) DEFAULT NULL,
+  `flash_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `flash_size` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `comment` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
