@@ -709,7 +709,7 @@ sub mqtt_disconnect_count_handler {
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
 		$dbh->do(qq[UPDATE meters SET \
-						disconnect_count = $quoted_flash_size, \
+						disconnect_count = $quoted_disconnect_count, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
 		syslog('info', $topic . "\t" . $disconnect_count);
