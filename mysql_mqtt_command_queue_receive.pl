@@ -215,6 +215,9 @@ $subscribe_mqtt->subscribe(q[/ap_status/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/save/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/mem/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/reset_reason/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/flash_id/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/disconnect_count/#], \&mqtt_handler);
 $subscribe_mqtt->run();
 
 1;
