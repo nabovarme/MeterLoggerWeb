@@ -140,7 +140,7 @@ sub v2_mqtt_sample_handler {
 	$unix_time = $2;
 
 	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($message) {	
+	if (defined $message) {	
 		# parse message
 		$message =~ s/&$//;
 	
@@ -237,7 +237,7 @@ sub v2_mqtt_version_handler {
 	$unix_time = $2;
 
 	$sw_version = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($sw_version) {	
+	if (defined $sw_version) {	
 		# remove trailing nulls
 		$sw_version =~ s/[\x00\s]+$//;
 		$sw_version .= '';
@@ -268,7 +268,7 @@ sub v2_mqtt_status_handler {
 	$unix_time = $2;
 
 	$valve_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($valve_status) {	
+	if (defined $valve_status) {	
 		# remove trailing nulls
 		$valve_status =~ s/[\x00\s]+$//;
 		$valve_status .= '';
@@ -299,7 +299,7 @@ sub v2_mqtt_uptime_handler {
 	$unix_time = $2;
 	
 	$uptime = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($uptime) {	
+	if (defined $uptime) {	
 		# remove trailing nulls
 		$uptime =~ s/[\x00\s]+$//;
 		$uptime .= '';
@@ -329,7 +329,7 @@ sub v2_mqtt_ssid_handler {
 	$unix_time = $2;
 	
 	$ssid = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($ssid) {	
+	if (defined $ssid) {	
 		# remove trailing nulls
 		$ssid =~ s/[\x00\s]+$//;
 		$ssid .= '';
@@ -359,7 +359,7 @@ sub v2_mqtt_rssi_handler {
 	$unix_time = $2;
 	
 	$rssi = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($rssi) {	
+	if (defined $rssi) {	
 		# remove trailing nulls
 		$rssi =~ s/[\x00\s]+$//;
 		$rssi .= '';
@@ -389,7 +389,7 @@ sub v2_mqtt_wifi_status_handler {
 	$unix_time = $2;
 	
 	$wifi_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($wifi_status) {	
+	if (defined $wifi_status) {	
 		# remove trailing nulls
 		$wifi_status =~ s/[\x00\s]+$//;
 		$wifi_status .= '';
@@ -419,7 +419,7 @@ sub v2_mqtt_ap_status_handler {
 	$unix_time = $2;
 	
 	$ap_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($ap_status) {	
+	if (defined $ap_status) {	
 		# remove trailing nulls
 		$ap_status =~ s/[\x00\s]+$//;
 		$ap_status .= '';
@@ -449,7 +449,7 @@ sub v2_mqtt_reset_reason_handler {
 	$unix_time = $2;
 	
 	$reset_reason = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($reset_reason) {	
+	if (defined $reset_reason) {	
 		# remove trailing nulls
 		$reset_reason =~ s/[\x00\s]+$//;
 		$reset_reason .= '';
@@ -483,7 +483,7 @@ sub v2_mqtt_scan_result_handler {
 	$unix_time = $2;
 
 	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($message) {	
+	if (defined $message) {	
 		# parse message
 		$message =~ s/&$//;
 	
@@ -579,7 +579,7 @@ sub mqtt_flash_id_handler {
 	$unix_time = $2;
 
 	$flash_id = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($sw_version) {	
+	if (defined $sw_version) {	
 		# remove trailing nulls
 		$sw_version =~ s/[\x00\s]+$//;
 		$sw_version .= '';
@@ -610,7 +610,7 @@ sub mqtt_flash_size_handler {
 	$unix_time = $2;
 
 	$flash_size = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($sw_version) {	
+	if (defined $sw_version) {	
 		# remove trailing nulls
 		$sw_version =~ s/[\x00\s]+$//;
 		$sw_version .= '';
@@ -642,7 +642,7 @@ sub mqtt_flash_error_handler {
 
 	$message =~ /(.{32})(.{16})(.+)/s;
 	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($message) {
+	if (defined $message) {
 		# remove trailing nulls
 		$message =~ s/[\x00\s]+$//;
 		$message .= '';
@@ -672,7 +672,7 @@ sub mqtt_reset_reason_handler {
 
 	$message =~ /(.{32})(.{16})(.+)/s;
 	$message = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($message) {
+	if (defined $message) {
 		# remove trailing nulls
 		$message =~ s/[\x00\s]+$//;
 		$message .= '';
@@ -700,7 +700,7 @@ sub mqtt_disconnect_count_handler {
 	$unix_time = $2;
 
 	$disconnect_count = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if ($disconnect_count) {	
+	if (defined $disconnect_count) {	
 		# remove trailing nulls
 		$disconnect_count =~ s/[\x00\s]+$//;
 		$disconnect_count .= '';
