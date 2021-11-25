@@ -118,9 +118,9 @@ sub get_version_and_status {
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
-		# send disconnect_count
+		# send network_quality
 		$nabovarme_mqtt->call({	serial => $d->{serial},
-								function => 'disconnect_count',
+								function => 'network_quality',
 								param => '1',
 								callback => undef,
 								timeout => RPC_TIMEOUT

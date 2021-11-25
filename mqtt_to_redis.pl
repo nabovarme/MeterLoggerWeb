@@ -58,7 +58,7 @@ $mqtt->run(	q[/sample/v2/#] => \&v2_mqtt_handler,
 	q[/flash_size/v2/#] => \&v2_mqtt_handler,
 	q[/flash_error/v2/#] => \&v2_mqtt_handler,
 	q[/reset_reason/v2/#] => \&v2_mqtt_handler,
-	q[/disconnect_count/v2/#] => \&v2_mqtt_handler
+	q[/network_quality/v2/#] => \&v2_mqtt_handler
 );
 
 # end of main

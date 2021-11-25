@@ -37,7 +37,7 @@ my $ap_status;
 my $reset_reason;
 my $flash_id;
 my $flash_size;
-my $disconnect_count;
+my $network_quality;
 
 my $redis_host = $config->param('redis_host') || '127.0.0.1';
 my $redis_port = $config->param('redis_port') || '6379';
@@ -118,8 +118,8 @@ while (1) {
 		elsif ($data{topic} =~ /reset_reason\/v2/) {
 			mqtt_reset_reason_handler($data{topic}, $data{message});
 		}
-		elsif ($data{topic} =~ /disconnect_count\/v2/) {
-			mqtt_disconnect_count_handler($data{topic}, $data{message});
+		elsif ($data{topic} =~ /network_quality\/v2/) {
+			mqtt_network_quality_handler($data{topic}, $data{message});
 		}
 		
 		# remove data for job
@@ -690,29 +690,43 @@ sub mqtt_reset_reason_handler {
 	}
 }
 
-sub mqtt_disconnect_count_handler {
+sub mqtt_network_quality_handler {
 	my ($topic, $message) = @_;
 
-	unless ($topic =~ m!/disconnect_count/v\d+/([^/]+)/(\d+)!) {
+	unless ($topic =~ m!/network_quality/v\d+/([^/]+)/(\d+)!) {
 		return;
 	}
 	$meter_serial = $1;
 	$unix_time = $2;
 
-	$disconnect_count = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	if (defined $disconnect_count) {	
+	$network_quality = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if (defined $network_quality) {	
+		# parse message
 		# remove trailing nulls
-		$disconnect_count =~ s/[\x00\s]+$//;
-		$disconnect_count .= '';
+		$network_quality =~ s/[\x00\s]+$//;
+		$network_quality .= '';
 
-		my $quoted_disconnect_count = $dbh->quote($disconnect_count);
+		$network_quality =~ s/&$//;
+	
+		my ($key, $value, $unit);
+		my @key_value_list = split(/&/, $network_quality);
+		my $key_value; 
+		foreach $key_value (@key_value_list) {
+			if (($key, $value) = $key_value =~ /([^=]*)=(.*)/) {
+				$mqtt_data->{$key} = $value;
+			}
+		}		
+
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
+
 		$dbh->do(qq[UPDATE meters SET \
-						disconnect_count = $quoted_disconnect_count, \
+						ping_response_time = ] . $dbh->quote($mqtt_data->{ping_response_time}) . qq[, \
+						ping_error_count = ] . $dbh->quote($mqtt_data->{ping_error_count}) . qq[, \
+						disconnect_count = ] . $dbh->quote($mqtt_data->{disconnect_count}) . qq[, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . "\t" . $disconnect_count);
+		syslog('info', $topic . "\t" . $network_quality);
 	}
 	else {
 		# hmac sha256 not ok
