@@ -722,6 +722,7 @@ sub mqtt_network_quality_handler {
 
 		$dbh->do(qq[UPDATE meters SET \
 						ping_response_time = ] . $dbh->quote($mqtt_data->{ping_response_time}) . qq[, \
+						ping_average_packet_loss = ] . $dbh->quote($mqtt_data->{ping_average_packet_loss}) . qq[, \
 						ping_error_count = ] . $dbh->quote($mqtt_data->{ping_error_count}) . qq[, \
 						disconnect_count = ] . $dbh->quote($mqtt_data->{disconnect_count}) . qq[, \
 						last_updated = $quoted_unix_time \

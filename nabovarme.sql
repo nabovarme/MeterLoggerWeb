@@ -189,6 +189,7 @@ CREATE TABLE `meters` (
   `flash_id` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `flash_size` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ping_response_time` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ping_average_packet_loss` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ping_error_count` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `disconnect_count` int(11) DEFAULT NULL,
   `comment` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
