@@ -161,6 +161,8 @@ services:
   postfix:
     image: boky/postfix
     container_name: postfix
+    ports:
+      - "0.0.0.0:25:25"
     volumes:
       - ./postfix_custom_config:/docker-init.db/
     restart: always
