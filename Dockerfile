@@ -57,7 +57,8 @@ RUN apt-get update && apt-get install -y \
 	texlive-latex-extra \
 	texlive-fonts-extra \
 	qrencode \
-	imagemagick
+	imagemagick \
+	certbot
 
 USER root
 
@@ -75,6 +76,15 @@ RUN chown www-data:www-data /var/www/nabovarme/qr
 
 COPY htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
+COPY ./default-ssl.conf /etc/apache2/sites-available/
+RUN a2ensite default-ssl
+RUN a2enmod ssl
+
+RUN openssl req -x509 \
+	-out /etc/ssl/certs/apache-selfsigned.crt \
+	-keyout /etc/ssl/private/apache-selfsigned.key \
+	-newkey rsa:2048 -nodes -sha256 -days 365 -subj '/CN=localhost'
+
 COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./Nabovarme.conf /etc/
