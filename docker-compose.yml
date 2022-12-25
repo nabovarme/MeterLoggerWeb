@@ -50,11 +50,14 @@ services:
       - ./sms_spool:/var/www/nabovarme/sms_spool
     ports:
       - "127.0.0.1:8000:80"
+      - "127.0.0.1:8443:443"
     restart: always
     environment:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_LETS_ENCRYPT_HOST_NAME: meterlogger.net
+      METERLOGGER_LETS_ENCRYPT_EMAIL: hostmaster@skulp.net
 
   meter_grapher:
     build:
@@ -161,8 +164,6 @@ services:
   postfix:
     image: boky/postfix
     container_name: postfix
-    ports:
-      - "0.0.0.0:25:25"
     volumes:
       - ./postfix_custom_config:/docker-init.db/
     restart: always
