@@ -12,7 +12,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
 	$sth->execute;
 
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 	$sth2->execute;
 }
 if ($sth->rows) {
