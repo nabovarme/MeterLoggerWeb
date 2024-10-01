@@ -1,0 +1,83 @@
+﻿[-
+	use DBI;
+	          
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Config;
+	use Nabovarme::Db;
+	
+-]
+<HTML>
+	<HEAD>
+	<meta name="robots" content="noindex">
+	<meta http-equiv="refresh" content="60">
+	<TITLE>MeterLogger payments pending</TITLE>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 80%
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-small {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 60%;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	tr:nth-child(even) {
+		background: #EEE
+	}
+	tr:nth-child(odd) {
+		background: #FFF
+	}
+	</style>
+	</HEAD>
+	<BODY>
+    [- 
+          if ($dbh = Nabovarme::Db->my_connect) {
+			$sth = $dbh->prepare(qq[SELECT meters.`serial`, meters.`info`, command_queue.`param`, FROM_UNIXTIME(command_queue.`unix_time`) AS t
+				FROM meters, command_queue
+				WHERE  meters.`serial` = command_queue.`serial` AND command_queue.`function` like 'open_until%' ORDER BY command_queue.`unix_time` DESC]);
+			$sth->execute;			
+		  }
+
+          -]
+    <!-- <span class="default-bold">Meters</span> -->
+	<table border="0" align="left" cellpadding="6" cellspacing="0" class="top">
+	<tr align="left" valign="top">
+		<td align="left"><span class="default-bold">Serial</span></td>
+		<td align="left"><span class="default">&nbsp;</span></td>
+		<td align="left"><span class="default-bold">Info</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Parameter</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Time</span></td>
+	</tr>
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+	<tr align="left" valign="top">
+		<td align="left"><span class="default">[+ $d->{serial} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{param} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{t} +]</span></td>
+	</tr>
+
+[$ endwhile $]
+[$ endif $]
+	</table>
+	</BODY>
+</HTML>
