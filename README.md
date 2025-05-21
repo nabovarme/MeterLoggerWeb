@@ -4,7 +4,7 @@ MeterLoggerWeb is the backend system for MeterLogger
 
 ## Build details
 
-docker-compose up --build
+docker compose up --build
 
 To initialize db (only do it first time!):
 
