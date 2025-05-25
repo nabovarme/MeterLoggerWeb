@@ -105,7 +105,7 @@ sub handler {
 				`energy` \
 				FROM `samples_calculated` \
 				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-				AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
+				AND `unix_time` < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY) \
 				ORDER BY `unix_time` ASC]);
 			$sth->execute;	
 		

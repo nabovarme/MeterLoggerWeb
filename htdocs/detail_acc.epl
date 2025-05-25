@@ -131,7 +131,7 @@ if ($sth->rows) {
 [$ endif $]
 		</HEAD>
 	<BODY>
-		<span class="default-bold">[+ $info +] </span><span class="default-small"><a href="/qr/[+ $fdat{'serial'} +]">QR</a></span><br>
+		<span class="default-bold">[+ $info +] </span><span class="default-small"><a href="/qr/[+ $fdat{'serial'} +]">QR</a> [$ if ($is_admin) $] <a href="update_wifi.epl?serial=[+ $fdat{'serial'} +]">Update wifi</a>[$ endif $]</span><br>
 		<span class="default">
 		serial [+ $fdat{'serial'} +]<br>
 		<div id="last_energy">

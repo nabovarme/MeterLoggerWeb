@@ -1,0 +1,146 @@
+﻿<HTML>
+[- 
+use DBI;
+use Time::Format qw( time_format );
+
+use lib qw( /var/www/lib/perl );
+#use lib qw( /opt/local/apache2/perl );
+use Nabovarme::Db;
+use Nabovarme::Admin;
+
+$admin = new Nabovarme::Admin;
+$is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
+
+if ($dbh = Nabovarme::Db->my_connect) {
+	my $quoted_serial = $dbh->quote($fdat{'serial'});
+	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` like $quoted_serial]);
+	$sth->execute;
+
+	my $param = 'ssid=' . $fdat{'ssid'} . '&' . 'pwd=' . $fdat{'password'};
+	my $quoted_param = $dbh->quote($param);
+	if ($is_admin && ($fdat{state} =~ /update/i)) {
+				$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+					VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
+	}
+}
+
+if ($sth->rows) {
+	if ($d = $sth->fetchrow_hashref) {
+		$info = $d->{info};
+		$serial = $d->{serial};
+		$ssid = $d->{ssid};
+	}
+}
+-] 
+	<HEAD>
+		<meta name="robots" content="noindex">
+		<TITLE>[+ $info +] MeterLogger</TITLE>
+		<script type="text/javascript">
+			var meter_serial = "[+ $fdat{'serial'} +]"
+		</script>
+		<script src="dygraphs/dygraph-dev.js"></script>
+		<script src="spinner/spin.js"></script>
+		<style type="text/css">
+		.dygraph-legend {
+			font-family: Verdana, Geneva, sans-serif;
+			text-align: left;
+			background: none;
+			position: fixed;
+			top: 500px;
+			right: 20px;
+		}
+		.dygraph-label {
+			font-family: Verdana, Geneva, sans-serif;
+			text-align: left;
+			background: none;
+		}
+		.dygraph-axis-label {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.highlight {
+			font-weight: bold;
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.default-small {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 50%;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		.default-highlight {
+			font-family: Verdana, Geneva, sans-serif;
+			background-color:#FFFF00;
+		}
+		</style>
+[$ if ($is_admin) $]
+		<style type="text/css">
+		td input {
+		    width: 100%;
+		    box-sizing: border-box;
+		}
+		</style>
+<!--		<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"> -->
+<!--		<script src="https://code.jquery.com/jquery-1.12.4.js"></script> -->
+<!--		<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script> -->
+<!--		<script>
+			$( function() {
+				$( "#datepicker" ).datepicker();
+			} );
+		</script> -->
+[$ endif $]
+		</HEAD>
+	<BODY>
+			[$ if ($is_admin) $]
+			<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
+				<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+				<input type="hidden" name="state" value="update">
+				<table border="0" align="left" cellpadding="0" cellspacing="6">
+					<tr align="left" valign="bottom">
+						<td align="left">
+							<span class="default-bold">[+ $info +] </span><br>
+							<span class="default">serial [+ $serial +]</span><br>
+						</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td>&nbsp;</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td align="left">
+							<span class="default-bold">SSID</span><br>
+							<span class="default"><input type="text" inputmode="text" name="ssid" value="[+ ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid +]" size="32"></span>
+						</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td align="left">
+							<span class="default-bold">Password</span><br>
+							<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
+						</td>
+					</tr>						
+					<tr align="left" valign="bottom">
+						<td>&nbsp;</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td>&nbsp;</td>
+					</tr>
+					<tr>
+						<td><span class="default"><a href="./">Back</a></span>
+					</td>
+				</tr>
+				</table>
+			</form>
+			[$ endif $]
+			<br>
+			<br>
+		<br>
+		<br>
+	</BODY>
+</HTML>
+
+
