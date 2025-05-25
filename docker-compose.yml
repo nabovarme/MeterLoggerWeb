@@ -58,6 +58,7 @@ services:
     build:
         context: '.'
         dockerfile: 'Dockerfile.ssl'
+    container_name: ssl
     ports:
       - "80:80"
       - "443:443"
