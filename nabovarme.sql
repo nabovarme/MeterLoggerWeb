@@ -176,7 +176,7 @@ CREATE TABLE `meters` (
   `min_amount` float NOT NULL DEFAULT 0,
   `default_price` float NOT NULL DEFAULT 1,
   `email_notification` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sms_notification` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sms_notification` varchar(256) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `close_notification_time` int(11) DEFAULT 604800 COMMENT 'send notice this many seconds before we close (default 7 days)',
   `notification_state` int(1) unsigned NOT NULL DEFAULT 0,
   `notification_sent_at` float DEFAULT NULL,
