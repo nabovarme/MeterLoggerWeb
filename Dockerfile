@@ -57,8 +57,7 @@ RUN apt-get update && apt-get install -y \
 	texlive-latex-extra \
 	texlive-fonts-extra \
 	qrencode \
-	imagemagick \
-	certbot
+	imagemagick
 
 USER root
 
