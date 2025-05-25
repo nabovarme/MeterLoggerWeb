@@ -53,8 +53,6 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
-      METERLOGGER_LETS_ENCRYPT_HOST_NAME: meterlogger.net
-      METERLOGGER_LETS_ENCRYPT_EMAIL: hostmaster@skulp.net
 
   ssl:
     build:
