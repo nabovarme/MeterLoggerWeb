@@ -34,7 +34,7 @@ my $d;
 
 #print Dumper $pp->pidfile();
 
-warn("starting...\n");
+warn "starting...\n";
 
 my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
@@ -46,7 +46,8 @@ sub sig_int_handler {
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	$dbh->{'mysql_enable_utf8'} = 0;	# get data as from queue as byte string}
+	$dbh->{'mysql_enable_utf8'} = 0;	# get data as from queue as byte string
+}
 else {
 	warn "cant't connect to db $!\n";
 	die $!;
