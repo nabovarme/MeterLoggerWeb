@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use Redis;
 use DBI;
 use Crypt::Mode::CBC;
@@ -22,8 +21,7 @@ $SIG{INT} = \&sig_int_handler;
 
 my $config = new Config::Simple(CONFIG_FILE) || die $!;
 
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
+warn "starting...";
 
 my $unix_time;
 my $meter_serial;
@@ -57,10 +55,10 @@ sub sig_int_handler {
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	syslog('info', "connected to db");
+	warn "connected to db";
 }
 else {
-	syslog('info', "cant't connect to db $!");
+	warn "cant't connect to db $!";
 	die $!;
 }
 
@@ -192,7 +190,7 @@ sub v2_mqtt_sample_handler {
 			$dbh->quote($unix_time) . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
-			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message);
+			warn $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message;
 			
 			# re-insert to redis
 			# Create the next id
@@ -214,14 +212,14 @@ sub v2_mqtt_sample_handler {
 			$dbh->do(qq[UPDATE meters SET \
 							last_updated = $quoted_unix_time \
 							WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-			syslog('info', $topic . " " . $message);			
+			warn $topic . " " . $message;			
 		}
 		$sth->finish;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 	$mqtt_data = undef;
 #	print "*** " . tv_interval($t0) . " ***\n";
@@ -249,12 +247,12 @@ sub v2_mqtt_version_handler {
 						sw_version = $quoted_sw_version, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . "\t" . $sw_version);
+		warn $topic . "\t" . $sw_version;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -280,12 +278,12 @@ sub v2_mqtt_status_handler {
 						valve_status = $quoted_valve_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', 'valve_status changed' . " " . $meter_serial . " " . $valve_status);
+		warn 'valve_status changed' . " " . $meter_serial . " " . $valve_status;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -314,8 +312,8 @@ sub v2_mqtt_uptime_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -344,8 +342,8 @@ sub v2_mqtt_ssid_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -374,8 +372,8 @@ sub v2_mqtt_rssi_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -404,8 +402,8 @@ sub v2_mqtt_wifi_status_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -434,8 +432,8 @@ sub v2_mqtt_ap_status_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -467,8 +465,8 @@ sub v2_mqtt_reset_reason_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -526,7 +524,7 @@ sub v2_mqtt_scan_result_handler {
 			'UNIX_TIMESTAMP()' . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
-			syslog('info', $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message);
+			warn $sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message;
 			
 			# re-insert to redis
 			# Create the next id
@@ -542,14 +540,14 @@ sub v2_mqtt_scan_result_handler {
 			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
 		}
 		else {
-			syslog('info', $topic . " " . $message);
+			warn $topic . " " . $message;
 		}	
 		$sth->finish;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 	$mqtt_data = undef;
 }
@@ -566,7 +564,7 @@ sub mqtt_offline_handler {
 	my $quoted_meter_serial = $dbh->quote($meter_serial);
 	my $quoted_unix_time = $dbh->quote($unix_time);
 	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES ($quoted_meter_serial, 'offline', $quoted_unix_time)]) or warn $!;
-	syslog('info', $topic . "\t" . 'offline');
+	warn $topic . "\t" . 'offline';
 }
 
 sub mqtt_flash_id_handler {
@@ -591,12 +589,12 @@ sub mqtt_flash_id_handler {
 						flash_id = $quoted_flash_id, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . "\t" . $flash_id);
+		warn $topic . "\t" . $flash_id;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -622,12 +620,12 @@ sub mqtt_flash_size_handler {
 						flash_size = $quoted_flash_size, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . "\t" . $flash_size);
+		warn $topic . "\t" . $flash_size;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -651,13 +649,13 @@ sub mqtt_flash_error_handler {
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
 			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or warn $!;
-		syslog('info', $topic . "\t" . 'flash_error');
+		warn $topic . "\t" . 'flash_error';
 		
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -681,12 +679,12 @@ sub mqtt_reset_reason_handler {
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
 		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'reset_reason', $quoted_reset_reason, $quoted_unix_time)]) or warn $!;
-		syslog('info', $topic . "\t" . 'reset_reason');			
+		warn $topic . "\t" . 'reset_reason';			
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
@@ -726,12 +724,12 @@ sub mqtt_network_quality_handler {
 						disconnect_count = ] . $dbh->quote($mqtt_data->{disconnect_count}) . qq[, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or warn $!;
-		syslog('info', $topic . "\t" . $network_quality);
+		warn $topic . "\t" . $network_quality;
 	}
 	else {
 		# hmac sha256 not ok
-		syslog('info', $topic . "hmac error");
-		syslog('info', $topic . "\t" . unpack('H*', $message));
+		warn $topic . "hmac error";
+		warn $topic . "\t" . unpack('H*', $message);
 	}
 }
 
