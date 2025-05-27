@@ -62,14 +62,22 @@ RUN apt-get update && apt-get install -y \
 USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
-RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+
 # we need a specific version here
+#RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
+	cd Net-MQTT-Simple && \
+	perl Makefile.PL && \
+	make && \
+	make install
+
 RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 	cd perl-CryptX && \
 	git checkout 6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489 && \
 	perl Makefile.PL && \
 	make && \
 	make install
+
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
