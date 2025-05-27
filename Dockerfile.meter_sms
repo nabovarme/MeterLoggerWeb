@@ -65,7 +65,15 @@ USER root
 RUN postconf -e 'relayhost=smsd'
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
-RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+
+# we need a specific version here
+#RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
+	cd Net-MQTT-Simple && \
+	perl Makefile.PL && \
+	make && \
+	make install
+
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
