@@ -83,7 +83,7 @@ WORKDIR /home/meterlogger
 COPY ./perl perl
 COPY ./utils/mqtt_log_all.pl mqtt_log_all.pl
 COPY ./utils/smstools_send.pl smstools_send.pl
-COPY ./utils/run_backup.pl run_backup.pl
+COPY ./utils/run_backup.sh run_backup.sh
 COPY ./utils/smstools_send.pl smstools_send.pl
 
 CMD /docker-entrypoint.sh
