@@ -198,6 +198,7 @@ services:
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./my.cnf:/etc/mysql/my.cnf
+      - ./backup:/home/meterlogger/backup
     environment:
       METERLOGGER_DB_HOST: db
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
