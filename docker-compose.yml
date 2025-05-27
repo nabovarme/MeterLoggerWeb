@@ -198,6 +198,10 @@ services:
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./my.cnf:/etc/mysql/my.cnf
+    environment:
+      METERLOGGER_DB_HOST: db:3306
+      METERLOGGER_DB_USER: nabovarme
+      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
 
 networks:
   default:
