@@ -190,8 +190,14 @@ services:
       HOSTNAME: meterlogger
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
-
-
+  utils:
+    build:
+        context: '.'
+        dockerfile: 'Dockerfile.utils'
+    container_name: utils
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+      - ./my.cnf:/etc/mysql/my.cnf
 
 networks:
   default:

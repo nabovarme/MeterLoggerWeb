@@ -1,0 +1,89 @@
+#
+# uIota Dockerfile
+#
+# The resulting image will contain everything needed to build uIota FW.
+#
+# Setup: (only needed once per Dockerfile change)
+# 1. install docker, add yourself to docker group, enable docker, relogin
+# 2. # docker build -t uiota-build .
+#
+# Usage:
+# 3. cd to MeterLoggerWeb root
+# 4. # docker run -t -i -p 8080:80 meterloggerweb:latest
+
+
+FROM debian:buster
+
+MAINTAINER Kristoffer Ek <stoffer@skulp.net>
+
+RUN "echo" "deb http://http.us.debian.org/debian buster non-free" >> /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y \
+	aptitude \
+	autoconf \
+	automake \
+	aptitude \
+	bash \
+	bison \
+	cpanplus \
+	flex \
+	g++ \
+	gawk \
+	gcc \
+	git \
+	inetutils-telnet \
+	joe \
+	make \
+	sed \
+	texinfo \
+	sudo \
+	screen \
+	rsync \
+	libdbd-mysql-perl \
+	libdbi-perl \
+	libconfig-simple-perl \
+	default-mysql-client\
+	software-properties-common \
+	texlive \
+	texlive-latex-base \
+	texlive-latex-extra \
+	texlive-fonts-extra \
+	qrencode \
+	imagemagick
+
+USER root
+
+RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
+
+# we need a specific version here
+#RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
+	cd Net-MQTT-Simple && \
+	perl Makefile.PL && \
+	make && \
+	make install
+
+RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
+	cd perl-CryptX && \
+	git checkout 6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489 && \
+	perl Makefile.PL && \
+	make && \
+	make install
+
+RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
+RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+
+RUN useradd -ms /bin/bash meterlogger
+
+COPY ./docker-entrypoint_utils.sh /docker-entrypoint.sh
+
+USER meterlogger
+WORKDIR /home/meterlogger
+
+COPY ./perl perl
+COPY ./utils/mqtt_log_all.pl mqtt_log_all.pl
+COPY ./utils/smstools_send.pl smstools_send.pl
+COPY ./utils/run_backup.pl run_backup.pl
+COPY ./utils/smstools_send.pl smstools_send.pl
+
+CMD /docker-entrypoint.sh
