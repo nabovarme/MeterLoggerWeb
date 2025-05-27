@@ -200,8 +200,7 @@ services:
       - ./my.cnf:/etc/mysql/my.cnf
     environment:
       METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
 
 networks:
   default:
