@@ -1,7 +1,6 @@
 #!/bin/bash
 
-service postfix start &
-postfix_pid=$!
+service postfix start
 
 /etc/apache2/perl/Nabovarme/bin/meter_notify.pl &
 meter_notify_water_pid=$!
