@@ -99,12 +99,9 @@ COPY ./meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
 COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
 COPY ./smstools_send.pl /etc/apache2/perl/Nabovarme/bin/smstools_send.pl
 
+COPY ./docker-entrypoint_meter_sms.sh /docker-entrypoint.sh
+
 RUN mkdir /var/www/nabovarme/sms_spool
 RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
 
-CMD service postfix start & \
-	/etc/apache2/perl/Nabovarme/bin/meter_notify.pl & \
-	/etc/apache2/perl/Nabovarme/bin/meter_notify_water.pl & \
-	/etc/apache2/perl/Nabovarme/bin/meter_alarm.pl & \
-	/etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
-
+CMD /docker-entrypoint.sh
