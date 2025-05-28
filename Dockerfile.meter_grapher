@@ -74,5 +74,7 @@ COPY ./Nabovarme.conf /etc/
 COPY ./mqtt_to_redis.pl /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl
 COPY ./meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
 
-CMD /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl & /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
+COPY ./docker-entrypoint_meter_grapher.sh /docker-entrypoint.sh
+
+CMD /docker-entrypoint.sh
 
