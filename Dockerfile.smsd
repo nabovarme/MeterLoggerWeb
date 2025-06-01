@@ -51,6 +51,6 @@ RUN mkdir -p outgoing
 RUN mkdir -p sent
 RUN chown -R smsd:smsd /var/spool/sms
 
-CMD /docker-entrypoint.sh
+CMD ["/bin/bash", "/docker-entrypoint.sh"]
 
 
