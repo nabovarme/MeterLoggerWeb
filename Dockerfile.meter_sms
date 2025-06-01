@@ -104,4 +104,4 @@ COPY ./docker-entrypoint_meter_sms.sh /docker-entrypoint.sh
 RUN mkdir /var/www/nabovarme/sms_spool
 RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
 
-CMD /docker-entrypoint.sh
+CMD ["/bin/bash", "/docker-entrypoint.sh"]
