@@ -38,6 +38,8 @@ services:
       - ./mosquitto_data:/mosquitto/data
       - ./mosquitto_data/logs:/mosquitto/log
     restart: always
+    environment:
+      TZ: 'Europe/Copenhagen'
 
   web:
     build: '.'
@@ -53,6 +55,7 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   ssl:
     build:
@@ -67,12 +70,16 @@ services:
       - ./certbot/var:/var/www/certbot
     depends_on:
       - web
+    environment:
+      TZ: 'Europe/Copenhagen'
 
   certbot:
     image: certbot/certbot
     volumes:
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
+    environment:
+      TZ: 'Europe/Copenhagen'
     entrypoint: >
       sh -c "certbot certonly --webroot --webroot-path=/var/www/certbot --email hostmaster@skulp.net --agree-tos --no-eff-email -d meterlogger.net"
 
@@ -91,6 +98,7 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   mysql_mqtt_command_queue_receive:
     build:
@@ -107,6 +115,7 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   mysql_mqtt_command_queue_send:
     build:
@@ -123,6 +132,7 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   smsd:
     build:
@@ -137,6 +147,7 @@ services:
     environment:
       SMSD_HOST: ${SMSD_HOST}
       SMSD_PORT: ${SMSD_PORT}
+      TZ: 'Europe/Copenhagen'
 
   meter_sms:
     build:
@@ -155,6 +166,7 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   meter_cron:
     build:
@@ -172,11 +184,14 @@ services:
       METERLOGGER_DB_HOST: db:3306
       METERLOGGER_DB_USER: nabovarme
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      TZ: 'Europe/Copenhagen'
 
   redis:
     image: redis:latest
     container_name: redis
     restart: always
+    environment:
+      TZ: 'Europe/Copenhagen'
 
   postfix:
     image: boky/postfix
@@ -190,6 +205,8 @@ services:
       HOSTNAME: meterlogger
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
+      TZ: 'Europe/Copenhagen'
+
   utils:
     build:
         context: '.'
@@ -202,6 +219,7 @@ services:
     environment:
       METERLOGGER_DB_HOST: db
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
+      TZ: 'Europe/Copenhagen'
 
 networks:
   default:
