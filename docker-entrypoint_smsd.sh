@@ -1,7 +1,10 @@
-#/bin/sh
+#/bin/bash
 
-chown -R smsd:smsd /var/spool/sms
 /smtp_server.pl &
-sudo -u smsd smsd -c/etc/smsd.conf
-touch /var/log/smstools/smsd.log
-tail -f /var/log/smstools/smsd.log
+smtp_server_pid=$!
+
+smsd -c/etc/smsd.conf -t &
+smsd_pid=$!
+
+wait -n
+kill $(jobs -p)
