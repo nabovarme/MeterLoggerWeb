@@ -37,6 +37,7 @@ sub check_conditions {
 	my $sth = $dbh->prepare(qq[SELECT alarms.`id`, \
 									alarms.`serial`, \
 									meters.`info`, \
+									meters.`last_updated`, \
 									alarms.`condition`, \
 									alarms.`last_notification`, \
 									alarms.`alarm_state`, \
@@ -58,6 +59,7 @@ sub check_conditions {
 		my $serial;
 		my $quoted_serial;
 		my $info;
+		my $last_updated;
 		my $default_snooze;
 		my $condition;
 		my $condition_var;
@@ -82,6 +84,7 @@ sub check_conditions {
 			$condition = $d->{condition};
 			$serial = $d->{serial};
 			$info = $d->{info};
+			$last_updated = $d->{last_updated};
 			$default_snooze = $d->{default_snooze};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
@@ -115,6 +118,7 @@ sub check_conditions {
 				# we need to look up symbolic variables
 				for $down_message_var (@down_message_vars) {
 					next if $down_message_var =~ /^id$/;	# dont lookup $id
+					next if $down_message_var =~ /^last_updated$/;
 					
 					my $quoted_down_message_var = '`' . $down_message_var . '`';
 					$quoted_serial = $dbh->quote($serial);
@@ -137,7 +141,8 @@ sub check_conditions {
 				# we need to look up symbolic variables
 				for $up_message_var (@up_message_vars) {
 					next if $up_message_var =~ /^id$/;	# dont lookup $id
-
+					next if $up_message_var =~ /^last_updated$/;
+					
 					my $quoted_up_message_var = '`' . $up_message_var . '`';
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
@@ -158,6 +163,8 @@ sub check_conditions {
 			if (@condition_vars = ($condition =~ /\$(\w+)/g)) {
 				# we need to look up median value for passed condition variables
 				for $condition_var (@condition_vars) {
+					next if $condition_var =~ /^last_updated$/;
+					
 					my $quoted_condition_var = '`' . $condition_var . '`';
 					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
