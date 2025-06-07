@@ -60,6 +60,7 @@ sub check_conditions {
 		my $quoted_serial;
 		my $info;
 		my $last_updated;
+		my $offline;
 		my $default_snooze;
 		my $condition;
 		my $condition_var;
@@ -85,6 +86,7 @@ sub check_conditions {
 			$serial = $d->{serial};
 			$info = $d->{info};
 			$last_updated = $d->{last_updated};
+			$offline = time() - $last_updated;
 			$default_snooze = $d->{default_snooze};
 			$down_message = $d->{down_message} || 'alarm';
 			$up_message = $d->{up_message} || 'normal';
@@ -119,21 +121,25 @@ sub check_conditions {
 				for $down_message_var (@down_message_vars) {
 					next if $down_message_var =~ /^id$/;	# dont lookup $id
 					next if $down_message_var =~ /^last_updated$/;
-					
-					my $quoted_down_message_var = '`' . $down_message_var . '`';
-					$quoted_serial = $dbh->quote($serial);
-					my $values = [];
-					my $median;
-					my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples_cache` \
-																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
-					$sth_down_message_vars->execute;
-					if ($sth_down_message_vars->rows) {
-						$values = $sth_down_message_vars->fetchall_arrayref;
-						$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
-						# replace symbol with value from database
-						$down_message =~ s/\$$down_message_var/$median/x;
+					if ($down_message_var =~ /^offline$/) {
+						$down_message =~ s/\$offline/$offline/g;
 					}
-				}				
+					else {
+						my $quoted_down_message_var = '`' . $down_message_var . '`';
+						$quoted_serial = $dbh->quote($serial);
+						my $values = [];
+						my $median;
+						my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples_cache` \
+																	WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
+						$sth_down_message_vars->execute;
+						if ($sth_down_message_vars->rows) {
+							$values = $sth_down_message_vars->fetchall_arrayref;
+							$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
+							# replace symbol with value from database
+							$down_message =~ s/\$$down_message_var/$median/x;
+						}
+					}
+				}
 				
 			}
 			
@@ -142,21 +148,25 @@ sub check_conditions {
 				for $up_message_var (@up_message_vars) {
 					next if $up_message_var =~ /^id$/;	# dont lookup $id
 					next if $up_message_var =~ /^last_updated$/;
-					
-					my $quoted_up_message_var = '`' . $up_message_var . '`';
-					$quoted_serial = $dbh->quote($serial);
-					my $values = [];
-					my $median;
-					my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
-																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
-					$sth_up_message_vars->execute;
-					if ($sth_up_message_vars->rows) {
-						$values = $sth_up_message_vars->fetchall_arrayref;
-						$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
-						# replace symbol with value from database
-						$up_message =~ s/\$$up_message_var/$median/x;
+					if ($up_message_var =~ /^offline$/) {
+						$up_message =~ s/\$offline/$offline/g;
 					}
-				}				
+					else {
+						my $quoted_up_message_var = '`' . $up_message_var . '`';
+						$quoted_serial = $dbh->quote($serial);
+						my $values = [];
+						my $median;
+						my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
+																	WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
+						$sth_up_message_vars->execute;
+						if ($sth_up_message_vars->rows) {
+							$values = $sth_up_message_vars->fetchall_arrayref;
+							$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
+							# replace symbol with value from database
+							$up_message =~ s/\$$up_message_var/$median/x;
+						}
+					}
+				}
 				
 			}
 			
@@ -164,6 +174,7 @@ sub check_conditions {
 				# we need to look up median value for passed condition variables
 				for $condition_var (@condition_vars) {
 					next if $condition_var =~ /^last_updated$/;
+					next if $condition_var =~ /^offline$/;
 					
 					my $quoted_condition_var = '`' . $condition_var . '`';
 					$quoted_serial = $dbh->quote($serial);
@@ -181,7 +192,7 @@ sub check_conditions {
 							$up_message =~ s/\$$condition_var/$median/x;
 						}
 					}
-				}				
+				}
 			}
 			
 			syslog('info', "checking condition for serial $serial: $condition");
