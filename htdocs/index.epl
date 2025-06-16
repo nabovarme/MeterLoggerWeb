@@ -1,21 +1,4 @@
-﻿[-
-	use DBI;
-	use Net::MQTT::Simple "loppen.christiania.org";
-	          
-	use lib qw( /var/www/lib/perl );
-	use lib qw( /opt/local/apache2/perl );
-	use Config;
-	use Nabovarme::Db;
-	
-#	my $mqtt;
-#	if ($Config{osname} =~ /darwin/) {
-#		$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
-#	}
-#	else {
-#		$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-#	}
--]
-<HTML>
+﻿<HTML>
 	<HEAD>
 	<meta name="robots" content="noindex">
 <!--	<meta http-equiv="refresh" content="60">	-->
@@ -46,148 +29,73 @@
 	</style>
 	</HEAD>
 	<BODY>
-    [- 
-	# get all meters
-          if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`enabled`, meters.`type`, meters.`serial`, meters.`last_updated`, meters.`info` FROM meters, meter_groups where meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+	[- 
+		$last_group = '';
+		$is_first = 1;
+
+		# get all meters
+		if ($dbh = Nabovarme::Db->my_connect) {
+			$sth = $dbh->prepare(qq[
+				SELECT
+					mg.`group` AS meter_group,
+					mg.`id` AS group_id,
+					m.serial AS serial,
+					m.info AS info,
+					m.enabled AS enabled,
+					latest_sc.energy AS energy,
+					latest_sc.volume AS volume,
+					latest_sc.hours AS hours,
+					
+					-- kWh left
+					ROUND(
+						IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
+						2
+					) AS kwh_left,
+					
+					-- Time left in hours
+					ROUND(
+						IF(latest_sc.effect > 0,
+							(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
+							NULL
+						),
+						2
+					) AS time_left_hours,
+					
+					latest_sc.unix_time AS last_sample_time
+					
+				FROM meters m
+				
+				-- Join meter group name
+				JOIN meter_groups mg ON m.`group` = mg.`id`
+				
+				-- Latest sample per serial
+				LEFT JOIN (
+					SELECT sc1.*
+					FROM samples_cache sc1
+					INNER JOIN (
+						SELECT serial, MAX(unix_time) AS max_time
+						FROM samples_cache
+						GROUP BY serial
+					) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+				) latest_sc ON m.serial = latest_sc.serial
+				
+				-- Paid kWh per meter
+				LEFT JOIN (
+					SELECT serial, SUM(amount / price) AS paid_kwh
+					FROM accounts
+					GROUP BY serial
+				) paid_kwh_table ON m.serial = paid_kwh_table.serial
+				
+				WHERE m.type != 'water' AND m.type != 'electricity'
+				ORDER BY mg.`id`, m.info;
+			]);
 			$sth->execute;			
 		  }
-	$last_group = '';
-	$is_first = 1;
-
-          -]
-    <!-- <span class="default-bold">Meters</span> -->
+	-]
 	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
-[- 
-	# get details about every meter
-	my $quoted_serial = $dbh->quote($d->{serial});
-	$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial = $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
-	$sth2->execute;
-	$d2 = $sth2->fetchrow_hashref;
-
-	$sth3 = $dbh->prepare(qq[SELECT ROUND( \
-	(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
-	(SELECT \
-		(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
-		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-	), 2) AS kwh_left]);
-	$sth3->execute;
-
-	# get last days energy usage
-	$sth4 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
-		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
-	$sth4->execute;
-	if ($sth4->rows) {
-		if ($d4 = $sth4->fetchrow_hashref) {
-			$energy_now = $d4->{energy};
-			$time_now = $d4->{unix_time};
-		}
-	}
-	$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
-		WHERE `serial` = $quoted_serial \
-		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
-	$sth5->execute;
-	if ($sth5->rows) {
-		if ($d5 = $sth5->fetchrow_hashref) {
-			$energy_last = $d5->{energy};
-			$time_last = $d5->{unix_time};
-		}
-	}
-	if (($time_now - $time_last) > 0) {
-		$energy_last_day = ($energy_now - $energy_last) / (($time_now - $time_last) / 60 / 60);
-	}
-
-	$d3 = $sth3->fetchrow_hashref;
-
-
-	# same for flow meters
-	$sth3_volume = $dbh->prepare(qq[SELECT ROUND( \
-	(SELECT SUM(amount/price) AS paid_m3 FROM accounts WHERE serial = $quoted_serial) - \
-	(SELECT \
-		(SELECT samples_cache.volume FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
-		(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_m3 \
-	), 2) AS m3_left]);
-	$sth3_volume->execute;
-
-	# get last days energy usage
-	$sth4_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
-		WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
-	$sth4_volume->execute;
-	if ($sth4_volume->rows) {
-		if ($d4_volume = $sth4_volume->fetchrow_hashref) {
-			$volume_now = $d4_volume->{volume};
-			$time_now_volume = $d4_volume->{unix_time};
-		}
-	}
-	$sth5_volume = $dbh->prepare(qq[SELECT `volume`, `unix_time` FROM nabovarme.samples_cache \
-		WHERE `serial` = $quoted_serial \
-		AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d4_volume->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
-	$sth5_volume->execute;
-	if ($sth5_volume->rows) {
-		if ($d5_volume = $sth5_volume->fetchrow_hashref) {
-			$volume_last = $d5_volume->{volume};
-			$time_last_volume = $d5_volume->{unix_time};
-		}
-	}
-	if (($time_now_volume - $time_last_volume) > 0) {
-		$volume_last_day = ($volume_now - $volume_last) / (($time_now_volume - $time_last_volume) / 60 / 60);
-	}
-
-	$d3_volume = $sth3_volume->fetchrow_hashref;
-
-
--]
-[-	use utf8;
-	if ($energy_last_day > 0) {
-		$energy_time_left = $d3->{kwh_left} / $energy_last_day;
-		if ($energy_time_left > 24) {
-			if (sprintf("%.0f", $energy_time_left / 24) == 1) {
-				$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
-			}
-			else {
-				$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
-			}
-		}
-		else {
-			if (sprintf("%.0f", $energy_time_left) == 1) {
-				$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
-			}
-			else {
-				$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
-			}
-		}
-	}
-	else {
-		$energy_time_left_str = '∞';
-	}
-
-	# same for impulse meters
-	if ($volume_last_day > 0) {
-		$volume_time_left = $d3_volume->{m3_left} / $volume_last_day;
-		if ($volume_time_left > 24) {
-			if (sprintf("%.0f", $volume_time_left / 24) == 1) {
-				$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " day";
-			}
-			else {
-				$volume_time_left_str = sprintf("%.0f", $volume_time_left / 24) . " days";
-			}
-		}
-		else {
-			if (sprintf("%.0f", $volume_time_left) == 1) {
-				$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hour";
-			}
-			else {
-				$volume_time_left_str = sprintf("%.0f", $volume_time_left) . " hours";
-			}
-		}
-	}
-	else {
-		$volume_time_left_str = '∞';
-	}
--]
-[$ if (($last_group ne $d->{'group'}) and ($is_first == 0)) $]
+[$ if (($last_group ne $d->{'meter_group'}) and ($is_first == 0)) $]
 	<tr>
 		<td></td>
 		<td>&nbsp;</td>
@@ -205,9 +113,9 @@
 	</tr>
 [$ endif $]
 [- $is_first = 0; -]
-[$ if ($last_group ne $d->{'group'}) $]
+[$ if ($last_group ne $d->{'meter_group'}) $]
 	<tr>
-		<td align="left" colspan=13><span class="default-group">[+ $d->{'group'} +]</span></td>
+		<td align="left" colspan=13><span class="default-group">[+ $d->{'meter_group'} +]</span></td>
 	</tr>
 	<tr align="left" valign="bottom">
 		<td align="left"><span class="default-bold">Serial</span></td>
@@ -225,26 +133,49 @@
 		<td align="left"><span class="default-bold"></span></td>
 	</tr>
 [$ endif $]
-	<tr align="left" valign="bottom">
-		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
-		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} +]</span></td>
-		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if (!$d->{type} =~ /^water$/i) $][$ else $][+ $d2->{energy} +] kWh[$ endif $]</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d2->{volume} +] [$ if $d2->{volume} $] m<sup>3</sup>[$ endif $]</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[+ $d2->{hours} +] [$ if $d2->{hours} $] h[$ endif $]</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{type} =~ /^water$/i) $][+ sprintf("%.0f", $d3_volume->{m3_left}) || "0" +] m<sup>3</sup>[$ else $][+ sprintf("%.0f", $d3->{kwh_left}) || "0" +] kWh[$ endif $]</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{type} =~ /^water$/i) $][+ $volume_time_left_str +][$ else $][+ $energy_time_left_str +][$ endif $]</lefts></td>
-		<td>&nbsp;</td>
-		<td align="left"><span class="[$ if ($d->{enabled}) $]default[$ else $]default-disabled[$ endif $]"></span>[+ ((time() - $d->{last_updated}) < 86400) ? "" : "!" +]</td>
 [-
-#		<td align="left"><span class="default"><!-- <a href="detail.epl?serial=[+ $d->{serial} +]&low=0">details</a> | <a href="./?serial=[+ $d->{serial} +]&open=1">open</a> | <a href="./?serial=[+ $d->{serial} +]&close=1">close</a> | <a href="./?serial=[+ $d->{serial} +]&test=1">test</a> | <a href="./?serial=[+ $d->{serial} +]&off=1">off</a></--></span></td>
+	$time_left_hours = $d->{'time_left_hours'};
+	$time_left_str = '';
+	
+	if (abs($time_left_hours) > 0) {
+		if (abs($time_left_hours) > 24) {
+			if (abs(sprintf("%.0f", $time_left_hours / 24)) == 1) {
+				$time_left_str = sprintf("%.0f", $time_left_hours / 24) . " day";
+			}
+			else {
+				$time_left_str = sprintf("%.0f", $time_left_hours / 24) . " days";
+			}
+		}
+		else {
+			if (abs(sprintf("%.0f", $time_left_hours)) == 1) {
+				$time_left_str = sprintf("%.0f", $time_left_hours) . " hour";
+			}
+			else {
+				$time_left_str = sprintf("%.0f", $time_left_hours) . " hours";
+			}
+		}
+	}
+	else {
+		 $time_left_str = '∞';
+	}
 -]
+	<tr align="left" valign="bottom">
+		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"><a href="detail_acc.epl?serial=[+ $d->{'serial'} +]&low=1">[+ $d->{'serial'} +]</a></span></td>
+		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'info'} +]</span></td>
+		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'energy'} +] kWh</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'volume'} +] m<sup>3</sup></span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'hours'} +] h</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ sprintf("%.0f", $d->{'kwh_left'}) || "0" +] kWh</span></td>
+		<td>&nbsp;</td>
+		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $time_left_str +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"></span>[+ ((time() - $d->{'last_sample_time'}) < 86400) ? "" : "!" +]</td>
 	</tr>
 
-[-        $last_group = $d->{'group'};  -]
+[- $last_group = $d->{'meter_group'}; -]
 [$ endwhile $]
 [$ endif $]
 	</table>
