@@ -70,6 +70,7 @@ services:
       - ./certbot/var:/var/www/certbot
     depends_on:
       - web
+    restart: always
     environment:
       TZ: 'Europe/Copenhagen'
 
