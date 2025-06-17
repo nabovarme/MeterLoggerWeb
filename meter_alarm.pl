@@ -30,22 +30,22 @@ while (1) {
 # end of main
 
 sub check_conditions {
-	my $sth = $dbh->prepare(qq[SELECT alarms.`id`, \
-									alarms.`serial`, \
-									meters.`info`, \
-									meters.`last_updated`, \
-									alarms.`condition`, \
-									alarms.`last_notification`, \
-									alarms.`alarm_state`, \
-									alarms.`repeat`, \
-									alarms.`snooze`, \
-									alarms.`default_snooze`, \
-									alarms.`snooze_auth_key`, \
-									alarms.`sms_notification`, \
-									alarms.`down_message`, \
-									alarms.`up_message` \
-								FROM `alarms`, `meters` \
-								WHERE alarms.`serial` = meters.`serial` \
+	my $sth = $dbh->prepare(qq[SELECT alarms.`id`,
+									alarms.`serial`,
+									meters.`info`,
+									meters.`last_updated`,
+									alarms.`condition`,
+									alarms.`last_notification`,
+									alarms.`alarm_state`,
+									alarms.`repeat`,
+									alarms.`snooze`,
+									alarms.`default_snooze`,
+									alarms.`snooze_auth_key`,
+									alarms.`sms_notification`,
+									alarms.`down_message`,
+									alarms.`up_message`
+								FROM `alarms`, `meters`
+								WHERE alarms.`serial` = meters.`serial`
 								AND alarms.`enabled`]);
 	$sth->execute;
 	if ($sth->rows) {
@@ -198,8 +198,10 @@ sub check_conditions {
 						my $quoted_up_message_var = '`' . $up_message_var . '`';
 						my $values = [];
 						my $median;
-						my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
-																	WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
+						my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[
+																	FROM `samples_cache`
+																	WHERE `serial` like ] . $quoted_serial . qq[
+																	ORDER BY `unix_time` DESC LIMIT 5]);
 						$sth_up_message_vars->execute;
 						if ($sth_up_message_vars->rows) {
 							$values = $sth_up_message_vars->fetchall_arrayref;
@@ -221,8 +223,11 @@ sub check_conditions {
 					my $quoted_condition_var = '`' . $condition_var . '`';
 					my $values = [];
 					my $median;
-					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[ FROM `samples_cache` \
-																WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
+					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[
+																FROM `samples_cache`
+																WHERE `serial` like ] . $quoted_serial . qq[
+																ORDER BY `unix_time`
+																DESC LIMIT 5]);
 					if ($sth_condition_vars->execute) {
 						if (!$@ and $sth_condition_vars->rows) {
 							$values = $sth_condition_vars->fetchall_arrayref;
@@ -247,21 +252,21 @@ sub check_conditions {
 					if ($d->{alarm_state} == 0) {
 						# changed from no alarm to alarm - send sms
 						sms_send($d->{sms_notification}, $down_message);
-						$dbh->do(qq[UPDATE alarms SET \
-										last_notification = ] . time() . qq[, \
-										alarm_state = 1, \
-										snooze_auth_key = $quoted_snooze_auth_key \
+						$dbh->do(qq[UPDATE alarms SET
+										last_notification = ] . time() . qq[,
+										alarm_state = 1,
+										snooze_auth_key = $quoted_snooze_auth_key
 										WHERE `id` like $quoted_id ]) or warn $!;
 						warn "serial $serial: down";
 					}
 					elsif ($d->{repeat} && (($d->{last_notification} + $d->{repeat} + $d->{snooze}) < time())) {
 						# repeat down notification every 'repeat' time interval
 						sms_send($d->{sms_notification}, $down_message);
-						$dbh->do(qq[UPDATE alarms SET \
-										last_notification = ] . time() . qq[, \
-										alarm_state = 1, \
-										snooze = 0, \
-										snooze_auth_key = $quoted_snooze_auth_key \
+						$dbh->do(qq[UPDATE alarms SET
+										last_notification = ] . time() . qq[,
+										alarm_state = 1,
+										snooze = 0,
+										snooze_auth_key = $quoted_snooze_auth_key
 										WHERE `id` like $quoted_id]) or warn $!;
 						warn "serial $serial: down repeat";
 					}
@@ -272,11 +277,11 @@ sub check_conditions {
 					if ($d->{alarm_state} == 1) {
 						# changed from alarm to no alarm - send sms
 						sms_send($d->{sms_notification}, $up_message);
-						$dbh->do(qq[UPDATE alarms SET \
-										last_notification = ] . time() . qq[, \
-										alarm_state = 0, \
-										snooze = 0, \
-										snooze_auth_key = '' \
+						$dbh->do(qq[UPDATE alarms SET
+										last_notification = ] . time() . qq[,
+										alarm_state = 0,
+										snooze = 0,
+										snooze_auth_key = ''
 										WHERE `id` like $quoted_id]) or warn $!;
 						warn "serial $serial: up";
 					}
