@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use DBI;
 use Statistics::Basic qw( :all );
 use Math::Random::Secure qw(rand);
@@ -12,17 +11,14 @@ use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
-
 # connect to db
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	syslog('info', "connected to db");
+	warn "connected to db";
 }
 else {
-	syslog('info', "cant't connect to db $!");
+	warn "cant't connect to db $!";
 	die $!;
 }
 
@@ -107,7 +103,7 @@ sub check_conditions {
 			# replace $serial with actual serial in message texts
 			$down_message =~ s/\$serial/$serial/g;
 			$up_message =~ s/\$serial/$serial/g;
-			warn $down_message;
+#			warn $down_message;
 			
 			# replace $info with info for serial in message texts
 			$down_message =~ s/\$info/$info/g;
@@ -240,11 +236,9 @@ sub check_conditions {
 				}
 			}
 			
-			syslog('info', "checking condition for serial $serial: $condition");
 			warn "checking condition for serial $serial: $condition";
 			$eval_alarm_state = eval 'no strict; ' . $condition;
 			if ($@) {
-				syslog('info', "error parsing condition for serial $serial: $condition, error: $@");
 				warn "error parsing condition for serial $serial: $condition, error: $@";
 			}
 			else {
@@ -258,8 +252,7 @@ sub check_conditions {
 										alarm_state = 1, \
 										snooze_auth_key = $quoted_snooze_auth_key \
 										WHERE `id` like $quoted_id ]) or warn $!;
-						syslog('info', "serial $serial: down");
-						warn "down\n";
+						warn "serial $serial: down";
 					}
 					elsif ($d->{repeat} && (($d->{last_notification} + $d->{repeat} + $d->{snooze}) < time())) {
 						# repeat down notification every 'repeat' time interval
@@ -270,8 +263,7 @@ sub check_conditions {
 										snooze = 0, \
 										snooze_auth_key = $quoted_snooze_auth_key \
 										WHERE `id` like $quoted_id]) or warn $!;
-						syslog('info', "serial $serial: down repeat");
-						warn "down repeat\n";
+						warn "serial $serial: down repeat";
 					}
 #					print "true\n";
 				}
@@ -286,8 +278,7 @@ sub check_conditions {
 										snooze = 0, \
 										snooze_auth_key = '' \
 										WHERE `id` like $quoted_id]) or warn $!;
-						syslog('info', "serial $serial: up");
-						warn "up\n";
+						warn "serial $serial: up";
 					}
 #					print "false\n";
 				}
@@ -306,13 +297,11 @@ sub sms_send {
 	@sms_notifications = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	if (scalar(@sms_notifications) > 1) {
 		foreach (@sms_notifications) {
-			syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
 			system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
 			warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$_ "$message"]);
 		}
 	}
 	else {
-		syslog('info', 'running ' . qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$sms_notification "$message"]);
 	}
