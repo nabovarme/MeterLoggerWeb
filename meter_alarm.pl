@@ -56,7 +56,7 @@ sub evaluate_alarm {
 
 	$condition = interpolate_variables($condition, $serial);
 
-	warn "checking condition for serial $serial: $condition";
+	warn "checking condition for serial $serial, id $alarm->{id}: $condition";
 	my $eval_alarm_state = eval 'no strict; ' . $condition;
 
 	if ($@) {
