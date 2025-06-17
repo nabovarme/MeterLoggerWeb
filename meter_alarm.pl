@@ -84,6 +84,7 @@ sub check_conditions {
 			
 			$condition = $d->{condition};
 			$serial = $d->{serial};
+			$quoted_serial = $dbh->quote($serial);
 			$info = $d->{info};
 			$last_updated = $d->{last_updated};
 			$offline = time() - $last_updated;
@@ -117,30 +118,76 @@ sub check_conditions {
 			$up_message =~ s/\$id/$id/g;
 			
 			if (@down_message_vars = ($down_message =~ /\$(\w+)/g)) {
-				# we need to look up symbolic variables
-				for $down_message_var (@down_message_vars) {
-					next if $down_message_var =~ /^id$/;	# dont lookup $id
-					next if $down_message_var =~ /^last_updated$/;
-					if ($down_message_var =~ /^offline$/) {
-						$down_message =~ s/\$offline/$offline/g;
-					}
-					else {
-						my $quoted_down_message_var = '`' . $down_message_var . '`';
-						$quoted_serial = $dbh->quote($serial);
-						my $values = [];
-						my $median;
-						my $sth_down_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_down_message_var . qq[ FROM `samples_cache` \
-																	WHERE `serial` like ] . $quoted_serial . qq[ ORDER BY `unix_time` DESC LIMIT 5]);
-						$sth_down_message_vars->execute;
-						if ($sth_down_message_vars->rows) {
-							$values = $sth_down_message_vars->fetchall_arrayref;
-							$median = median(map(@$_, @$values)) + 0.0;	# hack to convert , to .
-							# replace symbol with value from database
-							$down_message =~ s/\$$down_message_var/$median/x;
+				if (@condition_vars = ($condition =~ /\$(\w+)/g)) {
+					# we need to look up median value for passed condition variables
+					for $condition_var (@condition_vars) {
+						next if $condition_var =~ /^last_updated$/;
+						next if $condition_var =~ /^offline$/;
+						
+						if ($condition_var eq 'last_volume') {
+							my $sth_last = $dbh->prepare(qq[
+								SELECT `volume`
+								FROM `samples_cache`
+								WHERE `serial` = $quoted_serial
+								ORDER BY `unix_time` DESC
+								LIMIT 1 OFFSET 1
+							]);
+							$sth_last->execute;
+							if (my $row = $sth_last->fetchrow_hashref) {
+								my $last_volume = $row->{volume} + 0.0;
+								$condition =~ s/\$last_volume/$last_volume/g;
+								$down_message =~ s/\$last_volume/$last_volume/g;
+								$up_message =~ s/\$last_volume/$last_volume/g;
+							}
+							else {
+								$condition =~ s/\$last_volume/0/g;
+								$down_message =~ s/\$last_volume/0/g;
+								$up_message =~ s/\$last_volume/0/g;
+							}
+						}
+						elsif ($condition_var eq 'valve_status') {
+							my $sth_valve = $dbh->prepare(qq[
+								SELECT `valve_status`
+								FROM `samples_cache`
+								WHERE `serial` = $quoted_serial
+								ORDER BY `unix_time` DESC
+								LIMIT 1
+							]);
+							$sth_valve->execute;
+							if (my $row = $sth_valve->fetchrow_hashref) {
+								my $valve = $dbh->quote($row->{valve_status});
+								$condition =~ s/\$valve_status/$valve/g;
+								$down_message =~ s/\$valve_status/$valve/g;
+								$up_message =~ s/\$valve_status/$valve/g;
+							}
+							else {
+								$condition =~ s/\$valve_status/''/g;
+								$down_message =~ s/\$valve_status/''/g;
+								$up_message =~ s/\$valve_status/''/g;
+							}
+						}
+						else {
+							my $quoted_condition_var = '`' . $condition_var . '`';
+							my $values = [];
+							my $median;
+							my $sth_condition_vars = $dbh->prepare(qq[
+								SELECT $quoted_condition_var 
+								FROM `samples_cache`
+								WHERE `serial` LIKE $quoted_serial 
+								ORDER BY `unix_time` DESC LIMIT 5
+							]);
+							if ($sth_condition_vars->execute) {
+								if (!$@ and $sth_condition_vars->rows) {
+									$values = $sth_condition_vars->fetchall_arrayref;
+									$median = median(map(@$_, @$values)) + 0.0;
+									$condition =~ s/\$$condition_var/$median/x;
+									$down_message =~ s/\$$condition_var/$median/x;
+									$up_message =~ s/\$$condition_var/$median/x;
+								}
+							}
 						}
 					}
 				}
-				
 			}
 			
 			if (@up_message_vars = ($up_message =~ /\$(\w+)/g)) {
@@ -153,7 +200,6 @@ sub check_conditions {
 					}
 					else {
 						my $quoted_up_message_var = '`' . $up_message_var . '`';
-						$quoted_serial = $dbh->quote($serial);
 						my $values = [];
 						my $median;
 						my $sth_up_message_vars = $dbh->prepare(qq[SELECT ] . $quoted_up_message_var . qq[ FROM `samples_cache` \
@@ -177,7 +223,6 @@ sub check_conditions {
 					next if $condition_var =~ /^offline$/;
 					
 					my $quoted_condition_var = '`' . $condition_var . '`';
-					$quoted_serial = $dbh->quote($serial);
 					my $values = [];
 					my $median;
 					my $sth_condition_vars = $dbh->prepare(qq[SELECT ] . $quoted_condition_var . qq[ FROM `samples_cache` \
@@ -248,6 +293,7 @@ sub check_conditions {
 				}
 			}
 		}
+
 	}
 }
 
