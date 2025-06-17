@@ -47,8 +47,6 @@ sub handler {
 				if ($d = $sth->fetchrow_hashref) {
 					my $info = $d->{info};
 					my $sms = $d->{sms_notification};
-					utf8::decode($info);
-					utf8::decode($sms);
 					eval {
 						warn(qq[cd $document_root$qr_path && \
 						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial&low=1" ; \
