@@ -221,8 +221,3 @@ services:
       METERLOGGER_DB_HOST: db
       MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
       TZ: 'Europe/Copenhagen'
-
-networks:
-  default:
-    external:
-      name: meterlogger
