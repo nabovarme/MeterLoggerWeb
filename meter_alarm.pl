@@ -23,10 +23,10 @@ while (1) {
 sub process_alarms {
 	my $sth = $dbh->prepare(qq[
 		SELECT alarms.id, alarms.serial, meters.info, meters.last_updated,
-			   alarms.condition, alarms.last_notification, alarms.alarm_state,
-			   alarms.repeat, alarms.snooze, alarms.default_snooze,
-			   alarms.snooze_auth_key, alarms.sms_notification,
-			   alarms.down_message, alarms.up_message
+			alarms.condition, alarms.last_notification, alarms.alarm_state,
+			alarms.repeat, alarms.snooze, alarms.default_snooze,
+			alarms.snooze_auth_key, alarms.sms_notification,
+			alarms.down_message, alarms.up_message
 		FROM alarms
 		JOIN meters ON alarms.serial = meters.serial
 		WHERE alarms.enabled
@@ -82,29 +82,71 @@ sub interpolate_variables {
 	my ($text, $serial) = @_;
 	my @vars = ($text =~ /\$(\w+)/g);
 
-	# Static or directly available variables
 	my %static_vars;
 
-	# Preload meter data for offline and info
+	# Preload commonly used meter fields
 	my $sth_meter = $dbh->prepare(qq[
-		SELECT last_updated, info FROM meters WHERE serial = ?
+		SELECT last_updated, info, valve_status
+		FROM meters
+		WHERE serial = ?
 	]);
 	$sth_meter->execute($serial);
 	if (my $row = $sth_meter->fetchrow_hashref) {
-		$static_vars{offline} = time() - ($row->{last_updated} || time());
-		$static_vars{info}    = $row->{info} || '';
+		$static_vars{offline}      = time() - ($row->{last_updated} || time());
+		$static_vars{info}         = $row->{info} || '';
+		$static_vars{valve_status} = $dbh->quote($row->{valve_status} || '');
 	}
 
 	foreach my $var (@vars) {
-		# Handle static vars like offline and info
+		# Static fields
 		if (exists $static_vars{$var}) {
-			$text =~ s/\$$var/$static_vars{$var}/g;
+			my $val = $static_vars{$var};
+			$val =~ s/"/\\"/g;
+			$text =~ s/\$$var/$val/g;
+			next;
+		}
+
+		# volume_day or energy_day as delta over 24h
+		if ($var eq 'volume_day' or $var eq 'energy_day') {
+			my $column = $var eq 'volume_day' ? 'volume' : 'energy';
+			my $since = time() - 86400;
+
+			# Get earliest and latest values within the last 24 hours
+			my $sth = $dbh->prepare(qq[
+				SELECT $column
+				FROM samples_cache
+				WHERE serial = ?
+				AND unix_time > ?
+				ORDER BY unix_time ASC
+				LIMIT 1
+			]);
+			$sth->execute($serial, $since);
+			my ($first_val) = $sth->fetchrow_array;
+			$first_val = 0 unless defined $first_val;
+
+			$sth = $dbh->prepare(qq[
+				SELECT $column
+				FROM samples_cache
+				WHERE serial = ?
+				AND unix_time > ?
+				ORDER BY unix_time DESC
+				LIMIT 1
+			]);
+			$sth->execute($serial, $since);
+			my ($last_val) = $sth->fetchrow_array;
+			$last_val = 0 unless defined $last_val;
+
+			my $delta = $last_val - $first_val;
+			$delta = 0 if $delta < 0;  # protect against counter resets
+
+			$text =~ s/\$$var/$delta/g;
 			next;
 		}
 
 		# Skip known unsupported vars
 		next if $var =~ /^(id|serial|default_snooze|snooze_auth_key)$/;
 
+		# Default: median of last 5 samples
 		my $quoted_var = '`' . $var . '`';
 		my $sth = $dbh->prepare(qq[
 			SELECT $quoted_var
@@ -113,7 +155,6 @@ sub interpolate_variables {
 			ORDER BY unix_time DESC
 			LIMIT 5
 		]);
-
 		$sth->execute($serial);
 		my $values = $sth->fetchall_arrayref;
 		if (@$values) {

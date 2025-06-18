@@ -43,5 +43,5 @@ These values are fetched from the latest 5 rows of the samples_cache table for t
 These are special variables computed based on comparisons:
 
 ### Symbolic Variable	Meaning
-**$last_volume**	The most recent volume value before the last check, stored per alarm<br/>
-(coming soon)	You could similarly add $last_energy, etc., if needed
+**$energy_day_**<br/>
+**$volume_day_**<br/>
