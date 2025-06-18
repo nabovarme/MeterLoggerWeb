@@ -10,6 +10,8 @@ use Config;
 use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 
+$| = 1;	# Autoflush STDOUT
+
 my $dbh = Nabovarme::Db->my_connect or die "Can't connect to DB: $!";
 $dbh->{'mysql_auto_reconnect'} = 1;
 
