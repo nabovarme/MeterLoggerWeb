@@ -46,4 +46,4 @@ These are special variables computed based on comparisons:
 ### Symbolic Variable	Meaning
 **$energy_day_**<br/>
 **$volume_day**<br/>
-**$leak**	Is an alias for ($energy_day > 1 && $valve_status ne "open" && $valve_installed)
+**$leaking**	Is an alias for ($energy_day > 1 && $valve_status ne "open" && $valve_installed)
