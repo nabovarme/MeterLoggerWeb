@@ -35,6 +35,7 @@ These values are fetched from the latest 5 rows of the samples_cache table for t
 **$volume**	Median of last 5 values from samples_cache.volume<br/>
 **$kwh_left**	Median of last 5 values from samples_cache.kwh_left<br/>
 **$valve_status**	Median (numeric) of last 5 values from samples_cache.valve_status<br/>
+**$valve_installed**<br/>
 ... (others)	Any other column in samples_cache may be referenced similarly<br/>
 
 ✅ You can use any column name from samples_cache as $your_column, and the system will replace it with the median of the last 5 values.
@@ -44,4 +45,4 @@ These are special variables computed based on comparisons:
 
 ### Symbolic Variable	Meaning
 **$energy_day_**<br/>
-**$volume_day_**<br/>
+**$volume_day**<br/>

@@ -86,15 +86,16 @@ sub interpolate_variables {
 
 	# Preload commonly used meter fields
 	my $sth_meter = $dbh->prepare(qq[
-		SELECT last_updated, info, valve_status
+		SELECT last_updated, info, valve_status, valve_installed
 		FROM meters
 		WHERE serial = ?
 	]);
 	$sth_meter->execute($serial);
 	if (my $row = $sth_meter->fetchrow_hashref) {
-		$static_vars{offline}      = time() - ($row->{last_updated} || time());
-		$static_vars{info}         = $row->{info} || '';
-		$static_vars{valve_status} = $dbh->quote($row->{valve_status} || '');
+		$static_vars{offline}         = time() - ($row->{last_updated} || time());
+		$static_vars{info}            = $row->{info} || '';
+		$static_vars{valve_status}    = $dbh->quote($row->{valve_status} || '');
+		$static_vars{valve_installed} = $row->{valve_installed} + 0;  # force numeric
 	}
 
 	foreach my $var (@vars) {
