@@ -13,7 +13,7 @@ use Nabovarme::Db;
 my $dbh = Nabovarme::Db->my_connect or die "Can't connect to DB: $!";
 $dbh->{'mysql_auto_reconnect'} = 1;
 
-warn "connected to db";
+print "connected to db";
 
 while (1) {
 	process_alarms();
@@ -56,7 +56,7 @@ sub evaluate_alarm {
 
 	$condition = interpolate_variables($condition, $serial);
 
-	warn "checking condition for serial $serial, id $alarm->{id}: $condition";
+	print "checking condition for serial $serial, id $alarm->{id}: $condition";
 	my $eval_alarm_state = eval 'no strict; ' . $condition;
 
 	if ($@) {
@@ -181,7 +181,7 @@ sub handle_alarm {
 							alarm_state = 1,
 							snooze_auth_key = $quoted_snooze_auth_key
 						WHERE id = $quoted_id]);
-			warn "serial $alarm->{serial}: down";
+			print "serial $alarm->{serial}: down";
 		}
 		elsif ($alarm->{repeat} && (($alarm->{last_notification} + $alarm->{repeat} + $alarm->{snooze}) < time())) {
 			sms_send($alarm->{sms_notification}, $down_message);
@@ -191,7 +191,7 @@ sub handle_alarm {
 							snooze = 0,
 							snooze_auth_key = $quoted_snooze_auth_key 
 						WHERE id = $quoted_id]);
-			warn "serial $alarm->{serial}: down repeat";
+			print "serial $alarm->{serial}: down repeat";
 		}
 	}
 	else {
@@ -203,7 +203,7 @@ sub handle_alarm {
 							snooze = 0,
 							snooze_auth_key = ''
 						WHERE id = $quoted_id]);
-			warn "serial $alarm->{serial}: up";
+			print "serial $alarm->{serial}: up";
 		}
 	}
 }
@@ -215,7 +215,7 @@ sub sms_send {
 	my @recipients = ($recipient =~ /\d+/g);
 	for my $r (@recipients) {
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
-		warn(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
+		print qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"];
 	}
 }
 
