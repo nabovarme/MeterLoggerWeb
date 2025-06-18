@@ -58,18 +58,6 @@ sub evaluate_alarm {
 
 	$condition = interpolate_variables($condition, $serial);
 
-	# Define symbolic aliases for conditions
-	my %aliases = (
-		leaking => '($energy_day > 1 && $valve_status ne "open" && $valve_installed)'
-	);
-
-	# Replace symbolic variables with their expressions
-	for my $alias (keys %aliases) {
-		my $expr = $aliases{$alias};
-		# Replace $alias with the expression in the condition string
-		$condition =~ s/\$$alias/$expr/g;
-	}
-
 	print "checking condition for serial $serial, id $alarm->{id}: $condition\n";
 	my $eval_alarm_state = eval 'no strict; ' . $condition;
 
