@@ -60,7 +60,7 @@ sub evaluate_alarm {
 
 	# Define symbolic aliases for conditions
 	my %aliases = (
-		leak => '($energy_day > 1 && $valve_status ne "open" && $valve_installed)'
+		leaking => '($energy_day > 1 && $valve_status ne "open" && $valve_installed)'
 	);
 
 	# Replace symbolic variables with their expressions
