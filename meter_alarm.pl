@@ -10,6 +10,8 @@ use Config;
 use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 
+use constant VALVE_CLOSE_DELAY => 600;
+
 $| = 1;	# Autoflush STDOUT
 
 my $dbh = Nabovarme::Db->my_connect or die "Can't connect to DB: $!";
@@ -112,7 +114,7 @@ sub interpolate_variables {
 		# volume_day or energy_day as delta over 24h
 		if ($var eq 'volume_day' or $var eq 'energy_day') {
 			my $column = $var eq 'volume_day' ? 'volume' : 'energy';
-			my $since = time() - 86400;
+			my $since = time() - 86400 - VALVE_CLOSE_DELAY;
 
 			# Get earliest and latest values within the last 24 hours
 			my $sth = $dbh->prepare(qq[
