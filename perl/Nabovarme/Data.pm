@@ -51,9 +51,18 @@ sub handler {
 				SELECT
 					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
 					energy
+				FROM samples_cache
+				WHERE serial LIKE $quoted_serial
+
+				UNION ALL
+
+				SELECT
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					energy
 				FROM samples_daily
 				WHERE serial LIKE $quoted_serial
-				ORDER BY unix_time ASC
+
+				ORDER BY time_stamp_formatted ASC;
 			]);
 			$sth->execute;
 
@@ -82,18 +91,9 @@ sub handler {
 					SELECT
 						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
 						energy
-					FROM samples_cache
-					WHERE serial LIKE $quoted_serial
-
-					UNION ALL
-
-					SELECT
-						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
-						energy
 					FROM samples_hourly
 					WHERE serial LIKE $quoted_serial
-
-					ORDER BY time_stamp_formatted ASC;
+					ORDER BY unix_time ASC
 				]);
 				$sth->execute;
 
@@ -128,9 +128,26 @@ sub handler {
 					hours,
 					volume,
 					energy
+				FROM samples_cache
+				WHERE serial LIKE $quoted_serial
+
+				UNION ALL
+
+				SELECT
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					serial,
+					flow_temp,
+					return_flow_temp,
+					temp_diff,
+					flow,
+					effect,
+					hours,
+					volume,
+					energy
 				FROM samples_daily
-				WHERE serial = $quoted_serial
-				ORDER BY unix_time ASC
+				WHERE serial LIKE $quoted_serial
+
+				ORDER BY time_stamp_formatted ASC;
 			]);
 			$sth->execute;
 
@@ -169,26 +186,9 @@ sub handler {
 						hours,
 						volume,
 						energy
-					FROM samples_cache
-					WHERE serial LIKE $quoted_serial
-
-					UNION ALL
-
-					SELECT
-						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
-						serial,
-						flow_temp,
-						return_flow_temp,
-						temp_diff,
-						flow,
-						effect,
-						hours,
-						volume,
-						energy
 					FROM samples_hourly
-					WHERE serial LIKE $quoted_serial
-
-					ORDER BY time_stamp_formatted ASC;
+					WHERE serial = $quoted_serial
+					ORDER BY unix_time ASC
 				]);
 				$sth->execute;
 
