@@ -37,11 +37,11 @@ sub update_samples_daily {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
 	$sth->execute;
 	
-	print "cleaning samples_cache for all meters\n";
+	print "updating samples_daily for all meters\n";
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 
-		print "\tcleaning samples_cache for " . $d->{serial} . "\n";
+		print "\tupdating samples_daily for " . $d->{serial} . "\n";
 	
 		# re calculate in transaction
 		eval {
