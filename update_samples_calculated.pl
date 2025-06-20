@@ -7,10 +7,11 @@ use Config;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
-warn("starting...\n");
+$| = 1;	# Autoflush STDOUT
+
+print "starting...\n";
 
 my $dbh;
 my $sth;
@@ -21,10 +22,10 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 	$dbh->{'AutoCommit'} = 0;
 	$dbh->{'RaiseError'} = 1;
-	warn("connected to db\n");
+	print "connected to db\n";
 }
 else {
-	warn("cant't connect to db $!\n");
+	print "cant't connect to db $!\n";
 	die $!;
 }
 
@@ -36,11 +37,11 @@ sub update_samples_calculated {
 	$sth = $dbh->prepare(qq[SELECT `serial` FROM meters]);
 	$sth->execute;
 	
-	warn("update samples_calculated for all meters\n");
+	print "update samples_calculated for all meters\n";
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 
-		warn("    update samples_calculated for " . $d->{serial} . "\n");
+		print "\tupdate samples_calculated for " . $d->{serial} . "\n";
 		# re calculate in transaction
 		eval {
 			$dbh->do(qq[DELETE FROM `samples_calculated` WHERE `serial` LIKE $quoted_serial]) || warn "$!\n";
