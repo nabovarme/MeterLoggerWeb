@@ -61,6 +61,7 @@ sub handler {
 					energy
 				FROM samples_daily
 				WHERE serial LIKE $quoted_serial
+				  AND unix_time < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)
 
 				ORDER BY time_stamp_formatted ASC;
 			]);
@@ -93,6 +94,7 @@ sub handler {
 						energy
 					FROM samples_hourly
 					WHERE serial LIKE $quoted_serial
+					  AND unix_time < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)
 					ORDER BY unix_time ASC
 				]);
 				$sth->execute;
@@ -146,6 +148,7 @@ sub handler {
 					energy
 				FROM samples_daily
 				WHERE serial LIKE $quoted_serial
+				  AND unix_time < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)
 
 				ORDER BY time_stamp_formatted ASC;
 			]);
@@ -188,6 +191,7 @@ sub handler {
 						energy
 					FROM samples_hourly
 					WHERE serial = $quoted_serial
+					  AND unix_time < UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)
 					ORDER BY unix_time ASC
 				]);
 				$sth->execute;
