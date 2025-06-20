@@ -179,7 +179,6 @@ services:
     container_name: meter_cron
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-      - ./crontab:/etc/crontab
     restart: always
     environment:
       METERLOGGER_DB_HOST: db:3306

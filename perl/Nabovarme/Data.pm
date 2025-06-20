@@ -98,7 +98,6 @@ sub handler {
 					energy
 				FROM samples_cache
 				WHERE serial LIKE $quoted_serial
-				AND FROM_UNIXTIME(unix_time) >= NOW() - INTERVAL 7 DAY
 				ORDER BY unix_time ASC
 			]);
 			$sth->execute;
@@ -189,7 +188,6 @@ sub handler {
 						energy
 					FROM samples_cache
 					WHERE serial = $quoted_serial
-					AND unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 7 DAY)
 					ORDER BY unix_time ASC
 				]);
 				$sth->execute;
