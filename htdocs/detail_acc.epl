@@ -13,7 +13,7 @@ $is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
 
 if ($is_admin && ($fdat{add_state} =~ /add/i)) {
 	$admin->add_payment($fdat{serial}, $fdat{type}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});	# $serial, $date, $info, $amount, $price
-	$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial} . "&low=1";
+	$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial};
 }
 
 if ($dbh = Nabovarme::Db->my_connect) {
@@ -299,7 +299,7 @@ if ($sth->rows) {
 				<td colspan="8">&nbsp;</td>
 			</tr>
 			<tr>
-				<td colspan="8" align="left"><span class="default"><a href="./">Back</a> | <a href="detail.epl?serial=[+ $fdat{'serial'} +]&low=0">Details</a><br><br><a href="logout">Logout</a></span></td>
+				<td colspan="8" align="left"><span class="default"><a href="./">Back</a> | <a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a><br><br><a href="logout">Logout</a></span></td>
 			</tr>
 		    </table>
 		

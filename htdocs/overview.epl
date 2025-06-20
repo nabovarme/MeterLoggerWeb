@@ -84,7 +84,7 @@
 	$sth3->execute;
 	$d3 = $sth3->fetchrow_hashref;
 -]
-	<span class="default-bold"><a href="detail.epl?serial=[+ $d->{'serial'} +]"&low=0>[+ $d->{'info'} +]</a></span><span class="default"> <a href="detail.epl?serial=[+ $d->{'serial'} +]"&low=0>(serial [+ $d->{'serial'} +])</a></span><br>
+	<span class="default-bold"><a href="detail.epl?serial=[+ $d->{'serial'} +]">[+ $d->{'info'} +]</a></span><span class="default"> <a href="detail.epl?serial=[+ $d->{'serial'} +]">(serial [+ $d->{'serial'} +])</a></span><br>
 
 	<div id="div_nabovarme_[+ $d->{'serial'} +]" style="width:800px; height:150px;"></div><br><br>
 	<script type="text/javascript">

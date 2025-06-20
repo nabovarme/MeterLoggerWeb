@@ -160,7 +160,7 @@
 	}
 -]
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"><a href="detail_acc.epl?serial=[+ $d->{'serial'} +]&low=1">[+ $d->{'serial'} +]</a></span></td>
+		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"><a href="detail_acc.epl?serial=[+ $d->{'serial'} +]">[+ $d->{'serial'} +]</a></span></td>
 		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'info'} +]</span></td>
 		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'energy'} +] kWh</span></td>
 		<td>&nbsp;</td>
