@@ -14,6 +14,9 @@ use Nabovarme::Db;
 # Autoflush STDOUT to ensure immediate output
 $| = 1;
 
+# Max concurrent processes
+my $MAX_PROCESSES = 8;
+
 print "starting...\n";
 
 # Declare database handle and variables
@@ -49,8 +52,6 @@ while (my $row = $sth->fetchrow_hashref) {
 
 $dbh->disconnect();  # Close parent DB connection before forking
 
-# Max concurrent processes
-my $MAX_PROCESSES = 4;
 my @children;
 
 foreach my $serial (@serials) {
