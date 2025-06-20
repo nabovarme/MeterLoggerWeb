@@ -135,23 +135,33 @@ function formatDate(d) {
 }
 
 function update_last_energy() {
-	const xhttp = new XMLHttpRequest();
-	xhttp.onreadystatechange = function() {
-		if (xhttp.readyState == 4 && xhttp.status == 200) {
-			document.getElementById("last_energy").innerHTML = xhttp.responseText;
-		}
-	};
-	xhttp.open("GET", 'last_energy.epl?serial=' + meter_serial, true);
-	xhttp.send();
+	fetch('last_energy.epl?serial=' + meter_serial)
+		.then(response => {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.text();
+		})
+		.then(data => {
+			document.getElementById("last_energy").innerHTML = data;
+		})
+		.catch(error => {
+			console.error('Fetch error:', error);
+		});
 }
 
 function update_kwh_left() {
-	const xhttp = new XMLHttpRequest();
-	xhttp.onreadystatechange = function() {
-		if (xhttp.readyState == 4 && xhttp.status == 200) {
-			document.getElementById("kwh_left").innerHTML = xhttp.responseText;
-		}
-	};
-	xhttp.open("GET", 'kwh_left.epl?serial=' + meter_serial, true);
-	xhttp.send();
+	fetch('kwh_left.epl?serial=' + meter_serial)
+		.then(response => {
+			if (!response.ok) {
+				throw new Error('Network response was not ok');
+			}
+			return response.text();
+		})
+		.then(data => {
+			document.getElementById("kwh_left").innerHTML = data;
+		})
+		.catch(error => {
+			console.error('There was a problem with the fetch operation:', error);
+		});
 }
