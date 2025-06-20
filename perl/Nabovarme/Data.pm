@@ -48,46 +48,10 @@ sub handler {
 
 			# Query daily first energy sample
 			$sth = $dbh->prepare(qq[
-				SELECT 
-					DATE_FORMAT(FROM_UNIXTIME(sc.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
-					energy
-				FROM samples_calculated sc
-				JOIN (
-					SELECT FROM_UNIXTIME(unix_time, '%Y-%m-%d') AS day,
-						   MIN(unix_time) AS min_time
-					FROM samples_calculated
-					WHERE serial = $quoted_serial
-					GROUP BY day
-				) first_per_day
-				  ON FROM_UNIXTIME(sc.unix_time, '%Y-%m-%d') = first_per_day.day
-				 AND sc.unix_time = first_per_day.min_time
-				WHERE sc.serial = $quoted_serial
-				ORDER BY sc.unix_time ASC
-			]);
-			$sth->execute;
-
-			while ($d = $sth->fetchrow_hashref) {
-				$r->print("$d->{time_stamp_formatted}," . ($d->{energy} - $setup_value) . "\n");
-			}
-		}
-
-		# --- Option: acc_fine (high-resolution energy, recent) ---
-		elsif ($option =~ /acc_fine/) {
-
-			$sth = $dbh->prepare("SELECT setup_value FROM meters WHERE `serial` LIKE $quoted_serial LIMIT 1");
-			$sth->execute;
-			if ($d = $sth->fetchrow_hashref) {
-				$setup_value = $d->{setup_value};
-			}
-
-			$r->content_type('text/plain');
-			$r->print("Date,Energy\n");
-
-			$sth = $dbh->prepare(qq[
 				SELECT
 					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
 					energy
-				FROM samples_cache
+				FROM samples_daily
 				WHERE serial LIKE $quoted_serial
 				ORDER BY unix_time ASC
 			]);
@@ -98,6 +62,55 @@ sub handler {
 			}
 		}
 
+		# --- Option: acc_fine (high-resolution energy, recent, with cache) ---
+		elsif ($option =~ /acc_fine/) {
+
+			$sth = $dbh->prepare("SELECT setup_value FROM meters WHERE `serial` LIKE $quoted_serial LIMIT 1");
+			$sth->execute;
+			if ($d = $sth->fetchrow_hashref) {
+				$setup_value = $d->{setup_value};
+			}
+
+			my $cache_file = $document_root . $data_cache_path . '/' . $serial . '_acc.csv';
+
+			if ((-e $cache_file) && ((time() - (stat($cache_file))[9]) < 3600)) {
+				warn Dumper "Using cached acc_fine: $cache_file";
+			} else {
+				warn Dumper "Generating new acc_fine cache: $cache_file";
+
+				$sth = $dbh->prepare(qq[
+					SELECT
+						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+						energy
+					FROM samples_cache
+					WHERE serial LIKE $quoted_serial
+
+					UNION ALL
+
+					SELECT
+						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+						energy
+					FROM samples_hourly
+					WHERE serial LIKE $quoted_serial
+
+					ORDER BY time_stamp_formatted ASC;
+				]);
+				$sth->execute;
+
+				open(my $fh, '>', $cache_file) or warn "Cannot open cache file $cache_file: $!";
+				flock($fh, LOCK_EX) or return Apache2::Const::SERVER_ERROR;
+
+				print $fh "Date,Energy\n";
+				while ($d = $sth->fetchrow_hashref) {
+					print $fh "$d->{time_stamp_formatted}," . ($d->{energy} - $setup_value) . "\n";
+				}
+				close($fh);
+			}
+
+			$r->internal_redirect('/' . $data_cache_path . '/' . $serial . '_acc.csv');
+			return Apache2::Const::OK;
+		}
+
 		# --- Option: coarse (detailed daily sample) ---
 		elsif ($option =~ /coarse/) {
 
@@ -105,29 +118,19 @@ sub handler {
 
 			$sth = $dbh->prepare(qq[
 				SELECT
-					DATE_FORMAT(FROM_UNIXTIME(sc.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
-					sc.serial,
-					sc.flow_temp,
-					sc.return_flow_temp,
-					sc.temp_diff,
-					sc.flow,
-					sc.effect,
-					sc.hours,
-					sc.volume,
-					sc.energy
-				FROM samples_calculated sc
-				JOIN (
-					SELECT
-						FROM_UNIXTIME(unix_time, '%Y-%m-%d') AS day,
-						MIN(unix_time) AS min_time
-					FROM samples_calculated
-					WHERE serial = $quoted_serial
-					GROUP BY day
-				) first_per_day
-				  ON FROM_UNIXTIME(sc.unix_time, '%Y-%m-%d') = first_per_day.day
-				 AND sc.unix_time = first_per_day.min_time
-				WHERE sc.serial = $quoted_serial
-				ORDER BY sc.unix_time ASC
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					serial,
+					flow_temp,
+					return_flow_temp,
+					temp_diff,
+					flow,
+					effect,
+					hours,
+					volume,
+					energy
+				FROM samples_daily
+				WHERE serial = $quoted_serial
+				ORDER BY unix_time ASC
 			]);
 			$sth->execute;
 
@@ -144,15 +147,14 @@ sub handler {
 			}
 		}
 
-		# --- Option: fine (high-resolution cached data) ---
+		# --- Option: fine (high-resolution cached data, with cache) ---
 		elsif ($option =~ /fine/) {
 
 			my $cache_file = $document_root . $data_cache_path . '/' . $serial . '.csv';
 
 			if ((-e $cache_file) && ((time() - (stat($cache_file))[9]) < 3600)) {
 				warn Dumper "Cached version exists: $cache_file updated " . (time() - (stat($cache_file))[9]) . " seconds ago";
-			}
-			else {
+			} else {
 				warn Dumper "No valid cache found: $cache_file - regenerating";
 
 				$sth = $dbh->prepare(qq[
@@ -168,8 +170,25 @@ sub handler {
 						volume,
 						energy
 					FROM samples_cache
-					WHERE serial = $quoted_serial
-					ORDER BY unix_time ASC
+					WHERE serial LIKE $quoted_serial
+
+					UNION ALL
+
+					SELECT
+						DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+						serial,
+						flow_temp,
+						return_flow_temp,
+						temp_diff,
+						flow,
+						effect,
+						hours,
+						volume,
+						energy
+					FROM samples_hourly
+					WHERE serial LIKE $quoted_serial
+
+					ORDER BY time_stamp_formatted ASC;
 				]);
 				$sth->execute;
 
