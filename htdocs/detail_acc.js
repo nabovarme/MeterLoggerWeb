@@ -1,121 +1,141 @@
-var data = [];
-var colorSets = [
-	['#999999'],
-	null
-]
-var data = 'data/' + meter_serial + '/acc_low';
-var g = new Dygraph(
-	document.getElementById("div_nabovarme"), data, {
-		colors: colorSets[0],
-		strokeWidth: 1.5,
-		animatedZooms: true,
-		showLabelsOnHighlight: true,
-		labelsDivStyles: {
-			'font-family': 'Verdana, Geneva, sans-serif',
-			'text-align': 'left',
-			'background': 'none'
-		},
-		labelsSeparateLines: true,
-		labelsDivWidth: 700,
-		axes: {
-			x: {
-				valueFormatter: function(x) {
-					return formatDate(new Date(x));
-				}
+var colorSets = [['#999999'], null];
+var g;
+//var meter_serial = '123456'; // Replace this dynamically if needed
+var dataUrlCoarse = 'data/' + meter_serial + '/acc_coarse';
+var dataUrlFine = 'data/' + meter_serial + '/acc_fine';
+
+// Load initial coarse data
+fetch(dataUrlCoarse)
+	.then(r => r.text())
+	.then(coarseCsv => {
+		g = new Dygraph(
+			document.getElementById("div_nabovarme"),
+			coarseCsv,
+			{
+				colors: colorSets[0],
+				strokeWidth: 1.5,
+				animatedZooms: true,
+				showLabelsOnHighlight: true,
+				labelsDivStyles: {
+					'font-family': 'Verdana, Geneva, sans-serif',
+					'text-align': 'left',
+					'background': 'none'
+				},
+				labelsSeparateLines: true,
+				labelsDivWidth: 700,
+				axes: {
+					x: {
+						valueFormatter: function(x) {
+							return formatDate(new Date(x));
+						}
+					}
+				},
+				maxNumberWidth: 12,
+				highlightSeriesOpts: {
+					pointSize: 6,
+					highlightCircleSize: 6,
+					strokeWidth: 2,
+					strokeBorderWidth: 1,
+				},
+				highlightCallback: update_consumption,
+				unhighlightCallback: update_consumption,
+				zoomCallback: update_consumption,
+				clickCallback: update_consumption,
 			}
-		},
-		maxNumberWidth: 12,
-		highlightSeriesOpts: {
-			pointSize: 6,
-			highlightCircleSize: 6,
-			strokeWidth: 2,
-			strokeBorderWidth: 1,
-		},
-		highlightCallback: function(e) {
+		);
+
+		g.ready(function () {
 			update_consumption();
-		},
-		unhighlightCallback: function(e) {
+			loadAndMergeDetailedData();
+		});
+
+		// Pan right every minute
+		setInterval(function() {
+			const range = g.xAxisRange();
+			g.updateOptions({
+				file: coarseCsv,
+				dateWindow: [range[0] + 60000, range[1] + 60000]
+			});
+			update_last_energy();
+			update_kwh_left();
 			update_consumption();
-		},
-		zoomCallback: function(minDate, maxDate, yRanges) {
-			update_consumption();
-		},
-		clickCallback: function(e, x, points) {
-			update_consumption();
-		},
-//		showRangeSelector: true,	// , does not work with zoom
-//		interactionModel: Dygraph.defaultInteractionModel
+		}, 60000);
+	});
+
+// Load and merge detailed data
+function loadAndMergeDetailedData() {
+	fetch(dataUrlFine)
+		.then(r => r.text())
+		.then(detailedCsv => {
+			const mergedCsv = mergeCsv(g.file_, detailedCsv);
+			g.updateOptions({ file: mergedCsv });
+		});
+}
+
+// Merge CSVs by timestamp
+function mergeCsv(csv1, csv2) {
+	const lines1 = csv1.trim().split("\n");
+	const lines2 = csv2.trim().split("\n");
+	
+	const header = lines1[0];
+	const allLines = lines1.slice(1).concat(lines2.slice(1));
+	
+	// Use a Map to remove duplicates by timestamp
+	const uniqueRows = new Map();
+	for (const line of allLines) {
+		const timestamp = line.split(",")[0]; // assumes timestamp is the first column
+		uniqueRows.set(timestamp, line); // newer value overwrites older
 	}
-);
-
-g.ready(function () {
-	update_consumption();
-});
-
-setInterval(function() {
-	var range = g.xAxisRange();
-	// update data and pan right
-	range[0] += 60000;
-	range[1] += 60000;
-	g.updateOptions( { 'file': data, dateWindow: range } );
-	update_last_energy();
-	update_kwh_left();
-	update_consumption();
-}, 60000);
+	
+	// Sort by timestamp
+	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
+		return new Date(a.split(",")[0]) - new Date(b.split(",")[0]);
+	});
+	
+	return [header].concat(sortedRows).join("\n");
+}
 
 function update_consumption() {
-	var range = g.xAxisRange();
-	var minYinRange;
-	var maxYinRange;
-	var i;
-	for (i = 0; i < g.rawData_.length; i++) {
-		if (g.rawData_[i][0] >= range[0]) { 
-			minYinRange = parseFloat(g.rawData_[i][1]);
+	if (!g || !g.rawData_) return;
+
+	const range = g.xAxisRange();
+	let minY, maxY;
+
+	for (let i = 0; i < g.rawData_.length; i++) {
+		if (g.rawData_[i][0] >= range[0]) {
+			minY = parseFloat(g.rawData_[i][1]);
 			break;
 		}
 	}
-	for (i = g.rawData_.length; i > 0; i--) {
-		if (g.rawData_[i - 1][0] <= range[1]) { 
-			maxYinRange = parseFloat(g.rawData_[i - 1][1]);
+
+	for (let i = g.rawData_.length - 1; i >= 0; i--) {
+		if (g.rawData_[i][0] <= range[1]) {
+			maxY = parseFloat(g.rawData_[i][1]);
 			break;
 		}
 	}
-	var consumption = (maxYinRange - minYinRange);
-	var average_consumption = consumption / ((range[1] - range[0]) / (1000 * 3600));				
-	
-	document.getElementById('consumption_in_range').innerHTML = 
-		'<span class="default-bold">Consumption for selected period </span>' + 
-		'<span class="default">' + 
-		consumption.toFixed(2) + ' kWh, ' + 
-		'at ' + average_consumption.toFixed(2) + ' kW/h' + 
-		'</span>'
+
+	const consumption = (maxY - minY);
+	const avg = consumption / ((range[1] - range[0]) / (1000 * 3600));
+
+	document.getElementById('consumption_in_range').innerHTML =
+		'<span class="default-bold">Consumption for selected period </span>' +
+		'<span class="default">' +
+		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 }
 
 function formatDate(d) {
-	var year = d.getFullYear(),
-	month = d.getMonth() + 1,
-	date = d.getDate(),
-	hours = d.getHours(),
-	minutes = d.getMinutes(),
-	seconds = d.getSeconds();
-	
-	var now = new Date();
+	const pad = (n) => (n < 10 ? '0' + n : n);
+	const now = new Date();
 	if (d.getTime() < now.getTime() - (1000 * 86400)) {
-		return 'Time: ' + date + '.' + month + '.' + year + ' ' + 
-			hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-	}
-	else {
-		return 'Time: ' + hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+		return `Time: ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	} else {
+		return `Time: ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 	}
 }
 
-g.ready(function () {
-	// stop spinner
-	spinner.stop();
-});
-
 function update_last_energy() {
-	var xhttp = new XMLHttpRequest();
+	const xhttp = new XMLHttpRequest();
 	xhttp.onreadystatechange = function() {
 		if (xhttp.readyState == 4 && xhttp.status == 200) {
 			document.getElementById("last_energy").innerHTML = xhttp.responseText;
@@ -126,7 +146,7 @@ function update_last_energy() {
 }
 
 function update_kwh_left() {
-	var xhttp = new XMLHttpRequest();
+	const xhttp = new XMLHttpRequest();
 	xhttp.onreadystatechange = function() {
 		if (xhttp.readyState == 4 && xhttp.status == 200) {
 			document.getElementById("kwh_left").innerHTML = xhttp.responseText;

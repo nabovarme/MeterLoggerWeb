@@ -59,46 +59,61 @@ sub handler {
 			}
 
 		}
-		elsif ($option =~ /volume_acc/) {		# accumulated energy
-			$sth = $dbh->prepare(qq[SELECT \
-				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
-				`volume` \
-				FROM `samples_calculated` \
-				WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-				AND FROM_UNIXTIME(`unix_time`) < NOW() - INTERVAL 7 DAY \
-				ORDER BY `unix_time` ASC]);
-			$sth->execute;	
-		
-			$sth2 = $dbh->prepare(qq[SELECT setup_value FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
-			$sth2->execute;
-			if ($d2 = $sth2->fetchrow_hashref) {
-				$setup_value = $d2->{setup_value};
+
+		elsif ($option =~ /acc_coarse/) {		# accumulated energy coarse
+			$sth = $dbh->prepare(qq[SELECT setup_value FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
+			$sth->execute;
+			if ($d = $sth->fetchrow_hashref) {
+				$setup_value = $d->{setup_value};
 			}
 			$r->content_type('text/plain');
-			$r->print("Date,Volume\n");
-			$csv_header_set = 1;
-			while ($d = $sth->fetchrow_hashref) {
-				$r->print($d->{time_stamp_formatted} . ',');
-				$r->print(($d->{volume} - $setup_value) . "\n");
-			}
-
-			# get highres data
-			$sth = $dbh->prepare(qq[SELECT \
-				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted, \
-				volume FROM samples_cache WHERE `serial` LIKE ] . $quoted_serial . qq[ \
-			    AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY \
-				ORDER BY `unix_time` ASC]);
+			$r->print("Date,Energy\n");
+			$sth = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(sc.`unix_time`), "%Y/%m/%d %T") AS `time_stamp_formatted`,
+									`energy`
+									FROM samples_calculated sc
+									JOIN (
+										SELECT FROM_UNIXTIME(unix_time, '%Y-%m-%d') AS day,
+											MIN(unix_time) AS min_time
+										FROM samples_calculated
+										WHERE serial = $quoted_serial
+										GROUP BY day
+									) first_per_day
+									ON FROM_UNIXTIME(sc.unix_time, '%Y-%m-%d') = first_per_day.day
+										AND sc.unix_time = first_per_day.min_time
+									WHERE sc.serial = $quoted_serial
+									ORDER BY sc.`unix_time` ASC]);
 			$sth->execute;
 			if ($sth->rows) {
-				unless ($csv_header_set) {
-					$r->print("Date,Volume\n");
-				}
 				while ($d = $sth->fetchrow_hashref) {
 					$r->print($d->{time_stamp_formatted} . ',');
-					$r->print(($d->{volume} - $setup_value) . "\n");
+					$r->print(($d->{energy} - $setup_value) . "\n");
 				}
 			}
 		}
+		elsif ($option =~ /acc_fine/) {		# accumulated energy coarse
+			$sth = $dbh->prepare(qq[SELECT setup_value FROM meters WHERE `serial` LIKE ] . $quoted_serial . qq[ LIMIT 1]);
+			$sth->execute;
+			if ($d = $sth->fetchrow_hashref) {
+				$setup_value = $d->{setup_value};
+			}
+			$r->content_type('text/plain');
+			$r->print("Date,Energy\n");
+			$sth = $dbh->prepare(qq[SELECT
+				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`,
+				`energy`
+				FROM `samples_cache` \
+				WHERE `serial` LIKE $quoted_serial
+				AND FROM_UNIXTIME(`unix_time`) >= NOW() - INTERVAL 7 DAY
+				ORDER BY `unix_time` ASC]);
+			$sth->execute;
+			if ($sth->rows) {
+				while ($d = $sth->fetchrow_hashref) {
+					$r->print($d->{time_stamp_formatted} . ',');
+					$r->print(($d->{energy} - $setup_value) . "\n");
+				}
+			}
+		}
+		
 		elsif ($option =~ /acc/) {		# accumulated energy
 			$sth = $dbh->prepare(qq[SELECT \
 				DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS `time_stamp_formatted`, \
