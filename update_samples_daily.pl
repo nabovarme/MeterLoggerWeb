@@ -45,7 +45,7 @@ sub update_samples_daily {
 	
 		# re calculate in transaction
 		eval {
-			$dbh->do(qq[DELETE FROM samples_daily]) || warn "$!\n";
+			$dbh->do(qq[DELETE FROM samples_daily WHERE SERIAL LIKE $quoted_serial]) || warn "$!\n";
 			$dbh->do(qq[
 				INSERT INTO samples_daily (
 					`serial`, heap, flow_temp, return_flow_temp, temp_diff,
