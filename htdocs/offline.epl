@@ -65,7 +65,7 @@
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
 	</tr>

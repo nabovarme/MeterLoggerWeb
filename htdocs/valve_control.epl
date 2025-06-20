@@ -86,7 +86,7 @@
 	</tr>
 [$ endif $]
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]&low=1">[+ $d->{serial} +]</a></span></td>
+		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
 		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
 		<td align="right">
 			[$ if ($is_admin) $]

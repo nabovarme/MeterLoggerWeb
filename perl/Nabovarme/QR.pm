@@ -49,7 +49,7 @@ sub handler {
 					my $sms = $d->{sms_notification};
 					eval {
 						warn(qq[cd $document_root$qr_path && \
-						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial&low=1" ; \
+						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
 						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$serial, NV" ; \ 
 						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
 						pdflatex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\newcommand{\\varmobilepay}{$mobilepay_receiver} \\input{$latex_template_name}" ; \
@@ -57,7 +57,7 @@ sub handler {
 						rm qr_mobilepay.png qr_meterlogger.png]);
 
 						system(qq[cd $document_root$qr_path && \
-						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial&low=1" ; \
+						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
 						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$serial, NV" ; \ 
 						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
 						pdflatex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\newcommand{\\varmobilepay}{$mobilepay_receiver} \\input{$latex_template_name}" ; \
