@@ -38,25 +38,23 @@ sub update_samples_daily {
 	eval {
 		$dbh->do(qq[DELETE FROM samples_daily]) || warn "$!\n";
 		$dbh->do(qq[
-		INSERT INTO samples_daily (
-			`serial`, heap, flow_temp, return_flow_temp, temp_diff,
-			t3, flow, effect, hours, volume, energy, unix_time
-		)
-		SELECT
-			s.`serial`, s.heap, s.flow_temp, s.return_flow_temp, s.temp_diff,
-			s.t3, s.flow, s.effect, s.hours, s.volume, s.energy, s.unix_time
-		FROM samples s
-		JOIN (
+			INSERT INTO samples_daily (
+				`serial`, heap, flow_temp, return_flow_temp, temp_diff,
+				t3, flow, effect, hours, volume, energy, unix_time
+			)
 			SELECT 
-				`serial`,
-				DATE(FROM_UNIXTIME(unix_time)) AS sample_day,
-				MIN(unix_time) AS first_unix_time
-			FROM samples
-			GROUP BY `serial`, sample_day
-		) first_samples 
-			ON s.`serial` = first_samples.`serial` 
-			AND s.unix_time = first_samples.first_unix_time;
-		]) or warn "$!\n";
+				`serial`, heap, flow_temp, return_flow_temp, temp_diff,
+				t3, flow, effect, hours, volume, energy, unix_time
+			FROM (
+				SELECT 
+					s.*,
+					ROW_NUMBER() OVER (
+						PARTITION BY `serial`, DATE(FROM_UNIXTIME(unix_time))
+						ORDER BY unix_time ASC
+					) AS rn
+				FROM samples s
+			) sub
+			WHERE rn = 1]) or warn "$!\n";
 		$dbh->commit();
 	};
 	if ($@) {
