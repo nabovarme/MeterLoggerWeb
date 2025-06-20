@@ -153,7 +153,7 @@ CREATE TABLE `command_queue` (
   `timeout` int(11) NOT NULL DEFAULT 0,
   `sent_count` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=311864 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=320728 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -333,32 +333,6 @@ CREATE TABLE `samples_calculated` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `samples_daily`
---
-
-DROP TABLE IF EXISTS `samples_daily`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `samples_daily` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(12) DEFAULT NULL,
-  `heap` int(11) unsigned DEFAULT NULL,
-  `flow_temp` float DEFAULT NULL,
-  `return_flow_temp` float DEFAULT NULL,
-  `temp_diff` float DEFAULT NULL,
-  `t3` float DEFAULT NULL,
-  `flow` float DEFAULT NULL,
-  `effect` float DEFAULT NULL,
-  `hours` float DEFAULT NULL,
-  `volume` float DEFAULT NULL,
-  `energy` float DEFAULT NULL,
-  `unix_time` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=7212 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
 -- Table structure for table `sms_auth`
 --
 
@@ -434,4 +408,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-06-20  5:22:07
+-- Dump completed on 2025-06-20  8:23:29
