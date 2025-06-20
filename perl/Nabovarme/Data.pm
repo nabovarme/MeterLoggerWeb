@@ -52,20 +52,20 @@ sub handler {
 			# Query for the earliest sample per day to get daily coarse data
 			$sth = $dbh->prepare(qq[
 				SELECT 
-					DATE_FORMAT(FROM_UNIXTIME(sd.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					DATE_FORMAT(FROM_UNIXTIME(sc.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
 					energy
-				FROM samples_daily sd
+				FROM samples_calculated sc
 				JOIN (
 					SELECT FROM_UNIXTIME(unix_time, '%Y-%m-%d') AS day,
 						MIN(unix_time) AS min_time
-					FROM samples_daily
+					FROM samples_calculated
 					WHERE serial = $quoted_serial
 					GROUP BY day
 				) first_per_day
-				ON FROM_UNIXTIME(sd.unix_time, '%Y-%m-%d') = first_per_day.day
-				AND sd.unix_time = first_per_day.min_time
-				WHERE sd.serial = $quoted_serial
-				ORDER BY sd.unix_time ASC
+				ON FROM_UNIXTIME(sc.unix_time, '%Y-%m-%d') = first_per_day.day
+				AND sc.unix_time = first_per_day.min_time
+				WHERE sc.serial = $quoted_serial
+				ORDER BY sc.unix_time ASC
 			]);
 			$sth->execute;
 
@@ -118,29 +118,29 @@ sub handler {
 			# Query first sample per day with multiple detailed fields
 			$sth = $dbh->prepare(qq[
 				SELECT
-					DATE_FORMAT(FROM_UNIXTIME(sd.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
-					sd.serial,
-					sd.flow_temp,
-					sd.return_flow_temp,
-					sd.temp_diff,
-					sd.flow,
-					sd.effect,
-					sd.hours,
-					sd.volume,
-					sd.energy
-				FROM samples_daily sd
+					DATE_FORMAT(FROM_UNIXTIME(sc.unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					sc.serial,
+					sc.flow_temp,
+					sc.return_flow_temp,
+					sc.temp_diff,
+					sc.flow,
+					sc.effect,
+					sc.hours,
+					sc.volume,
+					sc.energy
+				FROM samples_calculated sc
 				JOIN (
 					SELECT
 						FROM_UNIXTIME(unix_time, '%Y-%m-%d') AS day,
 						MIN(unix_time) AS min_time
-					FROM samples_daily
+					FROM samples_calculated
 					WHERE serial = $quoted_serial
 					GROUP BY day
 				) first_per_day
-				ON FROM_UNIXTIME(sd.unix_time, '%Y-%m-%d') = first_per_day.day
-				AND sd.unix_time = first_per_day.min_time
-				WHERE sd.serial = $quoted_serial
-				ORDER BY sd.unix_time ASC
+				ON FROM_UNIXTIME(sc.unix_time, '%Y-%m-%d') = first_per_day.day
+				AND sc.unix_time = first_per_day.min_time
+				WHERE sc.serial = $quoted_serial
+				ORDER BY sc.unix_time ASC
 			]);
 			$sth->execute;
 
