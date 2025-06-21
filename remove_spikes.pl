@@ -13,49 +13,35 @@ use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT
 
+# === CONFIGURATION ===
+
 # Tables to process
 my @tables = qw(samples samples_cache);
 
 # Fields to check for spikes
 my @fields = qw(flow_temp return_flow_temp flow hours volume energy);
 
-# Time threshold (in seconds)
+# Time threshold (in seconds) to consider data as continuous
 my $time_threshold = 120;
 
-# Spike factor for detection
+# Spike detection sensitivity
 my $spike_factor = 10;
 
-# Minimum value threshold to avoid matching tiny noise
+# Minimum value to avoid flagging noise as spike
 my $min_val_threshold = 1 / $spike_factor;
 
-# Set number of parallel processes
-my $pm = Parallel::ForkManager->new(scalar @tables);
+# Max parallel child processes (tune for your system)
+my $max_processes = 8;
+
+# === PARALLEL SETUP ===
+
+my $pm = Parallel::ForkManager->new($max_processes);
 
 foreach my $table (@tables) {
-	$pm->start and next;
+	print "\n=== Preparing table: $table ===\n";
 
-	my $dbh;
-	if ($dbh = Nabovarme::Db->my_connect()) {
-		$dbh->{mysql_auto_reconnect} = 1;
-		print "[$table] connected to db\n";
-	}
-	else {
-		print "[$table] can't connect to db $!\n";
-		exit 1;
-	}
-
-	print "=== Processing table: $table ===\n";
-
-	my $count_sth = $dbh->prepare("SELECT COUNT(*) FROM $table");
-	$count_sth->execute();
-	my ($row_count) = $count_sth->fetchrow_array;
-	$count_sth->finish;
-
-	if ($row_count == 0) {
-		print "No data in $table — skipping\n\n";
-		$dbh->disconnect;
-		$pm->finish(0);
-	}
+	my $dbh = Nabovarme::Db->my_connect() or die "[$table] Cannot connect to DB";
+	$dbh->{mysql_auto_reconnect} = 1;
 
 	my $meter_sth = $dbh->prepare(qq[
 		SELECT `serial` FROM meters
@@ -63,32 +49,43 @@ foreach my $table (@tables) {
 	]);
 	$meter_sth->execute();
 
-	my $select_samples_sth = $dbh->prepare(qq[
-		SELECT id, unix_time, ] . join(",", @fields) . qq[
-		FROM $table
-		WHERE `serial` = ?
-		AND is_spike != 1
-		ORDER BY unix_time ASC
-	]) or die "Failed to prepare select on $table: " . $dbh->errstr;
-
-	my $mark_spike_sth = $dbh->prepare("UPDATE $table SET is_spike = 1 WHERE id = ?")
-		or die "Failed to prepare update on $table: " . $dbh->errstr;
-
-	my $total_marked = 0;
-
+	my @serials;
 	while (my ($serial) = $meter_sth->fetchrow_array) {
-		print "[$table] Processing serial: $serial\n";
+		push @serials, $serial;
+	}
+	$meter_sth->finish;
+	$dbh->disconnect;
+
+	foreach my $serial (@serials) {
+		$pm->start and next;
+
+		my $dbh = Nabovarme::Db->my_connect() or die "[$table][$serial] Cannot connect to DB";
+		$dbh->{mysql_auto_reconnect} = 1;
+
+		my $select_samples_sth = $dbh->prepare(qq[
+			SELECT id, unix_time, ] . join(",", @fields) . qq[
+			FROM $table
+			WHERE `serial` = ?
+			AND is_spike != 1
+			ORDER BY unix_time ASC
+		]) or die "[$table][$serial] Failed to prepare select: " . $dbh->errstr;
+
+		my $mark_spike_sth = $dbh->prepare("UPDATE $table SET is_spike = 1 WHERE id = ?")
+			or die "[$table][$serial] Failed to prepare update: " . $dbh->errstr;
 
 		$select_samples_sth->execute($serial)
-			or die "Failed to execute select on $table for serial $serial: " . $select_samples_sth->errstr;
+			or die "[$table][$serial] Failed to execute select: " . $select_samples_sth->errstr;
 
 		my ($prev, $curr);
 		if ($select_samples_sth->rows >= 2) {
 			$prev = $select_samples_sth->fetchrow_hashref;
 			$curr = $select_samples_sth->fetchrow_hashref;
 		} else {
-			print "Not enough samples for serial $serial in table $table — skipping\n";
-			next;
+			print "[$table][$serial] Not enough samples — skipping\n";
+			$select_samples_sth->finish;
+			$mark_spike_sth->finish;
+			$dbh->disconnect;
+			$pm->finish(0);
 		}
 
 		my $count_marked = 0;
@@ -131,8 +128,8 @@ foreach my $table (@tables) {
 					)
 				) {
 					$mark = 1;
-					print "[$table] Marked spike at $curr->{unix_time} on $field:\n";
-					print "		 prev=$prev_val, curr=$val, next=$next_val\n";
+					print "[$table][$serial] Marked spike at $curr->{unix_time} on $field:\n";
+					print "   prev=$prev_val, curr=$val, next=$next_val\n";
 					last;
 				}
 			}
@@ -146,19 +143,14 @@ foreach my $table (@tables) {
 			$curr = $next;
 		}
 
-		print "[$table] Done serial: $serial — Marked $count_marked samples as spike\n\n";
-		$total_marked += $count_marked;
+		print "[$table][$serial] Done — Marked $count_marked samples as spike\n";
+
+		$select_samples_sth->finish;
+		$mark_spike_sth->finish;
+		$dbh->disconnect;
+
+		$pm->finish(0);
 	}
-
-	$select_samples_sth->finish;
-	$mark_spike_sth->finish;
-	$meter_sth->finish;
-
-	print "=== Finished processing table: $table ===\n";
-	print "Total marked as spike: $total_marked\n\n";
-
-	$dbh->disconnect;
-	$pm->finish(0);
 }
 
 $pm->wait_all_children;
