@@ -12,7 +12,7 @@ use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT
 
-# Table to process
+# Only process this one table
 my $table = 'samples';
 
 # Fields to check for spikes
@@ -52,7 +52,7 @@ my $meter_sth = $dbh->prepare(qq[
 ]);
 $meter_sth->execute();
 
-# Prepare SELECT and DELETE statements
+# Prepare SELECT and UPDATE statements
 my $select_samples_sth = $dbh->prepare(qq[
 	SELECT id, unix_time, ] . join(",", @fields) . qq[
 	FROM $table
@@ -60,11 +60,11 @@ my $select_samples_sth = $dbh->prepare(qq[
 	ORDER BY unix_time ASC
 ]) or die "Failed to prepare select on $table: " . $dbh->errstr;
 
-my $delete_sample_sth = $dbh->prepare("DELETE FROM $table WHERE id = ?")
-	or die "Failed to prepare delete on $table: " . $dbh->errstr;
+my $mark_spike_sth = $dbh->prepare("UPDATE $table SET is_spike = 1 WHERE id = ?")
+	or die "Failed to prepare update on $table: " . $dbh->errstr;
 
 # Process each meter
-my $total_deleted = 0;
+my $total_marked = 0;
 
 while (my ($serial) = $meter_sth->fetchrow_array) {
 	print "[$table] Processing serial: $serial\n";
@@ -81,11 +81,10 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 		next;
 	}
 
-	my $count_deleted = 0;
+	my $count_marked = 0;
 
-	# Walk through the rest of the samples
 	while (my $next = $select_samples_sth->fetchrow_hashref) {
-		my $delete = 0;
+		my $mark = 0;
 
 		my $prev_diff = abs($curr->{unix_time} - $prev->{unix_time});
 		my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
@@ -105,32 +104,32 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 				($val < 0.1 * $prev_val && $val < 0.1 * $next_val) ||
 				($val > 10 && $prev_val == 0 && $next_val == 0)
 			) {
-				$delete = 1;
-				print "[$table] Deleted spike at $curr->{unix_time} on $field:\n";
-				print "         prev=$prev_val, curr=$val, next=$next_val\n";
+				$mark = 1;
+				print "[$table] Marked spike at $curr->{unix_time} on $field:\n";
+				print "		 prev=$prev_val, curr=$val, next=$next_val\n";
 				last;
 			}
 		}
 
-		if ($delete) {
-			$delete_sample_sth->execute($curr->{id});
-			$count_deleted++;
+		if ($mark) {
+			$mark_spike_sth->execute($curr->{id});
+			$count_marked++;
 		}
 
 		$prev = $curr;
 		$curr = $next;
 	}
 
-	print "[$table] Done serial: $serial — Deleted $count_deleted samples\n\n";
-	$total_deleted += $count_deleted;
+	print "[$table] Done serial: $serial — Marked $count_marked samples as spike\n\n";
+	$total_marked += $count_marked;
 }
 
 $select_samples_sth->finish;
-$delete_sample_sth->finish;
+$mark_spike_sth->finish;
 $meter_sth->finish;
 
 print "=== Finished processing table: $table ===\n";
-print "Total deleted samples: $total_deleted\n\n";
+print "Total marked as spike: $total_marked\n\n";
 
 $dbh->disconnect;
 
