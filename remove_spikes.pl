@@ -1,18 +1,22 @@
 #!/usr/bin/perl -w
 use strict;
 use warnings;
-use Proc::PID::File;
-
-# Prevent multiple instances
-Proc::PID::File->running or die "Another instance of the script is already running. Exiting.\n";
-
+use Fcntl ':flock';  # For manual file locking
 use DBI;
 use Parallel::ForkManager;
+use File::Basename;
 
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT
+
+# === LOCKING ===
+my $script_name = basename($0);
+my $lockfile = "/tmp/$script_name.lock";
+open(my $fh, ">", $lockfile) or die "Cannot open lock file $lockfile: $!";
+flock($fh, LOCK_EX | LOCK_NB) or die "Another instance is already running. Exiting.\n";
+print $fh "$$\n";  # Write current PID to the lock file
 
 # === CONFIGURATION ===
 
@@ -20,8 +24,8 @@ my @tables = ('samples', 'samples_cache');  # Process both tables
 
 my @fields = qw(flow_temp return_flow_temp flow hours volume energy);
 
-my $time_threshold	= 120;
-my $spike_factor	  = 10;
+my $time_threshold   = 120;
+my $spike_factor	 = 10;
 my $min_val_threshold = 1 / $spike_factor;
 
 # Max parallel processes
@@ -34,7 +38,6 @@ $dbh->{mysql_auto_reconnect} = 1;
 
 my $pm = Parallel::ForkManager->new($max_processes);
 
-# Track total spikes marked
 my $total_spikes_marked = 0;
 
 for my $table (@tables) {
@@ -49,10 +52,9 @@ for my $table (@tables) {
 	}
 	$serials_sth->finish;
 
-	# Use a shared variable to collect spike counts per serial
 	my %serial_spikes;
 
-	# Setup a callback to collect child results
+	# Gather spike count from children
 	$pm->run_on_finish(sub {
 		my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_ref) = @_;
 		if (defined $data_ref && ref $data_ref eq 'HASH') {
@@ -63,7 +65,7 @@ for my $table (@tables) {
 
 	# Process each serial in parallel
 	foreach my $serial (@serials) {
-		my $pid = $pm->start($serial);  # Pass serial as ident
+		my $pid = $pm->start($serial);
 		if ($pid) {
 			# parent just moves on to next serial
 			next;
@@ -120,12 +122,11 @@ for my $table (@tables) {
 		$sth->finish;
 		$child_dbh->disconnect;
 
-		$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });  # send info back to parent
+		$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 	}
 
 	$pm->wait_all_children;
 
-	# After all children finish for this table, print summary
 	print "\nSummary for table '$table':\n";
 	my $table_total = 0;
 	foreach my $serial (sort keys %serial_spikes) {
@@ -138,8 +139,12 @@ for my $table (@tables) {
 
 $dbh->disconnect;
 
-print "\nAll done.\n";
+print "\nDone.\n";
 print "Total spikes marked in all tables: $total_spikes_marked\n";
+
+# === UNLOCKING ===
+close($fh);
+unlink $lockfile;  # optional: remove the lock file
 
 # === SUBROUTINES ===
 
