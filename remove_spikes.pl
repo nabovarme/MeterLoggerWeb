@@ -17,7 +17,8 @@ $| = 1;  # Autoflush STDOUT
 my @tables = qw(samples samples_cache);
 
 # Fields to check for spikes
-my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
+#my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
+my @fields = qw(flow_temp return_flow_temp flow effect volume energy);
 
 # Time threshold (in seconds)
 my $time_threshold = 120;
