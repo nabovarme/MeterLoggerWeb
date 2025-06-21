@@ -6,10 +6,24 @@ use DBI;
 use Config;
 use Time::HiRes qw(usleep);
 use POSIX ":sys_wait_h";
+use Fcntl qw(:flock);
+use File::Basename;
 
 # Include custom library path
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
+
+# === LOCKING ===
+my $script_name = basename($0);
+my $lockfile = "/tmp/$script_name.lock";
+
+open(my $LOCKFH, '>', $lockfile) or die "Cannot open lock file $lockfile: $!";
+unless (flock($LOCKFH, LOCK_EX | LOCK_NB)) {
+	die "Another instance of $script_name is already running. Exiting.\n";
+}
+
+# Optional: write PID to lock file
+print $LOCKFH "$$\n";
 
 # Autoflush STDOUT to ensure immediate output
 $| = 1;
