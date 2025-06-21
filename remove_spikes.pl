@@ -108,7 +108,7 @@ foreach my $table (@tables) {
 
 				if (
 					($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
-
+		
 						# Flat spike: current is high, neighbors are zero
 						($val > $spike_factor && $prev_val == 0 && $next_val == 0) ||
 
@@ -117,14 +117,16 @@ foreach my $table (@tables) {
 
 						# Surrounded by large values
 						($val >= $min_val_threshold &&
-						 $prev_val > $spike_factor * $val &&
-						 $next_val > $spike_factor * $val) ||
+							$prev_val > $spike_factor * $val &&
+							$next_val > $spike_factor * $val) ||
 
-						# Surrounded by small values
-						($prev_val >= $min_val_threshold &&
-						 $next_val >= $min_val_threshold &&
-						 $val > $spike_factor * $prev_val &&
-						 $val > $spike_factor * $next_val)
+						# Relaxed: Surrounded by small or zero values but current val is spike
+						(
+							$prev_val >= 0 &&
+							$next_val >= 0 &&
+							$val > $spike_factor * $prev_val &&
+							$val > $spike_factor * $next_val
+						)
 					)
 				) {
 					$mark = 1;
