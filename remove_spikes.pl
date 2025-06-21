@@ -107,11 +107,10 @@ foreach my $table (@tables) {
 				next unless defined $val && defined $prev_val && defined $next_val;
 
 				if (
-					# Only evaluate if there's at least one significant value (avoids tiny noise)
 					($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
 
-						# Sudden spike: current value is >10x both neighbors
-						($val > 10 * $prev_val && $val > 10 * $next_val) ||
+						# Sudden spike: neighbors significant and current 10x bigger
+						($prev_val >= 1 && $next_val >= 1 && $val > 10 * $prev_val && $val > 10 * $next_val) ||
 
 						# Sudden drop: current value is <1/10th of smallest non-zero neighbor
 						(
