@@ -21,9 +21,9 @@ my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume en
 
 # Time thresholds per table (in seconds)
 my %time_thresholds = (
-	samples_cache  => 120,		# 2 minutes
-	samples_hourly => 3600,		# 1 hour
-	samples_daily  => 86400,	# 1 day
+	samples_cache  => 120,				# 2 minutes
+	samples_hourly => 3600 + 120,		# > 1 hour
+	samples_daily  => 86400 + 120,		# > 1 day
 );
 
 # Set max parallel processes (e.g., 3 or 4 depending on your CPU)
@@ -121,7 +121,8 @@ foreach my $table (@tables) {
 				next if $prev_val == 0 || $next_val == 0;
 
 				if (($val > 10 * $prev_val && $val > 10 * $next_val) ||
-					($val < 0.1 * $prev_val && $val < 0.1 * $next_val)) {
+					($val < 0.1 * $prev_val && $val < 0.1 * $next_val) ||
+					($val > 10 && $prev_val == 0 && $next_val == 0)) {
 					$delete = 1;
 					print "[$table] Deleted spike at $curr->{unix_time} on $field (value = $val)\n";
 					last;
