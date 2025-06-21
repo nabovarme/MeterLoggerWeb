@@ -94,7 +94,9 @@ foreach my $serial (@serials) {
 					AVG(`volume`), AVG(`energy`),
 					FLOOR(unix_time / 3600) * 3600
 				FROM samples
-				WHERE `serial` = $quoted_serial AND `unix_time` > $last_hourly
+				WHERE `serial` = $quoted_serial
+				AND `unix_time` > $last_hourly
+				AND `is_spike` != 1
 				GROUP BY FLOOR(unix_time / 3600)
 			]);
 			$dbh->commit();
@@ -113,7 +115,9 @@ foreach my $serial (@serials) {
 					AVG(`volume`), AVG(`energy`),
 					FLOOR(unix_time / 86400) * 86400
 				FROM samples
-				WHERE `serial` = $quoted_serial AND `unix_time` > $last_daily
+				WHERE `serial` = $quoted_serial
+				AND `unix_time` > $last_daily
+				AND `is_spike` != 1
 				GROUP BY FLOOR(unix_time / 86400)
 			]);
 			$dbh->commit();
