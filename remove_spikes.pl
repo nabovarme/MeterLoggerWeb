@@ -104,7 +104,7 @@ for my $table (@tables) {
 					my $p = defined $prev->{$field} ? $prev->{$field} : 'undef';
 					my $c = defined $curr->{$field} ? $curr->{$field} : 'undef';
 					my $n = defined $next->{$field} ? $next->{$field} : 'undef';
-					print "    $field: prev=$p, curr=$c, next=$n\n";
+					print "    $field: prev=$p, curr=$c, next=$n\n\n";
 				}
 
 				$prev = $curr;
@@ -118,7 +118,7 @@ for my $table (@tables) {
 			if ($spike_field) {
 				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
 				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
-				print "  Marking spike for serial $serial: id=$curr->{id}\n";
+				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
 			}
