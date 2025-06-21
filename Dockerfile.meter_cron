@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
-	default-mysql-client
+	default-mysql-client \
+	libparallel-forkmanager-perl
 
 USER root
 
@@ -77,6 +78,7 @@ COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cach
 COPY ./clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
 COPY ./wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
 COPY ./update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
+COPY ./remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
 
 COPY ./docker-entrypoint_cron.sh /docker-entrypoint.sh
 
