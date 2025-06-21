@@ -97,7 +97,7 @@ for my $table (@tables) {
 			my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
 
 			if ($prev_diff > $time_threshold || $next_diff > $time_threshold) {
-				print "  Time gap too large for serial $serial, skipping\n\n";
+				print "  Time gap too large for serial $serial, skipping\n";
 				$prev = $curr;
 				$curr = $next;
 				$next = $sth->fetchrow_hashref;
@@ -109,7 +109,7 @@ for my $table (@tables) {
 			if ($spike_field) {
 				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
 				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
-				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
+				print "  Marking spike for serial $serial: id=$curr->{id}\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
 			}
@@ -198,7 +198,7 @@ sub mark_spike {
 	my ($dbh, $table, $id) = @_;
 	my $update = $dbh->prepare("UPDATE $table SET is_spike = 1 WHERE id = ?");
 	$update->execute($id);
-	print "  Marking spike: UPDATE $table SET is_spike=1 WHERE id=$id\n\n";
+	print "  Marking spike: UPDATE $table SET is_spike=1 WHERE id=$id\n";
 	$update->finish;
 }
 
