@@ -43,8 +43,13 @@ my $total_spikes_marked = 0;
 for my $table (@tables) {
 	print "\n=== Processing table: $table ===\n";
 
-	# Get serials for this table
-	my $serials_sth = $dbh->prepare("SELECT DISTINCT serial FROM $table WHERE is_spike != 1");
+	# Get serials from meters table that are not NULL and enabled
+	my $serials_sth = $dbh->prepare(qq[
+		SELECT `serial` FROM meters
+		WHERE serial IS NOT NULL
+		AND enabled = 1
+		ORDER BY `serial`]
+	);
 	$serials_sth->execute();
 	my @serials;
 	while (my ($serial) = $serials_sth->fetchrow_array) {
