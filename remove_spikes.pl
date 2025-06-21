@@ -106,7 +106,8 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 				($val > 10 && $prev_val == 0 && $next_val == 0)
 			) {
 				$delete = 1;
-				print "[$table] Deleted spike at $curr->{unix_time} on $field (value = $val)\n";
+				print "[$table] Deleted spike at $curr->{unix_time} on $field:\n";
+				print "         prev=$prev_val, curr=$val, next=$next_val\n";
 				last;
 			}
 		}
