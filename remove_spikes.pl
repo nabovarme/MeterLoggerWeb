@@ -20,7 +20,7 @@ my $spike_factor	  = 10;
 my $min_val_threshold = 1 / $spike_factor;
 
 # Max parallel processes
-my $max_processes = 4;
+my $max_processes = 8;
 
 # === DB SETUP ===
 
