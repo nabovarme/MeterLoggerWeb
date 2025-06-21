@@ -86,8 +86,6 @@ for my $table (@tables) {
 				print "  Detected spike at $curr->{unix_time} on $spike_field\n";
 				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
 				mark_spike($child_dbh, $table, $curr->{id});
-			} else {
-				print "\n";
 			}
 
 			$prev = $curr;
