@@ -1,6 +1,11 @@
 #!/usr/bin/perl -w
 use strict;
 use warnings;
+use Proc::PID::File;
+
+# Prevent multiple instances
+Proc::PID::File->running or die "Another instance of the script is already running. Exiting.\n";
+
 use DBI;
 use Parallel::ForkManager;
 
@@ -29,6 +34,9 @@ $dbh->{mysql_auto_reconnect} = 1;
 
 my $pm = Parallel::ForkManager->new($max_processes);
 
+# Track total spikes marked
+my $total_spikes_marked = 0;
+
 for my $table (@tables) {
 	print "\n=== Processing table: $table ===\n";
 
@@ -41,9 +49,21 @@ for my $table (@tables) {
 	}
 	$serials_sth->finish;
 
+	# Use a shared variable to collect spike counts per serial
+	my %serial_spikes;
+
+	# Setup a callback to collect child results
+	$pm->run_on_finish(sub {
+		my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_ref) = @_;
+		if (defined $data_ref && ref $data_ref eq 'HASH') {
+			$serial_spikes{$data_ref->{serial}} = $data_ref->{spikes_marked};
+			$total_spikes_marked += $data_ref->{spikes_marked};
+		}
+	});
+
 	# Process each serial in parallel
 	foreach my $serial (@serials) {
-		my $pid = $pm->start;
+		my $pid = $pm->start($serial);  # Pass serial as ident
 		if ($pid) {
 			# parent just moves on to next serial
 			next;
@@ -68,6 +88,8 @@ for my $table (@tables) {
 		my $curr = $sth->fetchrow_hashref;
 		my $next = $sth->fetchrow_hashref;
 
+		my $spikes_marked = 0;
+
 		while ($prev && $curr && $next) {
 			my $prev_diff = abs($curr->{unix_time} - $prev->{unix_time});
 			my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
@@ -87,6 +109,7 @@ for my $table (@tables) {
 				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
 				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
+				$spikes_marked++;
 			}
 
 			$prev = $curr;
@@ -97,15 +120,26 @@ for my $table (@tables) {
 		$sth->finish;
 		$child_dbh->disconnect;
 
-		$pm->finish;  # Terminate child process
+		$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });  # send info back to parent
 	}
-}
 
-$pm->wait_all_children;
+	$pm->wait_all_children;
+
+	# After all children finish for this table, print summary
+	print "\nSummary for table '$table':\n";
+	my $table_total = 0;
+	foreach my $serial (sort keys %serial_spikes) {
+		my $count = $serial_spikes{$serial} || 0;
+		print "  Serial $serial: $count spikes marked\n";
+		$table_total += $count;
+	}
+	print "  Total spikes marked in table '$table': $table_total\n";
+}
 
 $dbh->disconnect;
 
-print "\nDone.\n";
+print "\nAll done.\n";
+print "Total spikes marked in all tables: $total_spikes_marked\n";
 
 # === SUBROUTINES ===
 
