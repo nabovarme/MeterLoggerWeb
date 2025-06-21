@@ -107,9 +107,30 @@ foreach my $table (@tables) {
 				next unless defined $val && defined $prev_val && defined $next_val;
 
 				if (
-					($val > 10 * $prev_val && $val > 10 * $next_val) ||
-					($val > 10 && $prev_val == 0 && $next_val == 0) ||
-					($val == 0 && $prev_val > 10 && $next_val > 10)
+					# Only check for changes if at least one value is >= 1 (ignores tiny noise)
+					($prev >= 1 || $val >= 1 || $next >= 1) && (
+
+						# Sudden spike: current value is >10x both neighbors
+						($val > 10 * $prev && $val > 10 * $next) ||
+
+						# Sudden drop: current value is <1/10 of non-zero neighbors
+						($val > 0 && (
+							# If prev is 0 but next is large
+							($prev == 0 && $next >= 1 && $val < 0.1 * $next) ||
+
+							# If next is 0 but prev is large
+							($next == 0 && $prev >= 1 && $val < 0.1 * $prev) ||
+
+							# If both neighbors are non-zero, use the smaller one
+							($prev >= 1 && $next >= 1 && $val < 0.1 * ($prev < $next ? $prev : $next))
+						)) ||
+
+						# Flat spike: current is high, neighbors are zero
+						($val > 10 && $prev == 0 && $next == 0) ||
+
+						# Flat dip: current is zero, neighbors are high
+						($val == 0 && $prev > 10 && $next > 10)
+					)
 				) {
 					$mark = 1;
 					print "[$table] Marked spike at $curr->{unix_time} on $field:\n";
