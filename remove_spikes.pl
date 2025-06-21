@@ -108,8 +108,8 @@ foreach my $table (@tables) {
 
 				if (
 					($val > 10 * $prev_val && $val > 10 * $next_val) ||
-					($val < 0.1 * $prev_val && $val < 0.1 * $next_val) ||
-					($val > 10 && $prev_val == 0 && $next_val == 0)
+					($val > 10 && $prev_val == 0 && $next_val == 0) ||
+					($val == 0 && $prev_val > 10 && $next_val > 10)
 				) {
 					$mark = 1;
 					print "[$table] Marked spike at $curr->{unix_time} on $field:\n";
