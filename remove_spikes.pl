@@ -17,19 +17,23 @@ $| = 1;  # Autoflush STDOUT
 my @tables = qw(samples samples_cache);
 
 # Fields to check for spikes
-#my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
 my @fields = qw(flow_temp return_flow_temp flow hours volume energy);
 
 # Time threshold (in seconds)
 my $time_threshold = 120;
 
-# Set number of parallel processes (limit to number of tables or cores)
+# Spike factor for detection
+my $spike_factor = 10;
+
+# Minimum value threshold to avoid matching tiny noise
+my $min_val_threshold = 1 / $spike_factor;
+
+# Set number of parallel processes
 my $pm = Parallel::ForkManager->new(scalar @tables);
 
 foreach my $table (@tables) {
 	$pm->start and next;
 
-	# Child process starts here
 	my $dbh;
 	if ($dbh = Nabovarme::Db->my_connect()) {
 		$dbh->{mysql_auto_reconnect} = 1;
@@ -82,8 +86,7 @@ foreach my $table (@tables) {
 		if ($select_samples_sth->rows >= 2) {
 			$prev = $select_samples_sth->fetchrow_hashref;
 			$curr = $select_samples_sth->fetchrow_hashref;
-		}
-		else {
+		} else {
 			print "Not enough samples for serial $serial in table $table — skipping\n";
 			next;
 		}
@@ -110,16 +113,21 @@ foreach my $table (@tables) {
 					($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
 
 						# Flat spike: current is high, neighbors are zero
-						($val > 10 && $prev_val == 0 && $next_val == 0) ||
+						($val > $spike_factor && $prev_val == 0 && $next_val == 0) ||
 
 						# Flat dip: current is zero, neighbors are high
-						($val == 0 && $prev_val > 10 && $next_val > 10) ||
+						($val == 0 && $prev_val > $spike_factor && $next_val > $spike_factor) ||
 
-						# Surrounded by large values: both neighbors > 10× current, and current is > 0.1 to avoid matching tiny noise
-						($val >= 0.1 && $prev_val > 10 * $val && $next_val > 10 * $val) ||
+						# Surrounded by large values
+						($val >= $min_val_threshold &&
+						 $prev_val > $spike_factor * $val &&
+						 $next_val > $spike_factor * $val) ||
 
-						# Surrounded by small values: current is >10× both neighbors, and both neighbors are >= 0.1 to avoid noise
-						($prev_val >= 0.1 && $next_val >= 0.1 && $val > 10 * $prev_val && $val > 10 * $next_val)
+						# Surrounded by small values
+						($prev_val >= $min_val_threshold &&
+						 $next_val >= $min_val_threshold &&
+						 $val > $spike_factor * $prev_val &&
+						 $val > $spike_factor * $next_val)
 					)
 				) {
 					$mark = 1;
@@ -150,7 +158,7 @@ foreach my $table (@tables) {
 	print "Total marked as spike: $total_marked\n\n";
 
 	$dbh->disconnect;
-	$pm->finish(0);  # End child process
+	$pm->finish(0);
 }
 
 $pm->wait_all_children;
