@@ -107,23 +107,25 @@ foreach my $table (@tables) {
 				next unless defined $val && defined $prev_val && defined $next_val;
 
 				if (
-					# Only check for changes if at least one value is >= 1 (ignores tiny noise)
+					# Only evaluate if there's at least one significant value (avoids tiny noise)
 					($prev >= 1 || $val >= 1 || $next >= 1) && (
 
 						# Sudden spike: current value is >10x both neighbors
 						($val > 10 * $prev && $val > 10 * $next) ||
 
-						# Sudden drop: current value is <1/10 of non-zero neighbors
-						($val > 0 && (
-							# If prev is 0 but next is large
-							($prev == 0 && $next >= 1 && $val < 0.1 * $next) ||
+						# Sudden drop: current value is <1/10th of smallest non-zero neighbor
+						(
+							$val > 0 && (
+								# Prev is 0, next is large
+								($prev == 0 && $next >= 1 && $val < 0.1 * $next) ||
 
-							# If next is 0 but prev is large
-							($next == 0 && $prev >= 1 && $val < 0.1 * $prev) ||
+								# Next is 0, prev is large
+								($next == 0 && $prev >= 1 && $val < 0.1 * $prev) ||
 
-							# If both neighbors are non-zero, use the smaller one
-							($prev >= 1 && $next >= 1 && $val < 0.1 * ($prev < $next ? $prev : $next))
-						)) ||
+								# Both neighbors non-zero, use the smaller one
+								($prev >= 1 && $next >= 1 && $val < 0.1 * ($prev < $next ? $prev : $next))
+							)
+						) ||
 
 						# Flat spike: current is high, neighbors are zero
 						($val > 10 && $prev == 0 && $next == 0) ||
