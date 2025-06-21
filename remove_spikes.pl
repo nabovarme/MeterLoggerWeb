@@ -118,7 +118,6 @@ foreach my $table (@tables) {
 			foreach my $field (@fields) {
 				my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 				next unless defined $val && defined $prev_val && defined $next_val;
-				next if $prev_val == 0 || $next_val == 0;
 
 				if (($val > 10 * $prev_val && $val > 10 * $next_val) ||
 					($val < 0.1 * $prev_val && $val < 0.1 * $next_val) ||
