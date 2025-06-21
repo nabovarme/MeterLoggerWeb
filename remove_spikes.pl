@@ -12,7 +12,7 @@ use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT
 
-# Tables to process
+# Table to process
 my $table = 'samples';
 
 # Fields to check for spikes
@@ -64,6 +64,8 @@ my $delete_sample_sth = $dbh->prepare("DELETE FROM $table WHERE id = ?")
 	or die "Failed to prepare delete on $table: " . $dbh->errstr;
 
 # Process each meter
+my $total_deleted = 0;
+
 while (my ($serial) = $meter_sth->fetchrow_array) {
 	print "[$table] Processing serial: $serial\n";
 
@@ -85,7 +87,6 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 	while (my $next = $select_samples_sth->fetchrow_hashref) {
 		my $delete = 0;
 
-		# Check time spacing
 		my $prev_diff = abs($curr->{unix_time} - $prev->{unix_time});
 		my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
 
@@ -99,9 +100,11 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 			my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 			next unless defined $val && defined $prev_val && defined $next_val;
 
-			if (($val > 10 * $prev_val && $val > 10 * $next_val) ||
+			if (
+				($val > 10 * $prev_val && $val > 10 * $next_val) ||
 				($val < 0.1 * $prev_val && $val < 0.1 * $next_val) ||
-				($val > 10 && $prev_val == 0 && $next_val == 0)) {
+				($val > 10 && $prev_val == 0 && $next_val == 0)
+			) {
 				$delete = 1;
 				print "[$table] Deleted spike at $curr->{unix_time} on $field (value = $val)\n";
 				last;
@@ -118,13 +121,15 @@ while (my ($serial) = $meter_sth->fetchrow_array) {
 	}
 
 	print "[$table] Done serial: $serial — Deleted $count_deleted samples\n\n";
+	$total_deleted += $count_deleted;
 }
 
 $select_samples_sth->finish;
 $delete_sample_sth->finish;
 $meter_sth->finish;
 
-print "=== Finished processing table: $table ===\n\n";
+print "=== Finished processing table: $table ===\n";
+print "Total deleted samples: $total_deleted\n\n";
 
 $dbh->disconnect;
 
