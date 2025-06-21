@@ -42,7 +42,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 }
 
 # Prepare and execute SQL to get all meter serials
-$sth = $dbh->prepare(qq[SELECT `serial` FROM meters]);
+$sth = $dbh->prepare(qq[SELECT `serial` FROM meters ORDER BY `serial`]);
 $sth->execute;
 
 my @serials;
