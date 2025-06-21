@@ -109,28 +109,17 @@ foreach my $table (@tables) {
 				if (
 					($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
 
-						# Sudden spike: neighbors significant and current 10x bigger
-						($prev_val >= 1 && $next_val >= 1 && $val > 10 * $prev_val && $val > 10 * $next_val) ||
-
-						# Sudden drop: current value is <1/10th of smallest non-zero neighbor
-						(
-							$val > 0 && (
-								# Prev is 0, next is large
-								($prev_val == 0 && $next_val >= 1 && $val < 0.1 * $next_val) ||
-
-								# Next is 0, prev is large
-								($next_val == 0 && $prev_val >= 1 && $val < 0.1 * $prev_val) ||
-
-								# Both neighbors non-zero, use the smaller one
-								($prev_val >= 1 && $next_val >= 1 && $val < 0.1 * ($prev_val < $next_val ? $prev_val : $next_val))
-							)
-						) ||
-
 						# Flat spike: current is high, neighbors are zero
 						($val > 10 && $prev_val == 0 && $next_val == 0) ||
 
 						# Flat dip: current is zero, neighbors are high
-						($val == 0 && $prev_val > 10 && $next_val > 10)
+						($val == 0 && $prev_val > 10 && $next_val > 10) ||
+
+						# Surrounded by large values: both neighbors much larger than current
+						($val > 0 && $prev_val > 10 * $val && $next_val > 10 * $val) ||
+
+						# Surrounded by small values: both neighbors much smaller than current
+						($val < $prev_val / 10 && $val < $next_val / 10)
 					)
 				) {
 					$mark = 1;
