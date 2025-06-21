@@ -73,7 +73,7 @@ for my $table (@tables) {
 			my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
 
 			if ($prev_diff > $time_threshold || $next_diff > $time_threshold) {
-				print "  Time gap too large, skipping\n\n";
+				print "  Time gap too large for serial $serial, skipping\n\n";
 				$prev = $curr;
 				$curr = $next;
 				$next = $sth->fetchrow_hashref;
@@ -83,8 +83,9 @@ for my $table (@tables) {
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
 			if ($spike_field) {
-				print "  Detected spike at $curr->{unix_time} on $spike_field\n";
+				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
 				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
+				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 			}
 
@@ -119,7 +120,7 @@ sub is_spike_detected {
 		# We only consider values where at least one of the three points is >= 1,
 		# to ignore noise or near-zero fluctuations.
 		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
-			
+
 			# Case 1: Current value is significantly high, neighbors both zero.
 			# This indicates a sudden isolated spike upward.
 			($val > $spike_factor && $prev_val == 0 && $next_val == 0) ||
