@@ -202,7 +202,6 @@ sub mark_spike {
 	my ($dbh, $table, $id) = @_;
 	my $update = $dbh->prepare("UPDATE $table SET is_spike = 1 WHERE id = ?");
 	$update->execute($id);
-	print "  Marking spike: UPDATE $table SET is_spike=1 WHERE id=$id\n";
 	$update->finish;
 }
 
