@@ -97,16 +97,6 @@ for my $table (@tables) {
 			my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
 
 			if ($prev_diff > $time_threshold || $next_diff > $time_threshold) {
-				print "  Time gap too large for serial $serial, skipping\n";
-				print "    prev_time=$prev->{unix_time}, curr_time=$curr->{unix_time}, next_time=$next->{unix_time}\n";
-
-				foreach my $field (@fields) {
-					my $p = defined $prev->{$field} ? $prev->{$field} : 'undef';
-					my $c = defined $curr->{$field} ? $curr->{$field} : 'undef';
-					my $n = defined $next->{$field} ? $next->{$field} : 'undef';
-					print "    $field: prev=$p, curr=$c, next=$n\n\n";
-				}
-
 				$prev = $curr;
 				$curr = $next;
 				$next = $sth->fetchrow_hashref;
