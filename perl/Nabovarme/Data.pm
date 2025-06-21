@@ -53,6 +53,7 @@ sub handler {
 					energy
 				FROM samples_cache
 				WHERE serial LIKE $quoted_serial
+				AND is_spike != 1
 
 				UNION ALL
 
@@ -132,6 +133,7 @@ sub handler {
 					energy
 				FROM samples_cache
 				WHERE serial LIKE $quoted_serial
+				AND is_spike != 1
 
 				UNION ALL
 
