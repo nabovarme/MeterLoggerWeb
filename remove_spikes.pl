@@ -115,11 +115,11 @@ foreach my $table (@tables) {
 						# Flat dip: current is zero, neighbors are high
 						($val == 0 && $prev_val > 10 && $next_val > 10) ||
 
-						# Surrounded by large values: both neighbors much larger than current
-						($val > 0 && $prev_val > 10 * $val && $next_val > 10 * $val) ||
+						# Surrounded by large values: both neighbors > 10× current, and current is > 0.1 to avoid matching tiny noise
+						($val >= 0.1 && $prev_val > 10 * $val && $next_val > 10 * $val) ||
 
-						# Surrounded by small values: both neighbors much smaller than current
-						($val < $prev_val / 10 && $val < $next_val / 10)
+						# Surrounded by small values: current is >10× both neighbors, and both neighbors are >= 0.1 to avoid noise
+						($prev_val >= 0.1 && $next_val >= 0.1 && $val > 10 * $prev_val && $val > 10 * $next_val)
 					)
 				) {
 					$mark = 1;
