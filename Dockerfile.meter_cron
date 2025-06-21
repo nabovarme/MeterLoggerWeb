@@ -44,7 +44,8 @@ RUN apt-get update && apt-get install -y \
 	libdbi-perl \
 	libconfig-simple-perl \
 	default-mysql-client \
-	libparallel-forkmanager-perl
+	libparallel-forkmanager-perl \
+	libproc-pid-file-perl
 
 USER root
 
