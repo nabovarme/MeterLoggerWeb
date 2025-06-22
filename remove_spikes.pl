@@ -102,6 +102,8 @@ for my $table (@tables) {
 		$sth->execute($serial, $last_spike_unix_time) or die "Failed to execute: " . $sth->errstr;
 
 		# Preload the sliding window
+		my $spikes_marked = 0;
+
 		my $prev = $sth->fetchrow_hashref;
 		unless ($prev) {
 			print "  No data after last spike for serial $serial in table $table\n";
