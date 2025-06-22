@@ -24,7 +24,6 @@ my @tables = ('samples', 'samples_cache');  # Process both tables
 
 my @fields = qw(flow_temp return_flow_temp flow hours volume energy);
 
-my $time_threshold   = 120;
 my $spike_factor	 = 10;
 my $min_val_threshold = 1 / $spike_factor;
 
@@ -98,16 +97,6 @@ for my $table (@tables) {
 		my $spikes_marked = 0;
 
 		while ($prev && $curr && $next) {
-			my $prev_diff = abs($curr->{unix_time} - $prev->{unix_time});
-			my $next_diff = abs($next->{unix_time} - $curr->{unix_time});
-
-			if ($prev_diff > $time_threshold || $next_diff > $time_threshold) {
-				$prev = $curr;
-				$curr = $next;
-				$next = $sth->fetchrow_hashref;
-				next;
-			}
-
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
 			if ($spike_field) {
