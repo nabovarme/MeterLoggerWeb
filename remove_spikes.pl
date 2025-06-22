@@ -22,7 +22,7 @@ print $fh "$$\n";  # Write current PID to the lock file
 
 my @tables = ('samples_cache', 'samples');  # Process both tables
 
-my @fields = qw(flow_temp return_flow_temp flow hours volume energy);
+my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
 
 my $spike_factor	 = 10;
 my $min_val_threshold = 1 / $spike_factor;
