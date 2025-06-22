@@ -72,8 +72,8 @@ sub add_payment {
 	$quoted_type = $self->{dbh}->quote($type);
 	$quoted_unix_time = $self->{dbh}->quote($date);
 	$quoted_info = $self->{dbh}->quote($info);
-	$quoted_amount = $self->{dbh}->quote($amount);
-	$quoted_price = $self->{dbh}->quote($price);
+	$quoted_amount = $self->{dbh}->quote(normalize_amount($amount));
+	$quoted_price = $self->{dbh}->quote(normalize_amount($price));
 
 	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)];
 	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
@@ -111,6 +111,28 @@ sub meter_change_valve_status {
 							callback => undef,
 							timeout => undef
 						});
+}
+
+# helper function to parse amount from user input
+sub normalize_amount {
+	my ($input) = @_;
+
+	# Remove spaces
+	$input =~ s/\s+//g;
+
+	# Handle comma as decimal separator (EU format)
+	if ($input =~ /,\d{1,2}$/) {
+		# Remove all dots (assumed as thousands separator)
+		$input =~ s/\.//g;
+		# Replace comma with dot
+		$input =~ s/,/./;
+	} else {
+		# Remove all commas (assumed as thousands separator)
+		$input =~ s/,//g;
+	}
+
+	# Now format to 2 decimal places
+	return sprintf("%.2f", $input + 0);
 }
 
 1;
