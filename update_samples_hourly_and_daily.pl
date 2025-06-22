@@ -29,7 +29,7 @@ print $LOCKFH "$$\n";
 $| = 1;
 
 # Max concurrent processes
-my $MAX_PROCESSES = 8;
+my $MAX_PROCESSES = 4;
 
 print "starting...\n";
 
