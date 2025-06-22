@@ -47,6 +47,7 @@ for my $table (@tables) {
 		SELECT `serial` FROM meters
 		WHERE serial IS NOT NULL
 		AND enabled = 1
+		AND sw_version LIKE '%-MC-%'
 		ORDER BY `serial`]
 	);
 	$serials_sth->execute();
