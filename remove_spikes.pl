@@ -179,7 +179,6 @@ unlink $lockfile;  # optional: remove the lock file
 # === SUBROUTINES ===
 
 # Detects spikes in the middle value of the sliding window [prev, curr, next]
-# Detects spikes in the middle value of the sliding window [prev, curr, next]
 sub is_spike_detected {
 	my ($prev, $curr, $next) = @_;
 
