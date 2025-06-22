@@ -35,30 +35,21 @@ my $max_processes = 4;
 my $dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 $dbh->{mysql_auto_reconnect} = 1;
 
-# === GLOBAL LAST SPIKE TIME ===
-# We determine the latest spike timestamp across both tables
-my $last_spike_unix_time = 0;
-
-my $max_spike_sth = $dbh->prepare(qq[
-	SELECT MAX(unix_time)
-	FROM (
-		SELECT MAX(unix_time) AS unix_time FROM samples WHERE is_spike = 1
-		UNION ALL
-		SELECT MAX(unix_time) AS unix_time FROM samples_cache WHERE is_spike = 1
-	) AS all_spikes
-]);
-$max_spike_sth->execute();
-($last_spike_unix_time) = $max_spike_sth->fetchrow_array;
-$max_spike_sth->finish;
-
-print "Processing only rows after global spike time: $last_spike_unix_time\n";
-
 my $pm = Parallel::ForkManager->new($max_processes);
 
 my $total_spikes_marked = 0;
 
 for my $table (@tables) {
 	print "\n=== Processing table: $table ===\n";
+
+	# Get the latest is_spike=1 timestamp for this table
+	my $last_spike_unix_time = 0;
+	my $last_spike_sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE is_spike = 1");
+	$last_spike_sth->execute();
+	($last_spike_unix_time) = $last_spike_sth->fetchrow_array;
+	$last_spike_sth->finish;
+
+	print "  Skipping rows before unix_time = $last_spike_unix_time\n";
 
 	# Get serials from meters table that are not NULL and enabled
 	my $serials_sth = $dbh->prepare(qq[
@@ -100,7 +91,6 @@ for my $table (@tables) {
 
 		print "\n--- Checking serial: $serial ---\n";
 
-		# Only get rows after the latest global spike time
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
 			FROM $table
@@ -110,8 +100,6 @@ for my $table (@tables) {
 			ORDER BY unix_time ASC
 		]);
 		$sth->execute($serial, $last_spike_unix_time) or die "Failed to execute: " . $sth->errstr;
-
-		my $spikes_marked = 0;
 
 		# Preload the sliding window
 		my $prev = $sth->fetchrow_hashref;
@@ -133,18 +121,23 @@ for my $table (@tables) {
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
 			print "  Not enough data for serial $serial in table $table (only 2 rows)\n";
+		}
+		my $spikes_marked = 0;
+
+		# If there's not enough data to form a sliding window, skip
+		if (!$prev || !$curr || !$next) {
+			print "  Not enough samples for serial $serial — skipping\n";
 			$sth->finish;
 			$child_dbh->disconnect;
-			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
+			$pm->finish(0, { serial => $serial, spikes_marked => 0 });
 		}
 
-		# Now loop with valid window
 		while ($prev && $curr && $next) {
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
 			if ($spike_field) {
 				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
-				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
+				print "    Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
 				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
