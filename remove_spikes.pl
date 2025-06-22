@@ -35,6 +35,24 @@ my $max_processes = 4;
 my $dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 $dbh->{mysql_auto_reconnect} = 1;
 
+# === GLOBAL LAST SPIKE TIME ===
+# We determine the latest spike timestamp across both tables
+my $last_spike_unix_time = 0;
+
+my $max_spike_sth = $dbh->prepare(qq[
+	SELECT MAX(unix_time)
+	FROM (
+		SELECT MAX(unix_time) AS unix_time FROM samples WHERE is_spike = 1
+		UNION ALL
+		SELECT MAX(unix_time) AS unix_time FROM samples_cache WHERE is_spike = 1
+	) AS all_spikes
+]);
+$max_spike_sth->execute();
+($last_spike_unix_time) = $max_spike_sth->fetchrow_array;
+$max_spike_sth->finish;
+
+print "Processing only rows after global spike time: $last_spike_unix_time\n";
+
 my $pm = Parallel::ForkManager->new($max_processes);
 
 my $total_spikes_marked = 0;
@@ -82,14 +100,16 @@ for my $table (@tables) {
 
 		print "\n--- Checking serial: $serial ---\n";
 
+		# Only get rows after the latest global spike time
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
 			FROM $table
 			WHERE serial = ?
 			AND is_spike != 1
+			AND unix_time > ?
 			ORDER BY unix_time ASC
 		]);
-		$sth->execute($serial) or die "Failed to execute: " . $sth->errstr;
+		$sth->execute($serial, $last_spike_unix_time) or die "Failed to execute: " . $sth->errstr;
 
 		my $prev = $sth->fetchrow_hashref;
 		my $curr = $sth->fetchrow_hashref;
