@@ -124,7 +124,6 @@ for my $table (@tables) {
 		unless ($next) {
 			print "  Not enough data for serial $serial in table $table (only 2 rows)\n";
 		}
-		my $spikes_marked = 0;
 
 		# If there's not enough data to form a sliding window, skip
 		if (!$prev || !$curr || !$next) {
