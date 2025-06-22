@@ -7,7 +7,6 @@ use lib qw( /var/www/lib/perl );
 #use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::Admin;
-use Nabovarme::Admin qw(normalize_amount);
 
 $admin = new Nabovarme::Admin;
 $is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
@@ -179,11 +178,11 @@ if ($sth->rows) {
 			<tr align="left" valign="bottom">
 				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.2f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
+				<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
 				<td>&nbsp;</td>
-				<td align="right"><span class="default">[+ normalize_amount($d->{amount} || 0) +] kr</span></td>
+				<td align="right"><span class="default">[+ Nabovarme::Admin::normalize_amount($d->{amount} || 0) +] kr</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ normalize_amount($d->{price} || 0) +] kr/kWh[$ endif $]</span></td>
+				<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($d->{price} || 0) +] kr/kWh[$ endif $]</span></td>
 			</tr>
 			[$ endwhile $]
 			[$ endif $]
@@ -193,11 +192,11 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td><span class="default-highlight">[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]</span></td>
 				<td>&nbsp;</td>
-				<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.2f", ($fdat{amount} / $fdat{price})) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
+				<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="right"><span class="default-highlight">[+ normalize_amount($fdat{amount}) +] kr</span></td>
+				<td align="right"><span class="default-highlight">[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr</span></td>
 				<td>&nbsp;</td>
-				<td><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ normalize_amount($fdat{price}) +] kr/kWh[$ endif $]</span></td>
+				<td><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($fdat{price}) +] kr/kWh[$ endif $]</span></td>
 			  </tr>
 			  <tr align="left" valign="bottom">
 				<td>&nbsp;</td>
