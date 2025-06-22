@@ -178,7 +178,7 @@ if ($sth->rows) {
 			<tr align="left" valign="bottom">
 				<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
+				<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.2f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default">[+ $d->{amount} || "0" +] kr</span></td>
 				<td>&nbsp;</td>
@@ -192,9 +192,9 @@ if ($sth->rows) {
 			  <tr align="left" valign="bottom">
 				<td><span class="default-highlight">[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]</span></td>
 				<td>&nbsp;</td>
-				<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", ($fdat{amount} / $fdat{price})) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
+				<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.2f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
 				<td>&nbsp;</td>
-				<td align="right"><span class="default-highlight">[+ $fdat{amount} +] kr</span></td>
+				<td align="right"><span class="default-highlight">[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr</span></td>
 				<td>&nbsp;</td>
 				<td><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ $fdat{price} +] kr/kWh[$ endif $]</span></td>
 			  </tr>
