@@ -111,12 +111,34 @@ for my $table (@tables) {
 		]);
 		$sth->execute($serial, $last_spike_unix_time) or die "Failed to execute: " . $sth->errstr;
 
-		my $prev = $sth->fetchrow_hashref;
-		my $curr = $sth->fetchrow_hashref;
-		my $next = $sth->fetchrow_hashref;
-
 		my $spikes_marked = 0;
 
+		# Preload the sliding window
+		my $prev = $sth->fetchrow_hashref;
+		unless ($prev) {
+			print "  No data after last spike for serial $serial in table $table\n";
+			$sth->finish;
+			$child_dbh->disconnect;
+			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
+		}
+
+		my $curr = $sth->fetchrow_hashref;
+		unless ($curr) {
+			print "  Not enough data for serial $serial in table $table (only 1 row)\n";
+			$sth->finish;
+			$child_dbh->disconnect;
+			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
+		}
+
+		my $next = $sth->fetchrow_hashref;
+		unless ($next) {
+			print "  Not enough data for serial $serial in table $table (only 2 rows)\n";
+			$sth->finish;
+			$child_dbh->disconnect;
+			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
+		}
+
+		# Now loop with valid window
 		while ($prev && $curr && $next) {
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
