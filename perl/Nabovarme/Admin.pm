@@ -11,6 +11,9 @@ use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::MQTT_RPC;
 
+use Exporter 'import';
+our @EXPORT_OK = qw(normalize_amount);
+
 sub new {
 	my $class = shift;
 
