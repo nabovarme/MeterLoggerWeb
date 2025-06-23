@@ -42,17 +42,7 @@ my $total_spikes_marked = 0;
 for my $table (@tables) {
 	print "\n=== Processing table: $table ===\n";
 
-	# Get the latest is_spike=1 timestamp for this table
-	my $last_spike_unix_time = 0;
-	my $last_spike_sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE is_spike = 1");
-	$last_spike_sth->execute();
-	($last_spike_unix_time) = $last_spike_sth->fetchrow_array;
-	$last_spike_unix_time = defined($last_spike_unix_time) ? $last_spike_unix_time : 0;	# default to zero if no spikes found
-	$last_spike_sth->finish;
-
-	print "  Skipping rows before unix_time = $last_spike_unix_time\n";
-
-	# Get serials from meters table that are not NULL and enabled
+	# Get serials from meters table
 	my $serials_sth = $dbh->prepare(qq[
 		SELECT `serial` FROM meters
 		WHERE serial IS NOT NULL
@@ -81,15 +71,17 @@ for my $table (@tables) {
 	foreach my $serial (@serials) {
 		my $pid = $pm->start($serial);
 		if ($pid) {
-			# parent just moves on to next serial
 			next;
 		}
 
-		# child process:
+		# Child process
 		my $child_dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
 		print "\n--- Checking serial: $serial ---\n";
+
+		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
+		print "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
 
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
@@ -103,7 +95,6 @@ for my $table (@tables) {
 
 		# Preload the sliding window
 		my $spikes_marked = 0;
-
 		my $prev = $sth->fetchrow_hashref;
 		unless ($prev) {
 			print "  No data after last spike for serial $serial in table $table\n";
@@ -111,6 +102,7 @@ for my $table (@tables) {
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
+		print "  First row unix_time: $prev->{unix_time}\n";
 
 		my $curr = $sth->fetchrow_hashref;
 		unless ($curr) {
@@ -119,6 +111,7 @@ for my $table (@tables) {
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
+		print "  Second row unix_time: $curr->{unix_time}\n";
 
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
@@ -147,11 +140,11 @@ for my $table (@tables) {
 			$prev = $curr;
 			$curr = $next;
 			$next = $sth->fetchrow_hashref;
+			print "  Sliding to next row: $curr->{unix_time}\n" if $curr;
 		}
 
 		$sth->finish;
 		$child_dbh->disconnect;
-
 		$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 	}
 
@@ -174,7 +167,7 @@ print "Total spikes marked in all tables: $total_spikes_marked\n";
 
 # === UNLOCKING ===
 close($fh);
-unlink $lockfile;  # optional: remove the lock file
+unlink $lockfile;
 
 # === SUBROUTINES ===
 
@@ -240,5 +233,15 @@ sub mark_spike {
 	$update->execute($id);
 	$update->finish;
 }
+
+sub get_last_spike_time {
+	my ($dbh, $table, $serial) = @_;
+	my $sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE serial = ? AND is_spike = 1");
+	$sth->execute($serial);
+	my ($ts) = $sth->fetchrow_array;
+	$sth->finish;
+	return $ts || 0;
+}
+
 
 __END__
