@@ -82,7 +82,7 @@ for my $table (@tables) {
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
 		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
-		push @log, "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
+		push @log, "  Skipping rows before unix_time = $last_spike_unix_time\n";
 
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
