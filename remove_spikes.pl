@@ -214,7 +214,13 @@ sub is_spike_detected {
 			) ||
 
 			# Case 5: Current value is much larger than both neighbors
-			($val > $spike_factor * $prev_val && $val > $spike_factor * $next_val)
+			($val > $spike_factor * $prev_val && $val > $spike_factor * $next_val) ||
+
+			# Case 6: Current value is much smaller than both neighbors (inverse spike)
+			# Ensure no division by zero for neighbors
+			($prev_val > 0 && $next_val > 0 &&
+			 $val < $prev_val / $spike_factor &&
+			 $val < $next_val / $spike_factor)
 
 		)) {
 			return ($field, {
