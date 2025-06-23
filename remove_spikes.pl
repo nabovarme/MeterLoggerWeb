@@ -102,7 +102,6 @@ for my $table (@tables) {
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
-		print "  First row unix_time: $prev->{unix_time}\n";
 
 		my $curr = $sth->fetchrow_hashref;
 		unless ($curr) {
@@ -111,7 +110,6 @@ for my $table (@tables) {
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
-		print "  Second row unix_time: $curr->{unix_time}\n";
 
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
@@ -131,7 +129,7 @@ for my $table (@tables) {
 
 			if ($spike_field) {
 				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
-				print "    Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
+				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
 				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
@@ -178,9 +176,12 @@ sub is_spike_detected {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 		next unless defined $val && defined $prev_val && defined $next_val;
 
-		# We only consider values where at least one of the three points is >= 1,
+		# We only consider values where at least one of the three points is >= min_val_threshold,
 		# to ignore noise or near-zero fluctuations.
-		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
+		next unless ($prev_val >= $min_val_threshold || $val >= $min_val_threshold || $next_val >= $min_val_threshold);
+
+		# Check spike conditions:
+		if (
 
 			# Case 1: Current value is significantly high, neighbors both zero.
 			# This indicates a sudden isolated spike upward.
@@ -188,33 +189,19 @@ sub is_spike_detected {
 
 			# Case 2: Current value is zero, neighbors are both significantly high.
 			# This indicates an inverted spike (sudden drop).
-			($val == 0 && $prev_val > $spike_factor && $next_val > $spike_factor) ||
+			($val == 0 && $prev_val >= $spike_factor && $next_val >= $spike_factor) ||
 
-			# Case 3: Current value is small but neighbors are much larger.
-			# Checks if current is significantly smaller than both neighbors.
-			($val >= $min_val_threshold &&
-			 $prev_val > $spike_factor * $val &&
-			 $next_val > $spike_factor * $val) ||
+			# Case 3: Current value is smaller than neighbors by spike_factor times.
+			($val > 0 &&
+			 $prev_val >= $spike_factor * $val &&
+			 $next_val >= $spike_factor * $val) ||
 
-			# Case 4: Current value is large compared to neighbors.
-			# Both neighbors are either zero or small, while current is much larger.
-			(
-				(($prev_val == 0 && $val >= $spike_factor) ||
-				 ($prev_val > 0 && $val > $spike_factor * $prev_val)) &&
-				(($next_val == 0 && $val >= $spike_factor) ||
-				 ($next_val > 0 && $val > $spike_factor * $next_val))
-			) ||
-
-			# Case 5: Current value is much larger than both neighbors
-			($val > $spike_factor * $prev_val && $val > $spike_factor * $next_val) ||
-
-			# Case 6: Current value is much smaller than both neighbors (inverse spike)
-			# Ensure no division by zero for neighbors
+			# Case 4: Current value is larger than neighbors by spike_factor times.
 			($prev_val > 0 && $next_val > 0 &&
-			 $val < $prev_val / $spike_factor &&
-			 $val < $next_val / $spike_factor)
+			 $val >= $spike_factor * $prev_val &&
+			 $val >= $spike_factor * $next_val)
 
-		)) {
+		) {
 			return ($field, {
 				prev => $prev_val,
 				curr => $val,
@@ -241,6 +228,5 @@ sub get_last_spike_time {
 	$sth->finish;
 	return $ts || 0;
 }
-
 
 __END__
