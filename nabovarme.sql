@@ -80,7 +80,7 @@ CREATE TABLE `accounts` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=7324 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7350 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -109,11 +109,24 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW if (new.amount != 0)
-then 
-	INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `timeout`) 
-	VALUES (new.`serial`, 'open_until', ((SELECT SUM(amount/price) AS paid_usage FROM accounts WHERE serial = new.`serial`) + (SELECT meters.setup_value FROM meters WHERE meters.serial = new.`serial`)), UNIX_TIMESTAMP(NOW()), 0);
-end if */;;
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW   IF (NEW.amount != 0) THEN
+    INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `timeout`) 
+    VALUES (
+      NEW.`serial`, 
+      'open_until', 
+      (
+        (SELECT IFNULL(SUM(amount / price), 0) 
+         FROM accounts 
+         WHERE serial = NEW.serial AND price != 0)
+        +
+        (SELECT IFNULL(setup_value, 0) 
+         FROM meters 
+         WHERE serial = NEW.serial)
+      ), 
+      UNIX_TIMESTAMP(NOW()), 
+      0
+    );
+  END IF */;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -178,7 +191,7 @@ CREATE TABLE `alarms` (
   `up_message` longtext DEFAULT NULL,
   `comment` longtext DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=203 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=229 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -199,7 +212,7 @@ CREATE TABLE `command_queue` (
   `timeout` int(11) NOT NULL DEFAULT 0,
   `sent_count` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=764946789 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=766122431 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -216,7 +229,7 @@ CREATE TABLE `log` (
   `param` varchar(256) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=51003609 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=51033937 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -306,8 +319,10 @@ CREATE TABLE `samples` (
   `is_spike` tinyint(1) DEFAULT 0,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=764304762 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `serial_unix_time_idx` (`serial`,`unix_time`),
+  KEY `serial_time_spike_idx` (`serial`,`unix_time`,`is_spike`),
+  KEY `spike_serial_unix_time_idx` (`serial`,`is_spike`,`unix_time`)
+) ENGINE=InnoDB AUTO_INCREMENT=764987235 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
@@ -349,8 +364,9 @@ CREATE TABLE `samples_cache` (
   `is_spike` tinyint(1) DEFAULT 0,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=764055546 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `serial_unix_time_idx` (`serial`,`unix_time`),
+  KEY `spike_serial_unix_time_idx` (`serial`,`is_spike`,`unix_time`)
+) ENGINE=InnoDB AUTO_INCREMENT=764737882 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -376,7 +392,7 @@ CREATE TABLE `samples_daily` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=765163821 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=771116610 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -402,7 +418,7 @@ CREATE TABLE `samples_hourly` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=785652746 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=913716661 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -425,7 +441,7 @@ CREATE TABLE `sms_auth` (
   `user_agent` longtext DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1915730 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2017156 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -476,7 +492,7 @@ CREATE TABLE `wifi_scan` (
   KEY `serial_unix_time_idx` (`serial`,`unix_time`),
   KEY `ssid_idx` (`ssid`),
   KEY `unix_time_idx` (`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=435409288 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=435631587 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -488,4 +504,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-06-21  5:37:57
+-- Dump completed on 2025-06-23 23:43:44
