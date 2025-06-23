@@ -74,6 +74,9 @@ COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 COPY ./crontab /etc/
 
+RUN chmod 0644 /etc/crontab && \
+	touch /var/log/cron.log
+
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
 COPY ./clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
