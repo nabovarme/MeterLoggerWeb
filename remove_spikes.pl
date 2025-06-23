@@ -9,7 +9,7 @@ use File::Basename;
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
-$| = 1;  # Autoflush STDOUT
+$| = 1;  # Autoflush STDOUT globally
 
 # === LOCKING ===
 my $script_name = basename($0);
@@ -71,17 +71,20 @@ for my $table (@tables) {
 	foreach my $serial (@serials) {
 		my $pid = $pm->start($serial);
 		if ($pid) {
+			# Parent process continues here
 			next;
 		}
 
 		# Child process
+		$| = 1;  # Autoflush inside child
+
 		my $child_dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
-		print "\n--- Checking serial: $serial ---\n";
+		print "[$$] --- Checking serial: $serial ---\n";
 
 		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
-		print "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
+		print "[$$]   Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
 
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
@@ -97,28 +100,30 @@ for my $table (@tables) {
 		my $spikes_marked = 0;
 		my $prev = $sth->fetchrow_hashref;
 		unless ($prev) {
-			print "  No data after last spike for serial $serial in table $table\n";
+			print "[$$]   No data after last spike for serial $serial in table $table\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
+		print "[$$]   First row unix_time: $prev->{unix_time}\n";
 
 		my $curr = $sth->fetchrow_hashref;
 		unless ($curr) {
-			print "  Not enough data for serial $serial in table $table (only 1 row)\n";
+			print "[$$]   Not enough data for serial $serial in table $table (only 1 row)\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
+		print "[$$]   Second row unix_time: $curr->{unix_time}\n";
 
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
-			print "  Not enough data for serial $serial in table $table (only 2 rows)\n";
+			print "[$$]   Not enough data for serial $serial in table $table (only 2 rows)\n";
 		}
 
 		# If there's not enough data to form a sliding window, skip
 		if (!$prev || !$curr || !$next) {
-			print "  Not enough samples for serial $serial — skipping\n";
+			print "[$$]   Not enough samples for serial $serial — skipping\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => 0 });
@@ -128,9 +133,9 @@ for my $table (@tables) {
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
 			if ($spike_field) {
-				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
-				print "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
-				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
+				print "[$$]   Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
+				print "[$$]     Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
+				print "[$$]   Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
 			}
@@ -176,12 +181,9 @@ sub is_spike_detected {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 		next unless defined $val && defined $prev_val && defined $next_val;
 
-		# We only consider values where at least one of the three points is >= min_val_threshold,
+		# We only consider values where at least one of the three points is >= 1,
 		# to ignore noise or near-zero fluctuations.
-		next unless ($prev_val >= $min_val_threshold || $val >= $min_val_threshold || $next_val >= $min_val_threshold);
-
-		# Check spike conditions:
-		if (
+		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
 
 			# Case 1: Current value is significantly high, neighbors both zero.
 			# This indicates a sudden isolated spike upward.
@@ -189,19 +191,33 @@ sub is_spike_detected {
 
 			# Case 2: Current value is zero, neighbors are both significantly high.
 			# This indicates an inverted spike (sudden drop).
-			($val == 0 && $prev_val >= $spike_factor && $next_val >= $spike_factor) ||
+			($val == 0 && $prev_val > $spike_factor && $next_val > $spike_factor) ||
 
-			# Case 3: Current value is smaller than neighbors by spike_factor times.
-			($val > 0 &&
-			 $prev_val >= $spike_factor * $val &&
-			 $next_val >= $spike_factor * $val) ||
+			# Case 3: Current value is small but neighbors are much larger.
+			# Checks if current is significantly smaller than both neighbors.
+			($val >= $min_val_threshold &&
+			 $prev_val > $spike_factor * $val &&
+			 $next_val > $spike_factor * $val) ||
 
-			# Case 4: Current value is larger than neighbors by spike_factor times.
+			# Case 4: Current value is large compared to neighbors.
+			# Both neighbors are either zero or small, while current is much larger.
+			(
+				(($prev_val == 0 && $val >= $spike_factor) ||
+				 ($prev_val > 0 && $val > $spike_factor * $prev_val)) &&
+				(($next_val == 0 && $val >= $spike_factor) ||
+				 ($next_val > 0 && $val > $spike_factor * $next_val))
+			) ||
+
+			# Case 5: Current value is much larger than both neighbors
+			($val > $spike_factor * $prev_val && $val > $spike_factor * $next_val) ||
+
+			# Case 6: Current value is much smaller than both neighbors (inverse spike)
+			# Ensure no division by zero for neighbors
 			($prev_val > 0 && $next_val > 0 &&
-			 $val >= $spike_factor * $prev_val &&
-			 $val >= $spike_factor * $next_val)
+			 $val < $prev_val / $spike_factor &&
+			 $val < $next_val / $spike_factor)
 
-		) {
+		)) {
 			return ($field, {
 				prev => $prev_val,
 				curr => $val,
@@ -228,5 +244,6 @@ sub get_last_spike_time {
 	$sth->finish;
 	return $ts || 0;
 }
+
 
 __END__
