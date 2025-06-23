@@ -5,11 +5,20 @@ use Fcntl ':flock';  # For manual file locking
 use DBI;
 use Parallel::ForkManager;
 use File::Basename;
+use Getopt::Long;
 
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT
+
+# === COMMAND LINE OPTIONS ===
+my $dry_run = 0;
+GetOptions('n' => \$dry_run);
+
+if ($dry_run) {
+	print "Running in DRY RUN mode: no database updates will be performed.\n";
+}
 
 # === LOCKING ===
 my $script_name = basename($0);
@@ -136,7 +145,13 @@ for my $table (@tables) {
 				push @log, "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
 				push @log, "	Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
 				push @log, "  Marking spike for serial $serial: id=$curr->{id}\n\n";
-				mark_spike($child_dbh, $table, $curr->{id});
+
+				unless ($dry_run) {
+					mark_spike($child_dbh, $table, $curr->{id});
+				}
+				else {
+					push @log, "  [DRY RUN] Skipping database update for spike id=$curr->{id}\n";
+				}
 				$spikes_marked++;
 			}
 
