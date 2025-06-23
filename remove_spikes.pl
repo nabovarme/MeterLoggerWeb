@@ -9,9 +9,10 @@ use File::Basename;
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
-$| = 1;  # Autoflush STDOUT globally
+$| = 1;  # Autoflush STDOUT
 
 # === LOCKING ===
+# Prevent multiple instances of this script from running simultaneously
 my $script_name = basename($0);
 my $lockfile = "/tmp/$script_name.lock";
 open(my $fh, ">", $lockfile) or die "Cannot open lock file $lockfile: $!";
@@ -22,12 +23,13 @@ print $fh "$$\n";  # Write current PID to the lock file
 
 my @tables = ('samples_cache', 'samples');  # Process both tables
 
+# Fields to check for spikes
 my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
 
 my $spike_factor	 = 10;
-my $min_val_threshold = 1 / $spike_factor;
+my $min_val_threshold = 1 / $spike_factor;  # For small-value comparisons
 
-# Max parallel processes
+# Max parallel processes to spawn
 my $max_processes = 4;
 
 # === DB SETUP ===
@@ -58,7 +60,7 @@ for my $table (@tables) {
 
 	my %serial_spikes;
 
-	# Gather spike count from children
+	# Collect spike counts reported from child processes
 	$pm->run_on_finish(sub {
 		my ($pid, $exit_code, $ident, $exit_signal, $core_dump, $data_ref) = @_;
 		if (defined $data_ref && ref $data_ref eq 'HASH') {
@@ -67,24 +69,22 @@ for my $table (@tables) {
 		}
 	});
 
-	# Process each serial in parallel
+	# Fork one child per serial
 	foreach my $serial (@serials) {
 		my $pid = $pm->start($serial);
 		if ($pid) {
-			# Parent process continues here
-			next;
+			next;  # Parent skips to next serial
 		}
 
-		# Child process
-		$| = 1;  # Autoflush inside child
+		# === Child process logic ===
+		print "\n--- Checking serial: $serial ---\n";  # Now only printed in child to avoid interleaved output
 
 		my $child_dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
-		print "[$$] --- Checking serial: $serial ---\n";
-
+		# Optimize: Only check after the last known spike
 		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
-		print "[$$]   Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
+		print "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
 
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
@@ -96,50 +96,51 @@ for my $table (@tables) {
 		]);
 		$sth->execute($serial, $last_spike_unix_time) or die "Failed to execute: " . $sth->errstr;
 
-		# Preload the sliding window
+		# Preload the 3-row sliding window
 		my $spikes_marked = 0;
 		my $prev = $sth->fetchrow_hashref;
 		unless ($prev) {
-			print "[$$]   No data after last spike for serial $serial in table $table\n";
+			print "  No data after last spike for serial $serial in table $table\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
-		print "[$$]   First row unix_time: $prev->{unix_time}\n";
+		print "  First row unix_time: $prev->{unix_time}\n";
 
 		my $curr = $sth->fetchrow_hashref;
 		unless ($curr) {
-			print "[$$]   Not enough data for serial $serial in table $table (only 1 row)\n";
+			print "  Not enough data for serial $serial in table $table (only 1 row)\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
-		print "[$$]   Second row unix_time: $curr->{unix_time}\n";
+		print "  Second row unix_time: $curr->{unix_time}\n";
 
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
-			print "[$$]   Not enough data for serial $serial in table $table (only 2 rows)\n";
+			print "  Not enough data for serial $serial in table $table (only 2 rows)\n";
 		}
 
-		# If there's not enough data to form a sliding window, skip
 		if (!$prev || !$curr || !$next) {
-			print "[$$]   Not enough samples for serial $serial — skipping\n";
+			print "  Not enough samples for serial $serial — skipping\n";
 			$sth->finish;
 			$child_dbh->disconnect;
 			$pm->finish(0, { serial => $serial, spikes_marked => 0 });
 		}
 
+		# === Sliding window spike detection ===
 		while ($prev && $curr && $next) {
 			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
 
 			if ($spike_field) {
-				print "[$$]   Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
-				print "[$$]     Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
-				print "[$$]   Marking spike for serial $serial: id=$curr->{id}\n\n";
+				print "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
+				print "    Values: prev=$vals_ref->{prev}, curr=$vals_ref->{curr}, next=$vals_ref->{next}\n";
+				print "  Marking spike for serial $serial: id=$curr->{id}\n\n";
 				mark_spike($child_dbh, $table, $curr->{id});
 				$spikes_marked++;
 			}
 
+			# Advance window
 			$prev = $curr;
 			$curr = $next;
 			$next = $sth->fetchrow_hashref;
@@ -152,6 +153,7 @@ for my $table (@tables) {
 
 	$pm->wait_all_children;
 
+	# Summary per table
 	print "\nSummary for table '$table':\n";
 	my $table_total = 0;
 	foreach my $serial (sort keys %serial_spikes) {
@@ -168,6 +170,7 @@ print "\nDone.\n";
 print "Total spikes marked in all tables: $total_spikes_marked\n";
 
 # === UNLOCKING ===
+# Clean up lock file after successful run
 close($fh);
 unlink $lockfile;
 
@@ -181,9 +184,11 @@ sub is_spike_detected {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 		next unless defined $val && defined $prev_val && defined $next_val;
 
-		# We only consider values where at least one of the three points is >= 1,
-		# to ignore noise or near-zero fluctuations.
-		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
+		# Skip if all values are near-zero, below the threshold
+		next unless ($prev_val >= $min_val_threshold || $val >= $min_val_threshold || $next_val >= $min_val_threshold);
+
+		# Detect spikes based on various scenarios:
+		if (
 
 			# Case 1: Current value is significantly high, neighbors both zero.
 			# This indicates a sudden isolated spike upward.
@@ -216,8 +221,7 @@ sub is_spike_detected {
 			($prev_val > 0 && $next_val > 0 &&
 			 $val < $prev_val / $spike_factor &&
 			 $val < $next_val / $spike_factor)
-
-		)) {
+		) {
 			return ($field, {
 				prev => $prev_val,
 				curr => $val,
@@ -236,6 +240,7 @@ sub mark_spike {
 	$update->finish;
 }
 
+# Gets the last known spike timestamp for this serial in the given table
 sub get_last_spike_time {
 	my ($dbh, $table, $serial) = @_;
 	my $sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE serial = ? AND is_spike = 1");
@@ -244,6 +249,5 @@ sub get_last_spike_time {
 	$sth->finish;
 	return $ts || 0;
 }
-
 
 __END__
