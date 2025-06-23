@@ -178,6 +178,7 @@ unlink $lockfile;  # optional: remove the lock file
 # === SUBROUTINES ===
 
 # Detects spikes in the middle value of the sliding window [prev, curr, next]
+# Detects spikes in the middle value of the sliding window [prev, curr, next]
 sub is_spike_detected {
 	my ($prev, $curr, $next) = @_;
 
@@ -190,17 +191,21 @@ sub is_spike_detected {
 		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
 
 			# Case 1: Current value is significantly high, neighbors both zero.
+			# This indicates a sudden isolated spike upward.
 			($val > $spike_factor && $prev_val == 0 && $next_val == 0) ||
 
 			# Case 2: Current value is zero, neighbors are both significantly high.
+			# This indicates an inverted spike (sudden drop).
 			($val == 0 && $prev_val > $spike_factor && $next_val > $spike_factor) ||
 
 			# Case 3: Current value is small but neighbors are much larger.
+			# Checks if current is significantly smaller than both neighbors.
 			($val >= $min_val_threshold &&
 			 $prev_val > $spike_factor * $val &&
 			 $next_val > $spike_factor * $val) ||
 
 			# Case 4: Current value is large compared to neighbors.
+			# Both neighbors are either zero or small, while current is much larger.
 			(
 				(($prev_val == 0 && $val >= $spike_factor) ||
 				 ($prev_val > 0 && $val > $spike_factor * $prev_val)) &&
