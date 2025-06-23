@@ -76,13 +76,12 @@ for my $table (@tables) {
 
 		# Child process
 		my @log;
-		push @log, "--- Checking serial: $serial ---\n";
-
 		my $child_dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
 		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
-		push @log, "  Skipping rows before unix_time = $last_spike_unix_time\n";
+		push @log, "--- Checking serial: $serial ---\n";
+		push @log, "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
 
 		my $sth = $child_dbh->prepare(qq[
 			SELECT id, unix_time, is_spike, ] . join(",", @fields) . qq[
@@ -191,7 +190,7 @@ sub is_spike_detected {
 
 			# Case 1: Current value is significantly high, neighbors both zero.
 			# This indicates a sudden isolated spike upward.
-			($val > $spike_factor && $prev_val == 0 && $next_val == 0) ||
+			($val >= $spike_factor && $prev_val == 0 && $next_val == 0) ||
 
 			# Case 2: Current value is zero, neighbors are both significantly high.
 			# This indicates an inverted spike (sudden drop).
