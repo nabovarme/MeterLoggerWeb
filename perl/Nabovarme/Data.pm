@@ -219,6 +219,39 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
+		# --- Option: all (high-resolution raw unfiltered data) ---
+		elsif ($option =~ /all/) {
+			$sth = $dbh->prepare(qq[
+				SELECT
+					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
+					serial,
+					flow_temp,
+					return_flow_temp,
+					temp_diff,
+					flow,
+					effect,
+					hours,
+					volume,
+					energy
+				FROM samples
+				WHERE serial = $quoted_serial
+				ORDER BY unix_time ASC
+			]);
+			$sth->execute;
+
+			$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
+			while ($d = $sth->fetchrow_hashref) {
+				$r->print(join(',', 
+					$d->{time_stamp_formatted},
+					$d->{flow_temp},
+					$d->{return_flow_temp},
+					$d->{temp_diff},
+					$d->{flow},
+					$d->{effect}
+				) . "\n");
+			}
+		}
+
 		# --- Unknown option: return 404 ---
 		else {
 			return Apache2::Const::NOT_FOUND;
