@@ -140,7 +140,6 @@ for my $table (@tables) {
 			$prev = $curr;
 			$curr = $next;
 			$next = $sth->fetchrow_hashref;
-			print "  Sliding to next row: $curr->{unix_time}\n" if $curr;
 		}
 
 		$sth->finish;
