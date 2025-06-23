@@ -47,6 +47,7 @@ for my $table (@tables) {
 	my $last_spike_sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE is_spike = 1");
 	$last_spike_sth->execute();
 	($last_spike_unix_time) = $last_spike_sth->fetchrow_array;
+	$last_spike_unix_time ||= 0;	# default to zero if no spikes found
 	$last_spike_sth->finish;
 
 	print "  Skipping rows before unix_time = $last_spike_unix_time\n";
