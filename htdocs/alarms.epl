@@ -52,6 +52,7 @@
 		
 		td {
 			vertical-align: top;
+			padding: 6px;
 		}
 	</style>
 </HEAD>
@@ -67,11 +68,10 @@
 		$sth->execute;
 	}
 -]
-<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
+<table border="0" align="left" cellpadding="0" cellspacing="0" class="top">
 <tr align="left" valign="bottom">
 	<td><span class="default-bold">Serial</span></td>
 	<td><span class="default-bold">Info</span></td>
-	<td><span class="default-bold">Enabled</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
@@ -80,7 +80,6 @@
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
 	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} || '' +]</span></td>
-	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ ($d->{enabled} ? "Yes" : "No") +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
 </tr>
