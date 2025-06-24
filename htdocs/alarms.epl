@@ -1,0 +1,94 @@
+[- 
+	use utf8;
+	binmode STDOUT, ":utf8";
+	use open qw(:std :utf8);
+	use DBI;
+	use Config;
+
+	use lib qw( /var/www/lib/perl );
+	use lib qw( /opt/local/apache2/perl );
+	use Nabovarme::Db;
+	use Nabovarme::Admin;
+	use Data::Dumper;
+
+	print "Content-type: text/html; charset=UTF-8\n\n";
+
+	$admin = new Nabovarme::Admin;
+-]
+<HTML>
+<HEAD>
+	<meta charset="UTF-8">
+	<meta name="robots" content="noindex">
+	<TITLE>Alarm Overview</TITLE>
+	<style type="text/css">
+		.top {
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		.default-small {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 80%;
+		}
+		.default-group {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 120%;
+		}
+		.default-disabled {
+			font-family: Verdana, Geneva, sans-serif;
+			color: #9c9c9c;
+		}
+		.alarm-red {
+			background-color: #ffdddd;
+		}
+		
+		td {
+			vertical-align: top;
+		}
+	</style>
+</HEAD>
+<BODY>
+[- 
+	if ($dbh = Nabovarme::Db->my_connect) {
+		$sth = $dbh->prepare(qq[
+			SELECT alarms.*, meters.info 
+			FROM alarms 
+			LEFT JOIN meters ON alarms.serial = meters.serial 
+			ORDER BY alarms.serial
+		]);
+		$sth->execute;
+	}
+-]
+<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
+<tr align="left" valign="bottom">
+	<td><span class="default-bold">Serial</span></td>
+	<td><span class="default-bold">Info</span></td>
+	<td><span class="default-bold">Enabled</span></td>
+	<td><span class="default-bold">Condition</span></td>
+	<td><span class="default-bold">Comment</span></td>
+</tr>
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
+	<td><span class="default">[+ $d->{serial} +]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} || '' +]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ ($d->{enabled} ? "Yes" : "No") +]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
+</tr>
+[$ endwhile $]
+[$ endif $]
+<tr>
+	<td colspan="6">&nbsp;</td>
+</tr>
+</table>
+</BODY>
+</HTML>

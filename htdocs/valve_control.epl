@@ -4,7 +4,6 @@
 	use Config;
 
 	use lib qw( /var/www/lib/perl );
-	use lib qw( /opt/local/apache2/perl );
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
 	use Data::Dumper;
