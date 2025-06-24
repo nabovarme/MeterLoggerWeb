@@ -103,7 +103,7 @@
         <p>No alarm found for serial: [+ $serial +]</p>
     [$ else $]
         <div class="[$ if ($d->{alarm_state} >= 1) $]alarm-state[$ endif $]">
-            <form method="POST" action="alarm_detail.epl">
+            <form method="POST">
                 <input type="hidden" name="serial" value="[+ $serial +]">
                 
                 <label>
