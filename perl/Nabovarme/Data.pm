@@ -5,6 +5,7 @@ use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const;
+use HTTP::Date qw(time2str);
 use DBI;
 use Fcntl qw(:flock);
 
@@ -43,9 +44,6 @@ sub handler {
 				$setup_value = $d->{setup_value};
 			}
 
-			$r->content_type('text/plain');
-			$r->print("Date,Energy\n");
-
 			# Query daily first energy sample
 			$sth = $dbh->prepare(qq[
 				SELECT
@@ -68,6 +66,11 @@ sub handler {
 			]);
 			$sth->execute;
 
+			$r->content_type('text/plain');
+			$r->headers_out->set('Cache-Control'	=> 'public, max-age=60');
+			$r->headers_out->set('Expires'			=> HTTP::Date::time2str(time + 60));
+
+			$r->print("Date,Energy\n");
 			while ($d = $sth->fetchrow_hashref) {
 				$r->print("$d->{time_stamp_formatted}," . ($d->{energy} - $setup_value) . "\n");
 			}
@@ -117,8 +120,6 @@ sub handler {
 		# --- Option: coarse (detailed daily sample) ---
 		elsif ($option =~ /coarse/) {
 
-			$r->content_type('text/plain');
-
 			$sth = $dbh->prepare(qq[
 				SELECT
 					DATE_FORMAT(FROM_UNIXTIME(unix_time), "%Y/%m/%d %T") AS time_stamp_formatted,
@@ -155,6 +156,10 @@ sub handler {
 				ORDER BY time_stamp_formatted ASC;
 			]);
 			$sth->execute;
+
+			$r->content_type('text/plain');
+			$r->headers_out->set('Cache-Control'	=> 'public, max-age=60');
+			$r->headers_out->set('Expires'			=> HTTP::Date::time2str(time + 60));
 
 			$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 			while ($d = $sth->fetchrow_hashref) {
@@ -239,6 +244,10 @@ sub handler {
 			]);
 			$sth->execute;
 
+			$r->content_type('text/plain');
+			$r->headers_out->set('Cache-Control'	=> 'public, max-age=60');
+			$r->headers_out->set('Expires'			=> HTTP::Date::time2str(time + 60));
+
 			$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 			while ($d = $sth->fetchrow_hashref) {
 				$r->print(join(',', 
@@ -257,6 +266,12 @@ sub handler {
 			return Apache2::Const::NOT_FOUND;
 		}
 
+		return Apache2::Const::OK;
+	}
+	else {
+		$r->status(Apache2::Const::SERVER_ERROR);
+		$r->content_type('text/plain');
+		$r->print("Database connection failed.\n");
 		return Apache2::Const::OK;
 	}
 }
