@@ -122,7 +122,6 @@ for my $table (@tables) {
 			print @log;
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
-		push @log, "  Second row unix_time: $curr->{unix_time}\n";
 
 		my $next = $sth->fetchrow_hashref;
 		unless ($next) {
