@@ -201,29 +201,37 @@ sub is_spike_detected {
 		# Skip tiny fluctuations
 		next unless ($prev_val >= 1 || $val >= 1 || $next_val >= 1);
 
-		# Handle zero current value — check both neighbors are high
+		# Handle zero current value — check both neighbors are high (inverted spike)
 		if ($val == 0) {
 			if ($prev_val >= $spike_factor && $next_val >= $spike_factor) {
 				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 			}
 		}
-		# Handle non-zero current value — check it's much higher than both neighbors
 		else {
-			if (
-				(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
-				(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
-			) {
-				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+			# If current value is >= spike_factor, both neighbors must be zero
+			if ($val >= $spike_factor) {
+				if ($prev_val == 0 && $next_val == 0) {
+					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+				}
 			}
-			
-			# Inverse spike: current value much smaller than both neighbors
-			if (
-				$prev_val >= $spike_factor &&
-				$next_val >= $spike_factor &&
-				$val <= $prev_val / $spike_factor &&
-				$val <= $next_val / $spike_factor
-			) {
-				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+			else {
+				# Current value less than spike_factor, check if it's much larger than neighbors
+				if (
+					(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
+					(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
+				) {
+					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+				}
+
+				# Inverse spike: current value much smaller than both neighbors
+				if (
+					$prev_val >= $spike_factor &&
+					$next_val >= $spike_factor &&
+					$val <= $prev_val / $spike_factor &&
+					$val <= $next_val / $spike_factor
+				) {
+					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+				}
 			}
 		}
 	}
