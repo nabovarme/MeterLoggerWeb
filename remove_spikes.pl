@@ -198,45 +198,33 @@ sub is_spike_detected {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 		next unless defined $val && defined $prev_val && defined $next_val;
 
-		# We only consider values where at least one of the three points is >= 1,
-		# to ignore noise or near-zero fluctuations.
-		if (($prev_val >= 1 || $val >= 1 || $next_val >= 1) && (
+		# Skip tiny fluctuations
+		next unless ($prev_val >= 1 || $val >= 1 || $next_val >= 1);
 
-			# Case 1: Current value is significantly high, neighbors both zero.
-			# This indicates a sudden isolated spike upward.
-			($val >= $spike_factor && $prev_val == 0 && $next_val == 0) ||
-
-			# Case 2: Current value is zero, neighbors are both significantly high.
-			# This indicates an inverted spike (sudden drop).
-			($val == 0 && $prev_val > $spike_factor && $next_val > $spike_factor) ||
-
-			# Case 3: Current value is small but neighbors are much larger.
-			($val >= $min_val_threshold &&
-			 $prev_val > $spike_factor * $val &&
-			 $next_val > $spike_factor * $val) ||
-
-			# Case 4: Current value is large compared to neighbors.
-			(
-				(($prev_val == 0 && $val >= $spike_factor) ||
-				 ($prev_val > 0 && $val > $spike_factor * $prev_val)) &&
-				(($next_val == 0 && $val >= $spike_factor) ||
-				 ($next_val > 0 && $val > $spike_factor * $next_val))
-			) ||
-
-			# Case 5: Current value is much larger than both neighbors
-			($val > $spike_factor * $prev_val && $val > $spike_factor * $next_val) ||
-
-			# Case 6: Current value is much smaller than both neighbors
-			($prev_val > 0 && $next_val > 0 &&
-			 $val < $prev_val / $spike_factor &&
-			 $val < $next_val / $spike_factor)
-
-		)) {
-			return ($field, {
-				prev => $prev_val,
-				curr => $val,
-				next => $next_val,
-			});
+		# Handle zero current value — check both neighbors are high
+		if ($val == 0) {
+			if ($prev_val >= $spike_factor && $next_val >= $spike_factor) {
+				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+			}
+		}
+		# Handle non-zero current value — check it's much higher than both neighbors
+		else {
+			if (
+				(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
+				(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
+			) {
+				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+			}
+			
+			# Inverse spike: current value much smaller than both neighbors
+			if (
+				$prev_val >= $spike_factor &&
+				$next_val >= $spike_factor &&
+				$val <= $prev_val / $spike_factor &&
+				$val <= $next_val / $spike_factor
+			) {
+				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+			}
 		}
 	}
 	return;
