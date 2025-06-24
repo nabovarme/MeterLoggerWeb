@@ -33,18 +33,17 @@ my @tables = ('samples_cache', 'samples');  # Process both tables
 
 my @fields = qw(flow_temp return_flow_temp temp_diff flow effect hours volume energy);
 
-my $spike_factor	 = 10;
-my $min_val_threshold = 1 / $spike_factor;
+my $SPIKE_FACTOR	 = 10;
 
 # Max parallel processes
-my $max_processes = 4;
+my $MAX_PROCESSES = 4;
 
 # === DB SETUP ===
 
 my $dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 $dbh->{mysql_auto_reconnect} = 1;
 
-my $pm = Parallel::ForkManager->new($max_processes);
+my $pm = Parallel::ForkManager->new($MAX_PROCESSES);
 
 my $total_spikes_marked = 0;
 
@@ -223,29 +222,29 @@ sub is_spike_detected {
 		$min = $next_val if $next_val < $min;
 
 		# Skip if values are within a narrow fluctuation range
-		if ($min > 0 && ($max / $min) < $spike_factor) {
+		if ($min > 0 && ($max / $min) < $SPIKE_FACTOR) {
 			next;
 		}
 
 		# Inverted spike: middle is zero, neighbors are high
-		if ($val == 0 && $prev_val >= $spike_factor && $next_val >= $spike_factor) {
+		if ($val == 0 && $prev_val >= $SPIKE_FACTOR && $next_val >= $SPIKE_FACTOR) {
 			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 		}
 
 		# Regular spike: middle is much higher than neighbors
 		if (
-			(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
-			(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
+			(($prev_val == 0 && $val >= $SPIKE_FACTOR) || ($prev_val > 0 && $val >= $SPIKE_FACTOR * $prev_val)) &&
+			(($next_val == 0 && $val >= $SPIKE_FACTOR) || ($next_val > 0 && $val >= $SPIKE_FACTOR * $next_val))
 		) {
 			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 		}
 
 		# Inverse spike: middle is much lower than neighbors
 		if (
-			$prev_val >= $spike_factor &&
-			$next_val >= $spike_factor &&
-			$val <= $prev_val / $spike_factor &&
-			$val <= $next_val / $spike_factor
+			$prev_val >= $SPIKE_FACTOR &&
+			$next_val >= $SPIKE_FACTOR &&
+			$val <= $prev_val / $SPIKE_FACTOR &&
+			$val <= $next_val / $SPIKE_FACTOR
 		) {
 			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 		}
