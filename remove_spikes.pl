@@ -216,6 +216,20 @@ sub is_spike_detected {
 		# Skip tiny fluctuations
 		next unless ($prev_val >= 1 || $val >= 1 || $next_val >= 1);
 
+		# Skip if all three are within a narrow fluctuation range (i.e., not real spikes)
+		my $max = $val;
+		$max = $prev_val if $prev_val > $max;
+		$max = $next_val if $next_val > $max;
+
+		my $min = $val;
+		$min = $prev_val if $prev_val < $min;
+		$min = $next_val if $next_val < $min;
+
+		# If min is not zero and max is less than spike_factor times min, then skip
+		if ($min > 0 && ($max / $min) < $spike_factor) {
+			next;
+		}
+
 		# Handle zero current value — check both neighbors are high (inverted spike)
 		if ($val == 0) {
 			if ($prev_val >= $spike_factor && $next_val >= $spike_factor) {
