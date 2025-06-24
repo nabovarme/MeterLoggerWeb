@@ -63,31 +63,45 @@
 			SELECT alarms.*, meters.info 
 			FROM alarms 
 			LEFT JOIN meters ON alarms.serial = meters.serial 
-			ORDER BY alarms.serial
+			ORDER BY meters.info ASC, alarms.alarm_state DESC
 		]);
 		$sth->execute;
 	}
+	$last_serial = '';
+	$is_first = 1;
 -]
 <table border="0" align="left" cellpadding="0" cellspacing="0" class="top">
+[$ if ($sth->rows) $]
+[$ while ($d = $sth->fetchrow_hashref) $]
+[$ if (($last_serial ne $d->{'serial'}) and ($is_first == 0)) $]
+	<tr>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+		<td>&nbsp;</td>
+	</tr>
+[$ endif $]
+[- $is_first = 0; -]
+[$ if ($last_serial ne $d->{'serial'}) $]
+	<tr>
+		<td align="left" colspan=4><span class="default-group">[+ $d->{'serial'} +] [+ $d->{'info'} +]</span></td>
+	</tr>
 <tr align="left" valign="bottom">
 	<td><span class="default-bold">Serial</span></td>
 	<td><span class="default-bold">Info</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
-[$ if ($sth->rows) $]
-[$ while ($d = $sth->fetchrow_hashref) $]
+[$ endif $]
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
 	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} || '' +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
 </tr>
+[- $last_serial = $d->{'serial'};  -]
 [$ endwhile $]
 [$ endif $]
-<tr>
-	<td colspan="6">&nbsp;</td>
-</tr>
 </table>
 </BODY>
 </HTML>
