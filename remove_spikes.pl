@@ -153,7 +153,7 @@ for my $table (@tables) {
 		}
 
 		while ($prev && $curr && $next) {
-			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next);
+			my ($spike_field, $vals_ref) = is_spike_detected($prev, $curr, $next, $spike_factor);
 
 			if ($spike_field) {
 				push @log, "  Detected spike at $curr->{unix_time} on $spike_field for serial $serial\n";
@@ -207,7 +207,7 @@ unlink $lockfile;
 
 # Detects spikes in the middle value of the sliding window [prev, curr, next]
 sub is_spike_detected {
-	my ($prev, $curr, $next) = @_;
+	my ($prev, $curr, $next, $spike_factor) = @_;
 
 	foreach my $field (@fields) {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
