@@ -78,7 +78,7 @@
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
-	<td><span class="default">[+ $d->{serial} +]</span></td>
+	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} || '' +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ ($d->{enabled} ? "Yes" : "No") +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
