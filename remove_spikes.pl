@@ -213,10 +213,7 @@ sub is_spike_detected {
 		my ($val, $prev_val, $next_val) = ($curr->{$field}, $prev->{$field}, $next->{$field});
 		next unless defined $val && defined $prev_val && defined $next_val;
 
-		# Skip tiny fluctuations
-		next unless ($prev_val >= 1 || $val >= 1 || $next_val >= 1);
-
-		# Skip if all three are within a narrow fluctuation range (i.e., not real spikes)
+		# max/min calculation
 		my $max = $val;
 		$max = $prev_val if $prev_val > $max;
 		$max = $next_val if $next_val > $max;
@@ -225,45 +222,35 @@ sub is_spike_detected {
 		$min = $prev_val if $prev_val < $min;
 		$min = $next_val if $next_val < $min;
 
-		# If min is not zero and max is less than spike_factor times min, then skip
+		# Skip if values are within a narrow fluctuation range
 		if ($min > 0 && ($max / $min) < $spike_factor) {
 			next;
 		}
 
-		# Handle zero current value — check both neighbors are high (inverted spike)
-		if ($val == 0) {
-			if ($prev_val >= $spike_factor && $next_val >= $spike_factor) {
-				return ($field, { prev => $prev_val, curr => $val, next => $next_val });
-			}
+		# Inverted spike: middle is zero, neighbors are high
+		if ($val == 0 && $prev_val >= $spike_factor && $next_val >= $spike_factor) {
+			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 		}
-		else {
-			# If current value is >= spike_factor, both neighbors must be zero
-			if ($val >= $spike_factor) {
-				if ($prev_val == 0 && $next_val == 0) {
-					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
-				}
-			}
-			else {
-				# Current value less than spike_factor, check if it's much larger than neighbors
-				if (
-					(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
-					(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
-				) {
-					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
-				}
 
-				# Inverse spike: current value much smaller than both neighbors
-				if (
-					$prev_val >= $spike_factor &&
-					$next_val >= $spike_factor &&
-					$val <= $prev_val / $spike_factor &&
-					$val <= $next_val / $spike_factor
-				) {
-					return ($field, { prev => $prev_val, curr => $val, next => $next_val });
-				}
-			}
+		# Regular spike: middle is much higher than neighbors
+		if (
+			(($prev_val == 0 && $val >= $spike_factor) || ($prev_val > 0 && $val >= $spike_factor * $prev_val)) &&
+			(($next_val == 0 && $val >= $spike_factor) || ($next_val > 0 && $val >= $spike_factor * $next_val))
+		) {
+			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
+		}
+
+		# Inverse spike: middle is much lower than neighbors
+		if (
+			$prev_val >= $spike_factor &&
+			$next_val >= $spike_factor &&
+			$val <= $prev_val / $spike_factor &&
+			$val <= $next_val / $spike_factor
+		) {
+			return ($field, { prev => $prev_val, curr => $val, next => $next_val });
 		}
 	}
+
 	return;
 }
 
