@@ -65,6 +65,20 @@ for my $table (@tables) {
 	}
 	$serials_sth->finish;
 
+	# === PRELOAD LAST SPIKE TIMES ===
+	my %last_spike_times;
+	my $spike_times_sth = $dbh->prepare(qq[
+		SELECT serial, MAX(unix_time) as last_time
+		FROM $table
+		WHERE is_spike = 1
+		GROUP BY serial
+	]);
+	$spike_times_sth->execute();
+	while (my ($serial, $last_time) = $spike_times_sth->fetchrow_array) {
+		$last_spike_times{$serial} = $last_time;
+	}
+	$spike_times_sth->finish;
+
 	my %serial_spikes;
 
 	# Gather spike count from children
@@ -83,12 +97,13 @@ for my $table (@tables) {
 			next;
 		}
 
-		# Child process
+		# === CHILD PROCESS ===
 		my @log;
 		my $child_dbh = Nabovarme::Db->my_connect() or die "Cannot connect to DB";
 		$child_dbh->{mysql_auto_reconnect} = 1;
 
-		my $last_spike_unix_time = get_last_spike_time($child_dbh, $table, $serial);
+		my $last_spike_unix_time = $last_spike_times{$serial} || 0;
+
 		push @log, "--- Checking serial: $serial ---\n";
 		push @log, "  Skipping rows before unix_time = $last_spike_unix_time for serial $serial\n";
 
@@ -245,15 +260,3 @@ sub mark_spike {
 	$update->execute($id);
 	$update->finish;
 }
-
-# Gets the last spike timestamp for a given serial
-sub get_last_spike_time {
-	my ($dbh, $table, $serial) = @_;
-	my $sth = $dbh->prepare("SELECT MAX(unix_time) FROM $table WHERE serial = ? AND is_spike = 1");
-	$sth->execute($serial);
-	my ($ts) = $sth->fetchrow_array;
-	$sth->finish;
-	return $ts || 0;
-}
-
-__END__
