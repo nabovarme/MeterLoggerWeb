@@ -97,7 +97,7 @@
 </HEAD>
 <BODY>
 <div class="container">
-    <a href="alarm.epl" class="back-link">&larr; Back to overview</a>
+    <a href="alarms.epl" class="back-link">&larr; Back to overview</a>
 
     [$ if (!$d) $]
         <p>No alarm found for serial: [+ $serial +]</p>
