@@ -118,11 +118,12 @@
 <table border="0" align="left" cellpadding="0" cellspacing="0">
 [$ if ($sth->rows) $]
 	<tr>
-		<td align="left" colspan=5><span class="default-group">[+ $d_groups->{group} +]</span></td>
+		<td align="left" colspan=6><span class="default-group">[+ $d_groups->{group} +]</span></td>
 	</tr>
 [$ while ($d = $sth->fetchrow_hashref) $]
 [$ if (($last_serial ne $d->{serial}) and ($is_first == 0)) $]
 	<tr>
+		<td>&nbsp;</td>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
@@ -133,13 +134,14 @@
 [- $is_first = 0; -]
 [$ if ($last_serial ne $d->{serial}) $]
 	<tr>
-		<td align="left" colspan=5><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
+		<td align="left" colspan=6><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
 	</tr>
 <tr align="left" valign="bottom">
 	<td><span class="default-bold">ID</span></td>
 	<td><span class="default-bold">Alarm receiver</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Repeating</span></td>
+	<td><span class="default-bold">Snoozed</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 [$ endif $]
@@ -148,12 +150,14 @@
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{snooze}) $][+ duration($d->{snooze}) +][$ else $]no[$ endif $]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
 </tr>
 [- $last_serial = $d->{serial};  -]
 [$ endwhile $]
 [$ endif $]
 	<tr>
+		<td>&nbsp;</td>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
@@ -180,17 +184,18 @@
 [$ if ($sth->rows) $]
 <table border="0" align="left" cellpadding="0" cellspacing="0">
 	<tr>
-		<td align="left" colspan=5><span class="default-group">Orphans</span></td>
+		<td align="left" colspan=6><span class="default-group">Orphans</span></td>
 	</tr>
 [$ while ($d = $sth->fetchrow_hashref) $]
 	<tr>
-		<td align="left" colspan=5><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
+		<td align="left" colspan=6><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
 	</tr>
 <tr align="left" valign="bottom">
 	<td><span class="default-bold">ID</span></td>
 	<td><span class="default-bold">Alarm receiver</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Repeating</span></td>
+	<td><span class="default-bold">Snoozed</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} && $d->{'enabled'}) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
@@ -198,6 +203,7 @@
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{snooze}) $][+ duration($d->{snooze}) +][$ else $]no[$ endif $]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
 </tr>
 [$ endwhile $]

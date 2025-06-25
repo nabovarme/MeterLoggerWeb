@@ -134,8 +134,8 @@
 				<textarea name="repeat">[+ $d->{repeat} +]</textarea>
 
 				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
-				<label>Snooze</label>
-				<textarea name="snooze" readonly>[+ duration($d->{last_notification} + $d->{snooze}) +]</textarea>
+				<label>Snoozed</label>
+				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +], next in [+ duration(time() - ($d->{last_notification} + $d->{snooze})) +]</textarea>
 				[$ endif $]
 
 				<label>Default snooze</label>
@@ -149,6 +149,7 @@
 
 				<label>Comment</label>
 				<textarea name="comment">[+ $d->{comment} +]</textarea>
+				<br>
 
 				<input type="submit" name="update" value="Update">
 			</form>
