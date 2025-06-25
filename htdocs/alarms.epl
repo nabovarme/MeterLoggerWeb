@@ -136,7 +136,7 @@
 		<td align="left" colspan=5><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
 	</tr>
 <tr align="left" valign="bottom">
-	<td><span class="default-bold">Info</span></td>
+	<td><span class="default-bold">ID</span></td>
 	<td><span class="default-bold">Alarm receiver</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Repeating</span></td>
@@ -144,7 +144,7 @@
 </tr>
 [$ endif $]
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
-	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || '' +]</a></span></td>
+	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || '' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
@@ -187,14 +187,14 @@
 		<td align="left" colspan=5><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
 	</tr>
 <tr align="left" valign="bottom">
-	<td><span class="default-bold">Info</span></td>
+	<td><span class="default-bold">ID</span></td>
 	<td><span class="default-bold">Alarm receiver</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Repeating</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
-	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || 'None' +]</a></span></td>
+	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || 'None' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
