@@ -44,12 +44,12 @@
 					sms_notification = $quoted_sms_notification,
 					`condition` = $quoted_condition, 
 					last_notification = $quoted_last_notification, 
-					repeat = $quoted_repeat, 
+					`repeat` = $quoted_repeat, 
 					snooze = $quoted_snooze, 
 					default_snooze = $quoted_default_snooze, 
 					up_message = $quoted_up_message, 
 					down_message = $quoted_down_message,
-					comment = $quoted_comment
+					`comment` = $quoted_comment
 				WHERE `id` = $id
 			]);
 		}
