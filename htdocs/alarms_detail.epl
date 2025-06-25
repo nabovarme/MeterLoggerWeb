@@ -149,9 +149,10 @@
 
 				<label>Comment</label>
 				<textarea name="comment">[+ $d->{comment} +]</textarea>
-				<br>
 
-				<input type="submit" name="update" value="Update">
+				<div style="margin-top: 20px;">
+					<input type="submit" name="update" value="Update">
+				</div>
 			</form>
 		</div>
 	[$ endif $]
