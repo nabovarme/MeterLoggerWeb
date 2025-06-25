@@ -81,7 +81,7 @@
 <HTML>
 <HEAD>
 	<meta charset="UTF-8">
-	<title>Meterlogger alarm detail - [+ $d->{info} +]</title>
+	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- Inline CSS for form layout and visuals -->
 	<style>
@@ -107,6 +107,12 @@
 		.container {
 			max-width: 600px;
 			margin: 1em auto;
+		}
+
+		.default-headline {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 120%;
 		}
 
 		/* Highlight box for active alarm state */
@@ -143,6 +149,7 @@
 	[$ else $]
 		<!-- Alarm form, optionally styled if alarm is active -->
 		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
+			<div class="default-headline">[+ $d->{serial} +] [+ $d->{info} +]</div>
 			<form method="POST">
 				<input type="hidden" name="id" value="[+ $id +]">
 
