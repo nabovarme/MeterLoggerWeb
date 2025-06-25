@@ -127,6 +127,13 @@
 			margin-bottom: 1em;
 		}
 
+		.label-hint {
+			font-weight: normal;
+			font-size: 70%;
+			color: #666;
+			margin-left: 8px;
+		}
+
 		/* Styled back-navigation link */
 		a.back-link {
 			display: inline-block;
@@ -137,8 +144,244 @@
 		a.back-link:hover {
 			text-decoration: underline;
 		}
+
+		#condition-popup {
+			position: absolute;
+			display: none;
+			background: #fff;
+			border: 1px solid #ccc;
+			border-radius: 6px;
+			box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+			z-index: 1000;
+			font-family: Verdana, sans-serif;
+			font-size: 13px;
+			max-width: 320px;
+		}
+
+		.popup-item {
+			padding: 8px 12px;
+			cursor: pointer;
+			border-bottom: 1px solid #eee;
+		}
+		.popup-item:last-child {
+			border-bottom: none;
+		}
+		.popup-item:hover {
+			background: #f5f5f5;
+		}
+		.popup-label {
+			font-weight: bold;
+		}
 	</style>
 </HEAD>
+
+<script>
+(function() {
+	const textarea = document.getElementById('conditionField');
+	const popup = document.getElementById('condition-popup');
+
+	// List of predefined options
+[-
+	$sth = $dbh->prepare(qq[
+		SELECT `id`, `description`, `condition`
+		FROM alarm_templates
+		ORDER BY `id`
+	]);
+	$sth->execute;
+-]
+	const options = [
+[$ if ($sth->rows) $]
+[$ while ($row = $sth->fetchrow_hashref) $]
+		{ label: "[+ $row->{description} +]", condition: "[+ $row->{condition} +]" },
+[$ endwhile $]
+[$ endif $]
+	];
+
+	let triggerIndex = -1;
+
+	textarea.addEventListener('input', function(e) {
+		const cursorPos = textarea.selectionStart;
+		const text = textarea.value;
+		const lastAt = text.lastIndexOf('@', cursorPos - 1);
+
+		if (lastAt !== -1 && (cursorPos - lastAt <= 30)) {
+			triggerIndex = lastAt;
+			showPopup();
+		} else {
+			hidePopup();
+		}
+	});
+
+	function showPopup() {
+		popup.innerHTML = '';
+		options.forEach(opt => {
+			const div = document.createElement('div');
+			div.className = 'popup-item';
+			div.innerHTML = `<div class="popup-label">${opt.label}</div>`;
+			div.onclick = () => {
+				insertCondition(opt.condition);
+				hidePopup();
+			};
+			popup.appendChild(div);
+		});
+
+		const rect = textarea.getBoundingClientRect();
+		popup.style.left = rect.left + window.scrollX + "px";
+		popup.style.top = (rect.top + textarea.offsetHeight + window.scrollY) + "px";
+		popup.style.display = 'block';
+	}
+
+	function hidePopup() {
+		popup.style.display = 'none';
+	}
+
+	function insertCondition(condition) {
+		const text = textarea.value;
+		const before = text.substring(0, triggerIndex);
+		const after = text.substring(textarea.selectionEnd);
+		textarea.value = before + condition + " " + after;
+
+		const pos = (before + condition + " ").length;
+		textarea.focus();
+		textarea.setSelectionRange(pos, pos);
+	}
+
+	// Hide popup if clicking elsewhere
+	document.addEventListener('click', (e) => {
+		if (!popup.contains(e.target) && e.target !== textarea) {
+			hidePopup();
+		}
+	});
+})();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	const textarea = document.getElementById('conditionField');
+	const popup = document.getElementById('condition-popup');
+
+	const options = [
+		{ label: "Temperature above 80°C", condition: "temperature > 80" },
+		{ label: "Pressure drop below 30", condition: "pressure < 30" },
+		{ label: "Humidity exceeds 70%", condition: "humidity > 70" },
+		{ label: "Device offline", condition: "status == 'offline'" }
+	];
+
+	let triggerIndex = -1;
+
+	// Create a hidden mirror div for caret position calculation
+	const mirrorDiv = document.createElement('div');
+	document.body.appendChild(mirrorDiv);
+
+	// Copy textarea styles to mirror div
+	const style = getComputedStyle(textarea);
+	const properties = [
+		'boxSizing', 'width', 'height', 'overflowX', 'overflowY',
+		'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+		'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+		'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
+		'textTransform', 'wordSpacing', 'lineHeight', 'tabSize', 'MozTabSize'
+	];
+	properties.forEach(prop => {
+		mirrorDiv.style[prop] = style[prop];
+	});
+
+	mirrorDiv.style.position = 'absolute';
+	mirrorDiv.style.visibility = 'hidden';
+	mirrorDiv.style.whiteSpace = 'pre-wrap';
+	mirrorDiv.style.wordWrap = 'break-word';
+	mirrorDiv.style.top = '0';
+	mirrorDiv.style.left = '-9999px';
+
+	textarea.addEventListener('input', onInput);
+	textarea.addEventListener('scroll', onInput); // reposition on scroll
+
+	function onInput(e) {
+		const cursorPos = textarea.selectionStart;
+		const text = textarea.value;
+		const lastAt = text.lastIndexOf('@', cursorPos - 1);
+
+		if (lastAt !== -1 && (cursorPos - lastAt <= 30)) {
+			triggerIndex = lastAt;
+			showPopupAtCaret(cursorPos);
+		} else {
+			hidePopup();
+		}
+	}
+
+	function showPopupAtCaret(cursorPos) {
+		popup.innerHTML = '';
+		options.forEach(opt => {
+			const div = document.createElement('div');
+			div.className = 'popup-item';
+			div.innerHTML = `<div class="popup-label">${opt.label}</div>`;
+			div.onclick = () => {
+				insertCondition(opt.condition);
+				hidePopup();
+			};
+			popup.appendChild(div);
+		});
+
+		const caret = getCaretCoordinates(textarea, cursorPos);
+		const textareaRect = textarea.getBoundingClientRect();
+
+		// Position popup right next to caret on same line
+		const left = textareaRect.left + window.scrollX + caret.left;
+		const top = textareaRect.top + window.scrollY + caret.top;
+
+		popup.style.left = left + 'px';
+		popup.style.top = top + 'px';
+		popup.style.display = 'block';
+	}
+
+	function hidePopup() {
+		popup.style.display = 'none';
+	}
+
+	function insertCondition(condition) {
+		const text = textarea.value;
+		const before = text.substring(0, triggerIndex);
+		const after = text.substring(textarea.selectionEnd);
+		textarea.value = before + condition + " " + after;
+
+		const pos = (before + condition + " ").length;
+		textarea.focus();
+		textarea.setSelectionRange(pos, pos);
+	}
+
+	// Hide popup if clicking outside
+	document.addEventListener('click', (e) => {
+		if (!popup.contains(e.target) && e.target !== textarea) {
+			hidePopup();
+		}
+	});
+
+	// Function to get caret coordinates inside textarea
+	// Adapted from https://github.com/component/textarea-caret-position
+	function getCaretCoordinates(element, position) {
+		const div = mirrorDiv;
+
+		// Set mirror div content up to caret
+		const value = element.value.substring(0, position);
+
+		// Replace spaces with &nbsp; to replicate rendering
+		const safeValue = value.replace(/\n$/g, '\n\u200b').replace(/ /g, '\u00a0');
+
+		div.textContent = safeValue;
+
+		// Create a span to mark caret position
+		const span = document.createElement('span');
+		span.textContent = element.value.substring(position) || '.'; // use '.' if empty to get height
+
+		div.appendChild(span);
+
+		return {
+			left: span.offsetLeft,
+			top: span.offsetTop
+		};
+	}
+});
+</script>
+
 
 <BODY>
 <div class="container">
@@ -165,8 +408,12 @@
 				<textarea name="sms_notification">[+ $d->{sms_notification} +]</textarea>
 
 				<!-- Alarm triggering condition -->
-				<label>Condition</label>
-				<textarea name="condition">[+ $d->{condition} +]</textarea>
+				<label>
+					Condition
+					<span class="label-hint">(type '@' to show template conditions)</span>
+				</label>
+				<textarea name="condition" id="conditionField">[+ $d->{condition} +]</textarea>
+				<div id="condition-popup"></div>
 
 				<!-- Show last notification if any -->
 				[$ if ($d->{alarm_state}) $]
