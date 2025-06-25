@@ -16,7 +16,7 @@
 <HEAD>
 	<meta charset="UTF-8">
 	<meta name="robots" content="noindex">
-	<TITLE>Alarm Overview</TITLE>
+	<TITLE>Meterlogger alarms overview</TITLE>
 	<style type="text/css">
 		.default {
 			font-family: Verdana, Geneva, sans-serif;
@@ -52,23 +52,39 @@
 //			font-family: Verdana, Geneva, sans-serif;
 			color: #9c9c9c;
 		}
+		.alarm {
+			font-family: Verdana, Geneva, sans-serif;
+		}
+		.alarm:hover {
+			font-family: Verdana, Geneva, sans-serif;
+			background-color: #eeeeee;
+		}
 		.alarm-red {
 			font-family: Verdana, Geneva, sans-serif;
 			background-color: #ffdddd;
+		}
+		.alarm-red:hover {
+			font-family: Verdana, Geneva, sans-serif;
+			filter: brightness(0.8);
 		}
 		.no-wrap {
 			white-space: nowrap;
 		}
 		
+		body {
+			margin: 0;
+			padding: 0;
+		}
 		table {
 			width: 100%;
+			border-collapse: collapse;
 		}
-		tr.highlightable:hover {
-			background-color: #eeeeee;
+		tr.highlightable-alarm-red:hover {
+			background-color: #ffdddd;
 		}
 		td {
 			vertical-align: top;
-			padding: 2px;
+			padding: 6px;
 		}
 	</style>
 </HEAD>
@@ -133,7 +149,7 @@
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 [$ endif $]
-<tr class="highlightable" align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
+<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
 	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || '' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
@@ -183,7 +199,7 @@
 	<td><span class="default-bold">Repeating</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
-<tr class="highlightable" align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
+<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
 	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || 'None' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
