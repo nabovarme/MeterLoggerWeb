@@ -1,47 +1,66 @@
 [- 
 	use DBI;
 	use Config;
+	use Time::Duration;
+
 	use lib qw( /var/www/lib/perl );
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
 
 	$admin = new Nabovarme::Admin;
-
-	my $serial = $fdat{serial} || '';
 	
-	$is_admin = $admin->cookie_is_admin($req_rec, $serial);
-	
-	my $dbh = Nabovarme::Db->my_connect;
+	$is_admin = 0;
+	$id = $fdat{id};
 
-	if ($dbh && $serial) {
-
-		if ($is_admin && $fdat{update}) {
-			my $update_sth = $dbh->prepare(q[
-				UPDATE alarms SET 
-					enabled = ?, 
-					condition = ?, 
-					comment = ?, 
-					up_message = ?, 
-					down_message = ?
-				WHERE serial = ?
-			]);
-			$update_sth->execute(
-				($fdat{enabled} ? 1 : 0),
-				$fdat{condition} || '',
-				$fdat{comment} || '',
-				$fdat{up_message} || '',
-				$fdat{down_message} || '',
-				$serial
-			);
+	$dbh = Nabovarme::Db->my_connect;
+	if ($dbh && $id) {
+		$quoted_id = $dbh->quote($id);
+		$sth = $dbh->prepare(qq[
+			SELECT `serial`
+			FROM alarms
+			WHERE `id` = $quoted_id
+		]);
+		$sth->execute;
+		if ($sth->rows) {
+			$d = $sth->fetchrow_hashref;
+			$is_admin = $admin->cookie_is_admin($req_rec, $d->{serial});
 		}
 
-		my $sth = $dbh->prepare(q[
+		if ($is_admin && $fdat{update}) {
+			$enabled = $fdat{enabled} ? 1 : 0;
+			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
+			$quoted_condition = $dbh->quote($fdat{condition});
+			$quoted_last_notification = $dbh->quote($fdat{last_notification});
+			$quoted_repeat = $dbh->quote($fdat{repeat});
+			$quoted_snooze = $dbh->quote($fdat{snooze});
+			$quoted_default_snooze = $dbh->quote($fdat{default_snooze});
+			$quoted_up_message = $dbh->quote($fdat{up_message});
+			$quoted_down_message = $dbh->quote($fdat{down_message});
+			$quoted_comment = $dbh->quote($fdat{comment});
+
+			$dbh->do(qq[
+				UPDATE alarms SET 
+					enabled = $enabled,
+					sms_notification = $quoted_sms_notification,
+					`condition` = $quoted_condition, 
+					last_notification = $quoted_last_notification, 
+					repeat = $quoted_repeat, 
+					snooze = $quoted_snooze, 
+					default_snooze = $quoted_default_snooze, 
+					up_message = $quoted_up_message, 
+					down_message = $quoted_down_message,
+					comment = $quoted_comment
+				WHERE `id` = $id
+			]);
+		}
+
+		$sth = $dbh->prepare(qq[
 			SELECT alarms.*, meters.info 
 			FROM alarms 
 			LEFT JOIN meters ON alarms.serial = meters.serial 
-			WHERE alarms.serial = ?
+			WHERE alarms.`id` = ?
 		]);
-		$sth->execute($serial);
+		$sth->execute($id);
 		$d = $sth->fetchrow_hashref;
 	}
 -]
@@ -65,10 +84,6 @@
 			font-family: Verdana, Geneva, sans-serif;
 			font-size: 90%;
 		}
-		input[type=checkbox] {
-			transform: scale(1.3);
-			margin-right: 6px;
-		}
 		.container {
 			max-width: 600px;
 			margin: 1em auto;
@@ -78,12 +93,6 @@
 			padding: 1em;
 			border-radius: 6px;
 			margin-bottom: 1em;
-		}
-		.button {
-			margin-top: 1em;
-			padding: 0.5em 1em;
-			font-size: 1em;
-			cursor: pointer;
 		}
 		a.back-link {
 			display: inline-block;
@@ -105,15 +114,30 @@
 	[$ else $]
 		<div class="[$ if ($d->{alarm_state} >= 1) $]alarm-state[$ endif $]">
 			<form method="POST">
-				<input type="hidden" name="serial" value="[+ $serial +]">
+				<input type="hidden" name="id" value="[+ $id +]">
 				
 				<label>
 					<input type="checkbox" name="enabled" value="1" [$ if ($d->{enabled}) $]checked[$ endif $]>
 					Enabled
 				</label>
 
+				<label>Alarm receiver</label>
+				<textarea name="sms_notification">[+ $d->{sms_notification} +]</textarea>
+
 				<label>Condition</label>
 				<textarea name="condition">[+ $d->{condition} +]</textarea>
+
+				<label>Last notification</label>
+				<textarea name="last_notification">[+ $d->{last_notification} +]</textarea>
+
+				<label>Repeating</label>
+				<textarea name="repeat">[+ $d->{repeat} +]</textarea>
+
+				<label>Snooze</label>
+				<textarea name="snooze">[+ $d->{snooze} +]</textarea>
+
+				<label>Default snooze</label>
+				<textarea name="default_snooze">[+ $d->{default_snooze} +]</textarea>
 
 				<label>Up Message</label>
 				<textarea name="up_message">[+ $d->{up_message} +]</textarea>
@@ -124,7 +148,7 @@
 				<label>Comment</label>
 				<textarea name="comment">[+ $d->{comment} +]</textarea>
 
-				<input type="submit" name="update" value="Update" class="button">
+				<input type="submit" name="update" value="Update">
 			</form>
 		</div>
 	[$ endif $]
