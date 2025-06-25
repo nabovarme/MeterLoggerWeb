@@ -105,8 +105,12 @@
 
 		/* Centered layout container */
 		.container {
-			max-width: 600px;
+//			max-width: 600px;
 			margin: 1em auto;
+		}
+
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
 		}
 
 		.default-headline {
@@ -138,9 +142,6 @@
 
 <BODY>
 <div class="container">
-
-	<!-- Back to overview link -->
-	<a href="alarms.epl" class="back-link">&larr; Back to overview</a>
 
 	<!-- Display message if no alarm record found -->
 	[$ if (!$d) $]
@@ -207,6 +208,11 @@
 			[$ if ($is_admin) $]</form>[$ endif $]
 		</div>
 	[$ endif $]
+	<!-- Back to overview link -->
+	<div style="margin-top: 3em;" class="default">
+		<a href="alarms.epl">Back</a>
+		<br><br><a href="logout">Logout</a>
+	</div>	
 </div>
 </BODY>
 </HTML>
