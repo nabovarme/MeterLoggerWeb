@@ -150,7 +150,7 @@
 		<!-- Alarm form, optionally styled if alarm is active -->
 		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
 			<div class="default-headline">[+ $d->{serial} +] [+ $d->{info} +]</div>
-			<form method="POST">
+			[$ if ($is_admin) $]<form method="POST">[$ endif $]
 				<input type="hidden" name="id" value="[+ $id +]">
 
 				<!-- Enable/disable alarm checkbox -->
@@ -199,10 +199,12 @@
 				<textarea name="comment">[+ $d->{comment} +]</textarea>
 
 				<!-- Submit button -->
+				[$ if ($is_admin) $]
 				<div style="margin-top: 20px;">
 					<input type="submit" name="update" value="Update">
 				</div>
-			</form>
+				[$ endif $]
+			[$ if ($is_admin) $]</form>[$ endif $]
 		</div>
 	[$ endif $]
 </div>
