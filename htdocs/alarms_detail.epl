@@ -77,6 +77,26 @@
 		$d = $sth->fetchrow_hashref;
 	}
 -]
+[- 
+	$sth_alarm_templates = $dbh->prepare(qq[
+		SELECT `description`, `condition`
+		FROM alarm_templates
+		ORDER BY `description`
+	]);
+	$sth_alarm_templates->execute;
+
+	$alarm_templates = '';
+	while ($row = $sth_alarm_templates->fetchrow_hashref) {
+		$label = $row->{description};
+		$condition = $row->{condition};
+
+		# Escape double quotes for safe JS output
+		$label =~ s/"/\\"/g;
+		$condition =~ s/"/\\"/g;
+
+		$alarm_templates .= qq|{ label: "$label", condition: "$condition" },\n|;
+	}
+-]
 
 <HTML>
 <HEAD>
@@ -181,20 +201,8 @@
 	const popup = document.getElementById('condition-popup');
 
 	// List of predefined options
-[-
-	$sth = $dbh->prepare(qq[
-		SELECT `id`, `description`, `condition`
-		FROM alarm_templates
-		ORDER BY `id`
-	]);
-	$sth->execute;
--]
 	const options = [
-[$ if ($sth->rows) $]
-[$ while ($row = $sth->fetchrow_hashref) $]
-		{ label: "[+ $row->{description} +]", condition: "[+ $row->{condition} +]" },
-[$ endwhile $]
-[$ endif $]
+		[+ $alarm_templates +]
 	];
 
 	let triggerIndex = -1;
@@ -260,10 +268,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	const popup = document.getElementById('condition-popup');
 
 	const options = [
-		{ label: "Temperature above 80°C", condition: "temperature > 80" },
-		{ label: "Pressure drop below 30", condition: "pressure < 30" },
-		{ label: "Humidity exceeds 70%", condition: "humidity > 70" },
-		{ label: "Device offline", condition: "status == 'offline'" }
+		[+ $alarm_templates +]
 	];
 
 	let triggerIndex = -1;
