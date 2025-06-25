@@ -30,9 +30,8 @@
 			$enabled = $fdat{enabled} ? 1 : 0;
 			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
 			$quoted_condition = $dbh->quote($fdat{condition});
-			$quoted_last_notification = $dbh->quote($fdat{last_notification});
 			$quoted_repeat = $dbh->quote($fdat{repeat});
-			$quoted_snooze = $dbh->quote($fdat{snooze});
+			$quoted_snooze = $dbh->quote($fdat{snooze} || 0);
 			$quoted_default_snooze = $dbh->quote($fdat{default_snooze});
 			$quoted_up_message = $dbh->quote($fdat{up_message});
 			$quoted_down_message = $dbh->quote($fdat{down_message});
@@ -43,7 +42,6 @@
 					enabled = $enabled,
 					sms_notification = $quoted_sms_notification,
 					`condition` = $quoted_condition, 
-					last_notification = $quoted_last_notification, 
 					`repeat` = $quoted_repeat, 
 					snooze = $quoted_snooze, 
 					default_snooze = $quoted_default_snooze, 
@@ -112,7 +110,7 @@
 	[$ if (!$d) $]
 		<p>No alarm found for serial: [+ $serial +]</p>
 	[$ else $]
-		<div class="[$ if ($d->{alarm_state} >= 1) $]alarm-state[$ endif $]">
+		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
 			<form method="POST">
 				<input type="hidden" name="id" value="[+ $id +]">
 				
@@ -127,14 +125,18 @@
 				<label>Condition</label>
 				<textarea name="condition">[+ $d->{condition} +]</textarea>
 
+				[$ if ($d->{alarm_state}) $]
 				<label>Last notification</label>
-				<textarea name="last_notification">[+ $d->{last_notification} +]</textarea>
+				<textarea name="last_notification" readonly>[+ duration(time() - $d->{last_notification}) +] ago</textarea>
+				[$ endif $]
 
 				<label>Repeating</label>
 				<textarea name="repeat">[+ $d->{repeat} +]</textarea>
 
+				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
 				<label>Snooze</label>
-				<textarea name="snooze">[+ $d->{snooze} +]</textarea>
+				<textarea name="snooze" readonly>[+ duration($d->{last_notification} + $d->{snooze}) +]</textarea>
+				[$ endif $]
 
 				<label>Default snooze</label>
 				<textarea name="default_snooze">[+ $d->{default_snooze} +]</textarea>

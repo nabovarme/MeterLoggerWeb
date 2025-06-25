@@ -105,7 +105,7 @@
 			JOIN meters ON alarms.serial = meters.serial
 			JOIN meter_groups ON meters.group = meter_groups.id
 			WHERE meter_groups.id = $quoted_group_id
-			ORDER BY meters.info ASC, alarms.alarm_state DESC, alarms.sms_notification ASC
+			ORDER BY meters.info ASC, alarms.enabled DESC, alarms.alarm_state DESC, alarms.sms_notification ASC
 		]);
 		$sth->execute;
 	}
@@ -143,7 +143,7 @@
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 [$ endif $]
-<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
+<tr align="left" valign="bottom" [$ if ($d->{alarm_state} && $d->{'enabled'}) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
 	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || '' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
@@ -193,7 +193,7 @@
 	<td><span class="default-bold">Repeating</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
-<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
+<tr align="left" valign="bottom" [$ if ($d->{alarm_state} && $d->{'enabled'}) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
 	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || 'None' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
