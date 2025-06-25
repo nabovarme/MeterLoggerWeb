@@ -56,7 +56,7 @@
 		}
 		td {
 			vertical-align: top;
-			padding: 6px;
+			padding: 2px;
 		}
 	</style>
 </HEAD>
