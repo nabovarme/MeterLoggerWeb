@@ -21,11 +21,6 @@
 	<meta name="robots" content="noindex">
 	<TITLE>Alarm Overview</TITLE>
 	<style type="text/css">
-		.top {
-			position: absolute;
-			top: 0;
-			left: 0;
-		}
 		.default {
 			font-family: Verdana, Geneva, sans-serif;
 		}
@@ -42,14 +37,23 @@
 			font-weight: bold;
 			font-size: 120%;
 		}
+		.default-serial {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 100%;
+		}
 		.default-disabled {
 			font-family: Verdana, Geneva, sans-serif;
 			color: #9c9c9c;
 		}
 		.alarm-red {
+			font-family: Verdana, Geneva, sans-serif;
 			background-color: #ffdddd;
 		}
 		
+		table {
+			width: 100%;
+		}
 		td {
 			vertical-align: top;
 			padding: 6px;
@@ -58,22 +62,43 @@
 </HEAD>
 <BODY>
 [- 
-	if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh = Nabovarme::Db->my_connect;
+
+	if ($dbh) {
+		$sth_groups = $dbh->prepare(q[
+					SELECT `id`, `group`
+					FROM meter_groups;
+				]);
+		$sth_groups->execute;
+	}
+-]
+[$ if ($sth_groups->rows) $]
+[$ while ($d_groups = $sth_groups->fetchrow_hashref) $]
+[- 
+	if ($dbh) {
+		$quoted_group_id = $dbh->quote($d_groups->{id});
 		$sth = $dbh->prepare(qq[
-			SELECT alarms.*, meters.info 
-			FROM alarms 
-			LEFT JOIN meters ON alarms.serial = meters.serial 
+			SELECT alarms.*, meters.info
+			FROM alarms
+			JOIN meters ON alarms.serial = meters.serial
+			JOIN meter_groups ON meters.group = meter_groups.id
+			WHERE meter_groups.id = $quoted_group_id
 			ORDER BY meters.info ASC, alarms.alarm_state DESC
 		]);
 		$sth->execute;
 	}
+-]
+[-
 	$last_serial = '';
 	$is_first = 1;
 -]
-<table border="0" align="left" cellpadding="0" cellspacing="0" class="top">
+<table border="0" align="left" cellpadding="0" cellspacing="0">
 [$ if ($sth->rows) $]
+	<tr>
+		<td align="left" colspan=4><span class="default-group">[+ $d_groups->{group} +]</span></td>
+	</tr>
 [$ while ($d = $sth->fetchrow_hashref) $]
-[$ if (($last_serial ne $d->{'serial'}) and ($is_first == 0)) $]
+[$ if (($last_serial ne $d->{serial}) and ($is_first == 0)) $]
 	<tr>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
@@ -82,26 +107,28 @@
 	</tr>
 [$ endif $]
 [- $is_first = 0; -]
-[$ if ($last_serial ne $d->{'serial'}) $]
+[$ if ($last_serial ne $d->{serial}) $]
 	<tr>
-		<td align="left" colspan=4><span class="default-group">[+ $d->{'serial'} +] [+ $d->{'info'} +]</span></td>
+		<td align="left" colspan=4><span class="default-serial">[+ $d->{serial} +] [+ $d->{info} +]</span></td>
 	</tr>
 <tr align="left" valign="bottom">
-	<td><span class="default-bold">Serial</span></td>
 	<td><span class="default-bold">Info</span></td>
+	<td><span class="default-bold">Alarm receiver</span></td>
 	<td><span class="default-bold">Condition</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 [$ endif $]
 <tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
-	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
-	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{info} || '' +]</span></td>
+	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || '' +]</a></span></td>
+	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
 </tr>
-[- $last_serial = $d->{'serial'};  -]
+[- $last_serial = $d->{serial};  -]
 [$ endwhile $]
 [$ endif $]
 </table>
+[$ endwhile $]
+[$ endif $]
 </BODY>
 </HTML>
