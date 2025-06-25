@@ -56,9 +56,15 @@
 			font-family: Verdana, Geneva, sans-serif;
 			background-color: #ffdddd;
 		}
+		.no-wrap {
+			white-space: nowrap;
+		}
 		
 		table {
 			width: 100%;
+		}
+		tr.highlightable:hover {
+			background-color: #eeeeee;
 		}
 		td {
 			vertical-align: top;
@@ -89,7 +95,7 @@
 			JOIN meters ON alarms.serial = meters.serial
 			JOIN meter_groups ON meters.group = meter_groups.id
 			WHERE meter_groups.id = $quoted_group_id
-			ORDER BY meters.info ASC, alarms.alarm_state, alarms.sms_notification ASC
+			ORDER BY meters.info ASC, alarms.alarm_state DESC, alarms.sms_notification ASC
 		]);
 		$sth->execute;
 	}
@@ -127,8 +133,8 @@
 	<td><span class="default-bold">Comment</span></td>
 </tr>
 [$ endif $]
-<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
-	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || '' +]</a></span></td>
+<tr class="highlightable" align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
+	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || '' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
@@ -177,8 +183,8 @@
 	<td><span class="default-bold">Repeating</span></td>
 	<td><span class="default-bold">Comment</span></td>
 </tr>
-<tr align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
-	<td><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || 'None' +]</a></span></td>
+<tr class="highlightable" align="left" valign="bottom" [$ if ($d->{alarm_state} >= 1) $]class="alarm-red"[$ endif $]>
+	<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?serial=[+ $d->{serial} +]">[+ $d->{info} || 'None' +]</a></span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
 	<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
