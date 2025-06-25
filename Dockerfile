@@ -50,6 +50,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
+	libtime-duration-perl \
 	default-mysql-client\
 	software-properties-common \
 	texlive \
