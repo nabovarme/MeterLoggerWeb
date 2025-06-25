@@ -1,19 +1,29 @@
 [- 
+	# Load required Perl modules
 	use DBI;
 	use Config;
 	use Time::Duration;
 
+	# Include custom Perl library paths
 	use lib qw( /var/www/lib/perl );
+
+	# Load internal application modules
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
 
+	# Instantiate admin checker
 	$admin = new Nabovarme::Admin;
 	
 	$is_admin = 0;
+
+	# Get alarm ID from form data
 	$id = $fdat{id};
 
+	# Connect to database
 	$dbh = Nabovarme::Db->my_connect;
+
 	if ($dbh && $id) {
+		# Lookup serial number tied to alarm ID
 		$quoted_id = $dbh->quote($id);
 		$sth = $dbh->prepare(qq[
 			SELECT `serial`
@@ -21,11 +31,14 @@
 			WHERE `id` = $quoted_id
 		]);
 		$sth->execute;
+
+		# Check admin cookie permission for this serial
 		if ($sth->rows) {
 			$d = $sth->fetchrow_hashref;
 			$is_admin = $admin->cookie_is_admin($req_rec, $d->{serial});
 		}
 
+		# If admin and update flag set, process form input and update alarm
 		if ($is_admin && $fdat{update}) {
 			$enabled = $fdat{enabled} ? 1 : 0;
 			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
@@ -37,6 +50,7 @@
 			$quoted_down_message = $dbh->quote($fdat{down_message});
 			$quoted_comment = $dbh->quote($fdat{comment});
 
+			# Perform the UPDATE query
 			$dbh->do(qq[
 				UPDATE alarms SET 
 					enabled = $enabled,
@@ -52,6 +66,7 @@
 			]);
 		}
 
+		# Fetch updated alarm details for display
 		$sth = $dbh->prepare(qq[
 			SELECT alarms.*, meters.info 
 			FROM alarms 
@@ -62,36 +77,47 @@
 		$d = $sth->fetchrow_hashref;
 	}
 -]
+
 <HTML>
 <HEAD>
 	<meta charset="UTF-8">
 	<title>Meterlogger alarm detail - [+ $d->{info} +]</title>
+
+	<!-- Inline CSS for form layout and visuals -->
 	<style>
 		body, label, input, textarea {
 			font-family: Verdana, Geneva, sans-serif;
 			font-size: 90%;
 		}
+
 		label {
 			display: block;
 			margin-top: 12px;
 			font-weight: bold;
 		}
+
 		textarea {
 			width: 100%;
 			min-height: 4em;
 			font-family: Verdana, Geneva, sans-serif;
 			font-size: 90%;
 		}
+
+		/* Centered layout container */
 		.container {
 			max-width: 600px;
 			margin: 1em auto;
 		}
+
+		/* Highlight box for active alarm state */
 		.alarm-state {
 			background-color: #ffdddd;
 			padding: 1em;
 			border-radius: 6px;
 			margin-bottom: 1em;
 		}
+
+		/* Styled back-navigation link */
 		a.back-link {
 			display: inline-block;
 			margin-bottom: 1em;
@@ -103,53 +129,69 @@
 		}
 	</style>
 </HEAD>
+
 <BODY>
 <div class="container">
+
+	<!-- Back to overview link -->
 	<a href="alarms.epl" class="back-link">&larr; Back to overview</a>
 
+	<!-- Display message if no alarm record found -->
 	[$ if (!$d) $]
 		<p>No alarm found for serial: [+ $serial +]</p>
+
 	[$ else $]
+		<!-- Alarm form, optionally styled if alarm is active -->
 		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
 			<form method="POST">
 				<input type="hidden" name="id" value="[+ $id +]">
-				
+
+				<!-- Enable/disable alarm checkbox -->
 				<label>
 					<input type="checkbox" name="enabled" value="1" [$ if ($d->{enabled}) $]checked[$ endif $]>
 					Enabled
 				</label>
 
+				<!-- Alarm target contact(s) -->
 				<label>Alarm receiver</label>
 				<textarea name="sms_notification">[+ $d->{sms_notification} +]</textarea>
 
+				<!-- Alarm triggering condition -->
 				<label>Condition</label>
 				<textarea name="condition">[+ $d->{condition} +]</textarea>
 
+				<!-- Show last notification if any -->
 				[$ if ($d->{alarm_state}) $]
 				<label>Last notification</label>
 				<textarea name="last_notification" readonly>[+ duration(time() - $d->{last_notification}) +] ago</textarea>
 				[$ endif $]
 
+				<!-- Repeat interval -->
 				<label>Repeating</label>
 				<textarea name="repeat">[+ $d->{repeat} +]</textarea>
 
+				<!-- Show current snooze info if relevant -->
 				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
 				<label>Snoozed</label>
 				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +], next in [+ duration(time() - ($d->{last_notification} + $d->{snooze})) +]</textarea>
 				[$ endif $]
 
+				<!-- Default snooze interval -->
 				<label>Default snooze</label>
 				<textarea name="default_snooze">[+ $d->{default_snooze} +]</textarea>
 
+				<!-- Messages sent when alarm condition clears or triggers -->
 				<label>Up Message</label>
 				<textarea name="up_message">[+ $d->{up_message} +]</textarea>
 
 				<label>Down Message</label>
 				<textarea name="down_message">[+ $d->{down_message} +]</textarea>
 
+				<!-- Additional notes -->
 				<label>Comment</label>
 				<textarea name="comment">[+ $d->{comment} +]</textarea>
 
+				<!-- Submit button -->
 				<div style="margin-top: 20px;">
 					<input type="submit" name="update" value="Update">
 				</div>
