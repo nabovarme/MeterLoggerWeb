@@ -193,6 +193,46 @@
 			font-weight: bold;
 		}
 	</style>
+
+	<!-- Inline CSS for help text about variables that can be used in the condition field  -->
+	<style>
+	.tooltip {
+		position: relative;
+		display: inline-block;
+		cursor: help;
+		max-width: 100%;
+	}
+	
+	.tooltiptext {
+		visibility: hidden;
+		width: max-content;
+		max-width: 250px;
+		background-color: #333;
+		color: #fff;
+		padding: 8px;
+		border-radius: 6px;
+		text-align: left;
+		font-size: 14px;
+	
+		/* Positioning */
+		position: absolute;
+		z-index: 100;
+		bottom: 125%;
+		left: 50%;
+		transform: translateX(-50%);
+	
+		/* Arrow */
+		opacity: 0;
+		transition: opacity 0.3s;
+		white-space: normal;
+		word-wrap: break-word;
+	}
+	
+	.tooltip:hover .tooltiptext {
+		visibility: visible;
+		opacity: 1;
+	}
+	</style>
 </HEAD>
 
 <script>
@@ -414,7 +454,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 				<!-- Alarm triggering condition -->
 				<label>
-					Condition
+					<span class="tooltip">
+						Condition
+						<span class="tooltiptext">This help text will try to stay inside the window. Keep your content short or use JavaScript to make it smarter.</span>
+					</span>
 					<span class="label-hint">(type '@' to show template conditions)</span>
 				</label>
 				<textarea name="condition" id="conditionField">[+ $d->{condition} +]</textarea>
