@@ -146,6 +146,7 @@ CREATE TABLE `alarms` (
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
   `serial` varchar(16) DEFAULT NULL,
   `condition` longtext NOT NULL,
+  `condition_error` longtext NOT NULL,
   `last_notification` int(11) DEFAULT NULL,
   `alarm_state` int(1) unsigned NOT NULL DEFAULT 0,
   `repeat` int(11) NOT NULL DEFAULT 0,

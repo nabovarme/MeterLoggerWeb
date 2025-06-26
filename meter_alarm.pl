@@ -65,9 +65,28 @@ sub evaluate_alarm {
 	# Outer eval catches runtime errors; inner eval executes the actual condition.
 	my $eval_alarm_state = eval { no strict; no warnings; eval $condition };
 
+	my $quoted_id = $dbh->quote($alarm->{id});
+
 	if ($@) {
 		warn "error parsing condition for serial $serial: $condition, error: $@";
+
+		my $quoted_error = $dbh->quote($@);
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = $quoted_error
+			WHERE id = $quoted_id
+		]);
+
+		# Stop processing this alarm if the condition failed to evaluate.
+		# The error has been logged in the database, so we safely exit to avoid acting on invalid logic.
 		return;
+	} else {
+		# Clear previous error if condition now evaluates successfully
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = NULL
+			WHERE id = $quoted_id
+		]);
 	}
 
 	handle_alarm($alarm, $eval_alarm_state, $down_message, $up_message, $quoted_snooze_auth_key);
