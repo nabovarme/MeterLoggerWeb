@@ -61,7 +61,9 @@ sub evaluate_alarm {
 	$condition = interpolate_variables($condition, $serial);
 
 	print "checking condition for serial $serial, id $alarm->{id}: $condition\n";
-	my $eval_alarm_state = eval 'no strict; ' . $condition;
+	# Safely evaluate the dynamic Perl expression in $condition without strict or warnings.
+	# Outer eval catches runtime errors; inner eval executes the actual condition.
+	my $eval_alarm_state = eval { no strict; no warnings; eval $condition };
 
 	if ($@) {
 		warn "error parsing condition for serial $serial: $condition, error: $@";
