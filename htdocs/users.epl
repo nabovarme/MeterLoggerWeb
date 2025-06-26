@@ -2,7 +2,6 @@
 	use DBI;
 	          
 	use lib qw( /var/www/lib/perl );
-	use lib qw( /opt/local/apache2/perl );
 	use Config;
 	use Nabovarme::Db;
 	
@@ -85,7 +84,6 @@
 			$name_info = $d2->{name};
 		}
 		if (length($name_info) == 0) {
-			warn(qq[SELECT * FROM meters WHERE `sms_notification` LIKE $quoted_phone LIMIT 1]);
 			$sth3 = $dbh->prepare(qq[SELECT * FROM meters WHERE `sms_notification` LIKE $quoted_phone LIMIT 1]);
 			$sth3->execute;
 			if ($sth3->rows) {
