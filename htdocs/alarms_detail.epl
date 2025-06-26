@@ -104,98 +104,109 @@
 	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- Inline CSS for form layout and visuals -->
-	<style>
-		body, label, input, textarea {
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 90%;
-		}
-
-		label {
-			display: block;
-			margin-top: 12px;
-			font-weight: bold;
-		}
-
-		textarea {
-			width: 100%;
-			min-height: 4em;
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 90%;
-		}
-
-		/* Centered layout container */
-		.container {
-//			max-width: 600px;
-			margin: 1em auto;
-		}
-
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-
-		.default-headline {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-			font-size: 120%;
-		}
-
-		/* Highlight box for active alarm state */
-		.alarm-state {
-			background-color: #ffdddd;
-			padding: 1em;
-			border-radius: 6px;
-			margin-bottom: 1em;
-		}
-
-		.label-hint {
-			font-weight: normal;
-			font-size: 70%;
-			color: #666;
-			margin-left: 8px;
-		}
-
-		/* Styled back-navigation link */
-		a.back-link {
-			display: inline-block;
-			margin-bottom: 1em;
-			text-decoration: none;
-			color: #0077cc;
-		}
-		a.back-link:hover {
-			text-decoration: underline;
-		}
-
-		#condition-popup {
-			position: absolute;
-			display: none;
-			background: #fff;
-			border: 1px solid #ccc;
-			border-radius: 6px;
-			box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-			z-index: 1000;
-			font-family: Verdana, sans-serif;
-			font-size: 13px;
-			max-width: 320px;
-		}
-
-		.popup-item {
-			padding: 8px 12px;
-			cursor: pointer;
-			border-bottom: 1px solid #eee;
-		}
-		.popup-item:last-child {
-			border-bottom: none;
-		}
-		.popup-item:hover {
-			background: #f5f5f5;
-		}
-		.popup-label {
-			font-weight: bold;
-		}
-	</style>
+<style>
+	/* Base font styles */
+	body, label, input, textarea {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 90%;
+	}
+	
+	/* Label styling */
+	label {
+		display: block;
+		margin-top: 12px;
+		font-weight: bold;
+	}
+	
+	/* Hint text next to labels */
+	.label-hint {
+		font-weight: normal;
+		font-size: 70%;
+		color: #666;
+		margin-left: 8px;
+	}
+	
+	/* Textarea styling */
+	textarea {
+		width: 100%;
+		min-height: 4em;
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 90%;
+	}
+	
+	/* Page layout container */
+	.container {
+		max-width: 600px;
+		margin: 1em auto;
+	}
+	
+	/* Optional utility class for consistent font */
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	
+	/* Optional utility class for headings */
+	.default-headline {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	
+	/* Alarm state highlighting box */
+	.alarm-state {
+		background-color: #ffdddd;
+		padding: 1em;
+		border-radius: 6px;
+		margin-bottom: 1em;
+	}
+	
+	/* Back link styling */
+	a.back-link {
+		display: inline-block;
+		margin-bottom: 1em;
+		text-decoration: none;
+		color: #0077cc;
+	}
+	a.back-link:hover {
+		text-decoration: underline;
+	}
+	
+	/* Autocomplete or suggestion popup */
+	#condition-popup {
+		position: absolute;
+		display: none;
+		background: #fff;
+		border: 1px solid #ccc;
+		border-radius: 6px;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+		z-index: 1000;
+		font-family: Verdana, sans-serif;
+		font-size: 13px;
+		max-width: 320px;
+	}
+	
+	/* Items inside the popup */
+	.popup-item {
+		padding: 8px 12px;
+		cursor: pointer;
+		border-bottom: 1px solid #eee;
+	}
+	.popup-item:last-child {
+		border-bottom: none;
+	}
+	.popup-item:hover {
+		background: #f5f5f5;
+	}
+	
+	/* Bold section label inside popup */
+	.popup-label {
+		font-weight: bold;
+	}
+</style>
 
 	<!-- Inline CSS for help text about variables that can be used in the condition field  -->
-	<style>
+<style>
+	/* Tooltip wrapper */
 	.tooltip {
 		position: relative;
 		display: inline-block;
@@ -203,16 +214,29 @@
 		max-width: 100%;
 	}
 	
+	/* Tooltip content box */
 	.tooltiptext {
+		/* Visibility and display */
 		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.3s;
+	
+		/* Size and layout */
 		width: max-content;
-		max-width: 250px;
+		max-width: 350px;   /* Allows wider tooltips */
+		max-height: 600px;  /* Prevent overly tall tooltip */
+		overflow-y: auto;   /* Enable vertical scroll if needed */
+	
+		/* Style */
 		background-color: #333;
 		color: #fff;
 		padding: 8px;
 		border-radius: 6px;
 		text-align: left;
-		font-size: 14px;
+		font-size: 12px;
+		white-space: normal;
+		word-wrap: break-word;
 	
 		/* Positioning */
 		position: absolute;
@@ -220,19 +244,16 @@
 		bottom: 125%;
 		left: 50%;
 		transform: translateX(-50%);
-	
-		/* Arrow */
-		opacity: 0;
-		transition: opacity 0.3s;
-		white-space: normal;
-		word-wrap: break-word;
 	}
 	
-	.tooltip:hover .tooltiptext {
+	/* Show tooltip on hover over .tooltip or the tooltip content */
+	.tooltip:hover .tooltiptext,
+	.tooltip .tooltiptext:hover {
 		visibility: visible;
 		opacity: 1;
+		pointer-events: auto; /* Make tooltip text interactive */
 	}
-	</style>
+</style>
 </HEAD>
 
 <script>
@@ -456,7 +477,42 @@ document.addEventListener('DOMContentLoaded', function () {
 				<label>
 					<span class="tooltip">
 						Condition
-						<span class="tooltiptext">This help text will try to stay inside the window. Keep your content short or use JavaScript to make it smarter.</span>
+						<span class="tooltiptext">
+							<h2>Alarm Variables Cheat Sheet</h2>
+							<div>
+							  <strong>Meter Readings</strong><br>
+							  <span title="Seconds since the meter last reported data">$offline</span>, 
+							  <span title="Total volume usage in the past 24 hours">$volume_day</span>, 
+							  <span title="Total energy usage in the past 24 hours">$energy_day</span>, 
+							  <span title="Median of last 5 flow readings (liters/hour)">$flow</span>, 
+							  <span title="Median of last 5 volume readings">$volume</span>, 
+							  <span title="Median of last 5 energy readings">$energy</span>, 
+							  <span title="Median of last 5 temperature difference readings">$temp_diff</span>, 
+							  <span title="Current valve status: 'open', 'closed', etc.">$valve_status</span>, 
+							  <span title="1 if the valve is installed, 0 if not">$valve_installed</span>
+							</div>
+
+							<div>
+							  <strong>Alarm-Specific Data</strong><br>
+							  <span title="Meter serial number">$serial</span>, 
+							  <span title="Alarm ID in the system">$id</span>, 
+							  <span title="Default snooze time (seconds)">$default_snooze</span>, 
+							  <span title="Unique key used for snoozing the alarm">$snooze_auth_key</span>
+							</div>
+
+							<div>
+							  <strong>Predefined Aliases</strong><br>
+							  <span title="Alias for: $energy_day > 1 && $valve_status ne 'open' && $valve_installed">$leak</span>
+							</div>
+
+							<div>
+							  <strong>Examples</strong><br>
+							  <code>$leak</code> — Leak detection condition<br>
+							  <code>$flow &lt; 2</code> — Low flow condition<br>
+							  Message example:<br>
+							  <code>Alarm triggered on $serial. Last update: $offline seconds ago.</code>
+							</div>
+						</span>
 					</span>
 					<span class="label-hint">(type '@' to show template conditions)</span>
 				</label>
