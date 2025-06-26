@@ -44,7 +44,6 @@
 			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
 			$quoted_condition = $dbh->quote($fdat{condition});
 			$quoted_repeat = $dbh->quote($fdat{repeat});
-			$quoted_snooze = $dbh->quote($fdat{snooze} || 0);
 			$quoted_default_snooze = $dbh->quote($fdat{default_snooze});
 			$quoted_up_message = $dbh->quote($fdat{up_message});
 			$quoted_down_message = $dbh->quote($fdat{down_message});
@@ -57,7 +56,6 @@
 					sms_notification = $quoted_sms_notification,
 					`condition` = $quoted_condition, 
 					`repeat` = $quoted_repeat, 
-					snooze = $quoted_snooze, 
 					default_snooze = $quoted_default_snooze, 
 					up_message = $quoted_up_message, 
 					down_message = $quoted_down_message,
