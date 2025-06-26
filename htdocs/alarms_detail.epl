@@ -101,7 +101,6 @@
 <HTML>
 <HEAD>
 	<meta charset="UTF-8">
-	<meta http-equiv="refresh" content="60">
 	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- Inline CSS for form layout and visuals -->
