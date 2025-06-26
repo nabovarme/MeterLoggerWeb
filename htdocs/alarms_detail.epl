@@ -117,6 +117,11 @@
 		margin-top: 12px;
 		font-weight: bold;
 	}
+
+	/* Label red border */
+	.label-red-border {
+		border: 2px solid red;
+	}
 	
 	/* Hint text next to labels */
 	.label-hint {
@@ -516,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function () {
 					</span>
 					<span class="label-hint">(type '@' to show template conditions)</span>
 				</label>
-				<textarea name="condition" id="conditionField">[+ $d->{condition} +]</textarea>
+				<textarea [$ if ($d->{condition_error}) $]class="label-red-border"[$ endif $]name="condition" id="conditionField">[+ $d->{condition} +]</textarea>
 				<div id="condition-popup"></div>
 
 				<!-- Show last notification if any -->

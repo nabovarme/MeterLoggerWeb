@@ -46,6 +46,11 @@
 			font-family: Consolas, monospace;
 			color: #9c9c9c;
 		}
+		.condition-error {
+			font-family: Consolas, monospace;
+			font-weight: bold;
+			color: #ff0000;
+		}
 		.alarm {
 			font-family: Verdana, Geneva, sans-serif;
 		}
@@ -147,7 +152,13 @@
 		<tr [$ if ($d->{alarm_state} && $d->{'enabled'}) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
 			<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || '' +]</a></span></td>
 			<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
-			<td><span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">[+ $d->{condition} +]</span></td>
+			<td>
+				<span class="[$ if ($d->{'enabled'}) $]condition[$ else $]condition-disabled[$ endif $]">
+					<span [$ if ($d->{'condition_error'}) $]class="condition-error"[$ endif $]">
+						[+ $d->{condition} +]
+					</span>
+				</span>
+			</td>
 			<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{repeat}) $]every [+ duration($d->{repeat}) +][$ else $]no[$ endif $]</span></td>
 			<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[$ if ($d->{snooze}) $][+ duration($d->{snooze}) +][$ else $]no[$ endif $]</span></td>
 			<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{comment} +]</span></td>
