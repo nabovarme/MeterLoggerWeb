@@ -15,9 +15,9 @@ use utf8;
 use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
+use constant SNOOZE_LOCATION => '/snooze.epl'
 
 use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {
@@ -27,6 +27,11 @@ sub handler {
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $public_access = $r->dir_config('PublicAccess') || '';
 	
+	if ($r->uri eq SNOOZE_LOCATION) {
+		warn Dumper "snooze location, we dont handle this: " . $r->uri;
+		return Apache2::Const::OK;
+	}
+
 	if ($public_access) {
 		foreach (split(/,\s*/, $public_access)) {
 			if ($r->uri eq $_) {
