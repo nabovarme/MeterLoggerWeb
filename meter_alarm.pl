@@ -49,6 +49,7 @@ sub evaluate_alarm {
 	my $serial = $alarm->{serial};
 	my $quoted_serial = $dbh->quote($serial);
 
+	# Used in templates
 	my $offline = time() - $alarm->{last_updated};
 
 	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
@@ -61,32 +62,39 @@ sub evaluate_alarm {
 	$condition = interpolate_variables($condition, $serial);
 
 	print "checking condition for serial $serial, id $alarm->{id}: $condition\n";
+
 	# Safely evaluate the dynamic Perl expression in $condition without strict or warnings.
-	# Outer eval catches runtime errors; inner eval executes the actual condition.
-	my $eval_alarm_state = eval { no strict; no warnings; eval $condition };
-
+	# If evaluation fails, store the error in the database and return early.
+	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
+	{
+		local $@;
+		no strict;
+		no warnings;
+		$eval_alarm_state = eval $condition;
 
-	if ($@) {
-		warn "error parsing condition for serial $serial: $condition, error: $@";
+		if ($@) {
+			my $error = $@;
+			warn "error parsing condition for serial $serial: $condition, error: $error";
 
-		my $quoted_error = $dbh->quote($@);
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = $quoted_error
-			WHERE id = $quoted_id
-		]);
+			my $quoted_error = $dbh->quote($error);
+			$dbh->do(qq[
+				UPDATE alarms
+				SET condition_error = $quoted_error
+				WHERE id = $quoted_id
+			]);
 
-		# Stop processing this alarm if the condition failed to evaluate.
-		# The error has been logged in the database, so we safely exit to avoid acting on invalid logic.
-		return;
-	} else {
-		# Clear previous error if condition now evaluates successfully
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = NULL
-			WHERE id = $quoted_id
-		]);
+			# Stop processing this alarm if the condition failed to evaluate.
+			# The error has been logged in the database, so we safely exit to avoid acting on invalid logic.
+			return;
+		} else {
+			# Clear previous error if condition now evaluates successfully
+			$dbh->do(qq[
+				UPDATE alarms
+				SET condition_error = NULL
+				WHERE id = $quoted_id
+			]);
+		}
 	}
 
 	handle_alarm($alarm, $eval_alarm_state, $down_message, $up_message, $quoted_snooze_auth_key);
@@ -117,9 +125,9 @@ sub interpolate_variables {
 	]);
 	$sth_meter->execute($serial);
 	if (my $row = $sth_meter->fetchrow_hashref) {
-		$static_vars{offline}         = time() - ($row->{last_updated} || time());
-		$static_vars{info}            = $row->{info} || '';
-		$static_vars{valve_status}    = $dbh->quote($row->{valve_status} || '');
+		$static_vars{offline}		 = time() - ($row->{last_updated} || time());
+		$static_vars{info}			= $row->{info} || '';
+		$static_vars{valve_status}	= $dbh->quote($row->{valve_status} || '');
 		$static_vars{valve_installed} = $row->{valve_installed} + 0;  # force numeric
 	}
 
