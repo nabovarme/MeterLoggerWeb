@@ -221,6 +221,9 @@ sub is_spike_detected {
 		$min = $prev_val if $prev_val < $min;
 		$min = $next_val if $next_val < $min;
 
+		# Skip small absolute values
+		next if $val <= $SPIKE_FACTOR && $prev_val <= $SPIKE_FACTOR && $next_val <= $SPIKE_FACTOR;
+
 		# Skip if values are within a narrow fluctuation range
 		if ($min > 0 && ($max / $min) < $SPIKE_FACTOR) {
 			next;
