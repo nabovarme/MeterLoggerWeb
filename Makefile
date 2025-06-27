@@ -3,7 +3,7 @@ all: build up
 build:
 	docker compose build
 
-up:
+up: init-env
 	docker compose up -d
 
 log:
@@ -29,3 +29,11 @@ api-key:
 	echo ".env.openresty-bouncer updated with new API key."; \
 	echo "Restarting crowdsec container..."; \
 	docker compose restart crowdsec
+
+init-env:
+	@if [ ! -f .env.openresty-bouncer ]; then \
+		echo "Creating placeholder .env.openresty-bouncer file..."; \
+		echo "CROWDSEC_BOUNCER_API_KEY=placeholder" > .env.openresty-bouncer; \
+	else \
+		echo ".env.openresty-bouncer already exists."; \
+	fi
