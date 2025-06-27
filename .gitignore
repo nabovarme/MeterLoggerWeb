@@ -4,4 +4,3 @@ smstools_spool/
 mosquitto_data/
 **/.DS_Store
 certbot/etc/live/*
-.env.openresty-bouncer

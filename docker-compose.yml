@@ -190,11 +190,11 @@ services:
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
 
-  crowdsec-openresty:
+  openresty:
     build:
       context: .
-      dockerfile: Dockerfile.crowdsec-openresty
-    container_name: crowdsec-openresty
+      dockerfile: Dockerfile.openresty
+    container_name: openresty
     depends_on:
       - web
       - crowdsec
@@ -202,8 +202,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./crowdsec-openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
-      - ./crowdsec-openresty/lua/rate_limit.lua:/usr/local/openresty/lualib/rate_limit.lua:ro
+      - ./openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./openresty/lua/rate_limit.lua:/usr/local/openresty/lualib/rate_limit.lua:ro
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
     restart: always
@@ -213,17 +213,6 @@ services:
       CROWDSEC_BOUNCER_API_KEY: ${CROWDSEC_BOUNCER_API_KEY}
       CROWDSEC_LAPI_URL: http://crowdsec:8080
       TZ: Europe/Copenhagen
-
-  crowdsec:
-    image: crowdsecurity/crowdsec
-    container_name: crowdsec
-    volumes:
-      - ./crowdsec-openresty/data:/etc/crowdsec/
-    ports:
-      - "8080:8080"
-    restart: always
-    environment:
-      - TZ=Europe/Copenhagen
 
   utils:
     build:

@@ -42,7 +42,7 @@ RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz &&
 RUN luarocks install lua-resty-http
 
 # Copy your nginx.conf and Lua files into the container
-COPY crowdsec-openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+COPY openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 
 # Clone the official CrowdSec OpenResty bouncer repo
 RUN git clone https://github.com/crowdsecurity/lua-cs-bouncer.git /tmp/crowdsec-bouncer
