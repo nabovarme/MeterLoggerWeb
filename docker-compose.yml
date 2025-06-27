@@ -69,7 +69,7 @@ services:
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
     depends_on:
-      - web
+      - crowdsec-openresty
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
@@ -217,6 +217,7 @@ services:
       - crowdsec
     volumes:
       - ./crowdsec-openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+    restart: always
     environment:
       CROWDSEC_BOUNCER_API_KEY: "4XXy6NH920VTqxKrxASA9EzeaTg1NbLo6SCEh1OBWMo"
       CROWDSEC_LAPI_URL: http://crowdsec:8080
@@ -229,6 +230,7 @@ services:
       - ./crowdsec-openresty/data:/etc/crowdsec/
     ports:
       - "8080:8080"
+    restart: always
     environment:
       - TZ=Europe/Copenhagen
 
