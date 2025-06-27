@@ -3,7 +3,7 @@ all: build up
 build:
 	docker compose build
 
-up: init-env
+up:
 	docker compose up -d
 
 log:
