@@ -31,7 +31,7 @@ ENV OPENRESTY_VERSION=1.25.3.1
 RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz && \
 	tar -zxvf openresty-${OPENRESTY_VERSION}.tar.gz && \
 	cd openresty-${OPENRESTY_VERSION} && \
-	./configure --with-pcre-jit --with-http_ssl_module --with-http_v2_module && \
+	./configure --with-pcre-jit --with-http_ssl_module --with-http_v2_module --with-http_realip_module && \
 	make -j$(nproc) && make install && \
 	cd .. && rm -rf openresty-${OPENRESTY_VERSION}*
 
