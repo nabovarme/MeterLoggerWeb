@@ -197,7 +197,6 @@ services:
     container_name: openresty
     depends_on:
       - web
-      - crowdsec
     ports:
       - "80:80"
       - "443:443"
@@ -208,7 +207,6 @@ services:
       - ./certbot/var:/var/www/certbot
     restart: always
     environment:
-      CROWDSEC_LAPI_URL: http://crowdsec:8080
       TZ: Europe/Copenhagen
 
   utils:

@@ -41,18 +41,10 @@ RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz &&
 # Install lua-resty-http
 RUN luarocks install lua-resty-http
 
-# Copy your nginx.conf and Lua files into the container
+# Copy nginx config
 COPY openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 
-# Clone the official CrowdSec OpenResty bouncer repo
-RUN git clone https://github.com/crowdsecurity/lua-cs-bouncer.git /tmp/crowdsec-bouncer
-
-# Copy the Lua module files into OpenResty's lualib path
-RUN mkdir -p /usr/local/openresty/lualib/crowdsec && \
-	cp -r /tmp/crowdsec-bouncer/lib/* /usr/local/openresty/lualib/
-
-# Set lua_package_path (you will still need to set this in nginx.conf too)
-# But this helps for testing/debug
+# Set lua path for development and debugging
 ENV LUA_PATH="/usr/local/openresty/lualib/?.lua;/usr/local/openresty/lualib/?/init.lua;;"
 ENV PATH="/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin:$PATH"
 
