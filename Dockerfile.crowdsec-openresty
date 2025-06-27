@@ -2,6 +2,7 @@ FROM debian:bookworm
 
 # Install required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
+	aptitude \
 	curl \
 	wget \
 	gnupg \
@@ -22,6 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	lua5.1 \
 	lua5.1-dev \
 	luarocks \
+	certbot \
+	python3-certbot-nginx \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Define OpenResty version
