@@ -13,7 +13,6 @@
 	<TITLE>Meterlogger alarms overview</TITLE>
 
 	<!-- style and js for burger menu -->
-	<script src="/js/menu.js" defer></script>	
 	<style type="text/css">
 	.burger {
 		position: fixed;
@@ -64,6 +63,7 @@
 		display: flex;
 	}
 	</style>
+	<script src="/js/menu.js" defer></script>	
 
 	<!-- Basic CSS styling -->
 	<style type="text/css">

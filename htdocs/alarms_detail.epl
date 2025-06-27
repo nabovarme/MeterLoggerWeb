@@ -102,7 +102,6 @@
 	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- style and js for burger menu -->
-	<script src="/js/menu.js" defer></script>	
 	<style type="text/css">
 	.burger {
 		position: fixed;
@@ -153,6 +152,7 @@
 		display: flex;
 	}
 	</style>
+	<script src="/js/menu.js" defer></script>	
 
 	<!-- Inline CSS for form layout and visuals -->
 <style>
