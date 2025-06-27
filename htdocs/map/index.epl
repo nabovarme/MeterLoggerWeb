@@ -22,8 +22,8 @@
 	<TITLE>MeterLogger Map</TITLE>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
 	<!-- style and js for burger menu -->
-	<script src="/js/menu.js" defer></script>
 	<style type="text/css">
 	.burger {
 		position: fixed;
@@ -74,6 +74,7 @@
 		display: flex;
 	}
 	</style>
+	<script src="/js/menu.js" defer></script>
 
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
