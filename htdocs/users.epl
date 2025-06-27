@@ -11,6 +11,59 @@
 	<meta name="robots" content="noindex">
 	<meta http-equiv="refresh" content="60">
 	<TITLE>MeterLogger users</TITLE>
+
+	<!-- style and js for burger menu -->
+	<script src="/js/menu.js" defer></script>	
+	<style type="text/css">
+	.burger {
+		position: fixed;
+		top: 20px;
+		right: 20px;
+		color: #333;
+		font-size: 30px;
+		cursor: pointer;
+		z-index: 1000;
+		user-select: none;
+		background: none;
+		border: none;
+		padding: 0;
+		line-height: 1;
+		font-weight: bold;
+		text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
+	.floating-menu {
+		position: fixed;
+		top: 70px;
+		right: 20px;
+		background-color: rgba(0, 0, 0, 0.9);
+		border-radius: 16px;
+		padding: 20px;
+		display: none;
+		flex-direction: column;
+		gap: 15px;
+		z-index: 999;
+		min-width: 150px;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+	}
+
+	.floating-menu a {
+		color: white;
+		text-decoration: none;
+		font-size: 18px;
+		transition: color 0.3s;
+	}
+
+	.floating-menu a:hover {
+		text-decoration: underline;
+		color: #ddd;
+	}
+
+	.floating-menu.show {
+		display: flex;
+	}
+	</style>
+
 	<style type="text/css">
 	.top {
 		position: absolute;

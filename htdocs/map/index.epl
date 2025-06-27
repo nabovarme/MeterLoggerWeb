@@ -1,7 +1,7 @@
 ﻿[-
 	use DBI;
 	use Net::MQTT::Simple "loppen.christiania.org";
-	          
+						
 	use lib qw( /var/www/lib/perl );
 	use lib qw( /opt/local/apache2/perl );
 	use Config;
@@ -22,28 +22,79 @@
 	<TITLE>MeterLogger Map</TITLE>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-	
+	<!-- style and js for burger menu -->
+	<script src="/js/menu.js" defer></script>
+	<style type="text/css">
+	.burger {
+		position: fixed;
+		top: 20px;
+		right: 20px;
+		color: #333;
+		font-size: 30px;
+		cursor: pointer;
+		z-index: 10001; /* was 1000 */
+		user-select: none;
+		background: none;
+		border: none;
+		padding: 0;
+		line-height: 1;
+		font-weight: bold;
+		text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
+	.floating-menu {
+		position: fixed;
+		top: 70px;
+		right: 20px;
+		background-color: rgba(0, 0, 0, 0.9);
+		border-radius: 16px;
+		padding: 20px;
+		display: none;
+		flex-direction: column;
+		gap: 15px;
+		z-index: 10000;
+		min-width: 150px;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+		font-family: Verdana, Geneva, sans-serif; /* Add this line */
+	}
+
+	.floating-menu a {
+		color: white;
+		text-decoration: none;
+		font-size: 18px;
+		transition: color 0.3s;
+	}
+
+	.floating-menu a:hover {
+		text-decoration: underline;
+		color: #ddd;
+	}
+
+	.floating-menu.show {
+		display: flex;
+	}
+	</style>
 
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
 		#footer {
-		    position: fixed;
-		    height: 0px;	// change this to enable footer
-		    margin-top: 0;
-		    bottom: 0;
-		    right: 0;
-		    left: 0;
-		    background: white;
+				position: fixed;
+				height: 0px;	// change this to enable footer
+				margin-top: 0;
+				bottom: 0;
+				right: 0;
+				left: 0;
+				background: white;
 		}
 		body > div.container {
-		    position: fixed;
-		    top: 0;
-		    bottom: 0px;	// change this to enable footer
-		    right: 0;
-		    left: 0;
+				position: fixed;
+				top: 0;
+				bottom: 0px;	// change this to enable footer
+				right: 0;
+				left: 0;
 			width: 100%;
-		    vertical-align: top;
+				vertical-align: top;
 			padding-left: 0;
 			padding-right: 0;
 			margin-left: 0;
@@ -88,7 +139,7 @@
 	<BODY>
 
 <div class="container">
-    <div id="map"></div>
+		<div id="map"></div>
 	<div id="footer"></div>
 </div>
 	
@@ -213,12 +264,12 @@
 				
 //				var overlay_maps = {
 //					"All<br>&nbsp;": g_all,
-//				    "Heating meters": g_heat,
-//				    "Water meters": g_water,
-//				    "Electricity meters": g_electricity,
-//				    "Heat production": g_heat_supply,
-//				    "Heat sub meter": g_heat_sub,
-//				    "Aggregated meters<br>&nbsp;": g_aggregated
+//						"Heating meters": g_heat,
+//						"Water meters": g_water,
+//						"Electricity meters": g_electricity,
+//						"Heat production": g_heat_supply,
+//						"Heat sub meter": g_heat_sub,
+//						"Aggregated meters<br>&nbsp;": g_aggregated
 //				};
 				
 //				for (var i in g_meter_groups) {
@@ -282,13 +333,13 @@
 									return;
 								}
 							}
-				            g_all.addTo(map);
-				            c._update();
+										g_all.addTo(map);
+										c._update();
 						}
 						else if (event.type === "overlayremove" && g_all._map) {
-				            g_all.notUserAction = true;
-				            map.removeLayer(g_all);
-				            c._update();
+										g_all.notUserAction = true;
+										map.removeLayer(g_all);
+										c._update();
 						}
 					}
 				});
