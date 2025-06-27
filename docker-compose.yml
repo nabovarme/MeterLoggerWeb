@@ -206,8 +206,10 @@ services:
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
     restart: always
+    env_file:
+      - .env.openresty-bouncer
     environment:
-      CROWDSEC_BOUNCER_API_KEY: "4XXy6NH920VTqxKrxASA9EzeaTg1NbLo6SCEh1OBWMo"
+      CROWDSEC_BOUNCER_API_KEY: ${CROWDSEC_BOUNCER_API_KEY}
       CROWDSEC_LAPI_URL: http://crowdsec:8080
       TZ: Europe/Copenhagen
 
