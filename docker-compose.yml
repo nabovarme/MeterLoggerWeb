@@ -203,6 +203,7 @@ services:
       - "443:443"
     volumes:
       - ./crowdsec-openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+	  - ./crowdsec-openresty/lua/rate_limit.lua:/usr/local/openresty/lualib/rate_limit.lua:ro
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
     restart: always
