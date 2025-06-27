@@ -1,0 +1,58 @@
+FROM debian:bookworm
+
+# Install required system packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	curl \
+	wget \
+	gnupg \
+	ca-certificates \
+	build-essential \
+	libpcre3 \
+	libpcre3-dev \
+	libssl-dev \
+	zlib1g-dev \
+	unzip \
+	git \
+	libreadline-dev \
+	libncurses5-dev \
+	libffi-dev \
+	libtool \
+	automake \
+	autoconf \
+	lua5.1 \
+	lua5.1-dev \
+	luarocks \
+	&& rm -rf /var/lib/apt/lists/*
+
+# Define OpenResty version
+ENV OPENRESTY_VERSION=1.25.3.1
+
+# Download and build OpenResty
+RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz && \
+	tar -zxvf openresty-${OPENRESTY_VERSION}.tar.gz && \
+	cd openresty-${OPENRESTY_VERSION} && \
+	./configure --with-pcre-jit --with-http_ssl_module --with-http_v2_module && \
+	make -j$(nproc) && make install && \
+	cd .. && rm -rf openresty-${OPENRESTY_VERSION}*
+
+# Install lua-resty-http
+RUN luarocks install lua-resty-http
+
+# Copy your nginx.conf and Lua files into the container
+COPY crowdsec-openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+
+# Clone the official CrowdSec OpenResty bouncer repo
+RUN git clone https://github.com/crowdsecurity/lua-cs-bouncer.git /tmp/crowdsec-bouncer
+
+# Copy the Lua module files into OpenResty's lualib path
+RUN mkdir -p /usr/local/openresty/lualib/crowdsec && \
+	cp -r /tmp/crowdsec-bouncer/lib/* /usr/local/openresty/lualib/
+
+# Set lua_package_path (you will still need to set this in nginx.conf too)
+# But this helps for testing/debug
+ENV LUA_PATH="/usr/local/openresty/lualib/?.lua;/usr/local/openresty/lualib/?/init.lua;;"
+ENV PATH="/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin:$PATH"
+
+EXPOSE 80 443
+
+CMD ["openresty", "-g", "daemon off;"]

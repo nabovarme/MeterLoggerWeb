@@ -207,6 +207,31 @@ services:
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
 
+  crowdsec-openresty:
+    build:
+      context: .
+      dockerfile: Dockerfile.crowdsec-openresty
+    container_name: crowdsec-openresty
+    depends_on:
+      - web
+      - crowdsec
+    volumes:
+      - ./crowdsec-openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+    environment:
+      CROWDSEC_BOUNCER_API_KEY: "4XXy6NH920VTqxKrxASA9EzeaTg1NbLo6SCEh1OBWMo"
+      CROWDSEC_LAPI_URL: http://crowdsec:8080
+      TZ: Europe/Copenhagen
+
+  crowdsec:
+    image: crowdsecurity/crowdsec
+    container_name: crowdsec
+    volumes:
+      - ./crowdsec-openresty/data:/etc/crowdsec/
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=Europe/Copenhagen
+
   utils:
     build:
         context: '.'
