@@ -1,4 +1,4 @@
-[- 
+ s[- 
 	# Load required Perl modules
 	use DBI;
 	use Config;
@@ -128,7 +128,7 @@
 		background-color: rgba(0, 0, 0, 0.9);
 		border-radius: 16px;
 		padding: 20px;
-		display: none;
+		display: flex;
 		flex-direction: column;
 		gap: 15px;
 		z-index: 10000;
@@ -230,7 +230,7 @@
 	/* Autocomplete or suggestion popup */
 	#condition-popup {
 		position: absolute;
-		display: none;
+		display: flex;
 		background: #fff;
 		border: 1px solid #ccc;
 		border-radius: 6px;
