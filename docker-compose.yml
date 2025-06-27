@@ -57,23 +57,6 @@ services:
       METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
       TZ: 'Europe/Copenhagen'
 
-  ssl:
-    build:
-        context: '.'
-        dockerfile: 'Dockerfile.ssl'
-    container_name: ssl
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./certbot/etc:/etc/letsencrypt
-      - ./certbot/var:/var/www/certbot
-    depends_on:
-      - crowdsec-openresty
-    restart: always
-    environment:
-      TZ: 'Europe/Copenhagen'
-
   certbot:
     image: certbot/certbot
     volumes:
@@ -215,8 +198,13 @@ services:
     depends_on:
       - web
       - crowdsec
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - ./crowdsec-openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./certbot/etc:/etc/letsencrypt
+      - ./certbot/var:/var/www/certbot
     restart: always
     environment:
       CROWDSEC_BOUNCER_API_KEY: "4XXy6NH920VTqxKrxASA9EzeaTg1NbLo6SCEh1OBWMo"
