@@ -43,6 +43,6 @@
 	color: #ddd;
 }
 
-.floating-menu.show {
-	display: flex;
+#menu.floating-menu.show {
+	display: flex !important;
 }
