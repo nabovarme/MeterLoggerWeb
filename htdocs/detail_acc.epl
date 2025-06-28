@@ -195,14 +195,9 @@
 		<br>
 		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%">
 			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td colspan="8" align="left"><div id="consumption_in_range">&nbsp;</div></td>
+				<td colspan="7" align="left"><div id="consumption_in_range">&nbsp;</div></td>
 			</tr>
 			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
@@ -214,13 +209,11 @@
 			<tr align="left" valign="bottom">
 				<td align="left"><span class="default-bold">Date</span></td>
 				<td>&nbsp;</td>
-				<td align="left" colspan="2"><span class="default-bold">Info</span></td>
+				<td align="left"><span class="default-bold">Info</span></td>
 				<td>&nbsp;</td>
 				<td align="right"><span class="default-bold">Amount</span></td>
 				<td>&nbsp;</td>
 				<td align="left"><span class="default-bold">Price</span></td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
 			</tr>
 		
 			[$ if ($sth4->rows) $]
@@ -228,13 +221,11 @@
 				<tr align="left" valign="bottom">
 					<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 					<td>&nbsp;</td>
-					<td align="left" colspan="2"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
+					<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
 					<td>&nbsp;</td>
 					<td align="right"><span class="default">[+ Nabovarme::Admin::normalize_amount($d->{amount} || 0) +] kr</span></td>
 					<td>&nbsp;</td>
 					<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($d->{price} || 0) +] kr/kWh[$ endif $]</span></td>
-					<td>&nbsp;</td>
-					<td>&nbsp;</td>
 				</tr>
 			[$ endwhile $]
 			[$ endif $]
@@ -244,7 +235,7 @@
 						<tr align="left" valign="bottom">
 							<td><span class="default-highlight">[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]</span></td>
 							<td>&nbsp;</td>
-							<td colspan="2"><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
+							<td><span class="default-highlight">[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]</span></td>
 							<td>&nbsp;</td>
 							<td align="right"><span class="default-highlight">[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr</span></td>
 							<td>&nbsp;</td>
@@ -253,6 +244,13 @@
 						<tr align="left" valign="bottom">
 							<td>&nbsp;</td>
 							<td>&nbsp;</td>
+							<td>&nbsp;</td>
+							<td>&nbsp;</td>
+							<td>&nbsp;</td>
+							<td>&nbsp;</td>
+							<td>&nbsp;</td>
+						</tr>
+						<tr align="left" valign="bottom">
 							<td>
 								<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 								<input type="hidden" name="type" value="[+ $fdat{type} +]">
@@ -274,32 +272,55 @@
 					</form>
 				[$ else $]
 					<form method="GET" action="">
-						<tr align="left" valign="bottom">
-							<td>&nbsp;</td>
-							<td>&nbsp;</td>
-							<td>
+					<tr align="left" valign="bottom">
+						<td>
 								<select name="type">
-									<option value="payment">Payment</option>
-									<option value="membership">Membership</option>
-									<option value="charge">Charge</option>
+										<option value="payment">Payment</option>
+										<option value="membership">Membership</option>
+										<option value="charge">Charge</option>
 								</select>
-							</td>
-							<td><span class="default"><input type="text" inputmode="text" name="info" value="" size="32"></span></td>
-							<td>&nbsp;</td>
-							<td align="right"><span class="default"><input type="text" inputmode="text" name="amount" value="" size="5"></span></td>
-							<td>&nbsp;</td>
-							<td><span class="default"><input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3"></span>
-							</td>
-							<td>&nbsp;</td>
-							<td><input type="submit" name="add" value="Preview" style="width: 100px;"></td>
-						</tr>
+						</td>
+						<td>&nbsp;</td>
+						<td>
+							<span class="default">
+								<input type="text" inputmode="text" name="info" value="" size="32">
+							</span>
+						</td>
+						<td>&nbsp;</td>
+						<td align="right">
+							<span class="default">
+								<input type="text" inputmode="text" name="amount" value="" size="5">
+							</span>
+						</td>
+						<td>&nbsp;</td>
+						<td>
+							<span class="default">
+								<input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3">
+							</span>
+						</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+					</tr>
+					<tr align="left" valign="bottom">
+						<td colspan="7">
+								<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+								<input type="hidden" name="low" value="[+ $fdat{low} +]">
+								<input type="hidden" name="add_state" value="preview">
+								<input type="submit" name="add" value="Preview" style="width: 100px;">
+						</td>
+					</tr>
 					</form>
+					
 				[$ endif $]
 			[$ endif $]
 			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
 				<td>&nbsp;</td>
