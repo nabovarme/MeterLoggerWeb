@@ -1,4 +1,4 @@
- s[- 
+ [- 
 	# Load required Perl modules
 	use DBI;
 	use Config;
