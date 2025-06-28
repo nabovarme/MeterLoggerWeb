@@ -41,6 +41,14 @@ function insertMenu() {
 			const a = document.createElement("a");
 			a.href = item.href;
 			a.innerText = item.text;
+
+			// Hide the menu shortly after clicking a link
+			a.addEventListener("click", function () {
+				setTimeout(() => {
+					menu.classList.remove("show");
+				}, 150); // 150ms delay — tweak if needed
+			});
+
 			menu.appendChild(a);
 		}
 	});
