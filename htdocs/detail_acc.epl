@@ -105,14 +105,7 @@
 				padding-right: 4px;
 			}
 
-			.dygraph-legend {
-				font-family: Verdana, Geneva, sans-serif;
-				text-align: left;
-				background: none;
-				position: fixed;
-				top: 500px;
-				right: 20px;
-			}
+			.dygraph-legend,
 			.dygraph-label {
 				font-family: Verdana, Geneva, sans-serif;
 				text-align: left;
