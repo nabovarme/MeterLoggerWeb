@@ -1,4 +1,4 @@
-// menu.js?
+// menu.js
 
 // List of menu items and separators for the floating menu
 const menuItems = [
