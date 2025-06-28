@@ -14,8 +14,8 @@
 	<HEAD>
 	<meta name="robots" content="noindex">
 	<TITLE>MeterLogger Valve control</TITLE>
+
 	<!-- style and js for burger menu -->
-	<script src="js/menu.js" defer></script>	
 	<style type="text/css">
 	.burger {
 		position: fixed;
@@ -54,6 +54,7 @@
 		text-decoration: none;
 		font-size: 18px;
 		transition: color 0.3s;
+		font-family: Verdana, Geneva, sans-serif;
 	}
 
 	.floating-menu a:hover {
@@ -65,6 +66,7 @@
 		display: flex;
 	}
 	</style>
+	<script src="/js/menu.js?" defer></script>	
 	
 	<style type="text/css">
 	.top {

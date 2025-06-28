@@ -1,5 +1,6 @@
-// menu.js
+// menu.js?
 
+// List of menu items and separators for the floating menu
 const menuItems = [
 	{ text: "Overview", href: "/index.epl" },
 	{ text: "Map", href: "/map" },
@@ -12,17 +13,22 @@ const menuItems = [
 	{ text: "Logout", href: "/logout" }
 ];
 
-// Create and insert menu HTML
+// Create and insert the burger icon and floating menu into the page
 function insertMenu() {
 	const burger = document.createElement("div");
 	burger.className = "burger";
+
+	// Hamburger icon text
 	burger.innerText = "☰";
+
+	// Toggle menu visibility on burger click
 	burger.onclick = toggleMenu;
 
 	const menu = document.createElement("nav");
 	menu.id = "menu";
 	menu.className = "floating-menu";
 
+	// Build menu links and separators dynamically
 	menuItems.forEach(item => {
 		if (item.separator) {
 			const hr = document.createElement("hr");
@@ -39,14 +45,30 @@ function insertMenu() {
 		}
 	});
 
+	// Append burger and menu to the document body
 	document.body.appendChild(burger);
 	document.body.appendChild(menu);
+
+	// Close the menu when clicking outside the menu or burger icon
+	document.addEventListener("click", function (e) {
+		const menuEl = document.getElementById("menu");
+		const isClickInsideMenu = menuEl.contains(e.target);
+		const isClickOnBurger = burger.contains(e.target);
+
+		// Remove menu show class if click is outside menu and burger
+		if (!isClickInsideMenu && !isClickOnBurger) {
+			menuEl.classList.remove("show");
+		}
+	});
 }
 
-// Toggle menu visibility
+// Toggle menu visibility on burger icon click
 function toggleMenu() {
-	document.getElementById("menu")?.classList.toggle("show");
+	const menuEl = document.getElementById("menu");
+	if (menuEl) {
+		menuEl.classList.toggle("show");
+	}
 }
 
-// Call insertMenu once DOM is ready
+// Initialize menu once DOM content is fully loaded
 document.addEventListener("DOMContentLoaded", insertMenu);

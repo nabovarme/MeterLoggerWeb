@@ -152,7 +152,7 @@
 		display: flex;
 	}
 	</style>
-	<script src="/js/menu.js" defer></script>	
+	<script src="/js/menu.js?" defer></script>	
 
 	<!-- Inline CSS for form layout and visuals -->
 <style>

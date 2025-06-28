@@ -13,7 +13,7 @@
 	<TITLE>MeterLogger payments pending</TITLE>
 
 	<!-- style and js for burger menu -->
-	<script src="/js/menu.js" defer></script>	
+	<script src="/js/menu.js?" defer></script>	
 	<style type="text/css">
 	.burger {
 		position: fixed;
