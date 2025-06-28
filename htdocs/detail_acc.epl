@@ -296,6 +296,18 @@
 					</form>
 				[$ endif $]
 			[$ endif $]
+			<tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+			</tr>
 		</table>
 		
 		<script src="detail_acc.js"></script>
