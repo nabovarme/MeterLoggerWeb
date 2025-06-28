@@ -104,7 +104,6 @@
 			$sth->execute;			
 			}
 	-]
-	<!-- 🔍 Search Input -->
 <!-- 🔍 Floating Search Input fixed at bottom -->
 <div style="
 	position: fixed;
