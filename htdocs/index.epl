@@ -31,7 +31,7 @@
 		background-color: rgba(0, 0, 0, 0.9);
 		border-radius: 16px;
 		padding: 20px;
-		display: flex;
+		display: none;
 		flex-direction: column;
 		gap: 15px;
 		z-index: 999;
