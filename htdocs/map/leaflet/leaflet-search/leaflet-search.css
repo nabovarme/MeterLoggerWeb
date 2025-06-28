@@ -42,7 +42,7 @@
 	position:absolute;
 	right:28px;
 	margin:6px 0;
-	background: url('../images/search-icon.png') no-repeat 0 -46px;
+	background: url('../leaflet-search/images/search-icon.png') no-repeat 0 -46px;
 	text-decoration:none;
 	filter: alpha(opacity=80);
 	opacity: 0.8;		
