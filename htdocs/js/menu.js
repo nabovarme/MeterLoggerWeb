@@ -2,7 +2,7 @@
 
 // List of menu items and separators for the floating menu
 const menuItems = [
-	{ text: "Overview", href: "/index.epl" },
+	{ text: "Meters", href: "/index.epl" },
 	{ text: "Map", href: "/map" },
 	{ text: "Network", href: "/network" },
 	{ text: "Valve control", href: "/valve_control.epl" },
