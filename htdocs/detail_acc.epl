@@ -166,7 +166,17 @@
 		[$ endif $]
 	</HEAD>
 	<BODY>
-		<span class="default-bold">[+ $info +] </span><span class="default-small"><a href="/qr/[+ $fdat{'serial'} +]">QR</a> [$ if ($is_admin) $] <a href="update_wifi.epl?serial=[+ $fdat{'serial'} +]">Update wifi</a>[$ endif $]</span><br>
+		<span class="default-bold">
+			[+ $info +]
+		</span>
+		<span class="default">
+			<a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a>
+		</span>
+		<span class="default-small">
+			<a href="/qr/[+ $fdat{'serial'} +]">QR</a>
+			[$ if ($is_admin) $] <a href="update_wifi.epl?serial=[+ $fdat{'serial'} +]">Update wifi</a>[$ endif $]
+		</span>
+		<br>
 		<span class="default">
 			serial [+ $fdat{'serial'} +]<br>
 			<div id="last_energy">
@@ -280,9 +290,6 @@
 					</form>
 				[$ endif $]
 			[$ endif $]
-			<tr>
-				<td colspan="8" align="left"><span class="default"><a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a></span></td>
-			</tr>
 		</table>
 		
 		<script src="detail_acc.js"></script>

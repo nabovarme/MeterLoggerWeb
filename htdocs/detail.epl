@@ -91,7 +91,13 @@ if ($sth->rows) {
 	</head>
 
 	<body>
-		<span class="default-bold">[+ $info +]<br></span>
+		<span class="default-bold">
+			[+ $info +]
+		</span>
+		<span class="default">
+			<a href="detail_acc.epl?serial=[+ $fdat{'serial'} +]">Accumulated</a>
+		</span>
+		<br>
 		<span class="default">
 			serial [+ $fdat{'serial'} +]<br>
 			<div id="last_energy">
@@ -128,9 +134,6 @@ if ($sth->rows) {
 				<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)">Effect</span></td>
 			</tr>
 			<tr><td colspan="9">&nbsp;</td></tr>
-			<tr>
-				<td colspan="9" align="left"><span class="default"><a href="detail_acc.epl?serial=[+ $fdat{'serial'} +]">Accumulated</a></span></td>
-			</tr>
 		</table>
 
 		<script src="detail.js"></script>
