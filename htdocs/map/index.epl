@@ -55,7 +55,6 @@
 		z-index: 10000;
 		min-width: 150px;
 		box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-		font-family: Verdana, Geneva, sans-serif; /* Add this line */
 	}
 
 	.floating-menu a {
@@ -63,6 +62,7 @@
 		text-decoration: none;
 		font-size: 18px;
 		transition: color 0.3s;
+		font-family: Verdana, Geneva, sans-serif;
 	}
 
 	.floating-menu a:hover {
@@ -74,7 +74,7 @@
 		display: flex;
 	}
 	</style>
-	<script src="/js/menu.js" defer></script>
+	<script src="/js/menu.js?" defer></script>
 
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>

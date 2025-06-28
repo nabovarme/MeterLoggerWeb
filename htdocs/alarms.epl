@@ -63,7 +63,7 @@
 		display: flex;
 	}
 	</style>
-	<script src="/js/menu.js" defer></script>	
+	<script src="/js/menu.js?" defer></script>	
 
 	<!-- Basic CSS styling -->
 	<style type="text/css">
