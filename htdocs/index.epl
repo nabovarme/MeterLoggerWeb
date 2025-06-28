@@ -3,7 +3,6 @@
 	<meta name="robots" content="noindex">
 <!--	<meta http-equiv="refresh" content="60">	-->
 	<TITLE>MeterLogger</TITLE>
-	<link rel="stylesheet" href="menu.css" />
 
 	<!-- style and js for burger menu -->
 	<script src="/js/menu.js?" defer></script>	
