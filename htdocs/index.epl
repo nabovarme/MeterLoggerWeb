@@ -38,6 +38,7 @@
 		font-family: Arial, sans-serif;
 	}
 	</style>
+
 	</HEAD>
 	<BODY>
 	[- 
@@ -103,6 +104,26 @@
 			$sth->execute;			
 			}
 	-]
+	<!-- 🔍 Search Input -->
+<!-- 🔍 Floating Search Input fixed at bottom -->
+<div style="
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: #f2f2f2;
+	padding: 10px;
+	box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+	z-index: 9999;
+">
+<input
+	type="search"
+	id="meterSearch"
+	placeholder="Search meters by serial or info..."
+	style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+/>
+</div>
+	
 	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
@@ -191,4 +212,5 @@
 [$ endif $]
 	</table>
 	</BODY>
+	<script src="/js/search.js?" defer></script>	
 </HTML>
