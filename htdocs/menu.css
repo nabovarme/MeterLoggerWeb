@@ -3,7 +3,7 @@
 	top: 20px;
 	right: 20px;
 	color: #333;
-	font-size: 30px;
+	font-size: 40px;
 	cursor: pointer;
 	z-index: 1000;
 	user-select: none;
@@ -45,4 +45,20 @@
 
 #menu.floating-menu.show {
 	display: flex !important;
+}
+
+@media (max-width: 1000px) {
+	.burger {
+		font-size: 60px;
+	}
+
+	.floating-menu a {
+		font-size: 22px; /* Increase from 18px to 22px, or as needed */
+		padding: 8px 0;	/* Optional: more tap-friendly spacing */
+	}
+
+	.floating-menu {
+		min-width: 180px; /* Optional: make the menu itself wider */
+		top: 100px; /* More vertical space for small screens */
+	}
 }
