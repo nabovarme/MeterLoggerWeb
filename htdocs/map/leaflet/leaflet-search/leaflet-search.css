@@ -66,11 +66,11 @@
 	float:left;
 	width:30px;
 	height:30px;	
-	background: url('../images/search-icon.png') no-repeat 4px 4px #fff;
+	background: url('../leaflet-search/images/search-icon.png') no-repeat 4px 4px #fff;
 	border-radius:4px;
 }
 .leaflet-control-search .search-button:hover {
-	background: url('../images/search-icon.png') no-repeat 4px -20px #fafafa;
+	background: url('../leaflet-search/images/search-icon.png') no-repeat 4px -20px #fafafa;
 }
 .leaflet-control-search .search-tooltip {
 	position:absolute;
