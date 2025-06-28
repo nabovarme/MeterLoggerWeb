@@ -114,8 +114,8 @@
 	<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
 	<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
 	
-	<script src="leaflet/leaflet-search/src/leaflet-search.js"></script>
-	<link rel="stylesheet" href="leaflet/leaflet-search/src/leaflet-search.css">
+	<script src="leaflet/leaflet-search/leaflet-search.min.js"></script>
+	<link rel="stylesheet" href="leaflet/leaflet-search/leaflet-search.css">
 
 	<style type="text/css">
 	.top {
