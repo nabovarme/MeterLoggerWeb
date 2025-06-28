@@ -13,11 +13,12 @@
 <HTML>
 	<HEAD>
 	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<TITLE>MeterLogger Valve control</TITLE>
 
 	<!-- style and js for burger menu -->
 	<link rel="stylesheet" href="/menu.css">
-	<script src="/js/menu.js?" defer></script>	
+	<script src="/js/menu.js" defer></script>	
 	
 	<style type="text/css">
 	.top {

@@ -21,7 +21,7 @@
 	<HEAD>
 	<TITLE>MeterLogger Map</TITLE>
 	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 	<link rel="stylesheet" href="/menu.css">
 	<script src="/js/menu.js" defer></script>

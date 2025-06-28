@@ -99,6 +99,7 @@
 <HTML>
 <HEAD>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- style and js for burger menu -->

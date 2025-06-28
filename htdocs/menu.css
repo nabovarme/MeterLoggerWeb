@@ -28,6 +28,10 @@
 	z-index: 999;
 	min-width: 150px;
 	box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+	transition: transform 0.2s ease, opacity 0.2s ease;
+	transform: scale(0.95);
+	opacity: 0;
+	pointer-events: none;
 }
 
 .floating-menu a {
@@ -45,7 +49,10 @@
 
 #menu.floating-menu.show {
 	display: flex !important;
-}
+	transform: scale(1);
+	opacity: 1;
+	pointer-events: auto;
+	}
 
 @media (max-width: 1000px) {
 	.burger {
@@ -60,5 +67,6 @@
 	.floating-menu {
 		min-width: 180px; /* Optional: make the menu itself wider */
 		top: 100px; /* More vertical space for small screens */
-	}
+		right: 20px;   /* Ensure it's still top-right */
+		left: auto;    /* Cancel out any left positioning */	}
 }
