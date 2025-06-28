@@ -95,7 +95,14 @@
 </div>
 	
 	<script>
-		var map = L.map('map', {zoomSnap: 0});
+		var map = L.map('map', {
+			zoomSnap: 0,
+			zoomControl: false // disable default position (top left)
+		});
+		
+		L.control.zoom({
+			position: 'bottomleft'
+		}).addTo(map);
 
 		// Creates a red marker with the coffee icon
 		var onlineOpenMarker = L.AwesomeMarkers.icon({
@@ -230,7 +237,7 @@
 
 				//... adding data in searchLayer ...
 				var controlSearch = new L.Control.Search({
-					position:'topright',		
+					position:'topleft',		
 					layer: g_all,
 					//sourceData,
 					propertyName: 'name',
