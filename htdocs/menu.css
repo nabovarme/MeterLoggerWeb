@@ -68,5 +68,4 @@
 		min-width: 180px; /* Optional: make the menu itself wider */
 		top: 100px; /* More vertical space for small screens */
 		right: 20px;   /* Ensure it's still top-right */
-		left: auto;    /* Cancel out any left positioning */	}
 }
