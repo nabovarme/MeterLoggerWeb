@@ -102,6 +102,25 @@
 	}
 -]
 
+<!-- 🔍 Alarm Filter - Full Width Floating Search at Bottom -->
+<div style="
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: #f2f2f2;
+	padding: 10px;
+	box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+	z-index: 9999;
+">
+	<input
+		type="search"
+		id="alarmFilter"
+		placeholder="Search alarms..."
+		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+	/>
+</div>
+
 [$ if ($sth_groups->rows) $]
 [$ while ($d_groups = $sth_groups->fetchrow_hashref) $]
 
@@ -124,7 +143,6 @@
 	$last_serial = '';
 	$is_first = 1;
 -]
-
 [$ if ($sth->rows) $]
 <!-- Display alarms for this group -->
 <table border="0" align="left" cellpadding="0" cellspacing="0">
@@ -153,7 +171,7 @@
 		</tr>
 		[$ endif $]
 
-		<tr [$ if ($d->{alarm_state} && $d->{'enabled'}) $]class="alarm-red"[$ else $]class="alarm"[$ endif $]>
+		<tr class="alarm-row [$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-red[$ else $]alarm[$ endif $]">
 			<td class="no-wrap"><span class="default"><a href="alarms_detail.epl?id=[+ $d->{id} +]">[+ $d->{id} || '' +]</a></span></td>
 			<td><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{sms_notification} +]</span></td>
 			<td>
@@ -225,4 +243,5 @@
 [$ endif $]
 
 </BODY>
+	<script src="/js/search_alarms.js?" defer></script>	
 </HTML>
