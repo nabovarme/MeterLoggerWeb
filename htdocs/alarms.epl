@@ -193,7 +193,6 @@
 	<tr><td colspan=6>&nbsp;</td></tr>
 </table>
 [$ endif $]
-<br>
 [$ endwhile $]
 [$ endif $]
 
