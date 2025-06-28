@@ -78,7 +78,7 @@ if ($sth->rows) {
 
 		<!-- style and js for burger menu -->
 		<link rel="stylesheet" href="/menu.css">
-		<script src="/js/menu.js?" defer></script>	
+		<script src="/js/menu.js" defer></script>	
 
 		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
