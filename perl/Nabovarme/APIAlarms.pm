@@ -25,7 +25,7 @@ sub handler {
 
 		# Fetch groups except orphans
 		$sth = $dbh->prepare(q[
-			SELECT id, `group` FROM meter_groups ORDER BY `group`
+			SELECT id, `group` FROM meter_groups ORDER BY `id`
 		]);
 		$sth->execute;
 
