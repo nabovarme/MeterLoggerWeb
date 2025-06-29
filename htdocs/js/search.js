@@ -5,7 +5,7 @@ function filterMeters() {
 	const rows = document.querySelectorAll('table.top tr');
 
 	let currentGroupHeader = null;
-	let currentColumnHeader = null;	// Track the column header row too
+	let currentColumnHeader = null;
 	let groupHasVisibleRows = false;
 
 	rows.forEach(row => {
@@ -13,23 +13,20 @@ function filterMeters() {
 		const isColumnHeader = row.querySelector('span.default-bold');
 
 		if (isGroupHeader) {
-			// Before switching group, hide previous group and column headers if no visible rows
 			if (currentGroupHeader && !groupHasVisibleRows) {
 				currentGroupHeader.style.display = 'none';
 				if (currentColumnHeader) {
 					currentColumnHeader.style.display = 'none';
 				}
 			}
-			// New group starts
 			currentGroupHeader = row;
 			groupHasVisibleRows = false;
 			currentGroupHeader.style.display = '';
-			currentColumnHeader = null; // Reset column header for new group
+			currentColumnHeader = null;
 			return;
 		}
 
 		if (isColumnHeader) {
-			// Track the column header row for current group
 			currentColumnHeader = row;
 			currentColumnHeader.style.display = '';
 			return;
@@ -46,7 +43,6 @@ function filterMeters() {
 		}
 	});
 
-	// After loop ends, hide last group headers if no visible rows
 	if (currentGroupHeader && !groupHasVisibleRows) {
 		currentGroupHeader.style.display = 'none';
 		if (currentColumnHeader) {
@@ -56,13 +52,24 @@ function filterMeters() {
 }
 
 searchInput.addEventListener('input', filterMeters);
-
-// Run filter once on load to show all rows
 filterMeters();
 
-// Focus input on any character keypress anywhere (except modifiers)
+// Focus input on free typing
 document.addEventListener('keydown', function(e) {
 	if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && document.activeElement !== searchInput) {
+		searchInput.focus();
+	}
+});
+
+// Focus input on Ctrl+F or Alt+F
+document.addEventListener('keydown', function(e) {
+	if (
+		searchInput &&
+		e.key.toLowerCase() === 'f' &&
+		(e.ctrlKey || e.altKey) &&
+		!e.metaKey
+	) {
+		e.preventDefault();
 		searchInput.focus();
 	}
 });
