@@ -6,35 +6,62 @@ document.addEventListener('DOMContentLoaded', () => {
 		const filterText = filterInput.value.trim().toLowerCase();
 		const alarmSearch = alarmSearchCheckbox.checked;
 
-		// Get all tables (each group block is a separate table)
 		const tables = document.querySelectorAll('table');
 
 		tables.forEach(table => {
-			const alarmRows = table.querySelectorAll('tr.alarm-row');
+			const rows = Array.from(table.querySelectorAll('tr'));
 			let anyAlarmVisibleInTable = false;
 
-			alarmRows.forEach(row => {
-				const isAlarmRed = row.classList.contains('alarm-red');
+			// Track if we are inside a matched group/info block
+			let insideMatchedBlock = false;
+
+			for (let i = 0; i < rows.length; i++) {
+				const row = rows[i];
 				const textContent = row.textContent.toLowerCase();
 
-				let match;
-				if (alarmSearch) {
-					// When checkbox checked: show only red alarms matching search
-					match = isAlarmRed && textContent.includes(filterText);
-				} else {
-					// Normal search: show any alarms matching search text
+				const isGroup = row.classList.contains('group');
+				const isInfo = row.classList.contains('info-row');
+				const isAlarm = row.classList.contains('alarm-row');
+				const isAlarmRed = row.classList.contains('alarm-red');
+
+				let match = false;
+
+				if (isGroup || isInfo) {
 					match = textContent.includes(filterText);
+
+					// Show this row if matches, hide otherwise
+					row.style.display = match ? '' : 'none';
+
+					if (match) {
+						insideMatchedBlock = true;
+						anyAlarmVisibleInTable = true;
+					} else {
+						insideMatchedBlock = false;
+					}
+
+					continue;
 				}
 
-				row.style.display = match ? '' : 'none';
-				if (match) anyAlarmVisibleInTable = true;
-			});
+				if (alarmSearch) {
+					match = isAlarm && isAlarmRed && textContent.includes(filterText);
+				} else {
+					match = isAlarm && textContent.includes(filterText);
+				}
 
-			// Process info-row and columns-row visibility based on visible alarms
+				// Show the row if it matches or if it’s inside a matched group/info block
+				const shouldShow = match || insideMatchedBlock;
+				row.style.display = shouldShow ? '' : 'none';
+
+				if (shouldShow && isAlarm) {
+					anyAlarmVisibleInTable = true;
+				}
+			}
+
+			// Existing logic to show/hide info-row and columns-row based on visible alarms
 			const infoRows = table.querySelectorAll('tr.info-row');
 
 			infoRows.forEach(infoRow => {
-				let columnsRow = infoRow.nextElementSibling;
+				const columnsRow = infoRow.nextElementSibling;
 				if (!columnsRow || !columnsRow.classList.contains('columns-row')) return;
 
 				let currentRow = columnsRow.nextElementSibling;
@@ -55,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					currentRow = currentRow.nextElementSibling;
 				}
 
-				let spacerRow = lastAlarmRow?.nextElementSibling;
+				const spacerRow = lastAlarmRow?.nextElementSibling;
 				if (spacerRow && spacerRow.classList.contains('spacer-row')) {
 					spacerRow.style.display = hasVisibleAlarm ? '' : 'none';
 				}
@@ -71,14 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	filterInput.addEventListener('input', filterAlarms);
 	alarmSearchCheckbox.addEventListener('change', filterAlarms);
 
-	// Initial filter run on page load
 	filterAlarms();
-
-	// Focus input on page load
 	filterInput.focus();
 
-	// Ctrl+F or Alt+F to focus search
-	document.addEventListener('keydown', (e) => {
+	document.addEventListener('keydown', e => {
 		if (
 			filterInput &&
 			e.key.toLowerCase() === 'f' &&
