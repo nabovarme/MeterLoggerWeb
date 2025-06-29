@@ -114,6 +114,10 @@
 	padding: 10px;
 	box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
 	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
 ">
 	<input
 		type="search"
@@ -121,6 +125,10 @@
 		placeholder="Search alarms..."
 		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
 	/>
+	<label style="user-select:none; font-family: Verdana, Geneva, sans-serif; font-size: 1em; white-space: nowrap; display: flex; align-items: center; gap: 5px; margin-left: 10px;">
+		<input type="checkbox" id="alarmSearch">
+		Show only active alarms
+	</label>
 </div>
 
 [$ if ($sth_groups->rows) $]

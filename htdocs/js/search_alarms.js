@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmFilter');
+	const alarmSearchCheckbox = document.getElementById('alarmSearch');
 
-	// Filter function on input
-	filterInput.addEventListener('input', () => {
+	function filterAlarms() {
 		const filterText = filterInput.value.trim().toLowerCase();
+		const alarmSearch = alarmSearchCheckbox.checked;
 
 		// Get all tables (each group block is a separate table)
 		const tables = document.querySelectorAll('table');
@@ -13,13 +14,23 @@ document.addEventListener('DOMContentLoaded', () => {
 			let anyAlarmVisibleInTable = false;
 
 			alarmRows.forEach(row => {
+				const isAlarmRed = row.classList.contains('alarm-red');
 				const textContent = row.textContent.toLowerCase();
-				const match = textContent.includes(filterText);
+
+				let match;
+				if (alarmSearch) {
+					// When checkbox checked: show only red alarms matching search
+					match = isAlarmRed && textContent.includes(filterText);
+				} else {
+					// Normal search: show any alarms matching search text
+					match = textContent.includes(filterText);
+				}
+
 				row.style.display = match ? '' : 'none';
 				if (match) anyAlarmVisibleInTable = true;
 			});
 
-			// Process each info-row (and its associated rows)
+			// Process info-row and columns-row visibility based on visible alarms
 			const infoRows = table.querySelectorAll('tr.info-row');
 
 			infoRows.forEach(infoRow => {
@@ -30,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				let hasVisibleAlarm = false;
 				let lastAlarmRow = null;
 
-				// Traverse alarm rows after columnsRow
 				while (
 					currentRow &&
 					!currentRow.classList.contains('info-row') &&
@@ -45,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
 					currentRow = currentRow.nextElementSibling;
 				}
 
-				// Possibly get spacer-row right after last alarm-row
 				let spacerRow = lastAlarmRow?.nextElementSibling;
 				if (spacerRow && spacerRow.classList.contains('spacer-row')) {
 					spacerRow.style.display = hasVisibleAlarm ? '' : 'none';
@@ -57,12 +66,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
-	});
+	}
+
+	filterInput.addEventListener('input', filterAlarms);
+	alarmSearchCheckbox.addEventListener('change', filterAlarms);
+
+	// Initial filter run on page load
+	filterAlarms();
 
 	// Focus input on page load
 	filterInput.focus();
 
-	// Focus input on Ctrl+F or Alt+F
+	// Ctrl+F or Alt+F to focus search
 	document.addEventListener('keydown', (e) => {
 		if (
 			filterInput &&
