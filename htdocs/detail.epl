@@ -83,8 +83,8 @@ if ($sth->rows) {
 			@media screen and (max-device-width: 480px) {
 				input[type=checkbox] {
 					margin-right: 1em;
-					transform: scale(2);
-					-webkit-transform: scale(2);
+					transform: scale(1.5);
+					-webkit-transform: scale(1.5);
 				}
 			}
 		</style>
@@ -123,15 +123,15 @@ if ($sth->rows) {
 		<!-- Controls table -->
 		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%" style="max-width: 800px;">
 			<tr align="left" valign="bottom">
-				<td align="left"><span class="default"><input type="checkbox" id="0" checked onClick="change(this)">Temperature</span></td>
+				<td align="left"><span class="default"><input type="checkbox" id="0" checked onClick="change(this)" style="vertical-align: top;">Temp.</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="1" checked onClick="change(this)">Return temperature</span></td>
+				<td align="left"><span class="default"><input type="checkbox" id="1" checked onClick="change(this)" style="vertical-align: top;">Return temp.</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="2" checked onClick="change(this)">Temperature diff.</span></td>
+				<td align="left"><span class="default"><input type="checkbox" id="2" checked onClick="change(this)" style="vertical-align: top;">Temp. diff.</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="3" checked onClick="change(this)">Flow</span></td>
+				<td align="left"><span class="default"><input type="checkbox" id="3" checked onClick="change(this)" style="vertical-align: top;">Flow</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)">Effect</span></td>
+				<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)"style="vertical-align: top;" >Effect</span></td>
 			</tr>
 			<tr><td colspan="9">&nbsp;</td></tr>
 		</table>
