@@ -54,7 +54,7 @@
 	pointer-events: auto;
 	}
 
-@media (max-width: 1000px) {
+@media (max-width: 600px) {
 	.burger {
 		font-size: 60px;
 	}
