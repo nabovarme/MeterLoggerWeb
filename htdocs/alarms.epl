@@ -127,7 +127,7 @@
 	/>
 	<label style="user-select:none; font-family: Verdana, Geneva, sans-serif; font-size: 1em; white-space: nowrap; display: flex; align-items: center; gap: 5px; margin-left: 10px;">
 		<input type="checkbox" id="alarmSearch">
-		Show only active alarms
+		Active alarms
 	</label>
 </div>
 
