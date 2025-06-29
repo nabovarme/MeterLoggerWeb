@@ -127,7 +127,7 @@
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 [$ if (($last_group ne $d->{'meter_group'}) and ($is_first == 0)) $]
-	<tr>
+	<tr class="spacer-row">
 		<td></td>
 		<td>&nbsp;</td>
 		<td></td>
@@ -145,10 +145,10 @@
 [$ endif $]
 [- $is_first = 0; -]
 [$ if ($last_group ne $d->{'meter_group'}) $]
-	<tr>
+	<tr class="group">
 		<td align="left" colspan=13><span class="default-group">[+ $d->{'meter_group'} +]</span></td>
 	</tr>
-	<tr align="left" valign="bottom">
+	<tr class="columns-row" align="left" valign="bottom">
 		<td align="left"><span class="default-bold">Serial</span></td>
 		<td align="left"><span class="default-bold">Info</span></td>
 		<td align="right"><span class="default-bold">Energy</span></td>
@@ -190,7 +190,7 @@
 		 $time_left_str = '∞';
 	}
 -]
-	<tr align="left" valign="bottom">
+	<tr class="meter-row" align="left" valign="bottom">
 		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"><a href="detail_acc.epl?serial=[+ $d->{'serial'} +]">[+ $d->{'serial'} +]</a></span></td>
 		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'info'} +]</span></td>
 		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'energy'} +] kWh</span></td>
