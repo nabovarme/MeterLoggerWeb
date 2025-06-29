@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			let anyAlarmVisibleInTable = false;
 
 			let insideMatchedBlock = false;
+			let alarmsVisibleInBlock = false;
 
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
@@ -29,67 +30,105 @@ document.addEventListener('DOMContentLoaded', () => {
 				let match = false;
 
 				if (isGroup || isInfo) {
-					match = textContent.includes(filterText);
+					if (!alarmSearch) {
+						match = textContent.includes(filterText);
+						row.style.display = match ? '' : 'none';
 
-					row.style.display = match ? '' : 'none';
-
-					if (match) {
-						insideMatchedBlock = true;
-						anyAlarmVisibleInTable = true;
+						insideMatchedBlock = match;
+						alarmsVisibleInBlock = false;
 					} else {
+						// Delay showing group/info until alarms are processed
+						row.style.display = 'none';
 						insideMatchedBlock = false;
+						alarmsVisibleInBlock = false;
 					}
-
 					continue;
 				}
 
-				if (alarmSearch) {
-					match = isAlarm && isAlarmRed && textContent.includes(filterText);
-				} else {
-					match = isAlarm && textContent.includes(filterText);
+				if (isAlarm) {
+					if (alarmSearch) {
+						match = isAlarmRed && textContent.includes(filterText);
+					} else {
+						match = textContent.includes(filterText);
+					}
+
+					const shouldShow = alarmSearch ? match : (match || insideMatchedBlock);
+
+					row.style.display = shouldShow ? '' : 'none';
+
+					if (shouldShow) {
+						anyAlarmVisibleInTable = true;
+						alarmsVisibleInBlock = true;
+					}
+					continue;
 				}
 
-				const shouldShow = match || insideMatchedBlock;
-				row.style.display = shouldShow ? '' : 'none';
+				// For other rows (e.g. spacer-row), show if insideMatchedBlock or alarms visible in block
+				row.style.display = insideMatchedBlock || alarmsVisibleInBlock ? '' : 'none';
+			}
 
-				if (shouldShow && isAlarm) {
-					anyAlarmVisibleInTable = true;
+			// Fix group and info-row visibility if alarmSearch is checked
+			if (alarmSearch) {
+				for (let i = 0; i < rows.length; i++) {
+					const row = rows[i];
+					if (row.classList.contains('group')) {
+						// Show group only if any alarm in its block is visible
+						let j = i + 1;
+						let visibleAlarmFound = false;
+						while (j < rows.length && !rows[j].classList.contains('group')) {
+							if (
+								rows[j].classList.contains('alarm-row') &&
+								rows[j].style.display !== 'none'
+							) {
+								visibleAlarmFound = true;
+								break;
+							}
+							j++;
+						}
+						row.style.display = visibleAlarmFound ? '' : 'none';
+					}
+
+					if (row.classList.contains('info-row')) {
+						const columnsRow = row.nextElementSibling;
+						let visibleAlarmFound = false;
+
+						// Alarms after columns-row until next info or group
+						let j = columnsRow && columnsRow.classList.contains('columns-row') ? i + 2 : i + 1;
+						while (
+							j < rows.length &&
+							!rows[j].classList.contains('group') &&
+							!rows[j].classList.contains('info-row')
+						) {
+							if (
+								rows[j].classList.contains('alarm-row') &&
+								rows[j].style.display !== 'none'
+							) {
+								visibleAlarmFound = true;
+								break;
+							}
+							j++;
+						}
+						row.style.display = visibleAlarmFound ? '' : 'none';
+						if (columnsRow && columnsRow.classList.contains('columns-row')) {
+							columnsRow.style.display = visibleAlarmFound ? '' : 'none';
+						}
+					}
 				}
 			}
 
-			const infoRows = table.querySelectorAll('tr.info-row');
-
-			infoRows.forEach(infoRow => {
-				const columnsRow = infoRow.nextElementSibling;
-				if (!columnsRow || !columnsRow.classList.contains('columns-row')) return;
-
-				let currentRow = columnsRow.nextElementSibling;
-				let hasVisibleAlarm = false;
-				let lastAlarmRow = null;
-
-				while (
-					currentRow &&
-					!currentRow.classList.contains('info-row') &&
-					!currentRow.classList.contains('group')
-				) {
-					if (currentRow.classList.contains('alarm-row')) {
-						if (currentRow.style.display !== 'none') {
-							hasVisibleAlarm = true;
-						}
-						lastAlarmRow = currentRow;
-					}
-					currentRow = currentRow.nextElementSibling;
+			// Show/hide spacer-rows based on previous alarm-row visibility
+			for (let i = 0; i < rows.length; i++) {
+				const row = rows[i];
+				if (row.classList.contains('spacer-row')) {
+					const prevRow = rows[i - 1];
+					row.style.display =
+						prevRow && prevRow.classList.contains('alarm-row') && prevRow.style.display !== 'none'
+							? ''
+							: 'none';
 				}
+			}
 
-				const spacerRow = lastAlarmRow?.nextElementSibling;
-				if (spacerRow && spacerRow.classList.contains('spacer-row')) {
-					spacerRow.style.display = hasVisibleAlarm ? '' : 'none';
-				}
-
-				infoRow.style.display = hasVisibleAlarm ? '' : 'none';
-				columnsRow.style.display = hasVisibleAlarm ? '' : 'none';
-			});
-
+			// Show/hide entire table
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
 	}
@@ -97,18 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	filterInput.addEventListener('input', filterAlarms);
 	alarmSearchCheckbox.addEventListener('change', filterAlarms);
 
+	// Run once on page load to set initial visibility
 	filterAlarms();
-	filterInput.focus();
-
-	document.addEventListener('keydown', e => {
-		if (
-			filterInput &&
-			e.key.toLowerCase() === 'f' &&
-			(e.ctrlKey || e.altKey) &&
-			!e.metaKey
-		) {
-			e.preventDefault();
-			filterInput.focus();
-		}
-	});
 });
