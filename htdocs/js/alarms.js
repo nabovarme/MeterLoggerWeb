@@ -36,7 +36,7 @@ async function fetchAndRenderAlarms() {
 
 			const rowDiv = document.createElement('div');
 			rowDiv.className = 'alarm-row';
-			if (alarm.alarm_state && alarm.enabled) rowDiv.classList.add('alarm-active');
+			if (alarm.alarm_state >= 1 && alarm.enabled) rowDiv.classList.add('alarm-active');
 			if (!alarm.enabled) rowDiv.classList.add('alarm-disabled');
 
 			const repeat = alarm.repeat ? `every ${alarm.repeat}` : 'no';

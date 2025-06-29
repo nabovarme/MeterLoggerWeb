@@ -45,7 +45,6 @@ body {
 
 .alarm-active {
 	background-color: #ffe0e0;
-	font-weight: bold;
 }
 
 .alarm-disabled {

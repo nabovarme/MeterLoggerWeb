@@ -8,9 +8,11 @@
 
 	<link rel="stylesheet" href="/css/menu.css" />
 	<script src="/js/menu.js" defer></script>
-	<link rel="stylesheet" href="/alarms.css" />
+	<link rel="stylesheet" href="/css/alarms.css" />
 </head>
 <body>
+<script src="/js/alarms.js" defer></script>
+<script src="/js/search_alarms.js" defer></script>
 
 <!-- Floating Search UI -->
 <div id="alarmSearchContainer">
@@ -29,8 +31,5 @@
 <!-- Dynamic alarm content -->
 <div id="alarmContainer"></div>
 <div style="height: 100px;"></div>
-
-<script src="/js/alarms.js" defer></script>
-<script src="/js/search_alarms.js" defer></script>
 </body>
 </html>
