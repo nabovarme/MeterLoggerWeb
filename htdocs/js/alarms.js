@@ -36,8 +36,7 @@ async function fetchAndRenderAlarms() {
 
 			const rowDiv = document.createElement('div');
 			rowDiv.className = 'alarm-row';
-			if (alarm.alarm_state >= 1 && alarm.enabled) rowDiv.classList.add('alarm-active');
-			if (!alarm.enabled) rowDiv.classList.add('alarm-disabled');
+			if (alarm.alarm_state > 0 && alarm.enabled > 0) rowDiv.classList.add('alarm-active');
 
 			const repeat = alarm.repeat ? `every ${alarm.repeat}` : 'no';
 			const snooze = alarm.snooze ? alarm.snooze : 'no';
@@ -45,7 +44,9 @@ async function fetchAndRenderAlarms() {
 			rowDiv.innerHTML = `
 				<div><a href="alarms_detail.epl?id=${alarm.id}">${alarm.id || ''}</a></div>
 				<div>${alarm.sms_notification || ''}</div>
-				<div>${alarm.condition_error ? '<strong style="color:red">' : ''}${alarm.condition || ''}${alarm.condition_error ? '</strong>' : ''}</div>
+				<div class="condition${alarm.enabled > 0 ? '' : ' alarm-disabled'}${(alarm.condition_error && alarm.condition_error !== '' && alarm.enabled > 0) ? ' condition-error' : ''}">
+					${alarm.condition || ''}
+				</div>
 				<div>${repeat}</div>
 				<div>${snooze}</div>
 				<div>${alarm.comment || ''}</div>

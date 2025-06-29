@@ -1,41 +1,45 @@
 /* alarms.css */
 
-body {
+html, body {
+	height: 100%;
 	margin: 0;
-	padding: 20px;
+	padding: 0px;
 	font-family: Verdana, Geneva, sans-serif;
 }
 
 .alarm-group {
-	font-size: 1.4em;
+	font-size: 120%;
 	font-weight: bold;
-	margin: 30px 0 10px;
-	border-bottom: none; /* Removed horizontal line */
-	padding-bottom: 4px;
+	margin: 6px 6px 0px;
+}
+
+.alarm-group:not(:first-of-type) {
+  margin-top: 1.5em;
 }
 
 .alarm-info {
 	font-size: 1em;
 	font-weight: bold;
-	margin-top: 20px;
 	color: #333;
+	margin: 6px 6px 6px;
+}
+
+.alarm-info:not(:first-of-type) {
+  margin-top: 1em;
 }
 
 .alarm-columns,
 .alarm-row {
 	display: grid;
 	grid-template-columns: 60px 180px 1fr 120px 120px 1fr;
-	gap: 10px;
-	padding: 8px 0;
-	/* Removed border-bottom here to avoid lines between rows */
-	align-items: center;
+	gap: 6px;
+	padding: 6px;
 	width: 100%; /* Ensure rows fit screen width */
 	box-sizing: border-box;
 }
 
 .alarm-columns {
 	font-weight: bold;
-	background: #f9f9f9;
 	color: #333;
 }
 
@@ -48,11 +52,25 @@ body {
 }
 
 .alarm-disabled {
-	color: #999;
+	color: #9c9c9c;
 }
 
 .alarm-row:hover {
 	background: #f2f2f2;
+}
+
+.condition {
+	font-family: Consolas, monospace;
+	font-size: small;
+}
+.condition-disabled {
+	font-family: Consolas, monospace;
+	color: #9c9c9c;
+}
+.condition-error {
+	font-family: Consolas, monospace;
+	font-weight: bold;
+	color: #ff0000;
 }
 
 /* Search bar container */
