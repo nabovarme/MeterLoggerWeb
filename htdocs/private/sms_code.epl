@@ -18,7 +18,7 @@
 		}
 		</style>
 		<style>
-		@media screen and (max-device-width: 480px) {
+		@media screen and (max-device-width: 600px) {
 			input[type=checkbox] {
 				margin-right: 1em;
 				/* All browsers except webkit*/
