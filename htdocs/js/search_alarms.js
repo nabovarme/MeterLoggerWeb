@@ -131,6 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
 			// Show/hide entire table
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
+
+		// Scroll page to top smoothly after every search/filter update
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	filterInput.addEventListener('input', filterAlarms);
