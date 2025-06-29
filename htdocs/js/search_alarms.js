@@ -9,10 +9,12 @@ document.addEventListener('DOMContentLoaded', () => {
 		const tables = document.querySelectorAll('table');
 
 		tables.forEach(table => {
+			// Skip tables with class 'end-spacer'
+			if (table.classList.contains('end-spacer')) return;
+
 			const rows = Array.from(table.querySelectorAll('tr'));
 			let anyAlarmVisibleInTable = false;
 
-			// Track if we are inside a matched group/info block
 			let insideMatchedBlock = false;
 
 			for (let i = 0; i < rows.length; i++) {
@@ -29,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				if (isGroup || isInfo) {
 					match = textContent.includes(filterText);
 
-					// Show this row if matches, hide otherwise
 					row.style.display = match ? '' : 'none';
 
 					if (match) {
@@ -48,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
 					match = isAlarm && textContent.includes(filterText);
 				}
 
-				// Show the row if it matches or if it’s inside a matched group/info block
 				const shouldShow = match || insideMatchedBlock;
 				row.style.display = shouldShow ? '' : 'none';
 
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 			}
 
-			// Existing logic to show/hide info-row and columns-row based on visible alarms
 			const infoRows = table.querySelectorAll('tr.info-row');
 
 			infoRows.forEach(infoRow => {
