@@ -2,6 +2,45 @@ document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmFilter');
 	const alarmSearchCheckbox = document.getElementById('alarmSearch');
 
+	function collapseSpacerRows() {
+		const tables = document.querySelectorAll('table');
+
+		tables.forEach((table) => {
+			if (table.classList.contains('end-spacer')) return;
+
+			const rows = Array.from(table.querySelectorAll('tr'));
+
+			let lastSpacerIndex = -1;
+
+			for (let i = 0; i < rows.length; i++) {
+				const row = rows[i];
+
+				if (!row.classList.contains('spacer-row')) continue;
+
+				if (lastSpacerIndex === -1) {
+					lastSpacerIndex = i;
+					continue;
+				}
+
+				// Check if all rows between lastSpacerIndex and i are hidden
+				let allHiddenBetween = true;
+				for (let j = lastSpacerIndex + 1; j < i; j++) {
+					if (rows[j].style.display !== 'none') {
+						allHiddenBetween = false;
+						break;
+					}
+				}
+
+				if (allHiddenBetween) {
+					// Remove this spacer-row (rows[i])
+					row.style.display = 'none';
+				} else {
+					lastSpacerIndex = i;
+				}
+			}
+		});
+	}
+
 	function filterAlarms() {
 		const filterText = filterInput.value.trim().toLowerCase();
 		const alarmSearch = alarmSearchCheckbox.checked;
@@ -177,6 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
+
+		collapseSpacerRows();
 
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
