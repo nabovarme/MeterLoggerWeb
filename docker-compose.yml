@@ -50,6 +50,7 @@ services:
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
+      - ./htdocs:/var/www/nabovarme
     restart: always
     environment:
       METERLOGGER_DB_HOST: db:3306
