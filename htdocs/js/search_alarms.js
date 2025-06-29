@@ -13,11 +13,12 @@ document.addEventListener('DOMContentLoaded', () => {
 			if (table.classList.contains('end-spacer')) return;
 
 			const rows = Array.from(table.querySelectorAll('tr'));
-			let anyAlarmVisibleInTable = false;
 
+			let anyAlarmVisibleInTable = false;
 			let insideMatchedBlock = false;
 			let alarmsVisibleInBlock = false;
 
+			// First pass: show/hide group, info, alarm and other rows
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
 				const textContent = row.textContent.toLowerCase();
@@ -37,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 						insideMatchedBlock = match;
 						alarmsVisibleInBlock = false;
 					} else {
-						// Delay showing group/info until alarms are processed
+						// Hide for now; fix later in second pass
 						row.style.display = 'none';
 						insideMatchedBlock = false;
 						alarmsVisibleInBlock = false;
@@ -63,16 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
 					continue;
 				}
 
-				// For other rows (e.g. spacer-row), show if insideMatchedBlock or alarms visible in block
+				// Other rows (e.g. spacer-row)
 				row.style.display = insideMatchedBlock || alarmsVisibleInBlock ? '' : 'none';
 			}
 
-			// Fix group and info-row visibility if alarmSearch is checked
+			// Second pass for alarmSearch: fix group and info-row visibility based on alarms shown
 			if (alarmSearch) {
 				for (let i = 0; i < rows.length; i++) {
 					const row = rows[i];
 					if (row.classList.contains('group')) {
-						// Show group only if any alarm in its block is visible
 						let j = i + 1;
 						let visibleAlarmFound = false;
 						while (j < rows.length && !rows[j].classList.contains('group')) {
@@ -92,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 						const columnsRow = row.nextElementSibling;
 						let visibleAlarmFound = false;
 
-						// Alarms after columns-row until next info or group
 						let j = columnsRow && columnsRow.classList.contains('columns-row') ? i + 2 : i + 1;
 						while (
 							j < rows.length &&
