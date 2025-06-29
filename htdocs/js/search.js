@@ -1,75 +1,84 @@
-const searchInput = document.getElementById('meterSearch');
+document.addEventListener('DOMContentLoaded', () => {
+	const filterInput = document.getElementById('meterSearch');
 
-function filterMeters() {
-	const filter = searchInput.value.trim().toLowerCase();
-	const rows = document.querySelectorAll('table.top tr');
+	filterInput.addEventListener('input', () => {
+		const filterText = filterInput.value.trim().toLowerCase();
 
-	let currentGroupHeader = null;
-	let currentColumnHeader = null;
-	let groupHasVisibleRows = false;
+		const rows = Array.from(document.querySelectorAll('tr'));
+		let currentGroup = null;
+		let currentColumns = null;
+		let groupHasMatch = false;
 
-	rows.forEach(row => {
-		const isGroupHeader = row.querySelector('span.default-group');
-		const isColumnHeader = row.querySelector('span.default-bold');
+		// Keep track of visible meter-rows to handle spacer-row check
+		const visibleMeterRowIndices = new Set();
 
-		if (isGroupHeader) {
-			if (currentGroupHeader && !groupHasVisibleRows) {
-				currentGroupHeader.style.display = 'none';
-				if (currentColumnHeader) {
-					currentColumnHeader.style.display = 'none';
+		// First pass: match and hide/show rows
+		rows.forEach((row, index) => {
+			if (row.classList.contains('group')) {
+				// Handle previous group before starting new one
+				if (currentGroup && !groupHasMatch) {
+					currentGroup.style.display = 'none';
+					if (currentColumns) currentColumns.style.display = 'none';
+				}
+				currentGroup = row;
+				currentColumns = null;
+				groupHasMatch = false;
+				row.style.display = '';
+			} else if (row.classList.contains('columns-row')) {
+				currentColumns = row;
+				row.style.display = '';
+			} else if (row.classList.contains('meter-row')) {
+				const match = row.textContent.toLowerCase().includes(filterText);
+				row.style.display = match ? '' : 'none';
+				if (match) {
+					groupHasMatch = true;
+					visibleMeterRowIndices.add(index);
 				}
 			}
-			currentGroupHeader = row;
-			groupHasVisibleRows = false;
-			currentGroupHeader.style.display = '';
-			currentColumnHeader = null;
-			return;
+		});
+
+		// Final group check
+		if (currentGroup && !groupHasMatch) {
+			currentGroup.style.display = 'none';
+			if (currentColumns) currentColumns.style.display = 'none';
 		}
 
-		if (isColumnHeader) {
-			currentColumnHeader = row;
-			currentColumnHeader.style.display = '';
-			return;
-		}
+		// Second pass: handle spacer-row visibility
+		rows.forEach((row, index) => {
+			if (!row.classList.contains('spacer-row')) return;
 
-		if (filter === '') {
-			row.style.display = '';
-			groupHasVisibleRows = true;
-		} else {
-			const text = row.textContent.toLowerCase();
-			const match = text.includes(filter);
-			row.style.display = match ? '' : 'none';
-			if (match) groupHasVisibleRows = true;
-		}
+			let hasVisibleBefore = false;
+			for (let i = index - 1; i >= 0; i--) {
+				const prevRow = rows[i];
+				if (
+					prevRow.classList.contains('group') ||
+					prevRow.classList.contains('columns-row')
+				) break;
+				if (
+					prevRow.classList.contains('meter-row') &&
+					prevRow.style.display !== 'none'
+				) {
+					hasVisibleBefore = true;
+					break;
+				}
+			}
+			row.style.display = hasVisibleBefore ? '' : 'none';
+		});
 	});
 
-	if (currentGroupHeader && !groupHasVisibleRows) {
-		currentGroupHeader.style.display = 'none';
-		if (currentColumnHeader) {
-			currentColumnHeader.style.display = 'none';
+	// Focus input on load
+	filterInput?.focus();
+
+	// Ctrl+F or Alt+F focus shortcut
+	document.addEventListener('keydown', (e) => {
+		if (
+			filterInput &&
+			e.key.toLowerCase() === 'f' &&
+			(e.ctrlKey || e.altKey) &&
+			!e.metaKey
+		) {
+			e.preventDefault();
+			filterInput.focus();
 		}
-	}
-}
-
-searchInput.addEventListener('input', filterMeters);
-filterMeters();
-
-// Focus input on free typing
-document.addEventListener('keydown', function(e) {
-	if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && document.activeElement !== searchInput) {
-		searchInput.focus();
-	}
-});
-
-// Focus input on Ctrl+F or Alt+F
-document.addEventListener('keydown', function(e) {
-	if (
-		searchInput &&
-		e.key.toLowerCase() === 'f' &&
-		(e.ctrlKey || e.altKey) &&
-		!e.metaKey
-	) {
-		e.preventDefault();
-		searchInput.focus();
-	}
+	});
 });
