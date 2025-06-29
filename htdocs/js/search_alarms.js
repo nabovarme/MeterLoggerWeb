@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		const tables = document.querySelectorAll('table');
 
 		tables.forEach((table) => {
-			// Skip tables with class 'end-spacer'
 			if (table.classList.contains('end-spacer')) return;
 
 			const rows = Array.from(table.querySelectorAll('tr'));
@@ -53,7 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
 					}
 
 					const shouldShow = alarmSearch ? match : (match || insideMatchedBlock);
-
 					row.style.display = shouldShow ? '' : 'none';
 
 					if (shouldShow) {
@@ -63,11 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
 					continue;
 				}
 
-				// Default row (non-group/info/alarm)
+				// Default non-alarm row
 				row.style.display = insideMatchedBlock || alarmsVisibleInBlock ? '' : 'none';
 			}
 
-			// Second pass: fix group/info-row visibility for alarmSearch mode
+			// Show group/info if alarms follow (alarmSearch mode)
 			if (alarmSearch) {
 				for (let i = 0; i < rows.length; i++) {
 					const row = rows[i];
@@ -116,50 +114,78 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 			}
 
-			// Show only one spacer-row if prev is visible alarm-row/alarm-red and next visible sibling is a visible table
-			let spacerShown = false;
+			// Improved spacer-row logic
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
 
 				if (row.classList.contains('spacer-row')) {
-					const prevRow = rows[i - 1];
-					const isPrevAlarmVisible =
-						prevRow &&
-						prevRow.classList.contains('alarm-row') &&
-						prevRow.style.display !== 'none';
+					let showSpacer = false;
 
-					if (!spacerShown && isPrevAlarmVisible) {
-						// Find next visible sibling table
-						let nextTable = table.nextElementSibling;
-						while (nextTable && (nextTable.tagName !== 'TABLE' || nextTable.style.display === 'none')) {
-							nextTable = nextTable.nextElementSibling;
+					// Look backward for visible alarm-row
+					let prevVisibleAlarm = false;
+					for (let j = i - 1; j >= 0; j--) {
+						const prevRow = rows[j];
+						if (prevRow.style.display === 'none') continue;
+						if (prevRow.classList.contains('alarm-row')) {
+							prevVisibleAlarm = true;
+							break;
 						}
-
-						if (nextTable && nextTable.tagName === 'TABLE' && nextTable.style.display !== 'none') {
-							row.style.display = '';
-							spacerShown = true;
-							continue;
+						if (prevRow.classList.contains('group') || prevRow.classList.contains('info-row')) {
+							break;
 						}
 					}
 
-					row.style.display = 'none';
+					// Look forward for visible info-row/group or table
+					let nextVisibleType = null;
+					for (let j = i + 1; j < rows.length; j++) {
+						const nextRow = rows[j];
+						if (nextRow.style.display === 'none') continue;
+						if (
+							nextRow.classList.contains('columns-row') ||
+							nextRow.classList.contains('spacer-row')
+						) continue;
+
+						if (
+							nextRow.classList.contains('group') ||
+							nextRow.classList.contains('info-row')
+						) {
+							nextVisibleType = 'block';
+						}
+						break;
+					}
+
+					// No info/group found; look for next visible table
+					if (!nextVisibleType) {
+						let nextTable = table.nextElementSibling;
+						while (nextTable) {
+							if (
+								nextTable.tagName === 'TABLE' &&
+								!nextTable.classList.contains('end-spacer') &&
+								nextTable.style.display !== 'none'
+							) {
+								nextVisibleType = 'table';
+								break;
+							}
+							nextTable = nextTable.nextElementSibling;
+						}
+					}
+
+					showSpacer = prevVisibleAlarm && !!nextVisibleType;
+					row.style.display = showSpacer ? '' : 'none';
 				}
 			}
 
-			// Hide table entirely if no alarms matched
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
 
-		// Scroll page to top after filter
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	filterInput.addEventListener('input', filterAlarms);
 	alarmSearchCheckbox.addEventListener('change', filterAlarms);
-	filterAlarms(); // Initial run
+	filterAlarms();
 	filterInput?.focus();
 
-	// Ctrl+F / Alt+F to focus input
 	document.addEventListener('keydown', (e) => {
 		if (
 			filterInput &&
