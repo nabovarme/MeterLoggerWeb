@@ -64,6 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
 			}
 			row.style.display = hasVisibleBefore ? '' : 'none';
 		});
+
+		// Scroll page to top smoothly after every search update
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	});
 
 	// Focus input on load
