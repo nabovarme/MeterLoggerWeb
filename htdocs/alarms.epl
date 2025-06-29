@@ -200,7 +200,7 @@
 
 	[$ endwhile $]
 
-	<tr><td colspan=6>&nbsp;</td></tr>
+	<tr class="spacer-row"><td colspan=6>&nbsp;</td></tr>
 </table>
 [$ endif $]
 [$ endwhile $]
