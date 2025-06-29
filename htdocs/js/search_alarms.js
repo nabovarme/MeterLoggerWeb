@@ -1,50 +1,60 @@
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmFilter');
 
-	function filterAlarms() {
-		const filter = filterInput.value.trim().toLowerCase();
-		const tables = document.querySelectorAll('body > table'); // all top-level alarm tables
-		let anyMatchFound = false;
+	filterInput.addEventListener('input', () => {
+		const filterText = filterInput.value.trim().toLowerCase();
+
+		// Get all tables (each group block is a separate table)
+		const tables = document.querySelectorAll('table');
 
 		tables.forEach(table => {
-			let anyVisible = false;
-
-			// Select all rows with the base class 'alarm-row'
 			const alarmRows = table.querySelectorAll('tr.alarm-row');
+			let anyAlarmVisibleInTable = false;
 
 			alarmRows.forEach(row => {
-				const text = row.textContent.toLowerCase();
-				if (!filter || text.includes(filter)) {
-					row.style.display = '';
-					anyVisible = true;
-					anyMatchFound = true;
-				} else {
-					row.style.display = 'none';
-				}
+				const textContent = row.textContent.toLowerCase();
+				const match = textContent.includes(filterText);
+				row.style.display = match ? '' : 'none';
+				if (match) anyAlarmVisibleInTable = true;
 			});
 
-			// Header and column row visibility
-			const groupHeaderRow = table.querySelector('tr td span.default-group')?.closest('tr');
-			const columnHeaderRows = [...table.querySelectorAll('tr')].filter(tr =>
-				tr.querySelector('td span.default-bold')
-			);
+			// Process each info-row (and its associated rows)
+			const infoRows = table.querySelectorAll('tr.info-row');
 
-			if (anyVisible) {
-				if (groupHeaderRow) groupHeaderRow.style.display = '';
-				columnHeaderRows.forEach(row => row.style.display = '');
-				table.style.display = '';
-			} else {
-				if (groupHeaderRow) groupHeaderRow.style.display = 'none';
-				columnHeaderRows.forEach(row => row.style.display = 'none');
-				table.style.display = 'none';
-			}
+			infoRows.forEach(infoRow => {
+				let columnsRow = infoRow.nextElementSibling;
+				if (!columnsRow || !columnsRow.classList.contains('columns-row')) return;
+
+				let currentRow = columnsRow.nextElementSibling;
+				let hasVisibleAlarm = false;
+				let lastAlarmRow = null;
+
+				// Traverse alarm rows after columnsRow
+				while (currentRow && 
+							!currentRow.classList.contains('info-row') && 
+							!currentRow.classList.contains('group')) {
+
+					if (currentRow.classList.contains('alarm-row')) {
+						if (currentRow.style.display !== 'none') {
+							hasVisibleAlarm = true;
+						}
+						lastAlarmRow = currentRow;
+					}
+
+					currentRow = currentRow.nextElementSibling;
+				}
+
+				// Possibly get spacer-row right after last alarm-row
+				let spacerRow = lastAlarmRow?.nextElementSibling;
+				if (spacerRow && spacerRow.classList.contains('spacer-row')) {
+					spacerRow.style.display = hasVisibleAlarm ? '' : 'none';
+				}
+
+				infoRow.style.display = hasVisibleAlarm ? '' : 'none';
+				columnsRow.style.display = hasVisibleAlarm ? '' : 'none';
+			});
+
+			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
-
-		// Scroll to top only if there's a match and a filter value
-		if (filter && anyMatchFound) {
-			window.scrollTo({ top: 0, behavior: 'smooth' });
-		}
-	}
-
-	filterInput.addEventListener('input', filterAlarms);
+	});
 });

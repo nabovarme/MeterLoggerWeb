@@ -146,22 +146,22 @@
 [$ if ($sth->rows) $]
 <!-- Display alarms for this group -->
 <table border="0" align="left" cellpadding="0" cellspacing="0">
-	<tr>
+	<tr class="group">
 		<td align="left" colspan=6><span class="default-group">[+ $d_groups->{group} +]</span></td>
 	</tr>
 
 	[$ while ($d = $sth->fetchrow_hashref) $]
 
 		[$ if (($last_serial ne $d->{serial}) and ($is_first == 0)) $]
-		<tr><td colspan="6">&nbsp;</td></tr>
+		<tr class="spacer-row"><td colspan="6">&nbsp;</td></tr>
 		[$ endif $]
 		[- $is_first = 0; -]
 
 		[$ if ($last_serial ne $d->{serial}) $]
-		<tr>
+		<tr class="info-row">
 			<td colspan=6><span class="default-serial"><a href="detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a> [+ $d->{info} +]</span></td>
 		</tr>
-		<tr>
+		<tr class="columns-row">
 			<td><span class="default-bold">ID</span></td>
 			<td><span class="default-bold">Alarm receiver</span></td>
 			<td><span class="default-bold">Condition</span></td>
