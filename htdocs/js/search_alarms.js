@@ -141,4 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Run once on page load to set initial visibility
 	filterAlarms();
+
+	// Focus input on load
+	filterInput?.focus();
+
+	// Ctrl+F or Alt+F focus shortcut
+	document.addEventListener('keydown', (e) => {
+		if (
+			filterInput &&
+			e.key.toLowerCase() === 'f' &&
+			(e.ctrlKey || e.altKey) &&
+			!e.metaKey
+		) {
+			e.preventDefault();
+			filterInput.focus();
+		}
+	});
 });
