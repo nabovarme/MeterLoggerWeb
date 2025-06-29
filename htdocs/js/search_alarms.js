@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const tables = document.querySelectorAll('table');
 
-		tables.forEach(table => {
+		tables.forEach((table) => {
 			// Skip tables with class 'end-spacer'
 			if (table.classList.contains('end-spacer')) return;
 
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			let insideMatchedBlock = false;
 			let alarmsVisibleInBlock = false;
 
-			// First pass: show/hide group, info, alarm and other rows
+			// First pass: hide/show group/info/alarm rows
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
 				const textContent = row.textContent.toLowerCase();
@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
 						insideMatchedBlock = match;
 						alarmsVisibleInBlock = false;
 					} else {
-						// Hide for now; fix later in second pass
 						row.style.display = 'none';
 						insideMatchedBlock = false;
 						alarmsVisibleInBlock = false;
@@ -64,14 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
 					continue;
 				}
 
-				// Other rows (e.g. spacer-row)
+				// Default row (non-group/info/alarm)
 				row.style.display = insideMatchedBlock || alarmsVisibleInBlock ? '' : 'none';
 			}
 
-			// Second pass for alarmSearch: fix group and info-row visibility based on alarms shown
+			// Second pass: fix group/info-row visibility for alarmSearch mode
 			if (alarmSearch) {
 				for (let i = 0; i < rows.length; i++) {
 					const row = rows[i];
+
 					if (row.classList.contains('group')) {
 						let j = i + 1;
 						let visibleAlarmFound = false;
@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
 							}
 							j++;
 						}
+
 						row.style.display = visibleAlarmFound ? '' : 'none';
 						if (columnsRow && columnsRow.classList.contains('columns-row')) {
 							columnsRow.style.display = visibleAlarmFound ? '' : 'none';
@@ -115,36 +116,50 @@ document.addEventListener('DOMContentLoaded', () => {
 				}
 			}
 
-			// Show/hide spacer-rows based on previous alarm-row visibility
+			// Show only one spacer-row if prev is visible alarm-row/alarm-red and next visible sibling is a visible table
+			let spacerShown = false;
 			for (let i = 0; i < rows.length; i++) {
 				const row = rows[i];
+
 				if (row.classList.contains('spacer-row')) {
 					const prevRow = rows[i - 1];
-					row.style.display =
-						prevRow && prevRow.classList.contains('alarm-row') && prevRow.style.display !== 'none'
-							? ''
-							: 'none';
+					const isPrevAlarmVisible =
+						prevRow &&
+						prevRow.classList.contains('alarm-row') &&
+						prevRow.style.display !== 'none';
+
+					if (!spacerShown && isPrevAlarmVisible) {
+						// Find next visible sibling table
+						let nextTable = table.nextElementSibling;
+						while (nextTable && (nextTable.tagName !== 'TABLE' || nextTable.style.display === 'none')) {
+							nextTable = nextTable.nextElementSibling;
+						}
+
+						if (nextTable && nextTable.tagName === 'TABLE' && nextTable.style.display !== 'none') {
+							row.style.display = '';
+							spacerShown = true;
+							continue;
+						}
+					}
+
+					row.style.display = 'none';
 				}
 			}
 
-			// Show/hide entire table
+			// Hide table entirely if no alarms matched
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
 
-		// Scroll page to top smoothly after every search/filter update
+		// Scroll page to top after filter
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	filterInput.addEventListener('input', filterAlarms);
 	alarmSearchCheckbox.addEventListener('change', filterAlarms);
-
-	// Run once on page load to set initial visibility
-	filterAlarms();
-
-	// Focus input on load
+	filterAlarms(); // Initial run
 	filterInput?.focus();
 
-	// Ctrl+F or Alt+F focus shortcut
+	// Ctrl+F / Alt+F to focus input
 	document.addEventListener('keydown', (e) => {
 		if (
 			filterInput &&
