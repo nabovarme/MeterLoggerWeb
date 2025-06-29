@@ -31,8 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 				// Traverse alarm rows after columnsRow
 				while (currentRow && 
-							!currentRow.classList.contains('info-row') && 
-							!currentRow.classList.contains('group')) {
+					!currentRow.classList.contains('info-row') && 
+					!currentRow.classList.contains('group')) {
 
 					if (currentRow.classList.contains('alarm-row')) {
 						if (currentRow.style.display !== 'none') {
@@ -56,5 +56,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			table.style.display = anyAlarmVisibleInTable ? '' : 'none';
 		});
+	});
+
+	// Focus search input on Ctrl+F or Alt+F
+	document.addEventListener('keydown', (e) => {
+		if (
+			filterInput &&
+			e.key.toLowerCase() === 'f' &&
+			(e.ctrlKey || e.altKey) &&
+			!e.metaKey
+		) {
+			e.preventDefault();
+			filterInput.focus();
+		}
 	});
 });
