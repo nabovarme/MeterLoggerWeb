@@ -4,7 +4,7 @@
 
 function setupchart(){
 console.log("ready");
-$.getJSON("https://meterlogger.net/network_data", {},
+$.getJSON("/network_data", {},
 function (flat) {
 
 var flatNodes = [
