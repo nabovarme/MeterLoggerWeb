@@ -214,7 +214,7 @@
 
 [$ if ($sth->rows) $]
 <table border="0" align="left" cellpadding="0" cellspacing="0">
-	<tr class="group>
+	<tr class="group">
 		<td align="left" colspan=6><span class="default-group">Orphans</span></td>
 	</tr>
 
