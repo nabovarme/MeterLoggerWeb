@@ -242,5 +242,5 @@
 [$ endif $]
 
 </BODY>
-	<script src="/js/search_alarms.js?" defer></script>	
+	<script src="/js/search_alarms.js" defer></script>	
 </HTML>
