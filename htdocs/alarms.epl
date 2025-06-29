@@ -243,6 +243,12 @@
 </table>
 [$ endif $]
 
+<!-- spacer table to make sure search does not overlap last alarm -->
+<table border="1">
+	<tr>
+		<td><div style="height: 100px;"></div></td>
+	</tr>
+</table>
 </BODY>
 	<script src="/js/search_alarms.js" defer></script>	
 </HTML>

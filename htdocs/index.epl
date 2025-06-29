@@ -210,6 +210,13 @@
 [$ endwhile $]
 [$ endif $]
 	</table>
+
+	<!-- spacer table to make sure search does not overlap last meter -->
+	<table border="1">
+		<tr>
+			<td><div style="height: 100px;"></div></td>
+		</tr>
+	</table>
 	</BODY>
 	<script src="/js/search.js" defer></script>	
 </HTML>
