@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmFilter');
 
+	// Filter function on input
 	filterInput.addEventListener('input', () => {
 		const filterText = filterInput.value.trim().toLowerCase();
 
@@ -30,17 +31,17 @@ document.addEventListener('DOMContentLoaded', () => {
 				let lastAlarmRow = null;
 
 				// Traverse alarm rows after columnsRow
-				while (currentRow && 
-					!currentRow.classList.contains('info-row') && 
-					!currentRow.classList.contains('group')) {
-
+				while (
+					currentRow &&
+					!currentRow.classList.contains('info-row') &&
+					!currentRow.classList.contains('group')
+				) {
 					if (currentRow.classList.contains('alarm-row')) {
 						if (currentRow.style.display !== 'none') {
 							hasVisibleAlarm = true;
 						}
 						lastAlarmRow = currentRow;
 					}
-
 					currentRow = currentRow.nextElementSibling;
 				}
 
@@ -58,7 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		});
 	});
 
-	// Focus search input on Ctrl+F or Alt+F
+	// Focus input on page load
+	filterInput.focus();
+
+	// Focus input on Ctrl+F or Alt+F
 	document.addEventListener('keydown', (e) => {
 		if (
 			filterInput &&
