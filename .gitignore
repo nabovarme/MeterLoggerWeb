@@ -3,4 +3,4 @@ db_data/*
 smstools_spool/
 mosquitto_data/
 **/.DS_Store
-certbot/etc/live/*
+certbot/*
