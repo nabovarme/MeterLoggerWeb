@@ -18,42 +18,42 @@
 
 	if ($dbh = Nabovarme::Db->my_connect) {
 		my $quoted_serial = $dbh->quote($fdat{'serial'});
-		$sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
-		$sth->execute;
+		$meter_info_sth = $dbh->prepare(qq[SELECT `info` FROM meters WHERE `serial` like $quoted_serial]);
+		$meter_info_sth->execute;
 
-		$sth2 = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
-		$sth2->execute;
+		$latest_sample_sth = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
+		$latest_sample_sth->execute;
 
 		# get kWh left
-		$sth3 = $dbh->prepare(qq[SELECT ROUND( \
+		$kwh_left_sth = $dbh->prepare(qq[SELECT ROUND( \
 			(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 			(SELECT \
 				(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 				(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
 			), 2) AS kwh_left]);
-		$sth3->execute;
+		$kwh_left_sth->execute;
 
 		# get list of payments
-		$sth4 = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, type, info, amount, price \
+		$payments_sth = $dbh->prepare(qq[SELECT DATE_FORMAT(FROM_UNIXTIME(payment_time), "%d.%m.%Y %T") AS date_string, type, info, amount, price \
 			FROM accounts WHERE serial = $quoted_serial ORDER BY payment_time ASC]);
-		$sth4->execute;
+		$payments_sth->execute;
 
 		# get last days energy usage
-		$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+		$energy_usage_sth = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial ORDER BY unix_time DESC LIMIT 1]);
-		$sth5->execute;
-		if ($sth5->rows) {
-			if ($d = $sth5->fetchrow_hashref) {
+		$energy_usage_sth->execute;
+		if ($energy_usage_sth->rows) {
+			if ($d = $energy_usage_sth->fetchrow_hashref) {
 				$energy_now = $d->{energy};
 				$time_now = $d->{unix_time};
 			}
 		}
-		$sth5 = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
+		$energy_usage_sth = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
 			WHERE `serial` = $quoted_serial \
 			AND (from_unixtime(unix_time) < (FROM_UNIXTIME($d->{unix_time}) - INTERVAL 24 HOUR)) ORDER BY unix_time DESC LIMIT 1]);
-		$sth5->execute;
-		if ($sth5->rows) {
-			if ($d = $sth5->fetchrow_hashref) {
+		$energy_usage_sth->execute;
+		if ($energy_usage_sth->rows) {
+			if ($d = $energy_usage_sth->fetchrow_hashref) {
 				$energy_last = $d->{energy};
 				$time_last = $d->{unix_time};
 			}
@@ -63,8 +63,8 @@
 		}
 	}
 
-	if ($sth->rows) {
-		if ($d = $sth->fetchrow_hashref) {
+	if ($meter_info_sth->rows) {
+		if ($d = $meter_info_sth->fetchrow_hashref) {
 			$info = $d->{info};
 		}
 	}
@@ -180,8 +180,8 @@
 		<span class="default">
 			serial [+ $fdat{'serial'} +]<br>
 			<div id="last_energy">
-			[$ if ($sth2->rows) $]
-				[$ if ($d = $sth2->fetchrow_hashref) $]
+			[$ if ($latest_sample_sth->rows) $]
+				[$ if ($d = $latest_sample_sth->fetchrow_hashref) $]
 					[+ $d->{energy} +] kWh<br>
 					[+ $d->{volume} +] m<sup>3</sup><br>
 					[+ $d->{hours} +] hours<br>
@@ -216,8 +216,8 @@
 				<td align="left"><span class="default-bold">Price</span></td>
 			</tr>
 		
-			[$ if ($sth4->rows) $]
-			[$ while ($d = $sth4->fetchrow_hashref) $]
+			[$ if ($payments_sth->rows) $]
+			[$ while ($d = $payments_sth->fetchrow_hashref) $]
 				<tr align="left" valign="bottom">
 					<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
 					<td>&nbsp;</td>
@@ -319,8 +319,8 @@
 					</form>
 				[$ endif $]
 			[$ endif $]
-				[$ if ($sth3->rows) $]
-					[$ if ($d = $sth3->fetchrow_hashref) $]
+				[$ if ($kwh_left_sth->rows) $]
+					[$ if ($d = $kwh_left_sth->fetchrow_hashref) $]
 						[-
 						if ($energy_last_day > 0) {
 							$energy_time_left_str = rounded_duration($d->{kwh_left} / $energy_last_day);
