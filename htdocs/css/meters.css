@@ -44,7 +44,7 @@ html, body {
 .meter-row {
 	display: grid;
 	grid-template-columns:
-		minmax(80px, 100px)         /* Serial */
+		minmax(100px, 150px)        /* Serial */
 		minmax(140px, 1fr)          /* Info receiver */
 		minmax(80px, 100px)         /* Energy */
 		minmax(80px, 100px)         /* Volume */
