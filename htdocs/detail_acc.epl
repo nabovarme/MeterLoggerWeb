@@ -318,7 +318,14 @@
 					</tr>
 				[$ if ($sth3->rows) $]
 					[$ if ($d = $sth3->fetchrow_hashref) $]
-						[- $energy_time_left_str = rounded_duration($d->{kwh_left} / $energy_last_day); -]
+						[-
+						if ($energy_last_day > 0) {
+							$energy_time_left_str = rounded_duration($d->{kwh_left} / $energy_last_day);
+						}
+						else {
+							$energy_time_left_str = '∞'; 
+						}
+						-]
 					  <tr align="left" valign="bottom">
 						<td>&nbsp;</td>
 						<td>&nbsp;</td>
