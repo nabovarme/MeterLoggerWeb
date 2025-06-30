@@ -12,7 +12,6 @@
 </head>
 <body>
 <script src="/js/alarms.js" defer></script>
-<script src="/js/search_alarms.js" defer></script>
 
 <!-- Floating Search UI -->
 <div id="alarmSearchContainer">
