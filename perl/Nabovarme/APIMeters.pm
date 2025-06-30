@@ -60,11 +60,13 @@ sub handler {
 				LEFT JOIN (
 					SELECT sc1.*
 					FROM samples_cache sc1
-					INNER JOIN (
-						SELECT serial, MAX(unix_time) AS max_time
-						FROM samples_cache
-						GROUP BY serial
-					) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+					WHERE sc1.id = (
+						SELECT sc2.id
+						FROM samples_cache sc2
+						WHERE sc2.serial = sc1.serial
+						ORDER BY sc2.unix_time DESC, sc2.id DESC
+						LIMIT 1
+					)
 				) latest_sc ON m.serial = latest_sc.serial
 				LEFT JOIN (
 					SELECT serial, SUM(amount / price) AS paid_kwh
@@ -72,9 +74,9 @@ sub handler {
 					GROUP BY serial
 				) paid_kwh_table ON m.serial = paid_kwh_table.serial
 				WHERE m.group = $group_id
-				AND m.type IN ('heat', 'heat_supply', 'heat_sub')
-				ORDER BY m.info
-			]);
+				  AND m.type IN ('heat', 'heat_supply', 'heat_sub')
+				ORDER BY m.info;
+				]);
 			$sth_meters->execute;
 
 			next unless $sth_meters->rows;
