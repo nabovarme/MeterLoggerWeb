@@ -55,10 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			columnsDiv.innerHTML = `
 				<div>Serial</div>
 				<div>Info</div>
-				<div>Energy <div class="meter-columns-small">kWh</div></div>
-				<div>Volume <div class="meter-columns-small">m<sup>3</sup></div></div>
+				<div style="white-space: nowrap;">Energy <div class="meter-columns-unit">kWh</div></div>
+				<div style="white-space: nowrap;">Volume <div class="meter-columns-unit">m<sup>3</sup></div></div>
 				<div>Hours</div>
-				<div>Left </div><div class="meter-columns-small">kWh</div></div>
+				<div style="white-space: nowrap;">Left <div class="meter-columns-unit">kWh</div></div>
 				<div>Time left</div>
 			`;
 			tableWrapper.appendChild(columnsDiv);
