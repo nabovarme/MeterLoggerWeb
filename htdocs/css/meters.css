@@ -1,0 +1,133 @@
+/* Global layout and defaults */
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	font-family: Verdana, Geneva, sans-serif;
+	overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Group header (e.g., site or area name) */
+.meter-group {
+	font-size: 120%;
+	font-weight: bold;
+	margin: 6px 6px 0;
+}
+
+.meter-group:not(:first-of-type) {
+	margin-top: 1.5em;
+}
+
+/* Info row shown above each set of meters per serial */
+.meter-info {
+	font-size: 1em;
+	font-weight: bold;
+	color: #333;
+	margin: 6px;
+}
+
+.meter-info:not(:first-of-type) {
+	margin-top: 1em;
+}
+
+/* Shared wrapper for meter table layout */
+.meter-table-wrapper {
+	width: 100%;
+	overflow-x: auto; /* Enables horizontal scroll */
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+/* Shared layout grid for headers and meter rows */
+.meter-columns,
+.meter-row {
+	display: grid;
+	grid-template-columns:
+		minmax(80px, 100px)         /* Serial */
+		minmax(140px, 1fr)          /* Info receiver */
+		minmax(80px, 100px)         /* Energy */
+		minmax(80px, 100px)         /* Volume */
+		minmax(80px, 100px)         /* Hours */
+		minmax(80px, 100px)         /* Left */
+		minmax(100px, 140px);       /* Time left */
+	gap: 6px;
+	padding: 6px;
+	width: 100%;
+	min-width: 600px;
+	box-sizing: border-box;
+	margin: 0;
+}
+
+.meter-columns {
+	font-weight: bold;
+	color: #333;
+}
+
+.meter-row {
+	background: #fff;
+}
+
+.meter-row:hover {
+	background: #f2f2f2;
+}
+
+/* Grayed-out styling for disabled meters */
+.meter-disabled {
+	color: #9c9c9c;
+}
+
+/* Prevent text from overflowing cells */
+.meter-row > div {
+	word-break: break-word;
+	overflow-wrap: break-word;
+}
+
+/* Condition text styling */
+.condition {
+	font-family: Consolas, monospace;
+	font-size: small;
+}
+
+.condition-disabled {
+	color: #9c9c9c;
+}
+
+.condition-error {
+	font-weight: bold;
+	color: #ff0000;
+}
+
+/* Floating search bar at the bottom */
+#meterSearchContainer {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: #f2f2f2;
+	padding: 10px;
+	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+/* Search input field */
+#meterSearchContainer input[type="search"] {
+	font-size: 1.2em;
+	padding: 10px;
+	width: 100%;
+	max-width: 400px;
+	box-sizing: border-box;
+}
+
+/* Label and checkbox for "Active meters" */
+#meterSearchContainer label {
+	user-select: none;
+	font-size: 1em;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
