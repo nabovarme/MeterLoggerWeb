@@ -72,11 +72,6 @@ html, body {
 	background: #f2f2f2;
 }
 
-/* Highlight active meters with red background */
-.meter-active {
-	background-color: #ffe0e0;
-}
-
 /* Grayed-out styling for disabled meters */
 .meter-disabled {
 	color: #9c9c9c;
