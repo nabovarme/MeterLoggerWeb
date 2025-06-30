@@ -1,30 +1,38 @@
+let allAlarmsData = []; // holds original API response
+
 async function fetchAndRenderAlarms() {
 	const container = document.getElementById('alarmContainer');
 	container.innerHTML = '';
 
 	const response = await fetch('/api/alarms');
 	const data = await response.json();
+	allAlarmsData = data; // store for filtering
+	renderAlarms(data);   // render everything initially
+}
+
+function renderAlarms(data) {
+	const container = document.getElementById('alarmContainer');
+	container.innerHTML = '';
 
 	data.forEach(group => {
-		// Render group name
+		// Group header
 		const groupDiv = document.createElement('div');
 		groupDiv.className = 'alarm-group';
 		groupDiv.textContent = group.group_name;
 		container.appendChild(groupDiv);
 
-		// Group alarms by serial in the order they appear
+		// Group by serial in order
 		const alarmsBySerial = {};
 		const serialOrder = [];
 
 		group.alarms.forEach(alarm => {
 			if (!alarmsBySerial[alarm.serial]) {
 				alarmsBySerial[alarm.serial] = [];
-				serialOrder.push(alarm.serial); // record first appearance order
+				serialOrder.push(alarm.serial);
 			}
 			alarmsBySerial[alarm.serial].push(alarm);
 		});
 
-		// Render serials in order
 		serialOrder.forEach(serial => {
 			const alarms = alarmsBySerial[serial];
 			const alarmInfo = alarms[0];
@@ -35,7 +43,7 @@ async function fetchAndRenderAlarms() {
 			infoDiv.innerHTML = `<a href="detail.epl?serial=${alarmInfo.serial}">${alarmInfo.serial}</a> ${alarmInfo.info || ''}`;
 			container.appendChild(infoDiv);
 
-			// Column headers
+			// Columns row
 			const columnsDiv = document.createElement('div');
 			columnsDiv.className = 'alarm-columns';
 			columnsDiv.innerHTML = `
@@ -48,7 +56,7 @@ async function fetchAndRenderAlarms() {
 			`;
 			container.appendChild(columnsDiv);
 
-			// Alarm rows (in order from JSON)
+			// Alarm rows
 			alarms.forEach(alarm => {
 				const rowDiv = document.createElement('div');
 				rowDiv.className = 'alarm-row';
@@ -74,4 +82,37 @@ async function fetchAndRenderAlarms() {
 	});
 }
 
-document.addEventListener('DOMContentLoaded', fetchAndRenderAlarms);
+function filterAndRenderAlarms() {
+	const searchText = document.getElementById('alarmFilter').value.toLowerCase();
+	const activeOnly = document.getElementById('alarmSearch').checked;
+
+	const filteredData = allAlarmsData.map(group => {
+		// Filter alarms in this group
+		const filteredAlarms = group.alarms.filter(alarm => {
+			const matchesSearch = searchText === '' || (
+				(alarm.serial || '').toLowerCase().includes(searchText) ||
+				(alarm.comment || '').toLowerCase().includes(searchText) ||
+				(alarm.condition || '').toLowerCase().includes(searchText) ||
+				(String(alarm.id) || '').includes(searchText)
+			);
+
+			const matchesActive = !activeOnly || (alarm.alarm_state > 0 && alarm.enabled > 0);
+
+			return matchesSearch && matchesActive;
+		});
+
+		return {
+			group_name: group.group_name,
+			alarms: filteredAlarms
+		};
+	}).filter(group => group.alarms.length > 0); // drop empty groups
+
+	renderAlarms(filteredData);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+	fetchAndRenderAlarms();
+
+	document.getElementById('alarmFilter').addEventListener('input', filterAndRenderAlarms);
+	document.getElementById('alarmSearch').addEventListener('change', filterAndRenderAlarms);
+});
