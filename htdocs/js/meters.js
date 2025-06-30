@@ -2,11 +2,11 @@ let allMetersData = []; // global, preserved
 
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('meterSearch');
-	const activeCheckbox = document.getElementById('disabledMeters');
+	const disabledCheckbox = document.getElementById('disabledMeters');
 	const container = document.getElementById('meterContainer');
 
 	// Helper: Check if meter is active
-	const isActiveMeter = meter => meter.meter_state > 0 && meter.enabled > 0;
+	const isActiveMeter = meter => meter.enabled > 0;
 
 	// Helper: Check if meter matches search text
 	const matchesSearch = (meter, searchText) => {
@@ -71,10 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
 			sortedMeters.forEach(meter => {
 				const rowDiv = document.createElement('div');
 				rowDiv.className = 'meter-row';
-				if (isActiveMeter(meter)) rowDiv.classList.add('meter-active');
+
+				if (!isActiveMeter(meter)) {
+					rowDiv.classList.add('meter-disabled');
+				}
+				if (meter.enabled === 0) {
+					rowDiv.classList.add('meter-disabled');
+				}
 
 				rowDiv.innerHTML = `
-					<div><a href="detail_acc.epl?serial=${encodeURIComponent(meter.serial || '')}" >${meter.serial || ''}</a></div>
+					<div><a href="detail_acc.epl?serial=${encodeURIComponent(meter.serial || '')}">${meter.serial || ''}</a></div>
 					<div>${meter.info || ''}</div>
 					<div>${meter.energy || ''}</div>
 					<div>${meter.volume || ''}</div>
@@ -92,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Filter meters and re-render
 	function filterMeters() {
 		const searchText = filterInput.value.toLowerCase();
-		const activeOnly = activeCheckbox.checked;
+		const disabledOnly = disabledCheckbox.checked;
 
 		const filteredData = allMetersData.map(group => {
 			const groupMatches = group.group_name.toLowerCase().includes(searchText);
@@ -100,10 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			let filteredMeters;
 
 			if (groupMatches) {
-				filteredMeters = group.meters.filter(meter => !activeOnly || isActiveMeter(meter));
+				filteredMeters = group.meters.filter(meter => !disabledOnly || isActiveMeter(meter));
 			} else {
 				filteredMeters = group.meters.filter(meter =>
-					matchesSearch(meter, searchText) && (!activeOnly || isActiveMeter(meter))
+					matchesSearch(meter, searchText) && (!disabledOnly || isActiveMeter(meter))
 				);
 			}
 
@@ -129,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		renderMeters(allMetersData);
 
 		filterInput.addEventListener('input', debounce(filterMeters));
-		activeCheckbox.addEventListener('change', filterMeters);
+		disabledCheckbox.addEventListener('change', filterMeters);
 
 		// Focus search input on page load
 		filterInput.focus();
