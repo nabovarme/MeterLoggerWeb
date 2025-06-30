@@ -101,6 +101,8 @@ sub handler {
 					$val = $time_left_hours_string;
 				} elsif ($key eq 'time_left_hours') {
 					$val = defined $time_left_hours ? $time_left_hours : '';
+				} elsif ($key =~ /^(energy|volume|kwh_left)$/) {
+					$val = defined $row->{$key} ? int($row->{$key}) : '';
 				} else {
 					$val = defined $row->{$key} ? $row->{$key} : '';
 				}
