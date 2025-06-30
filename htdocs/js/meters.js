@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				if (isActiveMeter(meter)) rowDiv.classList.add('meter-active');
 
 				rowDiv.innerHTML = `
-					<div>${meter.serial || ''}</div>
+					<div><a href="detail_acc.epl?serial=${encodeURIComponent(meter.serial || '')}" >${meter.serial || ''}</a></div>
 					<div>${meter.info || ''}</div>
 					<div>${meter.energy || ''}</div>
 					<div>${meter.volume || ''}</div>

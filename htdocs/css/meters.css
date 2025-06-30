@@ -44,12 +44,13 @@ html, body {
 .meter-row {
 	display: grid;
 	grid-template-columns:
-		minmax(40px, 60px)         /* ID */
-		minmax(100px, 180px)       /* Alarm receiver */
-		minmax(100px, 1fr)         /* Condition */
-		minmax(80px, 120px)        /* Repeating */
-		minmax(80px, 120px)        /* Snoozed */
-		minmax(100px, 1fr);        /* Comment */
+		minmax(80px, 100px)         /* Serial */
+		minmax(140px, 1fr)          /* Info receiver */
+		minmax(80px, 100px)         /* Energy */
+		minmax(80px, 100px)         /* Volume */
+		minmax(80px, 100px)         /* Hours */
+		minmax(80px, 100px)         /* Left */
+		minmax(100px, 140px);       /* Time left */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
