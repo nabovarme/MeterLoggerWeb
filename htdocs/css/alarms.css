@@ -1,0 +1,108 @@
+/* alarms.css */
+
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0px;
+	font-family: Verdana, Geneva, sans-serif;
+}
+
+.alarm-group {
+	font-size: 120%;
+	font-weight: bold;
+	margin: 6px 6px 0px;
+}
+
+.alarm-group:not(:first-of-type) {
+  margin-top: 1.5em;
+}
+
+.alarm-info {
+	font-size: 1em;
+	font-weight: bold;
+	color: #333;
+	margin: 6px 6px 6px;
+}
+
+.alarm-info:not(:first-of-type) {
+  margin-top: 1em;
+}
+
+.alarm-columns,
+.alarm-row {
+	display: grid;
+	grid-template-columns: 60px 180px 1fr 120px 120px 1fr;
+	gap: 6px;
+	padding: 6px;
+	width: 100%; /* Ensure rows fit screen width */
+	box-sizing: border-box;
+}
+
+.alarm-columns {
+	font-weight: bold;
+	color: #333;
+}
+
+.alarm-row {
+	background: #fff;
+}
+
+.alarm-active {
+	background-color: #ffe0e0;
+}
+
+.alarm-disabled {
+	color: #9c9c9c;
+}
+
+.alarm-row:hover {
+	background: #f2f2f2;
+}
+
+.condition {
+	font-family: Consolas, monospace;
+	font-size: small;
+}
+.condition-disabled {
+	font-family: Consolas, monospace;
+	color: #9c9c9c;
+}
+.condition-error {
+	font-family: Consolas, monospace;
+	font-weight: bold;
+	color: #ff0000;
+}
+
+/* Search bar container */
+#alarmSearchContainer {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: #f2f2f2;
+	padding: 10px;
+	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+/* Search input inside the search container */
+#alarmSearchContainer input[type="search"] {
+	font-size: 1.2em;
+	padding: 10px;
+	width: 100%;
+	max-width: 400px;
+	box-sizing: border-box;
+}
+
+/* Label in the search container */
+#alarmSearchContainer label {
+	user-select: none;
+	font-size: 1em;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}

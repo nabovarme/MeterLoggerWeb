@@ -15,7 +15,7 @@
 
 	<!-- style and js for burger menu -->
 	<script src="/js/menu.js" defer></script>	
-	<link rel="stylesheet" href="/menu.css">
+	<link rel="stylesheet" href="/css/menu.css">
 
 	<style type="text/css">
 	.top {
