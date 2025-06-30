@@ -1,220 +1,34 @@
-﻿<HTML>
-	<HEAD>
-	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!--	<meta http-equiv="refresh" content="60">	-->
-	<TITLE>MeterLogger</TITLE>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="robots" content="noindex" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Meterlogger meters overview</title>
 
-	<!-- style and js for burger menu -->
-	<link rel="stylesheet" href="/css/menu.css">
-	<script src="/js/menu.js" defer></script>	
-	
-	<script src="dygraphs/dygraph-dev.js"></script>
-	<style type="text/css">
-	.top {
-		position: absolute;
-		top: 0;
-		left: 0;
-	}
-	.default {
-		font-family: Verdana, Geneva, sans-serif;
-	}
-	.default-disabled {
-		font-family: Verdana, Geneva, sans-serif;
-		color: #9c9c9c;
-	}
-	.default-bold {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-	}
-	.default-group {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-		font-size: 120%;
-	}
-	
-	body {
-		margin: 0;
-		font-family: Arial, sans-serif;
-	}
-	</style>
+	<link rel="stylesheet" href="/css/menu.css" />
+	<script src="/js/menu.js" defer></script>
+	<link rel="stylesheet" href="/css/meters.css" />
+</head>
+<body>
+<script src="/js/meters.js" defer></script>
 
-	</HEAD>
-	<BODY>
-	[- 
-		$last_group = '';
-		$is_first = 1;
-
-		# get all meters
-		if ($dbh = Nabovarme::Db->my_connect) {
-			$sth = $dbh->prepare(qq[
-				SELECT
-					mg.`group` AS meter_group,
-					mg.`id` AS group_id,
-					m.serial AS serial,
-					m.info AS info,
-					m.enabled AS enabled,
-					latest_sc.energy AS energy,
-					latest_sc.volume AS volume,
-					latest_sc.hours AS hours,
-					
-					-- kWh left
-					ROUND(
-						IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
-						2
-					) AS kwh_left,
-					
-					-- Time left in hours
-					ROUND(
-						IF(latest_sc.effect > 0,
-							(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
-							NULL
-						),
-						2
-					) AS time_left_hours,
-					
-					latest_sc.unix_time AS last_sample_time
-					
-				FROM meters m
-				
-				-- Join meter group name
-				JOIN meter_groups mg ON m.`group` = mg.`id`
-				
-				-- Latest sample per serial
-				LEFT JOIN (
-					SELECT sc1.*
-					FROM samples_cache sc1
-					INNER JOIN (
-						SELECT serial, MAX(unix_time) AS max_time
-						FROM samples_cache
-						GROUP BY serial
-					) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
-				) latest_sc ON m.serial = latest_sc.serial
-				
-				-- Paid kWh per meter
-				LEFT JOIN (
-					SELECT serial, SUM(amount / price) AS paid_kwh
-					FROM accounts
-					GROUP BY serial
-				) paid_kwh_table ON m.serial = paid_kwh_table.serial
-				
-				WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
-				ORDER BY mg.`id`, m.info;
-			]);
-			$sth->execute;			
-			}
-	-]
-<!-- 🔍 Floating Search Input fixed at bottom -->
-<div style="
-	position: fixed;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	background: #f2f2f2;
-	padding: 10px;
-	box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-	z-index: 9999;
-">
-<input
-	type="search"
-	id="meterSearch"
-	placeholder="Search meters by serial or info..."
-	style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
-/>
+<!-- Floating Search UI -->
+<div id="meterSearchContainer">
+	<input
+		type="search"
+		id="meterSearch"
+		placeholder="Search meters..."
+		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+	/>
+	<label style="user-select:none; font-size: 1em; display: flex; align-items: center; gap: 5px;">
+		<input type="checkbox" id="disabledMeters" />
+		Disabled meters
+	</label>
 </div>
-	
-	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
-[$ if ($sth->rows) $]
-[$ while ($d = $sth->fetchrow_hashref) $]
-[$ if (($last_group ne $d->{'meter_group'}) and ($is_first == 0)) $]
-	<tr class="spacer-row">
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-		<td>&nbsp;</td>
-		<td></td>
-	</tr>
-[$ endif $]
-[- $is_first = 0; -]
-[$ if ($last_group ne $d->{'meter_group'}) $]
-	<tr class="group">
-		<td align="left" colspan=13><span class="default-group">[+ $d->{'meter_group'} +]</span></td>
-	</tr>
-	<tr class="columns-row" align="left" valign="bottom">
-		<td align="left"><span class="default-bold">Serial</span></td>
-		<td align="left"><span class="default-bold">Info</span></td>
-		<td align="right"><span class="default-bold">Energy</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="default-bold">Volume</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="default-bold">Hours</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="default-bold">left</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="default-bold">time left</span></td>
-		<td>&nbsp;</td>
-		<td align="left"><span class="default-bold"></span></td>
-	</tr>
-[$ endif $]
-[-
-	$time_left_hours = $d->{'time_left_hours'};
-	$time_left_str = '';
-	
-	if (abs($time_left_hours) > 0) {
-		if (abs($time_left_hours) > 24) {
-			if (abs(sprintf("%.0f", $time_left_hours / 24)) == 1) {
-				$time_left_str = sprintf("%.0f", $time_left_hours / 24) . " day";
-			}
-			else {
-				$time_left_str = sprintf("%.0f", $time_left_hours / 24) . " days";
-			}
-		}
-		else {
-			if (abs(sprintf("%.0f", $time_left_hours)) == 1) {
-				$time_left_str = sprintf("%.0f", $time_left_hours) . " hour";
-			}
-			else {
-				$time_left_str = sprintf("%.0f", $time_left_hours) . " hours";
-			}
-		}
-	}
-	else {
-		 $time_left_str = '∞';
-	}
--]
-	<tr class="meter-row" align="left" valign="bottom">
-		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"><a href="detail_acc.epl?serial=[+ $d->{'serial'} +]">[+ $d->{'serial'} +]</a></span></td>
-		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'info'} +]</span></td>
-		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'energy'} +] kWh</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'volume'} +] m<sup>3</sup></span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $d->{'hours'} +] h</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ sprintf("%.0f", $d->{'kwh_left'}) || "0" +] kWh</span></td>
-		<td>&nbsp;</td>
-		<td align="right"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]">[+ $time_left_str +]</span></td>
-		<td>&nbsp;</td>
-		<td align="left"><span class="[$ if ($d->{'enabled'}) $]default[$ else $]default-disabled[$ endif $]"></span>[+ ((time() - $d->{'last_sample_time'}) < 86400) ? "" : "!" +]</td>
-	</tr>
 
-[- $last_group = $d->{'meter_group'}; -]
-[$ endwhile $]
-[$ endif $]
-	<!-- spacer row to make sure search does not overlap last meter -->
-	<tr>
-		<td colspan="13"><div style="height: 100px;"></div></td>
-	</tr>
-	</table>
-
-	</BODY>
-	<script src="/js/search.js" defer></script>	
-</HTML>
+<!-- Dynamic meters content -->
+<div id="meterContainer"></div>
+<div style="height: 100px;"></div>
+</body>
+</html>
