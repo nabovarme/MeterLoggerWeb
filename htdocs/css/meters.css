@@ -45,11 +45,11 @@ html, body {
 	grid-template-columns:
 		minmax(100px, 120px)        /* Serial */
 		minmax(140px, 1fr)          /* Info receiver */
-		minmax(80px, 120px)         /* Energy */
-		minmax(80px, 120px)         /* Volume */
-		minmax(80px, 120px)         /* Hours */
-		minmax(80px, 120px)         /* Left */
-		minmax(80px, 120px);       /* Time left */
+		minmax(100px, 150px)         /* Energy */
+		minmax(100px, 150px)         /* Volume */
+		minmax(100px, 150px)         /* Hours */
+		minmax(100px, 150px)         /* Left */
+		minmax(100px, 150px);       /* Time left */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
