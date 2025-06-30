@@ -6,11 +6,11 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK);
 use DBI;
-use Time::Duration;
 use utf8;
 
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 sub handler {
 	my $r = shift;
@@ -132,34 +132,6 @@ sub escape_json {
 	$s =~ s/\r/\\r/g;
 	$s =~ s/\t/\\t/g;
 	return $s;
-}
-
-sub rounded_duration {
-	my $seconds = shift;
-	return '∞' unless defined $seconds;
-
-	my $is_negative = $seconds < 0;
-	$seconds = abs($seconds);
-
-	my $result;
-	if ($seconds >= 86400) {
-		my $days = int(($seconds + 43200) / 86400);
-		$result = $days == 1 ? "1 day" : "$days days";
-	}
-	elsif ($seconds >= 3600) {
-		my $hours = int(($seconds + 1800) / 3600);
-		$result = $hours == 1 ? "1 hour" : "$hours hours";
-	}
-	elsif ($seconds >= 60) {
-		my $minutes = int(($seconds + 30) / 60);
-		$result = $minutes == 1 ? "1 minute" : "$minutes minutes";
-	}
-	else {
-		my $secs = int($seconds + 0.5);
-		$result = $secs == 1 ? "1 second" : "$secs seconds";
-	}
-
-	return $is_negative ? "$result ago" : $result;
 }
 
 1;

@@ -4,9 +4,9 @@
 	use Time::Format qw( time_format );
 
 	use lib qw( /var/www/lib/perl );
-	#use lib qw( /opt/local/apache2/perl );
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
+	use Nabovarme::Utils;
 
 	$admin = new Nabovarme::Admin;
 	$is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
@@ -316,6 +316,16 @@
 								<input type="submit" name="add" value="Preview" style="width: 100px;">
 						</td>
 					</tr>
+				[$ if ($sth3->rows) $]
+					[$ if ($d = $sth3->fetchrow_hashref) $]
+						$energy_time_left_str = rounded_duration($d->{kwh_left} / $energy_last_day);
+					  <tr align="left" valign="bottom">
+						<td>&nbsp;</td>
+						<td>&nbsp;</td>
+						<td align="left" colspan="5"><span class="default-bold"><div id="kwh_left">[+ sprintf("%.0f", $d->{kwh_left}) || "0" +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h</div></span></td>
+					  </tr>
+					[$ endif $]
+				[$ endif $]
 					</form>
 					
 				[$ endif $]
