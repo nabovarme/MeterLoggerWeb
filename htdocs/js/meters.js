@@ -106,10 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
 			let filteredMeters;
 
 			if (groupMatches) {
-				filteredMeters = group.meters.filter(meter => !disabledOnly || isActiveMeter(meter));
+				filteredMeters = group.meters.filter(meter =>
+					(disabledOnly ? !isActiveMeter(meter) : true)
+				);
 			} else {
 				filteredMeters = group.meters.filter(meter =>
-					matchesSearch(meter, searchText) && (!disabledOnly || isActiveMeter(meter))
+					matchesSearch(meter, searchText) &&
+					(disabledOnly ? !isActiveMeter(meter) : true)
 				);
 			}
 
