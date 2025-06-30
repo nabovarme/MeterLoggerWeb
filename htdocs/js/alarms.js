@@ -69,10 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				infoDiv.innerHTML = `<a href="detail.epl?serial=${alarmInfo.serial}">${alarmInfo.serial}</a> ${alarmInfo.info || ''}`;
 				container.appendChild(infoDiv);
 
-				const tableWrapper = document.createElement('div');
-				tableWrapper.className = 'alarm-table-wrapper';
-
-				// Column headers
 				const columnsDiv = document.createElement('div');
 				columnsDiv.className = 'alarm-columns';
 				columnsDiv.innerHTML = `
@@ -83,9 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>Snoozed</div>
 					<div>Comment</div>
 				`;
-				tableWrapper.appendChild(columnsDiv);
+				container.appendChild(columnsDiv);
 
-				// Alarm rows
 				alarms.forEach(alarm => {
 					const rowDiv = document.createElement('div');
 					rowDiv.className = 'alarm-row';
@@ -105,10 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
 						<div>${alarm.comment || ''}</div>
 					`;
 
-					tableWrapper.appendChild(rowDiv);
+					container.appendChild(rowDiv);
 				});
-
-				container.appendChild(tableWrapper);
 			});
 		});
 	}
@@ -156,6 +149,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
+
+		// Focus search input on page load
+		filterInput.focus();
+
+		// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
+		document.addEventListener('keydown', (e) => {
+			if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'f') {
+				e.preventDefault();
+				filterInput.focus();
+			}
+		});
 	}
 
 	init();
