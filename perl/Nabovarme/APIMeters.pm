@@ -6,6 +6,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK);
 use DBI;
+use Time::Duration;
 use utf8;
 
 use lib qw( /etc/apache2/perl );
@@ -54,14 +55,7 @@ sub handler {
 							NULL
 						),
 						2
-					) AS time_left_hours,
-					IF(latest_sc.effect > 0,
-						ROUND(
-							(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
-							2
-						),
-						'∞'
-					) AS time_left_hours_string
+					) AS time_left_hours
 				FROM meters m
 				LEFT JOIN (
 					SELECT sc1.*
@@ -93,14 +87,28 @@ sub handler {
 			$r->print("\"meters\":[");
 
 			my $first_meter = 1;
-			while ($d = $sth_meters->fetchrow_hashref) {
+			while (my $d = $sth_meters->fetchrow_hashref) {
+				# Convert hours to seconds
+				my $time_left_hours = $d->{time_left_hours};
+				my $time_left_seconds = (defined $time_left_hours && $time_left_hours ne '') ? $time_left_hours * 3600 : undef;
+
+				# Human readable duration string or infinity sign
+				my $time_left_hours_string = defined $time_left_seconds ? rounded_duration($time_left_seconds) : '∞';
+
 				$r->print(",") unless $first_meter;
 				$first_meter = 0;
 
 				$r->print("{");
 				$r->print(join(",", map {
 					my $key = $_;
-					my $val = defined $d->{$key} ? $d->{$key} : '';
+					my $val;
+					if ($key eq 'time_left_hours_string') {
+						$val = $time_left_hours_string;
+					} elsif ($key eq 'time_left_hours') {
+						$val = defined $time_left_hours ? $time_left_hours : '';
+					} else {
+						$val = defined $d->{$key} ? $d->{$key} : '';
+					}
 					"\"$key\":\"" . escape_json($val) . "\""
 				} qw(serial info enabled energy volume hours kwh_left time_left_hours time_left_hours_string)));
 				$r->print("}");
@@ -124,6 +132,28 @@ sub escape_json {
 	$s =~ s/\r/\\r/g;
 	$s =~ s/\t/\\t/g;
 	return $s;
+}
+
+sub rounded_duration {
+	my $seconds = shift;
+	return '∞' unless defined $seconds;
+
+	if ($seconds >= 86400) {		  # 1 day = 86400 seconds
+		my $days = int(($seconds + 43200) / 86400);  # round nearest day
+		return $days == 1 ? "1 day" : "$days days";
+	}
+	elsif ($seconds >= 3600) {		# 1 hour = 3600 seconds
+		my $hours = int(($seconds + 1800) / 3600);   # round nearest hour
+		return $hours == 1 ? "1 hour" : "$hours hours";
+	}
+	elsif ($seconds >= 60) {		  # 1 minute = 60 seconds
+		my $minutes = int(($seconds + 30) / 60);	 # round nearest minute
+		return $minutes == 1 ? "1 minute" : "$minutes minutes";
+	}
+	else {
+		my $secs = int($seconds + 0.5);			   # round nearest second
+		return $secs == 1 ? "1 second" : "$secs seconds";
+	}
 }
 
 1;
