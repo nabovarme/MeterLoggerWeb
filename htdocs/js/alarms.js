@@ -69,6 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
 				infoDiv.innerHTML = `<a href="detail.epl?serial=${alarmInfo.serial}">${alarmInfo.serial}</a> ${alarmInfo.info || ''}`;
 				container.appendChild(infoDiv);
 
+				const tableWrapper = document.createElement('div');
+				tableWrapper.className = 'alarm-table-wrapper';
+
+				// Column headers
 				const columnsDiv = document.createElement('div');
 				columnsDiv.className = 'alarm-columns';
 				columnsDiv.innerHTML = `
@@ -79,8 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>Snoozed</div>
 					<div>Comment</div>
 				`;
-				container.appendChild(columnsDiv);
+				tableWrapper.appendChild(columnsDiv);
 
+				// Alarm rows
 				alarms.forEach(alarm => {
 					const rowDiv = document.createElement('div');
 					rowDiv.className = 'alarm-row';
@@ -100,8 +105,10 @@ document.addEventListener('DOMContentLoaded', () => {
 						<div>${alarm.comment || ''}</div>
 					`;
 
-					container.appendChild(rowDiv);
+					tableWrapper.appendChild(rowDiv);
 				});
+
+				container.appendChild(tableWrapper);
 			});
 		});
 	}

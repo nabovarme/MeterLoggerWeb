@@ -28,13 +28,27 @@ html, body {
   margin-top: 1em;
 }
 
+.alarm-table-wrapper {
+	width: 100%;
+	max-width: 900px;
+	margin: 0 auto;
+	box-sizing: border-box;
+}
+
+/* Apply same layout to both header and rows */
 .alarm-columns,
 .alarm-row {
 	display: grid;
-	grid-template-columns: 60px 180px 1fr 120px 120px 1fr;
+	grid-template-columns:
+		minmax(40px, 60px)
+		minmax(100px, 180px)
+		minmax(100px, 1fr)
+		minmax(80px, 120px)
+		minmax(80px, 120px)
+		minmax(100px, 1fr);
 	gap: 6px;
 	padding: 6px;
-	width: 100%; /* Ensure rows fit screen width */
+	width: 100%;
 	box-sizing: border-box;
 }
 
@@ -46,7 +60,6 @@ html, body {
 .alarm-row {
 	background: #fff;
 }
-
 .alarm-active {
 	background-color: #ffe0e0;
 }
