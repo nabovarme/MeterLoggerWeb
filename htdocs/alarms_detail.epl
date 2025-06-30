@@ -103,7 +103,7 @@
 	<title>Meterlogger alarm detail - [+ $d->{info} +] [+ $d->{serial} +]</title>
 
 	<!-- style and js for burger menu -->
-	<link rel="stylesheet" href="/menu.css">
+	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js" defer></script>	
 
 	<!-- Inline CSS for form layout and visuals -->

@@ -6,7 +6,7 @@
 	<TITLE>MeterLogger</TITLE>
 
 	<!-- style and js for burger menu -->
-	<link rel="stylesheet" href="/menu.css">
+	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js" defer></script>	
 	
 	<script src="dygraphs/dygraph-dev.js"></script>
