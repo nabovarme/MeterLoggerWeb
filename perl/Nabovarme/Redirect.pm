@@ -24,9 +24,9 @@ sub handler {
 		return Apache2::Const::OK;	# not handled here
 	}
 
-	# handle / -> /index.epl
+	# handle / -> /index.html
 	if ($r->uri =~ m|^/$|) {
-		$r->headers_out->set('Location' => "index.epl");
+		$r->headers_out->set('Location' => "index.html");
 		return Apache2::Const::REDIRECT;
 	}
 	
