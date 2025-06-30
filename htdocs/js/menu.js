@@ -2,13 +2,13 @@
 
 // List of menu items and separators for the floating menu
 const menuItems = [
-	{ text: "Meters", href: "/index.epl" },
+	{ text: "Meters", href: "/index.html" },
 	{ text: "Map", href: "/map" },
 	{ text: "Network", href: "/network" },
 	{ text: "Valve control", href: "/valve_control.epl" },
 	{ text: "User log", href: "/users.epl" },
 	{ text: "Payments pending", href: "/payments_pending.epl" },
-	{ text: "Alarms", href: "/alarms.epl" },
+	{ text: "Alarms", href: "/alarms.html" },
 	{ separator: true },
 	{ text: "Logout", href: "/logout" }
 ];
