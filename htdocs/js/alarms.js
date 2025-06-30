@@ -1,8 +1,8 @@
 let allAlarmsData = []; // global, preserved
 
 document.addEventListener('DOMContentLoaded', () => {
-	const filterInput = document.getElementById('alarmFilter');
-	const activeCheckbox = document.getElementById('alarmSearch');
+	const filterInput = document.getElementById('alarmSearch');
+	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
 
 	// Helper: Check if alarm is active
@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				infoDiv.innerHTML = `<a href="detail.epl?serial=${alarmInfo.serial}">${alarmInfo.serial}</a> ${alarmInfo.info || ''}`;
 				container.appendChild(infoDiv);
 
+				// Create wrapper for table
+				const tableWrapper = document.createElement('div');
+				tableWrapper.className = 'alarm-table-wrapper';
+
+				// Add columns
 				const columnsDiv = document.createElement('div');
 				columnsDiv.className = 'alarm-columns';
 				columnsDiv.innerHTML = `
@@ -79,8 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>Snoozed</div>
 					<div>Comment</div>
 				`;
-				container.appendChild(columnsDiv);
+				tableWrapper.appendChild(columnsDiv);
 
+				// Add each row
 				alarms.forEach(alarm => {
 					const rowDiv = document.createElement('div');
 					rowDiv.className = 'alarm-row';
@@ -100,8 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
 						<div>${alarm.comment || ''}</div>
 					`;
 
-					container.appendChild(rowDiv);
+					tableWrapper.appendChild(rowDiv);
 				});
+
+				container.appendChild(tableWrapper);
 			});
 		});
 	}
@@ -128,6 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		}).filter(group => group.alarms.length > 0);
 
 		renderAlarms(filteredData);
+
+		// Scroll container to top after rendering filtered alarms
+		container.scrollTop = 0;
 	}
 
 	// Debounce utility
@@ -146,6 +157,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
+
+		// Focus search input on page load
+		filterInput.focus();
+
+		// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
+		document.addEventListener('keydown', (e) => {
+			if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'f') {
+				e.preventDefault();
+				filterInput.focus();
+			}
+		});
 	}
 
 	init();
