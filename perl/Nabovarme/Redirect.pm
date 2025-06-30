@@ -23,13 +23,6 @@ sub handler {
 	if ($r->uri =~ m|^/.*\.epl|) {
 		return Apache2::Const::OK;	# not handled here
 	}
-
-	# handle /index.epl -> /index.html 
-	# DEBUG: can be removed when users are not using it anymore
-	if ($r->uri =~ m|^/index\.epl$|) {
-		$r->headers_out->set('Location' => "index.html");
-		return Apache2::Const::REDIRECT;
-	}
 	
 	# handle / -> /index.html
 	if ($r->uri =~ m|^/$|) {
