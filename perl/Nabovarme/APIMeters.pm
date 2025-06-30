@@ -54,7 +54,14 @@ sub handler {
 							NULL
 						),
 						2
-					) AS time_left_hours
+					) AS time_left_hours,
+					IF(latest_sc.effect > 0,
+						ROUND(
+							(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
+							2
+						),
+						'∞'
+					) AS time_left_hours_string
 				FROM meters m
 				LEFT JOIN (
 					SELECT sc1.*
@@ -95,7 +102,7 @@ sub handler {
 					my $key = $_;
 					my $val = defined $d->{$key} ? $d->{$key} : '';
 					"\"$key\":\"" . escape_json($val) . "\""
-				} qw(serial info enabled energy volume hours kwh_left time_left_hours)));
+				} qw(serial info enabled energy volume hours kwh_left time_left_hours time_left_hours_string)));
 				$r->print("}");
 			}
 
