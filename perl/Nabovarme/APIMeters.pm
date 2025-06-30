@@ -58,15 +58,13 @@ sub handler {
 					) AS time_left_hours
 				FROM meters m
 				LEFT JOIN (
-					SELECT sc1.*
-					FROM samples_cache sc1
-					WHERE sc1.id = (
-						SELECT sc2.id
-						FROM samples_cache sc2
-						WHERE sc2.serial = sc1.serial
-						ORDER BY sc2.unix_time DESC, sc2.id DESC
-						LIMIT 1
-					)
+					SELECT sc.serial, sc.energy, sc.volume, sc.hours, sc.effect
+					FROM samples_cache sc
+					JOIN (
+						SELECT serial, MAX(unix_time) AS max_time
+						FROM samples_cache
+						GROUP BY serial
+					) latest ON sc.serial = latest.serial AND sc.unix_time = latest.max_time
 				) latest_sc ON m.serial = latest_sc.serial
 				LEFT JOIN (
 					SELECT serial, SUM(amount / price) AS paid_kwh
