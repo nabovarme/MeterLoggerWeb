@@ -55,9 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
 			columnsDiv.innerHTML = `
 				<div>Serial</div>
 				<div>Info</div>
-				<div>Energy</div>
-				<div>Volume</div>
+				<div>Energy <div class="meter-columns-small">kWh</div></div>
+				<div>Volume <div class="meter-columns-small">m<sup>3</sup></div></div>
 				<div>Hours</div>
+				<div>Left </div><div class="meter-columns-small">kWh</div></div>
 				<div>Time left</div>
 			`;
 			tableWrapper.appendChild(columnsDiv);
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>${meter.energy || ''}</div>
 					<div>${meter.volume || ''}</div>
 					<div>${meter.hours || ''}</div>
+					<div>${meter.kwh_left || ''}</div>
 					<div>${meter.time_left_hours_string || ''}</div>
 				`;
 
