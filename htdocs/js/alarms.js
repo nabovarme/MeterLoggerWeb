@@ -128,6 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		}).filter(group => group.alarms.length > 0);
 
 		renderAlarms(filteredData);
+
+		// Scroll container to top after rendering filtered alarms
+		container.scrollTop = 0;
 	}
 
 	// Debounce utility
