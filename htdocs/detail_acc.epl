@@ -338,6 +338,15 @@
 							$energy_time_left_str = '∞'; 
 						}
 						-]
+			<tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+				<td>&nbsp;</td>
+			</tr>
 					  <tr align="left" valign="bottom">
 						<td>&nbsp;</td>
 						<td>&nbsp;</td>
