@@ -22,7 +22,6 @@ html, body {
 .meter-info {
 	font-size: 1em;
 	font-weight: bold;
-	color: #333;
 	margin: 6px;
 }
 
@@ -44,13 +43,13 @@ html, body {
 .meter-row {
 	display: grid;
 	grid-template-columns:
-		minmax(100px, 150px)        /* Serial */
+		minmax(100px, 120px)        /* Serial */
 		minmax(140px, 1fr)          /* Info receiver */
-		minmax(80px, 100px)         /* Energy */
-		minmax(80px, 100px)         /* Volume */
-		minmax(80px, 100px)         /* Hours */
-		minmax(80px, 100px)         /* Left */
-		minmax(100px, 140px);       /* Time left */
+		minmax(80px, 120px)         /* Energy */
+		minmax(80px, 120px)         /* Volume */
+		minmax(80px, 120px)         /* Hours */
+		minmax(80px, 120px)         /* Left */
+		minmax(80px, 120px);       /* Time left */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
@@ -61,7 +60,12 @@ html, body {
 
 .meter-columns {
 	font-weight: bold;
-	color: #333;
+}
+
+.meter-columns-unit {
+	font-size: small;
+	font-weight: normal;
+	display: inline;
 }
 
 .meter-row {
