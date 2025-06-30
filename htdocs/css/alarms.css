@@ -1,55 +1,59 @@
-/* alarms.css */
-
+/* Global layout and defaults */
 html, body {
 	height: 100%;
 	margin: 0;
-	padding: 0px;
+	padding: 0;
 	font-family: Verdana, Geneva, sans-serif;
+	overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
+/* Group header (e.g., site or area name) */
 .alarm-group {
 	font-size: 120%;
 	font-weight: bold;
-	margin: 6px 6px 0px;
+	margin: 6px 6px 0;
 }
 
 .alarm-group:not(:first-of-type) {
-  margin-top: 1.5em;
+	margin-top: 1.5em;
 }
 
+/* Info row shown above each set of alarms per serial */
 .alarm-info {
 	font-size: 1em;
 	font-weight: bold;
 	color: #333;
-	margin: 6px 6px 6px;
+	margin: 6px;
 }
 
 .alarm-info:not(:first-of-type) {
-  margin-top: 1em;
+	margin-top: 1em;
 }
 
+/* Shared wrapper for alarm table layout */
 .alarm-table-wrapper {
 	width: 100%;
-	max-width: 900px;
-	margin: 0 auto;
+	margin: 0;
+	padding: 0;
 	box-sizing: border-box;
 }
 
-/* Apply same layout to both header and rows */
+/* Shared layout grid for headers and alarm rows */
 .alarm-columns,
 .alarm-row {
 	display: grid;
 	grid-template-columns:
-		minmax(40px, 60px)
-		minmax(100px, 180px)
-		minmax(100px, 1fr)
-		minmax(80px, 120px)
-		minmax(80px, 120px)
-		minmax(100px, 1fr);
+		minmax(40px, 60px)         /* ID */
+		minmax(100px, 180px)       /* Alarm receiver */
+		minmax(100px, 1fr)         /* Condition */
+		minmax(80px, 120px)        /* Repeating */
+		minmax(80px, 120px)        /* Snoozed */
+		minmax(100px, 1fr);        /* Comment */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
 	box-sizing: border-box;
+	margin: 0;
 }
 
 .alarm-columns {
@@ -60,33 +64,43 @@ html, body {
 .alarm-row {
 	background: #fff;
 }
-.alarm-active {
-	background-color: #ffe0e0;
-}
-
-.alarm-disabled {
-	color: #9c9c9c;
-}
 
 .alarm-row:hover {
 	background: #f2f2f2;
 }
 
+/* Highlight active alarms with red background */
+.alarm-active {
+	background-color: #ffe0e0;
+}
+
+/* Grayed-out styling for disabled alarms */
+.alarm-disabled {
+	color: #9c9c9c;
+}
+
+/* Prevent text from overflowing cells */
+.alarm-row > div {
+	word-break: break-word;
+	overflow-wrap: break-word;
+}
+
+/* Condition text styling */
 .condition {
 	font-family: Consolas, monospace;
 	font-size: small;
 }
+
 .condition-disabled {
-	font-family: Consolas, monospace;
 	color: #9c9c9c;
 }
+
 .condition-error {
-	font-family: Consolas, monospace;
 	font-weight: bold;
 	color: #ff0000;
 }
 
-/* Search bar container */
+/* Floating search bar at the bottom */
 #alarmSearchContainer {
 	position: fixed;
 	bottom: 0;
@@ -102,7 +116,7 @@ html, body {
 	gap: 10px;
 }
 
-/* Search input inside the search container */
+/* Search input field */
 #alarmSearchContainer input[type="search"] {
 	font-size: 1.2em;
 	padding: 10px;
@@ -111,7 +125,7 @@ html, body {
 	box-sizing: border-box;
 }
 
-/* Label in the search container */
+/* Label and checkbox for "Active alarms" */
 #alarmSearchContainer label {
 	user-select: none;
 	font-size: 1em;
