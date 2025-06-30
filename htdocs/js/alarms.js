@@ -1,8 +1,8 @@
 let allAlarmsData = []; // global, preserved
 
 document.addEventListener('DOMContentLoaded', () => {
-	const filterInput = document.getElementById('alarmFilter');
-	const activeCheckbox = document.getElementById('alarmSearch');
+	const filterInput = document.getElementById('alarmSearch');
+	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
 
 	// Helper: Check if alarm is active
