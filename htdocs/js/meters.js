@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			columnsDiv.className = 'meter-columns';
 			columnsDiv.innerHTML = `
 				<div>Serial</div>
-				<div>Info receiver</div>
+				<div>Info</div>
 				<div>Energy</div>
 				<div>Volume</div>
 				<div>Hours</div>
