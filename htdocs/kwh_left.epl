@@ -46,29 +46,13 @@ if ($dbh = Nabovarme::Db->my_connect) {
 
 [$ if ($sth->rows) $]
 	[$ if ($d = $sth->fetchrow_hashref) $]
-		[-	use utf8;
-			if ($energy_last_day > 0) {
-				$energy_time_left = $d->{kwh_left} / $energy_last_day;
-				if ($energy_time_left > 24) {
-					if (sprintf("%.0f", $energy_time_left / 24) == 1) {
-						$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " day";
-					}
-					else {
-						$energy_time_left_str = sprintf("%.0f", $energy_time_left / 24) . " days";
-					}
-				}
-				else {
-					if (sprintf("%.0f", $energy_time_left) == 1) {
-						$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hour";
-					}
-					else {
-						$energy_time_left_str = sprintf("%.0f", $energy_time_left) . " hours";
-					}
-				}
-			}
-			else {
-				$energy_time_left_str = '∞';
-			}
+		[-
+		if ($energy_last_day > 0) {
+			$energy_time_left_str = rounded_duration(($d->{kwh_left} / $energy_last_day) * 3600);
+		}
+		else {
+			$energy_time_left_str = '∞'; 
+		}
 		-]
 		[+ sprintf("%.0f", $d->{kwh_left}) +] kWh left, [+ $energy_time_left_str || "0" +] at [+ sprintf("%.2f", $energy_last_day) +] kW/h
 	[$ endif $]
