@@ -90,8 +90,13 @@ sub handler {
 
 			# Convert time_left_hours to string and seconds as before
 			my $time_left_hours = $row->{time_left_hours};
-			my $time_left_seconds = (defined $time_left_hours && $time_left_hours ne '') ? $time_left_hours * 3600 : undef;
-			my $time_left_hours_string = defined $time_left_seconds ? rounded_duration($time_left_seconds) : '∞';
+			my $time_left_hours_string;
+			if ($time_left_hours) {
+				$time_left_hours_string = rounded_duration($time_left_hours * 3600);
+			}
+			else {
+				$time_left_hours_string = '∞';
+			}
 
 			$r->print("{");
 			$r->print(join(",", map {

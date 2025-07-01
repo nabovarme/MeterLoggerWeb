@@ -323,7 +323,7 @@
 					[$ if ($d = $kwh_left_sth->fetchrow_hashref) $]
 						[-
 						if ($energy_last_day > 0) {
-							$energy_time_left_str = rounded_duration($d->{kwh_left} / $energy_last_day);
+							$energy_time_left_str = rounded_duration(($d->{kwh_left} / $energy_last_day) * 3600);
 						}
 						else {
 							$energy_time_left_str = '∞'; 
