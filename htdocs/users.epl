@@ -94,10 +94,6 @@
 			placeholder="Search meters..."
 			style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
 		/>
-		<label style="user-select:none; font-size: 1em; display: flex; align-items: center; gap: 5px;">
-			<input type="checkbox" id="disabledMeters" />
-			Disabled meters
-		</label>
 	</div>
 	[- 
 	# get all meters
