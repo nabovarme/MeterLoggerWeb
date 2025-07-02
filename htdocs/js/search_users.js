@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 
 		updateRowColors();  // Update row colors after filtering
+
+		// Scroll to top after filtering
+		window.scrollTo(0, 0);
 	}
 
 	function updateRowColors() {
