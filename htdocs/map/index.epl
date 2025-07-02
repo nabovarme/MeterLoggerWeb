@@ -90,7 +90,7 @@
 		});
 		
 		L.control.zoom({
-			position: 'bottomleft'
+			position: 'topleft'
 		}).addTo(map);
 
 		// Creates a red marker with the coffee icon
@@ -226,7 +226,7 @@
 
 				//... adding data in searchLayer ...
 				var controlSearch = new L.Control.Search({
-					position:'topleft',		
+					position:'bottomleft',		
 					layer: g_all,
 					//sourceData,
 					propertyName: 'name',
