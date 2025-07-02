@@ -44,6 +44,14 @@
 			height: 100%;
 			width: 100%;
 		}
+
+		.leaflet-control-search .search-input {
+		  width: 200px !important; /* increase width as needed */
+		  box-sizing: border-box;
+		  margin: 4px 0 4px 4px; /* keep left margin so it doesn’t stick to edge */
+		  float: left; /* keep float for layout */
+		  padding: 0 20px 0 8px; /* keep padding */
+		}
 	</style>
 
 	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
