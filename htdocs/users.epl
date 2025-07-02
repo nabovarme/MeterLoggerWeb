@@ -124,9 +124,9 @@
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">SMS code</span></td>
 		<td>&nbsp;</td>
-		<td align="left"><span class="default-bold">Original uri</span></td>
-		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">Remote host</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Original uri</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">User agent</span></td>
 	</tr>
@@ -165,9 +165,9 @@
 		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{sms_code} +]</span></td>
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{orig_uri} +]</span></td>
-		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{remote_host} +]</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default">[+ $d->{orig_uri} +]</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-small">[+ $d->{user_agent} +]</span></td>
 	</tr>
