@@ -54,10 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
 			columnsDiv.className = 'meter-columns';
 			columnsDiv.innerHTML = `
 				<div>Serial</div>
-				<div>Info receiver</div>
-				<div>Energy</div>
-				<div>Volume</div>
+				<div>Info</div>
+				<div style="white-space: nowrap;">Energy <div class="meter-columns-unit">kWh</div></div>
+				<div style="white-space: nowrap;">Volume <div class="meter-columns-unit">m<sup>3</sup></div></div>
 				<div>Hours</div>
+				<div style="white-space: nowrap;">Left <div class="meter-columns-unit">kWh</div></div>
 				<div>Time left</div>
 			`;
 			tableWrapper.appendChild(columnsDiv);
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>${meter.energy || ''}</div>
 					<div>${meter.volume || ''}</div>
 					<div>${meter.hours || ''}</div>
+					<div>${meter.kwh_left || ''}</div>
 					<div>${meter.time_left_hours_string || ''}</div>
 				`;
 
