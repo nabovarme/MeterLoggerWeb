@@ -121,6 +121,7 @@ html, body {
 	font-size: 1.2em;
 	padding: 10px;
 	width: 100%;
+	max-width: 400px;
 	box-sizing: border-box;
 }
 
