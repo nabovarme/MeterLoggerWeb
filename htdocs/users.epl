@@ -39,6 +39,7 @@
 			font-weight: bold;
 			font-size: 120%;
 		}
+
 		tr:nth-child(even) {
 			background: #EEE
 		}
@@ -46,6 +47,10 @@
 			background: #FFF
 		}
 
+		.nowrap {
+		  white-space: nowrap;
+		}
+		
 		/* Floating search bar at the bottom */
 		#usersSearchContainer {
 			position: fixed;
@@ -150,7 +155,7 @@
 
 -]
 	<tr class="row" align="left" valign="top">
-		<td align="left"><span class="default">[+ $d->{t} +]</span></td>
+		<td align="left"><span class="default nowrap">[+ $d->{t} +]</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{phone} +]</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
