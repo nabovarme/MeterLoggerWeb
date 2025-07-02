@@ -110,6 +110,8 @@
     <!-- <span class="default-bold">Meters</span> -->
 	<table border="0" align="left" cellpadding="6" cellspacing="0" class="top">
 	<tr class="col-header" align="left" valign="top">
+		<td align="left"><span class="default-bold">Date</span></td>
+		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">Phone</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
 		<td align="left"><span class="default-bold">Name</span></td>
@@ -123,8 +125,6 @@
 		<td align="left"><span class="default-bold">Remote host</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">User agent</span></td>
-		<td>&nbsp;</td>
-		<td align="left"><span class="default-bold">Date</span></td>
 	</tr>
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
@@ -151,6 +151,8 @@
 
 -]
 	<tr class="row" align="left" valign="top">
+		<td align="left"><span class="default">[+ $d->{t} +]</span></td>
+		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{phone} +]</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
 		<td align="left"><span class="default">[+ $name_info +]</span></td>
@@ -164,8 +166,6 @@
 		<td align="left"><span class="default">[+ $d->{remote_host} +]</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-small">[+ $d->{user_agent} +]</span></td>
-		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{t} +]</span></td>
 	</tr>
 
 [$ endwhile $]
