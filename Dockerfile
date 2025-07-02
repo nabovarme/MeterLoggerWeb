@@ -90,7 +90,7 @@ RUN chown www-data:www-data /var/www/nabovarme/qr
 RUN a2enmod expires
 RUN a2enmod remoteip
 
-COPY htdocs /var/www/nabovarme
+COPY ./htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
 
 COPY ./perl /etc/apache2/perl
