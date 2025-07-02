@@ -1,19 +1,8 @@
 ﻿[-
 	use DBI;
-	use Net::MQTT::Simple "loppen.christiania.org";
-						
+
 	use lib qw( /var/www/lib/perl );
-	use lib qw( /opt/local/apache2/perl );
-	use Config;
 	use Nabovarme::Db;
-	
-#	my $mqtt;
-#	if ($Config{osname} =~ /darwin/) {
-#		$mqtt = Net::MQTT::Simple->new(q[10.8.0.84]);
-#	}
-#	else {
-#		$mqtt = Net::MQTT::Simple->new(q[127.0.0.1]);
-#	}
 
 	$dbh = Nabovarme::Db->my_connect || die $!;
 -]
