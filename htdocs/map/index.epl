@@ -56,9 +56,8 @@
 		}
 
 		.leaflet-control-search {
-//			bottom: 150px !important;
+			bottom: 150px !important;
 			top: auto !important;
-			transition: transform 0.3s ease;
 		}
 	</style>
 
@@ -265,50 +264,48 @@
 					},
 				});
 				map.addControl(controlSearch);
-				
-				// Wait until controlSearch is added and DOM elements created
-				setTimeout(() => {
-					const searchControl = document.querySelector('.leaflet-control-search');
-					if (!searchControl) return;
-
-					// Watch for .search-tip added dynamically
-					const childObserver = new MutationObserver((mutations, obs) => {
-						for (const mutation of mutations) {
-							for (const node of mutation.addedNodes) {
-								if (node.classList && node.classList.contains('search-tip')) {
-									attachDropdownObserver(node, searchControl);
-									obs.disconnect();
-									return;
+/*
+				map.on("overlayadd overlayremove", function (event) {
+					var layer = event.layer;
+					console.log(event);
+					if (layer === g_all) {
+						if (layer.notUserAction) {
+							layer.notUserAction = false;
+							return;
+						}
+						// Emulate addition / removal of all category LayerGroups when g_all is added / removed.
+						for (var i in g_meter_groups) {
+							if (g_meter_groups[i].name !== "All<br>&nbsp;") {
+								if (event.type === "overlayadd") {
+									g_meter_groups[i].group.addTo(map);
+								}
+								else {
+									map.removeLayer(g_meter_groups[i].group);
 								}
 							}
 						}
-					});
-
-					childObserver.observe(searchControl, { childList: true });
-
-					// In case dropdown already exists (e.g. user triggered search early)
-					const existingDropdown = searchControl.querySelector('.search-tooltip');
-					if (existingDropdown) {
-						attachDropdownObserver(existingDropdown, searchControl);
-						childObserver.disconnect();
+						c._update();
 					}
-
-					function attachDropdownObserver(dropdown, control) {
-						const observer = new MutationObserver(() => {
-							// Use offsetParent to check visibility (more reliable)
-							const isVisible = dropdown.offsetParent !== null;
-
-							if (isVisible) {
-								const dropdownHeight = dropdown.offsetHeight || 100;
-								control.style.transform = `translateY(-${dropdownHeight + 10}px)`;
-							} else {
-								control.style.transform = 'translateY(0)';
+					else {//if (layer && g_meter_groups[i].name in g_meter_groups) {
+						if (event.type === "overlayadd") {
+							for (var i in g_meter_groups) {		
+								var j = g_meter_groups[i].group;					
+								if (g_meter_groups[i].name !== "All<br>&nbsp;" && !j._map) {
+									// At least one category is not shown, do nothing.
+									return;
+								}
 							}
-						});
-
-						observer.observe(dropdown, { attributes: true, attributeFilter: ['style'] });
+										g_all.addTo(map);
+										c._update();
+						}
+						else if (event.type === "overlayremove" && g_all._map) {
+										g_all.notUserAction = true;
+										map.removeLayer(g_all);
+										c._update();
+						}
 					}
-				}, 500);
+				});
+*/
 	</script>
 
 	</BODY>
