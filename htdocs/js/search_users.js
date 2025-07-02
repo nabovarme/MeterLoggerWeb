@@ -18,6 +18,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
 			row.style.display = matchesSearch ? '' : 'none';
 		});
+
+		updateRowColors();  // Update row colors after filtering
+	}
+
+	function updateRowColors() {
+		// Get only visible rows
+		const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+
+		visibleRows.forEach((row, index) => {
+			if (index % 2 === 0) {
+				row.style.background = '#FFF';  // odd row (0-based)
+			} else {
+				row.style.background = '#EEE';  // even row (0-based)
+			}
+		});
 	}
 
 	// Focus input on load
