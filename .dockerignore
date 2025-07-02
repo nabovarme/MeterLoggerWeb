@@ -4,5 +4,5 @@ db_data/*
 sms_spool/
 mosquitto_data/
 **/.DS_Store
-certbot/*
+certbot/
 htdocs/cache/
