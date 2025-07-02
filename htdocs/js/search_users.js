@@ -2,8 +2,12 @@ document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('meterSearch');
 	const table = document.querySelector('table');
 	const rows = table.querySelectorAll('tr.row');
+	let debounceTimeout;
 
-	input.addEventListener('input', filterRows);
+	input.addEventListener('input', () => {
+		clearTimeout(debounceTimeout);
+		debounceTimeout = setTimeout(filterRows, 300); // 300ms delay
+	});
 
 	function filterRows() {
 		const query = input.value.toLowerCase();
@@ -12,11 +16,7 @@ document.addEventListener('DOMContentLoaded', function () {
 			const text = row.innerText.toLowerCase();
 			const matchesSearch = text.includes(query);
 
-			if (matchesSearch) {
-				row.style.display = '';
-			} else {
-				row.style.display = 'none';
-			}
+			row.style.display = matchesSearch ? '' : 'none';
 		});
 	}
 
