@@ -18,48 +18,98 @@
 	<script src="/js/menu.js" defer></script>	
 
 	<style type="text/css">
-	.top {
-		position: absolute;
-		top: 0;
-		left: 0;
-	}
-	.default {
-		font-family: Verdana, Geneva, sans-serif;
-		font-size: 80%
-	}
-	.default-bold {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-	}
-	.default-small {
-		font-family: Verdana, Geneva, sans-serif;
-		font-size: 60%;
-	}
-	.default-group {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-		font-size: 120%;
-	}
-	tr:nth-child(even) {
-		background: #EEE
-	}
-	tr:nth-child(odd) {
-		background: #FFF
-	}
+		.top {
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 80%
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		.default-small {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 60%;
+		}
+		.default-group {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 120%;
+		}
+		tr:nth-child(even) {
+			background: #EEE
+		}
+		tr:nth-child(odd) {
+			background: #FFF
+		}
+
+		/* Floating search bar at the bottom */
+		#usersSearchContainer {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			width: 100%;
+			background: #f2f2f2;
+			padding: 10px;
+			box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+			z-index: 9999;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+		}
+
+		/* Search input field */
+		#usersSearchContainer input[type="search"] {
+			font-size: 1.2em;
+			padding: 10px;
+			width: 100%;
+			max-width: 400px;
+			box-sizing: border-box;
+		}
+
+		/* Label and checkbox for "Active meters" */
+		#usersSearchContainer label {
+			user-select: none;
+			font-size: 1em;
+			display: flex;
+			align-items: center;
+			gap: 5px;
+		}
+
 	</style>
 	</HEAD>
 	<BODY>
-    [- 
+	<script src="/js/search_users.js" defer></script>
+
+	<!-- Floating Search UI -->
+	<div id="usersSearchContainer">
+		<input
+			type="search"
+			id="meterSearch"
+			placeholder="Search meters..."
+			style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+		/>
+		<label style="user-select:none; font-size: 1em; display: flex; align-items: center; gap: 5px;">
+			<input type="checkbox" id="disabledMeters" />
+			Disabled meters
+		</label>
+	</div>
+	[- 
 	# get all meters
-          if ($dbh = Nabovarme::Db->my_connect) {
+		if ($dbh = Nabovarme::Db->my_connect) {
 			$sth = $dbh->prepare(qq[SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent, from_unixtime(`unix_time`) AS t FROM sms_auth ORDER BY `unix_time` desc]);
 			$sth->execute;			
-		  }
+		}
 
-          -]
+	-]
     <!-- <span class="default-bold">Meters</span> -->
 	<table border="0" align="left" cellpadding="6" cellspacing="0" class="top">
-	<tr align="left" valign="top">
+	<tr class="col-header" align="left" valign="top">
 		<td align="left"><span class="default-bold">Phone</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
 		<td align="left"><span class="default-bold">Name</span></td>
@@ -100,7 +150,7 @@
 	}
 
 -]
-	<tr align="left" valign="top">
+	<tr class="row" align="left" valign="top">
 		<td align="left"><span class="default">[+ $d->{phone} +]</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
 		<td align="left"><span class="default">[+ $name_info +]</span></td>
