@@ -50,6 +50,8 @@ services:
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
+      - ./htdocs:/var/www/nabovarme
+      - ./perl:/etc/apache2/perl
     restart: always
     environment:
       METERLOGGER_DB_HOST: db:3306
@@ -205,8 +207,6 @@ services:
       - ./openresty/lua/rate_limit.lua:/usr/local/openresty/lualib/rate_limit.lua:ro
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
-      - ./htdocs:/var/www/nabovarme
-      - ./perl:/etc/apache2/perl
     restart: always
     environment:
       TZ: Europe/Copenhagen
