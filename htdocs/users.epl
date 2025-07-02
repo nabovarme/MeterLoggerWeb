@@ -2,7 +2,6 @@
 	use DBI;
 	          
 	use lib qw( /var/www/lib/perl );
-	use Config;
 	use Nabovarme::Db;
 	
 -]
