@@ -18,15 +18,6 @@
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
-		#footer {
-				position: fixed;
-				height: 0px;	// change this to enable footer
-				margin-top: 0;
-				bottom: 0;
-				right: 0;
-				left: 0;
-				background: white;
-		}
 		body > div.container {
 				position: fixed;
 				top: 0;
@@ -40,10 +31,49 @@
 			margin-left: 0;
 			margin-right: 0;
 		}
+
 		#map {
-			height: 100%;
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 58px;
+			height: auto;
 			width: 100%;
 		}
+
+		#search-container {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			width: 100%;
+			background: #f2f2f2;
+			padding: 10px;
+			box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+			z-index: 9999;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+			height: 58px;
+		}
+		
+		/* Style the search input */
+		.leaflet-control-search {
+			width: 100% !important;
+			max-width: none !important;
+		}
+
+		.leaflet-control-search input {
+			width: 100% !important;
+			font-size: 16px;
+			padding: 5px 0px;
+		}
+		
+//		.leaflet-control-search .search-button {
+//			display: none !important;
+//		}
+
 	</style>
 
 	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
@@ -79,8 +109,8 @@
 	<BODY>
 
 <div class="container">
-		<div id="map"></div>
-	<div id="footer"></div>
+	<div id="map"></div>
+	<div id="search-container"></div>
 </div>
 	
 	<script>
@@ -209,6 +239,12 @@
 					.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
 				);
 				
+				map.invalidateSize();
+
+				window.addEventListener('resize', function() {
+					map.invalidateSize();
+				});
+				
 //				var overlay_maps = {
 //					"All<br>&nbsp;": g_all,
 //						"Heating meters": g_heat,
@@ -224,31 +260,44 @@
 //				}
 //				var c = L.control.layers(null, overlay_maps).addTo(map);
 
-				//... adding data in searchLayer ...
-				var controlSearch = new L.Control.Search({
-					position:'bottomleft',		
-					layer: g_all,
-					//sourceData,
-					propertyName: 'name',
-					initial: false,
-					zoom: 19,
-					opacity: 1,
-					textErr: 'Not found',
-					hideMarkerOnCollapse: true,
-					marker: {
-						animate: true,
-						icon: false,
-						circle: {
-							stroke: false,
-							fill: true,
-							fillOpacity: 0.6,
-							radius: 30,
-							weight: 0,
-							color: '#d13b2f'
-						}
-					},
-				});
-				map.addControl(controlSearch);
+// Create search control but DO NOT add it via map.addControl()
+var controlSearch = new L.Control.Search({
+	layer: g_all,
+	propertyName: 'name',
+	initial: false,
+	zoom: 19,
+	opacity: 1,
+	textErr: 'Not found',
+	hideMarkerOnCollapse: true,
+	marker: {
+		animate: true,
+		icon: false,
+		circle: {
+			stroke: false,
+			fill: true,
+			fillOpacity: 0.6,
+			radius: 30,
+			weight: 0,
+			color: '#d13b2f'
+		}
+	}
+});
+
+// Manually create the control's UI container by calling the original onAdd method
+var searchControlContainer = controlSearch.onAdd(map);
+
+// Append the control's container inside your fixed bottom container
+document.getElementById('search-container').appendChild(searchControlContainer);
+
+// Bind the map to the control (required internally)
+controlSearch._map = map;
+
+// Optionally bind event on search found to open popup
+controlSearch.on('search:locationfound', function(e) {
+	e.layer.openPopup();
+});
+
+// Do NOT add control to map controls (skip map.addControl)
 /*
 				map.on("overlayadd overlayremove", function (event) {
 					var layer = event.layer;
