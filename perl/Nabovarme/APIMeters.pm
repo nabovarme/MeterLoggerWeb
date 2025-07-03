@@ -2,11 +2,12 @@ package Nabovarme::APIMeters;
 
 use strict;
 use warnings;
+use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK);
 use DBI;
-use utf8;
+use JSON::XS;
 
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
@@ -65,75 +66,54 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		$r->print("[");
+		my @groups;
 		my $current_group_id;
-		my $first_group = 1;
-		my $first_meter;
+		my $current_group;
 
 		while (my $row = $sth->fetchrow_hashref) {
-			# Start new group JSON object when group_id changes
+			# Start new group when group_id changes
 			if (!defined $current_group_id || $current_group_id != $row->{group_id}) {
-				$r->print("]}")
-					if defined $current_group_id; # close previous group array and object
-
-				$r->print(",") unless $first_group;
-				$first_group = 0;
 				$current_group_id = $row->{group_id};
-				$r->print("{");
-				$r->print("\"group_name\":\"" . escape_json($row->{meter_group}) . "\",");
-				$r->print("\"meters\":[");
-				$first_meter = 1;
+				$current_group = {
+					group_name => $row->{meter_group},
+					meters    => [],
+				};
+				push @groups, $current_group;
 			}
-
-			$r->print(",") unless $first_meter;
-			$first_meter = 0;
 
 			# Convert time_left_hours to string and seconds as before
 			my $time_left_hours = $row->{time_left_hours};
 			my $time_left_hours_string;
 			if ($time_left_hours) {
 				$time_left_hours_string = rounded_duration($time_left_hours * 3600);
-			}
-			else {
+			} else {
 				$time_left_hours_string = '∞';
 			}
 
-			$r->print("{");
-			$r->print(join(",", map {
-				my $key = $_;
-				my $val;
-				if ($key eq 'time_left_hours_string') {
-					$val = $time_left_hours_string;
-				} elsif ($key eq 'time_left_hours') {
-					$val = defined $time_left_hours ? $time_left_hours : '';
-				} elsif ($key =~ /^(energy|volume|kwh_left)$/) {
-					$val = defined $row->{$key} ? int($row->{$key}) : '';
-				} else {
-					$val = defined $row->{$key} ? $row->{$key} : '';
-				}
-				"\"$key\":\"" . escape_json($val) . "\""
-			} qw(serial info enabled energy volume hours kwh_left time_left_hours time_left_hours_string)));
-			$r->print("}");
+			# Add meter data hashref
+			push @{ $current_group->{meters} }, {
+				serial                 => $row->{serial} // '',
+				info                   => $row->{info} // '',
+				enabled                => $row->{enabled} // '',
+				energy                 => defined $row->{energy} ? int($row->{energy}) : '',
+				volume                 => defined $row->{volume} ? int($row->{volume}) : '',
+				hours                  => $row->{hours} // '',
+				kwh_left               => defined $row->{kwh_left} ? int($row->{kwh_left}) : '',
+				time_left_hours        => defined $time_left_hours ? $time_left_hours : '',
+				time_left_hours_string => $time_left_hours_string,
+			};
 		}
 
-		# Close last group's meters array and group object
-		$r->print("]}") if defined $current_group_id;
+		# Encode final data structure to JSON using JSON module with utf8 encoding
+		my $json_obj = JSON->new->utf8->canonical;
+		my $json_text = $json_obj->encode(\@groups);
 
-		$r->print("]");
+		$r->print($json_text);
+
 		$dbh->disconnect;
 	}
 
 	return Apache2::Const::OK;
-}
-
-sub escape_json {
-	my $s = shift;
-	$s =~ s/\\/\\\\/g;
-	$s =~ s/"/\\"/g;
-	$s =~ s/\n/\\n/g;
-	$s =~ s/\r/\\r/g;
-	$s =~ s/\t/\\t/g;
-	return $s;
 }
 
 1;
