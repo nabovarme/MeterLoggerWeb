@@ -25,9 +25,7 @@ sub handler {
 			SELECT
 				mg.`group` AS meter_group,
 				mg.`id` AS group_id,
-				m.serial,
-				m.info,
-				m.enabled,
+				m.*,
 				latest_sc.energy,
 				latest_sc.volume,
 				latest_sc.hours,
@@ -105,7 +103,7 @@ sub handler {
 		}
 
 		# Encode final data structure to JSON using JSON module with utf8 encoding
-		my $json_obj = JSON->new->utf8->canonical;
+		my $json_obj = JSON::XS->new->utf8->canonical;
 		my $json_text = $json_obj->encode(\@groups);
 
 		$r->print($json_text);
