@@ -1,11 +1,14 @@
 package Nabovarme::SMSAuth;
 
+1;
+
+__END__
 use strict;
 use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::SubRequest ();
-use Apache2::Const -compile => qw(OK REDIRECT HTTP_SERVICE_UNAVAILABLE);
+use Apache2::Const;
 use CGI::Cookie ();
 use CGI;
 use Math::Random::Secure qw(rand);
@@ -47,23 +50,18 @@ sub handler {
 	}
 	
 	my ($dbh, $sth, $d);
-	if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh = Nabovarme::Db->my_connect || die $!;
 
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
-		if ($passed_cookie) {
-			# first handle special url's
-			if (index($r->uri, $logout_path) >= 0) {
-				# user wants to logout
-				return logout_handler($r);
-			}
-		}	
+	if ($passed_cookie) {
+		# first handle special url's
+		if (index($r->uri, $logout_path) >= 0) {
+			# user wants to logout
+			return logout_handler($r);
+		}
+	}	
 
-		return login_handler($r);
-	}
-
-	$r->err_headers_out->set('Retry-After' => '60');
-
-	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
+	return login_handler($r);
 }
 
 sub login_handler {
@@ -245,32 +243,30 @@ sub logout_handler {
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 
 	my ($dbh, $sth, $d);
-	if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh = Nabovarme::Db->my_connect || die $!;
 
-		# remove cookie
-		
-		my $passed_cookie = $r->headers_in->{Cookie} || '';
-		my $passed_cookie_token;
-		if ($passed_cookie) {
-			($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
-		}
-		my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
-										-value => $passed_cookie_token,
-										-expires => '-1y');
-		
-		my $quoted_cookie_token = $dbh->quote($passed_cookie_token);
-		$dbh->do(qq[DELETE FROM sms_auth WHERE cookie_token = $quoted_cookie_token]) or warn $!;
-		
-		$r->err_headers_out->add('Set-Cookie' => $cookie);
-		
-		# redirect to logged out page
-		$r->internal_redirect($logged_out_path);
-		return Apache2::Const::OK;
+	# remove cookie
+	
+	my $passed_cookie = $r->headers_in->{Cookie} || '';
+	my $passed_cookie_token;
+	if ($passed_cookie) {
+		($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
 	}
-
-	$r->err_headers_out->set('Retry-After' => '60');
-
-	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
+	my $cookie = CGI::Cookie->new(	-name  => 'auth_token',
+									-value => $passed_cookie_token,
+									-expires => '-1y');
+#	warn Dumper $cookie;
+	
+	my $quoted_cookie_token = $dbh->quote($passed_cookie_token);
+	$dbh->do(qq[DELETE FROM sms_auth WHERE cookie_token = $quoted_cookie_token]) or warn $!;
+	
+	$r->err_headers_out->add('Set-Cookie' => $cookie);
+	
+	# redirect to logged out page
+	$r->internal_redirect($logged_out_path);
+	return Apache2::Const::OK;
+#	$r->err_headers_out->add('Location' => $logged_out_path);
+#	return Apache2::Const::REDIRECT;
 }
 
 sub sms_send {
