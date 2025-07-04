@@ -5,7 +5,7 @@ use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::SubRequest ();
-use Apache2::Const -compile => qw(OK REDIRECT HTTP_SERVICE_UNAVAILABLE);
+use Apache2::Const -compile => qw(OK REDIRECT HTTP_NOT_FOUND HTTP_SERVICE_UNAVAILABLE);
 use CGI::Cookie ();
 use CGI;
 use Math::Random::Secure qw(rand);
@@ -48,8 +48,7 @@ sub handler {
 	
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
-
-	my $passed_cookie = $r->headers_in->{Cookie} || '';
+		my $passed_cookie = $r->headers_in->{Cookie} || '';
 		if ($passed_cookie) {
 			# first handle special url's
 			if (index($r->uri, $logout_path) >= 0) {
