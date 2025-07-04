@@ -1,6 +1,6 @@
-:<HTML>
+<HTML>
 	<HEAD>
-	<TITLE>Error</TITLE>
+	<TITLE>Internal Server Error</TITLE>
 	<style type="text/css">
 	.top {
 		position: absolute;
@@ -22,11 +22,11 @@
 	</style>
 	</HEAD>
 	<BODY>
-[- $errors = $req_rec -> prev -> pnotes('EMBPERL_ERRORS'); -]
+[- $errors = $req_rec->prev->pnotes('EMBPERL_ERRORS'); -]
 [$ if @$errors $]
-	<span class="default-bold">The following errors had occured:<br></span>
+	<span class="default-bold">Internal Server Error<br></span>
 	[$ foreach $err (@$errors) $]
-		<span class="default">[+ $err +]<br> </span>
+		<span class="default">[+ $err +]<br></span>
 	[$ endforeach $]
 [$ endif $]
 	</BODY>
