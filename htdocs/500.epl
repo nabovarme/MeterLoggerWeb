@@ -1,0 +1,33 @@
+<HTML>
+	<HEAD>
+	<TITLE>Internal Server Error</TITLE>
+	<style type="text/css">
+	.top {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-group {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	</style>
+	</HEAD>
+	<BODY>
+[- $errors = $req_rec->prev->pnotes('EMBPERL_ERRORS'); -]
+[$ if @$errors $]
+	<span class="default-bold">Internal Server Error<br></span>
+	[$ foreach $err (@$errors) $]
+		<span class="default">[+ $err +]<br></span>
+	[$ endforeach $]
+[$ endif $]
+	</BODY>
+</HTML>

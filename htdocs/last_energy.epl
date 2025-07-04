@@ -1,10 +1,7 @@
 ﻿
 
 [- 
-use DBI;
-
 use lib qw( /var/www/lib/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 if ($dbh = Nabovarme::Db->my_connect) {
