@@ -1,10 +1,8 @@
 ﻿<HTML>
 [- 
-use DBI;
 use Time::Format qw( time_format );
 
 use lib qw( /var/www/lib/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 $is_authorized = 0;

@@ -1,6 +1,5 @@
  [- 
 	# Load required Perl modules
-	use DBI;
 	use Config;
 	use Time::Duration;
 

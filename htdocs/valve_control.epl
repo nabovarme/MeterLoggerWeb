@@ -1,7 +1,5 @@
 ﻿[-
 	use utf8;
-	use DBI;
-	use Config;
 
 	use lib qw( /var/www/lib/perl );
 	use Nabovarme::Db;
@@ -17,7 +15,7 @@
 	<TITLE>MeterLogger Valve control</TITLE>
 
 	<!-- style and js for burger menu -->
-	<link rel="stylesheet" href="/menu.css">
+	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js" defer></script>	
 	
 	<style type="text/css">
