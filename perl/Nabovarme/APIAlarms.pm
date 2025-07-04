@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK NOT_FOUND);
+use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use DBI;
 use utf8;
 
@@ -16,8 +16,11 @@ sub handler {
 	my ($dbh, $sth, $d);
 	
 	if ($dbh = Nabovarme::Db->my_connect) {
-		# Prepare to output JSON
 		$r->content_type("application/json; charset=utf-8");
+		# Cache for 60 seconds
+		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
+		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+		
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 		
 		$r->print("[");
@@ -110,7 +113,9 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	return Apache2::Const::NOT_FOUND;
+	$r->err_headers_out->set('Retry-After' => '60');
+
+	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
 sub prepare_alarm_data {

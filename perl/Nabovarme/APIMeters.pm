@@ -5,8 +5,8 @@ use warnings;
 use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK);
-use DBI;
+use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
+use HTTP::Date;
 use JSON::XS;
 
 use lib qw( /etc/apache2/perl );
@@ -19,6 +19,10 @@ sub handler {
 
 	if ($dbh = Nabovarme::Db->my_connect) {
 		$r->content_type("application/json; charset=utf-8");
+		# Cache for 60 seconds
+		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
+		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+		
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 		my $sql = q[
@@ -126,10 +130,12 @@ sub handler {
 
 		$r->print($json_text);
 
-		$dbh->disconnect;
+		return Apache2::Const::OK;
 	}
 
-	return Apache2::Const::OK;
+	$r->err_headers_out->set('Retry-After' => '60');
+
+	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
 1;
