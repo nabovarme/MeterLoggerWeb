@@ -1,0 +1,72 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="robots" content="noindex" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MeterLogger payments pending</title>
+
+<!-- style and js for burger menu -->
+<script src="/js/menu.js" defer></script>	
+<link rel="stylesheet" href="/css/menu.css">
+<link rel="stylesheet" href="/css/payments_pending.css">
+</head>
+<body>
+
+<table border="0" align="left" cellpadding="6" cellspacing="0" class="top" id="payments-table">
+	<thead>
+	<tr align="left" valign="top">
+		<th align="left"><span class="default-bold">Serial</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Info</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Open Until</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Time</span></th>
+	</tr>
+	</thead>
+	<tbody>
+		<!-- rows will be inserted here by JS -->
+	</tbody>
+</table>
+
+<script>
+async function loadPayments() {
+	try {
+		const resp = await fetch('/api/payments_pending');
+		if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+		const data = await resp.json();
+
+		const tbody = document.querySelector('#payments-table tbody');
+		tbody.innerHTML = ''; // clear existing rows
+
+		for (const row of data) {
+			const tr = document.createElement('tr');
+			tr.align = 'left';
+			tr.valign = 'top';
+
+			tr.innerHTML = `
+				<td align="left"><span class="default">${row.serial}</span></td>
+				<td>&nbsp;</td>
+				<td align="left"><span class="default">${row.info}</span></td>
+				<td>&nbsp;</td>
+				<td align="left"><span class="default">${row.open_until.toFixed(2)}</span></td>
+				<td>&nbsp;</td>
+				<td align="left"><span class="default">${row.time}</span></td>
+			`;
+			tbody.appendChild(tr);
+		}
+	} catch (err) {
+		console.error('Failed to load payments:', err);
+	}
+}
+
+// Initial load
+loadPayments();
+
+// Refresh every 60 seconds
+setInterval(loadPayments, 60 * 1000);
+</script>
+
+</body>
+</html>

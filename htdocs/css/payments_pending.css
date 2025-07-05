@@ -1,0 +1,29 @@
+.top {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+}
+.default {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 100%;
+}
+.default-bold {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+}
+.default-small {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 60%;
+}
+.default-group {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+	font-size: 120%;
+}
+tr:nth-child(even) {
+	background: #EEE;
+}
+tr:nth-child(odd) {
+	background: #FFF;
+}

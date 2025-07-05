@@ -4,10 +4,10 @@
 const menuItems = [
 	{ text: "Meters", href: "/index.html" },
 	{ text: "Map", href: "/map" },
-	{ text: "Network", href: "/network" },
+	{ text: "Network", href: "/network.html" },
 	{ text: "Valve control", href: "/valve_control.epl" },
 	{ text: "User log", href: "/users.epl" },
-	{ text: "Payments pending", href: "/payments_pending.epl" },
+	{ text: "Payments pending", href: "/payments_pending.html" },
 	{ text: "Alarms", href: "/alarms.html" },
 	{ separator: true },
 	{ text: "Logout", href: "/logout" }
