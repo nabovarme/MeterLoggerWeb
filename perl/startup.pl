@@ -11,5 +11,6 @@ use Nabovarme::SMSAuth;
 use Nabovarme::APIMeters;
 use Nabovarme::APIMetersTree;
 use Nabovarme::APIAlarms;
+use Nabovarme::APIPaymentsPending;
 
 1;
