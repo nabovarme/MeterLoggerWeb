@@ -20,7 +20,6 @@ function createClientNode(client) {
 	if (lastUpdated) {
 		const updatedTime = new Date(lastUpdated * 1000);
 		const ageHours = (Date.now() - updatedTime.getTime()) / (1000 * 60 * 60);
-
 		if (ageHours < 1) freshnessClass = 'green';
 		else if (ageHours < 24) freshnessClass = 'yellow';
 		else freshnessClass = 'red';
@@ -57,8 +56,8 @@ function extractNodeTitleText(innerHTML) {
 function sortTreeNodes(node) {
 	if (node.children && node.children.length > 0) {
 		node.children.sort((a, b) => {
-			const nameA = (a.text?.name) || extractNodeTitleText(a.innerHTML) || "";
-			const nameB = (b.text?.name) || extractNodeTitleText(b.innerHTML) || "";
+			const nameA = extractNodeTitleText(a.innerHTML) || "";
+			const nameB = extractNodeTitleText(b.innerHTML) || "";
 			return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
 		});
 		node.children.forEach(child => sortTreeNodes(child));
@@ -67,7 +66,6 @@ function sortTreeNodes(node) {
 
 function createTreeConfig(routerObj, index) {
 	const routerName = routerObj.router?.name || "Router";
-
 	const rootNode = {
 		HTMLclass: 'node green root-node',
 		innerHTML: `<div class="node-title">${routerName}</div>`,
@@ -122,10 +120,15 @@ function renderTrees(data) {
 		treeDiv.id = `tree${i}`;
 		treeDiv.className = 'chart-container';
 		container.appendChild(treeDiv);
-
-		const config = createTreeConfig(routerObj, i);
-		new Treant(config);
 	});
+
+	// Wait for DOM layout to stabilize
+	setTimeout(() => {
+		data.forEach((routerObj, i) => {
+			const config = createTreeConfig(routerObj, i);
+			new Treant(config);
+		});
+	}, 50); // Adjust delay as needed
 }
 
 function filterTree(treeData, query, showOnlyOffline = false) {
@@ -183,11 +186,10 @@ const renderFilteredTrees = debounce(function () {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }, 300);
 
-document.getElementById('networkSearch').addEventListener('input', renderFilteredTrees);
-document.getElementById('offlineMeters').addEventListener('change', renderFilteredTrees);
-
+// ✅ Load everything *after* the window fully loads
 window.addEventListener('load', () => {
 	document.getElementById('networkSearch').focus();
+	document.getElementById('networkSearch').addEventListener('input', renderFilteredTrees);
+	document.getElementById('offlineMeters').addEventListener('change', renderFilteredTrees);
+	fetchAndRenderTrees();
 });
-
-fetchAndRenderTrees();
