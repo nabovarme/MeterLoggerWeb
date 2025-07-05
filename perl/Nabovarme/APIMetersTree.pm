@@ -35,7 +35,6 @@ sub handler {
 		my %mesh_id_to_serial; # "mesh-serial" => serial string
 		my %pending_children;  # ssid => arrayref of nodes
 
-		# Create nodes for each meter (no _serial stored)
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
 			my $info   = $row->{info}   || '';
@@ -53,10 +52,9 @@ sub handler {
 			push @{ $pending_children{$ssid} }, $node;
 		}
 
-		my %attached; # keys are node refs, values true
-		my @roots;    # root nodes array
+		my %attached;
+		my @roots;
 
-		# Assign children to parents or synthetic nodes
 		for my $ssid (keys %pending_children) {
 			my $children = $pending_children{$ssid};
 
@@ -64,8 +62,6 @@ sub handler {
 				my $parent = $nodes{$1};
 				$parent->{HTMLclass} = "rootNode";
 				push @{ $parent->{children} }, @$children;
-
-				# Mark children attached using node refs as keys
 				$attached{ $_ } = 1 for @$children;
 			}
 			else {
@@ -75,12 +71,10 @@ sub handler {
 					children  => $children,
 				};
 				push @roots, $synthetic;
-
 				$attached{ $_ } = 1 for @$children;
 			}
 		}
 
-		# Add unassigned nodes as root nodes
 		for my $serial (keys %nodes) {
 			my $node = $nodes{$serial};
 			next if $attached{$node};
@@ -88,15 +82,13 @@ sub handler {
 			push @roots, $node;
 		}
 
-		# Sort children recursively
 		_sort_children_recursively($_) for @roots;
 
-		# Build tree structure
 		my $tree = {
 			chart => {
 				container       => "#OrganiseChart-simple",
 				rootOrientation => "NORTH",
-				node            => { HTMLclass => "childNode" },
+				node            => { HTMLclass => "nodeDefault" },
 				connectors      => { type => "step" },
 			},
 			nodeStructure => @roots > 1
