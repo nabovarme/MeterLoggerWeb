@@ -80,7 +80,9 @@
 		<link rel="stylesheet" href="/css/menu.css">
 		<script src="/js/menu.js" defer></script>	
 
-		<script src="dygraphs/dygraph-dev.js"></script>
+		<script src="/js/dygraph.min.js"></script>
+		<link rel="stylesheet" href="/css/dygraph.css">
+
 		<style type="text/css">
 			/* Graph container fills width with no margin/padding */
 			#spinner {
