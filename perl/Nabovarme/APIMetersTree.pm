@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS;
+use JSON::XS ();
 
 use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
@@ -31,11 +31,11 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my %nodes;               # serial => node
-		my %mesh_id_to_serial;   # mesh-serial => serial
-		my %pending_children;    # ssid => [ node, node, ... ]
+		my %nodes;             # serial => node
+		my %mesh_id_to_serial; # "mesh-serial" => serial string
+		my %pending_children;  # ssid => arrayref of nodes
 
-		# First pass: create node objects for each meter
+		# Create nodes for each meter (no _serial stored)
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
 			my $info   = $row->{info}   || '';
@@ -43,9 +43,8 @@ sub handler {
 
 			my $node = {
 				text      => { name => "$info ($serial)" },
-				HTMLclass => "childNode",  # default class for meters
+				HTMLclass => "childNode",
 				children  => [],
-				_serial   => $serial,       # temp for sorting
 			};
 
 			$nodes{$serial} = $node;
@@ -54,44 +53,45 @@ sub handler {
 			push @{ $pending_children{$ssid} }, $node;
 		}
 
-		my %attached; # serials already assigned as children
-		my @roots;    # root nodes (real or synthetic)
+		my %attached; # keys are node refs, values true
+		my @roots;    # root nodes array
 
-		# Second pass: assign children to parents or synthetic nodes
+		# Assign children to parents or synthetic nodes
 		for my $ssid (keys %pending_children) {
 			my $children = $pending_children{$ssid};
 
-			if ($ssid =~ /^mesh-(\d+)$/ && exists $nodes{$1}) {
-				# ssid matches an existing meter’s serial, so children are its children
+			if ($ssid =~ /^mesh-(.+)$/ && exists $nodes{$1}) {
 				my $parent = $nodes{$1};
-				$parent->{HTMLclass} = "rootNode";  # parent nodes are rootNode class
+				$parent->{HTMLclass} = "rootNode";
 				push @{ $parent->{children} }, @$children;
-				$attached{$_->{_serial}} = 1 for @$children;
+
+				# Mark children attached using node refs as keys
+				$attached{ $_ } = 1 for @$children;
 			}
 			else {
-				# ssid does NOT match any serial — create synthetic parent node
 				my $synthetic = {
 					text      => { name => $ssid },
-					HTMLclass => "rootNode", # synthetic parent is rootNode
+					HTMLclass => "rootNode",
 					children  => $children,
 				};
 				push @roots, $synthetic;
-				$attached{$_->{_serial}} = 1 for @$children;
+
+				$attached{ $_ } = 1 for @$children;
 			}
 		}
 
-		# Add any unassigned nodes as root nodes
+		# Add unassigned nodes as root nodes
 		for my $serial (keys %nodes) {
-			next if $attached{$serial};
 			my $node = $nodes{$serial};
+			next if $attached{$node};
 			$node->{HTMLclass} = "rootNode";
 			push @roots, $node;
 		}
 
-		# Recursively sort all children alphabetically by text name
+		# Sort children recursively
 		_sort_children_recursively($_) for @roots;
 
-		# If multiple roots, wrap them under a single root node for Treant
+		# Build tree structure
 		my $tree = {
 			chart => {
 				container       => "#OrganiseChart-simple",
@@ -118,7 +118,6 @@ sub handler {
 	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
-# Recursively sort children nodes by their label alphabetically
 sub _sort_children_recursively {
 	my ($node) = @_;
 	return unless $node->{children} && ref $node->{children} eq 'ARRAY';
