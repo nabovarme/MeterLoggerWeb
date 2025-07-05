@@ -12,8 +12,8 @@
 	<!-- style and js for burger menu -->
 	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js" defer></script>	
-	<link rel="stylesheet" href="/css/meters.css" />
 
+	<link rel="stylesheet" href="/css/users.css" />
 	</HEAD>
 	<BODY>
 	<script src="/js/search_users.js" defer></script>
