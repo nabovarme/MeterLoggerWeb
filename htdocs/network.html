@@ -6,22 +6,19 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.css" />
 <style>
 	.chart-container {
-		width: fit-content;  /* shrink to content width */
-		margin: 0;           /* no margin */
-		padding: 0;          /* no padding */
-		text-align: left;    /* align content left */
+		width: fit-content;
+		margin: 0;
+		padding: 0;
+		text-align: left;
 		display: block;
 	}
-	
 
-	/* General font for Treant paragraphs */
 	.Treant > p {
 		font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
 		font-weight: bold;
 		font-size: 12px;
 	}
 
-	/* Node styling */
 	.node {
 		width: 200px;
 		padding: 10px;
@@ -32,22 +29,13 @@
 		font-size: 12px;
 	}
 
-	/* Specific node text styles */
 	.node-title {
 		font-weight: bold;
 		font-size: 12px;
 	}
 
-	.node-serial{
-		font-size: 12px;
-		padding-top: 4px;
-	}
-
-	.node-ssid {
-		font-size: 12px;
-		padding-top: 4px;
-	}
-
+	.node-serial,
+	.node-ssid,
 	.node-rssi {
 		font-size: 12px;
 		padding-top: 4px;
@@ -57,29 +45,49 @@
 		font-size: 10px;
 		padding-top: 4px;
 	}
-	
+
 	.red {
 		background-color: #ff0000;
 	}
-
 	.yellow {
 		background-color: #ffff00;
 	}
-
 	.green {
 		background-color: #00ff00;
 	}
-	
 	.root-node {
 		padding-bottom: 40px;
-	}	
+	}
+
+	/* Floating search bar */
+	#search-bar-container {
+		position: fixed;
+		bottom: 20px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 999;
+		background-color: white;
+		padding: 10px 20px;
+		border: 1px solid #ccc;
+		border-radius: 10px;
+		box-shadow: 0 0 10px rgba(0,0,0,0.1);
+	}
+	#search-bar {
+		font-size: 14px;
+		width: 300px;
+	}
 </style>
 </head>
 <body>
-<div id="trees"></div>
+<div id="trees">Loading...</div>
+
+<div id="search-bar-container">
+	<input type="text" id="search-bar" placeholder="Search..." />
+</div>
 
 <script>
-	// Recursive function to create Treant nodes for clients and nested clients
+	let originalTreeData = [];
+
 	function createClientNode(client) {
 		const meter = client.meter || {};
 		const nameText = meter.info || "Client";
@@ -89,8 +97,7 @@
 		const swVersion = meter.sw_version || 'N/A';
 		const lastUpdated = meter.last_updated;
 
-		// Determine recency class
-		let freshnessClass = 'green'; // default
+		let freshnessClass = 'green';
 		if (lastUpdated) {
 			const updatedTime = new Date(lastUpdated * 1000);
 			const ageHours = (Date.now() - updatedTime.getTime()) / (1000 * 60 * 60);
@@ -119,22 +126,7 @@
 			children: children
 		};
 	}
-	
 
-	// Recursive function to sort nodes by their text.name or innerHTML .node-title text
-	function sortTreeNodes(node) {
-		if (node.children && node.children.length > 0) {
-			node.children.sort((a, b) => {
-				// Extract text for sorting: prefer text.name, fallback to innerHTML title div content
-				const nameA = (a.text?.name) || extractNodeTitleText(a.innerHTML) || "";
-				const nameB = (b.text?.name) || extractNodeTitleText(b.innerHTML) || "";
-				return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
-			});
-			node.children.forEach(child => sortTreeNodes(child));
-		}
-	}
-
-	// Helper to extract the name from innerHTML node-title div (used only during sort)
 	function extractNodeTitleText(innerHTML) {
 		if (!innerHTML) return null;
 		const div = document.createElement('div');
@@ -143,32 +135,39 @@
 		return titleDiv ? titleDiv.textContent.trim() : null;
 	}
 
-	// Convert each router object into Treant config
+	function sortTreeNodes(node) {
+		if (node.children && node.children.length > 0) {
+			node.children.sort((a, b) => {
+				const nameA = (a.text?.name) || extractNodeTitleText(a.innerHTML) || "";
+				const nameB = (b.text?.name) || extractNodeTitleText(b.innerHTML) || "";
+				return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
+			});
+			node.children.forEach(child => sortTreeNodes(child));
+		}
+	}
+
 	function createTreeConfig(routerObj, index) {
 		const routerName = routerObj.router?.name || "Router";
 
-		// Root node is the router
 		const rootNode = {
 			HTMLclass: 'node green root-node',
 			innerHTML: `<div class="node-title">${routerName}</div>`,
 			children: []
 		};
 
-		// Add top-level clients recursively
 		if (routerObj.clients && routerObj.clients.length) {
 			rootNode.children = routerObj.clients.map(createClientNode);
 		}
 
-		// Sort children of root node recursively
 		sortTreeNodes(rootNode);
 
 		return {
 			chart: {
 				container: `#tree${index}`,
 				rootOrientation: 'WEST',
-				levelSeparation: 50,	 // distance between generations vertically
-				siblingSeparation: 50, // distance between siblings horizontally
-				subTeeSeparation: 30	 // distance between subtrees
+				levelSeparation: 50,
+				siblingSeparation: 50,
+				subTeeSeparation: 30
 			},
 			nodeStructure: rootNode
 		};
@@ -180,39 +179,86 @@
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
 			const data = await response.json();
+			originalTreeData = data;
 
-			// Sort routers by their name (case-insensitive)
 			data.sort((a, b) => {
 				const nameA = (a.router?.name || "Router").toLowerCase();
 				const nameB = (b.router?.name || "Router").toLowerCase();
 				return nameA.localeCompare(nameB);
 			});
 
-			const container = document.getElementById('trees');
-			container.innerHTML = '';	// clear loading text
-
-			data.forEach((routerObj, i) => {
-				// Create div for each tree
-				const treeDiv = document.createElement('div');
-				treeDiv.id = `tree${i}`;
-				treeDiv.className = 'chart-container';
-				container.appendChild(treeDiv);
-
-				// Create Treant config (which sorts clients internally)
-				const config = createTreeConfig(routerObj, i);
-
-				// Render tree
-				new Treant(config);
-			});
-
+			renderTrees(data);
 		} catch (err) {
 			document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
 			console.error(err);
 		}
 	}
 
+	function renderTrees(data) {
+		const container = document.getElementById('trees');
+		container.innerHTML = '';
+
+		data.forEach((routerObj, i) => {
+			const treeDiv = document.createElement('div');
+			treeDiv.id = `tree${i}`;
+			treeDiv.className = 'chart-container';
+			container.appendChild(treeDiv);
+
+			const config = createTreeConfig(routerObj, i);
+			new Treant(config);
+		});
+	}
+
+	function filterTree(treeData, query) {
+		const lowerQuery = query.toLowerCase();
+
+		function nodeMatches(meter) {
+			return meter?.info?.toLowerCase().includes(lowerQuery)
+				|| meter?.serial?.toLowerCase().includes(lowerQuery)
+				|| meter?.ssid?.toLowerCase().includes(lowerQuery);
+		}
+
+		function filterClients(clients) {
+			const result = [];
+
+			for (const client of clients) {
+				const children = filterClients(client.clients || []);
+				if (nodeMatches(client.meter) || children.length > 0) {
+					result.push({ ...client, clients: children });
+				}
+			}
+			return result;
+		}
+
+		return treeData.map(router => {
+			const matchedClients = filterClients(router.clients || []);
+			return {
+				...router,
+				clients: matchedClients
+			};
+		}).filter(router => router.clients.length > 0);
+	}
+
+	function debounce(fn, delay) {
+		let timeout;
+		return function (...args) {
+			clearTimeout(timeout);
+			timeout = setTimeout(() => fn.apply(this, args), delay);
+		};
+	}
+
+	const renderFilteredTrees = debounce(function () {
+		const query = document.getElementById('search-bar').value.trim();
+		const filteredData = query
+			? filterTree(originalTreeData, query)
+			: originalTreeData;
+
+		renderTrees(filteredData);
+	}, 300);
+
+	document.getElementById('search-bar').addEventListener('input', renderFilteredTrees);
+
 	fetchAndRenderTrees();
 </script>
-
 </body>
 </html>
