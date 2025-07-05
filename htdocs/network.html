@@ -72,6 +72,18 @@
 		};
 	}
 
+	// Recursive function to sort nodes by their text.name
+	function sortTreeNodes(node) {
+		if (node.children && node.children.length > 0) {
+			node.children.sort((a, b) => {
+				const nameA = a.text.name.toLowerCase();
+				const nameB = b.text.name.toLowerCase();
+				return nameA.localeCompare(nameB);
+			});
+			node.children.forEach(child => sortTreeNodes(child));
+		}
+	}
+
 	// Convert each router object into Treant config
 	function createTreeConfig(routerObj, index) {
 		const routerName = routerObj.router?.name || "Router";
@@ -86,6 +98,9 @@
 		if (routerObj.clients && routerObj.clients.length) {
 			rootNode.children = routerObj.clients.map(createClientNode);
 		}
+
+		// Sort children of root node recursively
+		sortTreeNodes(rootNode);
 
 		return {
 			chart: {
@@ -106,6 +121,13 @@
 
 			const data = await response.json();
 
+			// Sort routers by their name (case-insensitive)
+			data.sort((a, b) => {
+				const nameA = (a.router?.name || "Router").toLowerCase();
+				const nameB = (b.router?.name || "Router").toLowerCase();
+				return nameA.localeCompare(nameB);
+			});
+
 			const container = document.getElementById('trees');
 			container.innerHTML = '';	// clear loading text
 
@@ -116,7 +138,7 @@
 				treeDiv.className = 'chart-container';
 				container.appendChild(treeDiv);
 
-				// Create Treant config
+				// Create Treant config (which sorts clients internally)
 				const config = createTreeConfig(routerObj, i);
 
 				// Render tree
