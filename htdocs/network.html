@@ -26,7 +26,7 @@
 		width: 200px;
 		padding: 10px;
 		border: 1px solid #000;
-		border-radius: 3px;
+		border-radius: 8px;
 		background-color: #fff;
 		font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
 		font-size: 12px;
@@ -57,6 +57,22 @@
 		font-size: 10px;
 		padding-top: 4px;
 	}
+	
+	.red {
+		background-color: #ff0000;
+	}
+
+	.yellow {
+		background-color: #ffff00;
+	}
+
+	.green {
+		background-color: #00ff00;
+	}
+	
+	.root-node {
+		padding-bottom: 40px;
+	}	
 </style>
 </head>
 <body>
@@ -66,19 +82,29 @@
 	// Recursive function to create Treant nodes for clients and nested clients
 	function createClientNode(client) {
 		const meter = client.meter || {};
-		const nameText = meter.info ? `${meter.info}` : "Client";
-
-		const serial = meter.serial;
+		const nameText = meter.info || "Client";
+		const serial = meter.serial || 'N/A';
 		const ssid = meter.ssid || 'N/A';
 		const rssi = meter.rssi || 'N/A';
 		const swVersion = meter.sw_version || 'N/A';
+		const lastUpdated = meter.last_updated;
 
-		// Build inner HTML with styled divs for name, rssi, sw version
+		// Determine recency class
+		let freshnessClass = 'green'; // default
+		if (lastUpdated) {
+			const updatedTime = new Date(lastUpdated);
+			const ageHours = (Date.now() - updatedTime.getTime()) / (1000 * 60 * 60);
+
+			if (ageHours < 1) freshnessClass = 'green';
+			else if (ageHours < 24) freshnessClass = 'yellow';
+			else freshnessClass = 'red';
+		}
+
 		const htmlContent = `
 			<div class="node-title">${nameText}</div>
 			<div class="node-serial"><b>serial:</b> ${serial}</div>
 			<div class="node-ssid"><b>ssid:</b> ${ssid}</div>
-			<div class="node-rssi">r<b>ssi:</b> ${rssi}</div>
+			<div class="node-rssi"><b>rssi:</b> ${rssi}</div>
 			<div class="node-version"><b>version:</b> ${swVersion}</div>
 		`;
 
@@ -88,11 +114,12 @@
 		}
 
 		return {
-			HTMLclass: 'node',
+			HTMLclass: `node ${freshnessClass}`,
 			innerHTML: htmlContent,
 			children: children
 		};
 	}
+	
 
 	// Recursive function to sort nodes by their text.name or innerHTML .node-title text
 	function sortTreeNodes(node) {
@@ -122,7 +149,7 @@
 
 		// Root node is the router
 		const rootNode = {
-			HTMLclass: 'node',
+			HTMLclass: 'node green root-node',
 			innerHTML: `<div class="node-title">${routerName}</div>`,
 			children: []
 		};
