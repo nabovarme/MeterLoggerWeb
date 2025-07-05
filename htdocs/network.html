@@ -122,7 +122,8 @@
 
 		// Root node is the router
 		const rootNode = {
-			text: { name: `router: ${routerName}` },
+			HTMLclass: 'node',
+			innerHTML: `<div class="node-title">${routerName}</div>`,
 			children: []
 		};
 
