@@ -9,6 +9,51 @@
 	</style>
 </head>
 <body>
+<style>
+	.chart-container {
+		width: 100%;
+		margin-bottom: 40px;
+		border: 1px solid #ccc;
+		overflow-x: auto;
+	}
+
+	/* General font for Treant paragraphs */
+	.Treant > p {
+		font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+		font-weight: bold;
+		font-size: 12px;
+	}
+
+	/* Node styling */
+	.node {
+		width: 200px;
+		padding: 10px;
+		border: 1px solid #000;
+		border-radius: 3px;
+		background-color: #fff;
+		font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+		font-size: 12px;
+	}
+
+	/* Specific node text styles */
+	.node-title {
+		font-weight: bold;
+		font-size: 12px;
+	}
+
+	.node-ssid {
+		font-size: 12px;
+		padding-top: 4px;
+	}
+
+	.node-rssi {
+		font-size: 12px;
+	}
+
+	.node-version {
+		font-size: 10px;
+	}
+</style>
 
 <div id="trees">Loading tree data...</div>
 
@@ -45,7 +90,14 @@
 		}
 
 		return {
-			chart: { container: `#tree${index}` },
+			chart: {
+				container: `#tree${index}`,
+				rootOrientation: "WEST",
+				direction: 'RIGHT',
+				levelSeparation: 50,	 // distance between generations vertically
+				siblingSeparation: 50, // distance between siblings horizontally
+				subTeeSeparation: 30	 // distance between subtrees
+			},
 			nodeStructure: rootNode
 		};
 	}
