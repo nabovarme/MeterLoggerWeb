@@ -4,18 +4,15 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.min.js"></script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.css" />
-	<style>
-		.chart-container { width: 600px; height: 400px; margin-bottom: 40px; border: 1px solid #ccc; }
-	</style>
-</head>
-<body>
 <style>
 	.chart-container {
-		width: 100%;
-		height: auto;
-		margin-bottom: 40px;
-		border: 0px;
+		width: fit-content;  /* shrink to content width */
+		margin: 0;           /* no margin */
+		padding: 0;          /* no padding */
+		text-align: left;    /* align content left */
+		display: inline-block; /* prevents full-width block */
 	}
+	
 
 	/* General font for Treant paragraphs */
 	.Treant > p {
@@ -54,7 +51,8 @@
 		font-size: 10px;
 	}
 </style>
-
+</head>
+<body>
 <div id="trees">Loading tree data...</div>
 
 <script>
