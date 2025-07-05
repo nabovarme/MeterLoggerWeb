@@ -45,10 +45,14 @@
 
 	.node-rssi {
 		font-size: 12px;
+		color: #555;
+		padding-top: 4px;
 	}
 
 	.node-version {
 		font-size: 10px;
+		color: #333;
+		padding-top: 2px;
 	}
 </style>
 </head>
@@ -59,7 +63,17 @@
 	// Recursive function to create Treant nodes for clients and nested clients
 	function createClientNode(client) {
 		const meter = client.meter || {};
-		const name = meter.info ? `${meter.info} (Serial: ${meter.serial || 'N/A'})` : "Client";
+		const nameText = meter.info ? `${meter.info} (Serial: ${meter.serial || 'N/A'})` : "Client";
+
+		const rssi = client.rssi || meter.rssi || 'N/A';
+		const swVersion = client.sw_version || meter.sw_version || 'N/A';
+
+		// Build inner HTML with styled divs for name, rssi, sw version
+		const htmlContent = `
+			<div class="node-title">${nameText}</div>
+			<div class="node-rssi">RSSI: ${rssi}</div>
+			<div class="node-version">SW Ver: ${swVersion}</div>
+		`;
 
 		let children = [];
 		if (client.clients && client.clients.length) {
@@ -67,21 +81,32 @@
 		}
 
 		return {
-			text: { name },
+			HTMLclass: 'node',
+			innerHTML: htmlContent,
 			children: children
 		};
 	}
 
-	// Recursive function to sort nodes by their text.name
+	// Recursive function to sort nodes by their text.name or innerHTML .node-title text
 	function sortTreeNodes(node) {
 		if (node.children && node.children.length > 0) {
 			node.children.sort((a, b) => {
-				const nameA = a.text.name.toLowerCase();
-				const nameB = b.text.name.toLowerCase();
-				return nameA.localeCompare(nameB);
+				// Extract text for sorting: prefer text.name, fallback to innerHTML title div content
+				const nameA = (a.text?.name) || extractNodeTitleText(a.innerHTML) || "";
+				const nameB = (b.text?.name) || extractNodeTitleText(b.innerHTML) || "";
+				return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
 			});
 			node.children.forEach(child => sortTreeNodes(child));
 		}
+	}
+
+	// Helper to extract the name from innerHTML node-title div (used only during sort)
+	function extractNodeTitleText(innerHTML) {
+		if (!innerHTML) return null;
+		const div = document.createElement('div');
+		div.innerHTML = innerHTML;
+		const titleDiv = div.querySelector('.node-title');
+		return titleDiv ? titleDiv.textContent.trim() : null;
 	}
 
 	// Convert each router object into Treant config
