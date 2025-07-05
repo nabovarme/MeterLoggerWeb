@@ -12,11 +12,10 @@ html, body {
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 100%;
 }
 .default {
 	font-family: Verdana, Geneva, sans-serif;
-	font-size: 100%;
+	font-size: 100%
 }
 .default-bold {
 	font-family: Verdana, Geneva, sans-serif;
@@ -31,15 +30,20 @@ html, body {
 	font-weight: bold;
 	font-size: 120%;
 }
+
 tr:nth-child(even) {
-	background: #EEE;
+	background: #EEE
 }
 tr:nth-child(odd) {
-	background: #FFF;
+	background: #FFF
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 
 /* Floating search bar at the bottom */
-#paymentsPendingSearchContainer {
+#usersSearchContainer {
 	position: fixed;
 	bottom: 0;
 	left: 0;
@@ -55,10 +59,19 @@ tr:nth-child(odd) {
 }
 
 /* Search input field */
-#paymentsPendingSearchContainer input[type="search"] {
+#usersSearchContainer input[type="search"] {
 	font-size: 1.2em;
 	padding: 10px;
 	width: 100%;
 	max-width: 400px;
 	box-sizing: border-box;
+}
+
+/* Label and checkbox for "Active meters" */
+#usersSearchContainer label {
+	user-select: none;
+	font-size: 1em;
+	display: flex;
+	align-items: center;
+	gap: 5px;
 }
