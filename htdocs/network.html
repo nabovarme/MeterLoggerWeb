@@ -38,6 +38,11 @@
 		font-size: 12px;
 	}
 
+	.node-serial{
+		font-size: 12px;
+		padding-top: 4px;
+	}
+
 	.node-ssid {
 		font-size: 12px;
 		padding-top: 4px;
@@ -45,34 +50,36 @@
 
 	.node-rssi {
 		font-size: 12px;
-		color: #555;
 		padding-top: 4px;
 	}
 
 	.node-version {
 		font-size: 10px;
-		color: #333;
-		padding-top: 2px;
+		padding-top: 4px;
 	}
 </style>
 </head>
 <body>
-<div id="trees">Loading tree data...</div>
+<div id="trees"></div>
 
 <script>
 	// Recursive function to create Treant nodes for clients and nested clients
 	function createClientNode(client) {
 		const meter = client.meter || {};
-		const nameText = meter.info ? `${meter.info} (Serial: ${meter.serial || 'N/A'})` : "Client";
+		const nameText = meter.info ? `${meter.info}` : "Client";
 
-		const rssi = client.rssi || meter.rssi || 'N/A';
-		const swVersion = client.sw_version || meter.sw_version || 'N/A';
+		const serial = meter.serial;
+		const ssid = meter.ssid || 'N/A';
+		const rssi = meter.rssi || 'N/A';
+		const swVersion = meter.sw_version || 'N/A';
 
 		// Build inner HTML with styled divs for name, rssi, sw version
 		const htmlContent = `
 			<div class="node-title">${nameText}</div>
-			<div class="node-rssi">RSSI: ${rssi}</div>
-			<div class="node-version">SW Ver: ${swVersion}</div>
+			<div class="node-serial"><b>serial:</b> ${serial}</div>
+			<div class="node-ssid"><b>ssid:</b> ${ssid}</div>
+			<div class="node-rssi">r<b>ssi:</b> ${rssi}</div>
+			<div class="node-version"><b>version:</b> ${swVersion}</div>
 		`;
 
 		let children = [];
@@ -115,7 +122,7 @@
 
 		// Root node is the router
 		const rootNode = {
-			text: { name: `Router: ${routerName}` },
+			text: { name: `router: ${routerName}` },
 			children: []
 		};
 
