@@ -59,30 +59,56 @@
 		padding-bottom: 40px;
 	}
 
-	/* Floating search bar */
-	#search-bar-container {
+	/* Floating search bar at the bottom */
+	#networkSearchContainer {
 		position: fixed;
-		bottom: 20px;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 999;
-		background-color: white;
-		padding: 10px 20px;
-		border: 1px solid #ccc;
-		border-radius: 10px;
-		box-shadow: 0 0 10px rgba(0,0,0,0.1);
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		background: #f2f2f2;
+		padding: 10px;
+		box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+		z-index: 9999;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
 	}
-	#search-bar {
+	#networkSearch {
 		font-size: 14px;
 		width: 300px;
 	}
+	
+		/* Search input field */
+	#meterSearchContainer input[type="search"] {
+		font-size: 1.2em;
+		padding: 10px;
+		width: 100%;
+		max-width: 400px;
+		box-sizing: border-box;
+	}
+
+	/* Label and checkbox for "Active meters" */
+	#meterSearchContainer label {
+		user-select: none;
+		font-size: 1em;
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+	
 </style>
 </head>
 <body>
 <div id="trees">Loading...</div>
 
-<div id="search-bar-container">
-	<input type="text" id="search-bar" placeholder="Search..." />
+<div id="networkSearchContainer">
+	<input
+		type="search"
+		id="networkSearch"
+		placeholder="Search network..."
+		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+	/>
 </div>
 
 <script>
@@ -248,7 +274,7 @@
 	}
 
 	const renderFilteredTrees = debounce(function () {
-		const query = document.getElementById('search-bar').value.trim();
+		const query = document.getElementById('networkSearch').value.trim();
 		const filteredData = query
 			? filterTree(originalTreeData, query)
 			: originalTreeData;
@@ -256,7 +282,7 @@
 		renderTrees(filteredData);
 	}, 300);
 
-	document.getElementById('search-bar').addEventListener('input', renderFilteredTrees);
+	document.getElementById('networkSearch').addEventListener('input', renderFilteredTrees);
 
 	fetchAndRenderTrees();
 </script>
