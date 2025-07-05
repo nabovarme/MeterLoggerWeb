@@ -27,7 +27,7 @@ function createClientNode(client) {
 	}
 
 	const htmlContent = `
-		<div class="node-title">${nameText}</div>
+		<div class="node-title"><a href="/detail_acc.epl?serial=${serial}">${nameText}</a></div>
 		<div class="node-serial"><b>serial:</b> ${serial}</div>
 		<div class="node-ssid"><b>ssid:</b> ${ssid}</div>
 		<div class="node-rssi"><b>rssi:</b> ${rssi}</div>
