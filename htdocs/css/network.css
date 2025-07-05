@@ -35,6 +35,11 @@ html, body {
 	font-size: 12px;
 }
 
+.node-title a {
+	color: inherit;
+	text-decoration: none;
+}
+
 .node-serial,
 .node-ssid,
 .node-rssi {
