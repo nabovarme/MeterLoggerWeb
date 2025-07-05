@@ -23,7 +23,7 @@ sub handler {
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 		my $sql = q[
-			SELECT serial, info, ssid, type
+			SELECT *
 			FROM meters
 			WHERE type IN ('heat', 'heat_supply', 'heat_sub')
 		];
@@ -31,19 +31,18 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my %nodes;			 # serial => node hashref
-		my %pending_children;  # ssid => arrayref of child nodes
+		my %nodes;			  # serial => node hashref
+		my %pending_children;   # ssid => arrayref of child nodes
 
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
 			my $info   = $row->{info}   || '';
 			my $ssid   = $row->{ssid}   || '';
-			my $type   = $row->{type}   || '';
 
 			my $node = {
 				text	  => {
 					name  => "$info ($serial)",
-					title => $type,
+					title => $ssid,
 				},
 				HTMLclass => "childNode",
 				children  => [],
@@ -62,10 +61,9 @@ sub handler {
 		for my $ssid (keys %pending_children) {
 			my $children = $pending_children{$ssid};
 
-			# Check if ssid matches a known mesh serial
 			if ($ssid =~ /^mesh-(.+)$/ && exists $nodes{$1}) {
 				my $parent = $nodes{$1};
-				$parent->{HTMLclass} = "rootNode";  # Promote parent to root if has children
+				$parent->{HTMLclass} = "rootNode";  # promote parent to root if has children
 				push @{ $parent->{children} }, @$children;
 				$attached{ $_ } = 1 for @$children;
 			} else {
@@ -91,30 +89,21 @@ sub handler {
 		# Sort children recursively by node name
 		_sort_children_recursively($_) for @roots;
 
-		# Build nodeStructure: single root with children or just one root node
-		my $nodeStructure;
-		if (@roots == 1) {
-			$nodeStructure = $roots[0];
-		} else {
-			$nodeStructure = {
-				text	  => { name => "Root" },
-				HTMLclass => "rootNode",
-				children  => \@roots,
-			};
-		}
+		# Build array of full Treant config objects, one per root node
+		my @configs = map {
+			{
+				chart => {
+					container       => '',  # frontend fills this dynamically
+					rootOrientation => "WEST",
+					nodeAlign       => "LEFT",
+					connectors      => { type => "step" },
+					node            => { collapsable => JSON::XS::true, HTMLclass => "nodeDefault" },
+				},
+				nodeStructure => $_,
+			}
+		} @roots;
 
-		my $tree = {
-			chart => {
-				container	   => "#tree-container",
-				rootOrientation => "WEST",
-				nodeAlign	   => "TOP",
-				connectors	  => { type => "step" },
-				node			=> { collapsable => JSON::XS::true, HTMLclass => "nodeDefault" },
-			},
-			nodeStructure => $nodeStructure,
-		};
-
-		my $json = JSON::XS->new->utf8->canonical->encode($tree);
+		my $json = JSON::XS->new->utf8->canonical->encode(\@configs);
 		$r->print($json);
 
 		return Apache2::Const::OK;
