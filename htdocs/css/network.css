@@ -1,0 +1,90 @@
+/* Global layout and defaults */
+html, body {
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	font-family: Verdana, Geneva, sans-serif;
+	overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+.chart-container {
+	width: fit-content;
+	margin: 0;
+	padding: 0;
+	text-align: left;
+	display: block;
+}
+
+.Treant > p {
+	font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+	font-weight: bold;
+	font-size: 12px;
+}
+
+.node {
+	width: 200px;
+	padding: 10px;
+	border: 1px solid #000;
+	border-radius: 8px;
+	background-color: #fff;
+	font-family: "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+	font-size: 12px;
+}
+
+.node-title {
+	font-weight: bold;
+	font-size: 12px;
+}
+
+.node-serial,
+.node-ssid,
+.node-rssi {
+	font-size: 12px;
+	padding-top: 4px;
+}
+
+.node-version {
+	font-size: 10px;
+	padding-top: 4px;
+}
+
+.red {
+	background-color: #ff0000;
+}
+.yellow {
+	background-color: #ffff00;
+}
+.green {
+	background-color: #00ff00;
+}
+.root-node {
+	padding-bottom: 40px;
+}
+
+/* Ensure space below trees for floating search bar */
+#trees {
+	padding-bottom: 100px;
+}
+
+/* Floating search bar at bottom */
+#networkSearchContainer {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	background: #f2f2f2;
+	padding: 10px;
+	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+#networkSearch {
+	font-size: 1.2em;
+	width: 300px;
+	padding: 10px;
+	box-sizing: border-box;
+}
