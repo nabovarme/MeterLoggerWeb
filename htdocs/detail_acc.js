@@ -1,10 +1,10 @@
 var colorSets = [['#999999'], null];
 var g;
-//var meter_serial = '123456'; // Replace this dynamically if needed
 var dataUrlCoarse = 'data/' + meter_serial + '/acc_coarse';
 var dataUrlFine = 'data/' + meter_serial + '/acc_fine';
+var markersUrl = 'data/' + meter_serial + '/markers.json'; // Your marker data, assumed to be array of unix ms timestamps
 
-// Load initial coarse data
+// Load initial coarse data and initialize graph
 fetch(dataUrlCoarse)
 	.then(r => r.text())
 	.then(coarseCsv => {
@@ -49,11 +49,10 @@ fetch(dataUrlCoarse)
 			loadAndMergeDetailedData();
 		});
 
-		// Pan right every minute
 		setInterval(function() {
 			const range = g.xAxisRange();
 			g.updateOptions({
-				file: coarseCsv,
+				file: g.file_,
 				dateWindow: [range[0] + 60000, range[1] + 60000]
 			});
 			update_last_energy();
@@ -62,37 +61,63 @@ fetch(dataUrlCoarse)
 		}, 60000);
 	});
 
-// Load and merge detailed data
+// Load and merge detailed data, then load markers and add them
 function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
 			const mergedCsv = mergeCsv(g.file_, detailedCsv);
 			g.updateOptions({ file: mergedCsv });
+			// Now load markers and add annotations
+			fetch(markersUrl)
+				.then(r => r.json())
+				.then(markerEpochs => {
+					addMarkersToDygraph(g, markerEpochs);
+				})
+				.catch(() => {
+					console.warn('Failed to load markers, skipping marker annotations');
+				});
 		});
 }
 
-// Merge CSVs by timestamp
+// Merge CSVs by timestamp (assuming first column is timestamp string parseable by Date)
 function mergeCsv(csv1, csv2) {
 	const lines1 = csv1.trim().split("\n");
 	const lines2 = csv2.trim().split("\n");
-	
+
 	const header = lines1[0];
 	const allLines = lines1.slice(1).concat(lines2.slice(1));
-	
-	// Use a Map to remove duplicates by timestamp
+
 	const uniqueRows = new Map();
 	for (const line of allLines) {
-		const timestamp = line.split(",")[0]; // assumes timestamp is the first column
-		uniqueRows.set(timestamp, line); // newer value overwrites older
+		const timestamp = line.split(",")[0];
+		uniqueRows.set(timestamp, line);
 	}
-	
-	// Sort by timestamp
+
 	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
 		return new Date(a.split(",")[0]) - new Date(b.split(",")[0]);
 	});
-	
+
 	return [header].concat(sortedRows).join("\n");
+}
+
+// Add markers to Dygraph as annotations
+// markerEpochs is an array of unix epoch times in milliseconds
+function addMarkersToDygraph(graph, markerEpochs) {
+	if (!graph || !graph.setAnnotations) return;
+
+	const labels = graph.getLabels();
+	const seriesName = labels.length > 1 ? labels[1] : "";
+
+	const annotations = markerEpochs.map(epoch => ({
+		series: seriesName,
+		x: new Date(epoch),
+		shortText: '|',
+		text: '',
+		cssClass: 'custom-marker'
+	}));
+
+	graph.setAnnotations(annotations);
 }
 
 function update_consumption() {
@@ -137,31 +162,23 @@ function formatDate(d) {
 function update_last_energy() {
 	fetch('last_energy.epl?serial=' + meter_serial)
 		.then(response => {
-			if (!response.ok) {
-				throw new Error('Network response was not ok');
-			}
+			if (!response.ok) throw new Error('Network response was not ok');
 			return response.text();
 		})
 		.then(data => {
 			document.getElementById("last_energy").innerHTML = data;
 		})
-		.catch(error => {
-			console.error('Fetch error:', error);
-		});
+		.catch(error => console.error('Fetch error:', error));
 }
 
 function update_kwh_left() {
 	fetch('kwh_left.epl?serial=' + meter_serial)
 		.then(response => {
-			if (!response.ok) {
-				throw new Error('Network response was not ok');
-			}
+			if (!response.ok) throw new Error('Network response was not ok');
 			return response.text();
 		})
 		.then(data => {
 			document.getElementById("kwh_left").innerHTML = data;
 		})
-		.catch(error => {
-			console.error('There was a problem with the fetch operation:', error);
-		});
+		.catch(error => console.error('Fetch error:', error));
 }
