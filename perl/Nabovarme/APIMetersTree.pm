@@ -31,8 +31,8 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my %nodes;			  # serial => node hashref
-		my %pending_children;   # ssid => arrayref of child nodes
+		my %nodes;			# serial => node hashref
+		my %pending_children; # ssid => arrayref of child nodes
 
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
@@ -40,70 +40,47 @@ sub handler {
 			my $ssid   = $row->{ssid}   || '';
 
 			my $node = {
-				text	  => {
+				meter	=> {		  # renamed from 'text' to 'meter'
 					name  => "$info ($serial)",
 					title => $ssid,
 				},
-				HTMLclass => "childNode",
-				children  => [],
+				children => [],
 			};
 
 			$nodes{$serial} = $node;
-
-			# Group nodes by their parent ssid
 			push @{ $pending_children{$ssid} }, $node;
 		}
 
 		my %attached;
 		my @roots;
 
-		# Attach children nodes to their parents based on ssid references
 		for my $ssid (keys %pending_children) {
 			my $children = $pending_children{$ssid};
 
 			if ($ssid =~ /^mesh-(.+)$/ && exists $nodes{$1}) {
 				my $parent = $nodes{$1};
-				$parent->{HTMLclass} = "rootNode";  # promote parent to root if has children
 				push @{ $parent->{children} }, @$children;
 				$attached{ $_ } = 1 for @$children;
-			} else {
-				# Synthetic root node if parent unknown
-				my $synthetic = {
-					text	  => { name => $ssid },
-					HTMLclass => "rootNode",
-					children  => $children,
+			}
+			else {
+				# synthetic root node gets 'router' key instead of 'meter'
+				push @roots, {
+					router   => { name => $ssid },
+					children => $children,
 				};
-				push @roots, $synthetic;
 				$attached{ $_ } = 1 for @$children;
 			}
 		}
 
-		# Add unattached nodes as root nodes
 		for my $serial (keys %nodes) {
 			my $node = $nodes{$serial};
 			next if $attached{$node};
-			$node->{HTMLclass} = "rootNode";
 			push @roots, $node;
 		}
 
-		# Sort children recursively by node name
 		_sort_children_recursively($_) for @roots;
 
-		# Build array of full Treant config objects, one per root node
-		my @configs = map {
-			{
-				chart => {
-					container       => '',  # frontend fills this dynamically
-					rootOrientation => "WEST",
-					nodeAlign       => "LEFT",
-					connectors      => { type => "step" },
-					node            => { collapsable => JSON::XS::true, HTMLclass => "nodeDefault" },
-				},
-				nodeStructure => $_,
-			}
-		} @roots;
-
-		my $json = JSON::XS->new->utf8->canonical->encode(\@configs);
+		my $json = JSON::XS->new->utf8->canonical->encode(\@roots);
 		$r->print($json);
 
 		return Apache2::Const::OK;
@@ -118,7 +95,8 @@ sub _sort_children_recursively {
 	return unless $node->{children} && ref $node->{children} eq 'ARRAY';
 
 	@{ $node->{children} } = sort {
-		($a->{text}{name} // '') cmp ($b->{text}{name} // '')
+		( ($a->{meter}{name} // $a->{router}{name} // '') cmp
+		  ($b->{meter}{name} // $b->{router}{name} // '') )
 	} @{ $node->{children} };
 
 	_sort_children_recursively($_) for @{ $node->{children} };
