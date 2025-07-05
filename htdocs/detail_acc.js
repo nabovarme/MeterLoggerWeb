@@ -2,7 +2,8 @@ var colorSets = [['#999999'], null];
 var g;
 var dataUrlCoarse = 'data/' + meter_serial + '/acc_coarse';
 var dataUrlFine = 'data/' + meter_serial + '/acc_fine';
-var markersUrl = 'data/' + meter_serial + '/markers.json'; // Your marker data, assumed to be array of unix ms timestamps
+// markersUrl should return JSON array like [{ x: 1688563200000, label: "A", title: "Event A" }, ...]
+var markersUrl = '/payments.json';
 
 // Load initial coarse data and initialize graph
 fetch(dataUrlCoarse)
@@ -61,18 +62,19 @@ fetch(dataUrlCoarse)
 		}, 60000);
 	});
 
-// Load and merge detailed data, then load markers and add them
+// Load and merge detailed data, then load markers and add annotations
 function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
 			const mergedCsv = mergeCsv(g.file_, detailedCsv);
 			g.updateOptions({ file: mergedCsv });
+
 			// Now load markers and add annotations
 			fetch(markersUrl)
 				.then(r => r.json())
-				.then(markerEpochs => {
-					addMarkersToDygraph(g, markerEpochs);
+				.then(markers => {
+					addMarkersToDygraph(g, markers);
 				})
 				.catch(() => {
 					console.warn('Failed to load markers, skipping marker annotations');
@@ -102,23 +104,34 @@ function mergeCsv(csv1, csv2) {
 }
 
 // Add markers to Dygraph as annotations
-// markerEpochs is an array of unix epoch times in milliseconds
-function addMarkersToDygraph(graph, markerEpochs) {
+// markers: array of {x: epoch ms, label: string, title: string}
+function addMarkersToDygraph(graph, markerEntries) {
 	if (!graph || !graph.setAnnotations) return;
 
 	const labels = graph.getLabels();
 	const seriesName = labels.length > 1 ? labels[1] : "";
 
-	const annotations = markerEpochs.map(epoch => ({
-		series: seriesName,
-		x: new Date(epoch),
-		shortText: '|',
-		text: '',
-		cssClass: 'custom-marker'
-	}));
+	const annotations = markerEntries.map(entry => {
+		let xVal = entry.x;
+		if (typeof xVal === 'string') {
+			xVal = parseInt(xVal, 10);  // string -> int (epoch ms)
+		}
+		if (!(xVal instanceof Date)) {
+			xVal = new Date(xVal);  // epoch ms -> Date
+		}
+
+		return {
+			x: xVal,
+			shortText: '|',
+			text: entry.text || '',
+			series: seriesName,
+			cssClass: 'custom-marker'
+		};
+	});
 
 	graph.setAnnotations(annotations);
 }
+
 
 function update_consumption() {
 	if (!g || !g.rawData_) return;
