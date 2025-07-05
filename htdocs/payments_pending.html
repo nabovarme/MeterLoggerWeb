@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="/css/payments_pending.css">
 </head>
 <body>
+<script src="/js/payments_pending.js" defer></script>
+<script src="/js/search_payments_pending.js" defer></script>
 
 <table border="0" align="left" cellpadding="6" cellspacing="0" class="top" id="payments-table">
 	<thead>
@@ -30,43 +32,14 @@
 	</tbody>
 </table>
 
-<script>
-async function loadPayments() {
-	try {
-		const resp = await fetch('/api/payments_pending');
-		if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
-		const data = await resp.json();
-
-		const tbody = document.querySelector('#payments-table tbody');
-		tbody.innerHTML = ''; // clear existing rows
-
-		for (const row of data) {
-			const tr = document.createElement('tr');
-			tr.align = 'left';
-			tr.valign = 'top';
-
-			tr.innerHTML = `
-				<td align="left"><span class="default">${row.serial}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.info}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.open_until.toFixed(2)}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.time}</span></td>
-			`;
-			tbody.appendChild(tr);
-		}
-	} catch (err) {
-		console.error('Failed to load payments:', err);
-	}
-}
-
-// Initial load
-loadPayments();
-
-// Refresh every 60 seconds
-setInterval(loadPayments, 60 * 1000);
-</script>
-
+<!-- Floating Search UI -->
+<div id="paymentsPendingSearchContainer">
+	<input
+		type="search"
+		id="paymentsPendingSearch"
+		placeholder="Search payments pending..."
+		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+	/>
+</div>
 </body>
 </html>
