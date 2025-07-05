@@ -40,11 +40,11 @@ sub handler {
 			my $ssid   = $row->{ssid}   || '';
 
 			my $node = {
-				meter	=> {		  # renamed from 'text' to 'meter'
+				meter   => {		  # renamed from 'text' to 'meter'
 					name  => "$info ($serial)",
 					title => $ssid,
 				},
-				children => [],
+				clients => [],
 			};
 
 			$nodes{$serial} = $node;
@@ -59,14 +59,14 @@ sub handler {
 
 			if ($ssid =~ /^mesh-(.+)$/ && exists $nodes{$1}) {
 				my $parent = $nodes{$1};
-				push @{ $parent->{children} }, @$children;
+				push @{ $parent->{clients} }, @$children;
 				$attached{ $_ } = 1 for @$children;
 			}
 			else {
 				# synthetic root node gets 'router' key instead of 'meter'
 				push @roots, {
-					router   => { name => $ssid },
-					children => $children,
+					router  => { name => $ssid },
+					clients => $children,
 				};
 				$attached{ $_ } = 1 for @$children;
 			}
@@ -78,7 +78,7 @@ sub handler {
 			push @roots, $node;
 		}
 
-		_sort_children_recursively($_) for @roots;
+		_sort_clients_recursively($_) for @roots;
 
 		my $json = JSON::XS->new->utf8->canonical->encode(\@roots);
 		$r->print($json);
@@ -90,16 +90,16 @@ sub handler {
 	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
-sub _sort_children_recursively {
+sub _sort_clients_recursively {
 	my ($node) = @_;
-	return unless $node->{children} && ref $node->{children} eq 'ARRAY';
+	return unless $node->{clients} && ref $node->{clients} eq 'ARRAY';
 
-	@{ $node->{children} } = sort {
+	@{ $node->{clients} } = sort {
 		( ($a->{meter}{name} // $a->{router}{name} // '') cmp
 		  ($b->{meter}{name} // $b->{router}{name} // '') )
-	} @{ $node->{children} };
+	} @{ $node->{clients} };
 
-	_sort_children_recursively($_) for @{ $node->{children} };
+	_sort_clients_recursively($_) for @{ $node->{clients} };
 }
 
 1;
