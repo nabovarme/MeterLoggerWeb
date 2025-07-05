@@ -125,8 +125,8 @@ sub _sort_clients_recursively {
 	return unless $node->{clients} && ref $node->{clients} eq 'ARRAY';
 
 	@{ $node->{clients} } = sort {
-		( ($a->{meter}{info} // $a->{router}{name} // '') cmp
-		  ($b->{meter}{info} // $b->{router}{name} // '') )
+		( ($a->{meter}{info} || $a->{router}{name} || '') cmp
+		  ($b->{meter}{info} || $b->{router}{name} || '') )
 	} @{ $node->{clients} };
 
 	_sort_clients_recursively($_) for @{ $node->{clients} };
