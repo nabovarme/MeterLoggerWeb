@@ -12,9 +12,9 @@
 <style>
 	.chart-container {
 		width: 100%;
+		height: auto;
 		margin-bottom: 40px;
-		border: 1px solid #ccc;
-		overflow-x: auto;
+		border: 0px;
 	}
 
 	/* General font for Treant paragraphs */
@@ -92,8 +92,7 @@
 		return {
 			chart: {
 				container: `#tree${index}`,
-				rootOrientation: "WEST",
-				direction: 'RIGHT',
+				rootOrientation: 'WEST',
 				levelSeparation: 50,	 // distance between generations vertically
 				siblingSeparation: 50, // distance between siblings horizontally
 				subTeeSeparation: 30	 // distance between subtrees
