@@ -1,5 +1,12 @@
 let originalTreeData = [];
 
+function isOffline(meter) {
+	if (!meter || !meter.last_updated) return false;
+	const updatedTime = new Date(meter.last_updated * 1000);
+	const ageHours = (Date.now() - updatedTime.getTime()) / (1000 * 60 * 60);
+	return ageHours >= 1;
+}
+
 function createClientNode(client) {
 	const meter = client.meter || {};
 	const nameText = meter.info || "Client";
@@ -121,13 +128,15 @@ function renderTrees(data) {
 	});
 }
 
-function filterTree(treeData, query) {
+function filterTree(treeData, query, showOnlyOffline = false) {
 	const lowerQuery = query.toLowerCase();
 
 	function nodeMatches(meter) {
-		return meter?.info?.toLowerCase().includes(lowerQuery)
+		const matchesQuery = meter?.info?.toLowerCase().includes(lowerQuery)
 			|| meter?.serial?.toLowerCase().includes(lowerQuery)
 			|| meter?.ssid?.toLowerCase().includes(lowerQuery);
+		const offlineMatch = !showOnlyOffline || isOffline(meter);
+		return matchesQuery && offlineMatch;
 	}
 
 	function filterClients(clients) {
@@ -135,7 +144,9 @@ function filterTree(treeData, query) {
 
 		for (const client of clients) {
 			const children = filterClients(client.clients || []);
-			if (nodeMatches(client.meter) || children.length > 0) {
+			const clientMatches = nodeMatches(client.meter);
+
+			if (clientMatches || children.length > 0) {
 				result.push({ ...client, clients: children });
 			}
 		}
@@ -161,8 +172,11 @@ function debounce(fn, delay) {
 
 const renderFilteredTrees = debounce(function () {
 	const query = document.getElementById('networkSearch').value.trim();
-	const filteredData = query
-		? filterTree(originalTreeData, query)
+	const showOfflineOnly = document.getElementById('offlineMeters').checked;
+
+	const shouldFilter = query.length > 0 || showOfflineOnly;
+	const filteredData = shouldFilter
+		? filterTree(originalTreeData, query, showOfflineOnly)
 		: originalTreeData;
 
 	renderTrees(filteredData);
@@ -170,8 +184,8 @@ const renderFilteredTrees = debounce(function () {
 }, 300);
 
 document.getElementById('networkSearch').addEventListener('input', renderFilteredTrees);
+document.getElementById('offlineMeters').addEventListener('change', renderFilteredTrees);
 
-// Focus search field on page load
 window.addEventListener('load', () => {
 	document.getElementById('networkSearch').focus();
 });
