@@ -23,7 +23,7 @@ sub handler {
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 		my $sql = q[
-			SELECT serial, info, ssid
+			SELECT serial, info, ssid, type
 			FROM meters
 			WHERE type IN ('heat', 'heat_supply', 'heat_sub')
 		];
@@ -31,42 +31,47 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my %nodes;             # serial => node
-		my %mesh_id_to_serial; # "mesh-serial" => serial string
-		my %pending_children;  # ssid => arrayref of nodes
+		my %nodes;			 # serial => node hashref
+		my %pending_children;  # ssid => arrayref of child nodes
 
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
 			my $info   = $row->{info}   || '';
 			my $ssid   = $row->{ssid}   || '';
+			my $type   = $row->{type}   || '';
 
 			my $node = {
-				text      => { name => "$info ($serial)" },
+				text	  => {
+					name  => "$info ($serial)",
+					title => $type,
+				},
 				HTMLclass => "childNode",
 				children  => [],
 			};
 
 			$nodes{$serial} = $node;
-			$mesh_id_to_serial{"mesh-$serial"} = $serial;
 
+			# Group nodes by their parent ssid
 			push @{ $pending_children{$ssid} }, $node;
 		}
 
 		my %attached;
 		my @roots;
 
+		# Attach children nodes to their parents based on ssid references
 		for my $ssid (keys %pending_children) {
 			my $children = $pending_children{$ssid};
 
+			# Check if ssid matches a known mesh serial
 			if ($ssid =~ /^mesh-(.+)$/ && exists $nodes{$1}) {
 				my $parent = $nodes{$1};
-				$parent->{HTMLclass} = "rootNode";
+				$parent->{HTMLclass} = "rootNode";  # Promote parent to root if has children
 				push @{ $parent->{children} }, @$children;
 				$attached{ $_ } = 1 for @$children;
-			}
-			else {
+			} else {
+				# Synthetic root node if parent unknown
 				my $synthetic = {
-					text      => { name => $ssid },
+					text	  => { name => $ssid },
 					HTMLclass => "rootNode",
 					children  => $children,
 				};
@@ -75,6 +80,7 @@ sub handler {
 			}
 		}
 
+		# Add unattached nodes as root nodes
 		for my $serial (keys %nodes) {
 			my $node = $nodes{$serial};
 			next if $attached{$node};
@@ -82,22 +88,30 @@ sub handler {
 			push @roots, $node;
 		}
 
+		# Sort children recursively by node name
 		_sort_children_recursively($_) for @roots;
+
+		# Build nodeStructure: single root with children or just one root node
+		my $nodeStructure;
+		if (@roots == 1) {
+			$nodeStructure = $roots[0];
+		} else {
+			$nodeStructure = {
+				text	  => { name => "Root" },
+				HTMLclass => "rootNode",
+				children  => \@roots,
+			};
+		}
 
 		my $tree = {
 			chart => {
-				container       => "#OrganiseChart-simple",
+				container	   => "#tree-container",
 				rootOrientation => "NORTH",
-				node            => { HTMLclass => "nodeDefault" },
-				connectors      => { type => "step" },
+				nodeAlign	   => "CENTER",
+				connectors	  => { type => "step" },
+				node			=> { collapsable => JSON::XS::true, HTMLclass => "nodeDefault" },
 			},
-			nodeStructure => @roots > 1
-				? {
-					text      => { name => "Root" },
-					HTMLclass => "rootNode",
-					children  => \@roots,
-				}
-				: $roots[0],
+			nodeStructure => $nodeStructure,
 		};
 
 		my $json = JSON::XS->new->utf8->canonical->encode($tree);

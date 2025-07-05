@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Meter Tree</title>
+
+	<!-- Treant CSS -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.css" />
+
+	<style>
+		/* Custom styling for node classes */
+		.rootNode > .node {
+			background-color: #4CAF50;
+			color: white;
+			font-weight: bold;
+		}
+		.childNode > .node {
+			background-color: #2196F3;
+			color: white;
+		}
+		.nodeDefault > .node {
+			background-color: #757575;
+			color: white;
+		}
+
+		#tree-container {
+			width: 100%;
+			height: 600px;
+			overflow: auto;
+			border: 1px solid #ccc;
+		}
+	</style>
+</head>
+<body>
+	<h1>Meter Tree Visualization</h1>
+
+	<div id="tree-container"></div>
+
+	<!-- Dependencies -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.min.js"></script>
+
+	<script>
+		async function loadTree() {
+			try {
+				const response = await fetch('/api/meters/tree');
+				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+				const treeData = await response.json();
+
+				// Create Treant tree instance
+				new Treant(treeData);
+			} catch (err) {
+				console.error('Failed to load or render tree:', err);
+				document.getElementById('tree-container').textContent = 'Failed to load tree data.';
+			}
+		}
+
+		loadTree();
+	</script>
+</body>
+</html>
