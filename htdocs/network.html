@@ -92,7 +92,7 @@
 		// Determine recency class
 		let freshnessClass = 'green'; // default
 		if (lastUpdated) {
-			const updatedTime = new Date(lastUpdated);
+			const updatedTime = new Date(lastUpdated * 1000);
 			const ageHours = (Date.now() - updatedTime.getTime()) / (1000 * 60 * 60);
 
 			if (ageHours < 1) freshnessClass = 'green';
