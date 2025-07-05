@@ -106,8 +106,8 @@ sub handler {
 		my $tree = {
 			chart => {
 				container	   => "#tree-container",
-				rootOrientation => "NORTH",
-				nodeAlign	   => "CENTER",
+				rootOrientation => "WEST",
+				nodeAlign	   => "TOP",
 				connectors	  => { type => "step" },
 				node			=> { collapsable => JSON::XS::true, HTMLclass => "nodeDefault" },
 			},
