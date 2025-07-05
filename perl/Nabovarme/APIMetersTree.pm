@@ -23,27 +23,58 @@ sub handler {
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 		my $sql = q[
-			SELECT *
-			FROM meters
-			WHERE type IN ('heat', 'heat_supply', 'heat_sub')
+			SELECT
+				mg.`group` AS meter_group,
+				mg.`id` AS group_id,
+				m.*,
+				latest_sc.energy,
+				latest_sc.volume,
+				latest_sc.hours,
+				ROUND(
+					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
+					2
+				) AS kwh_left,
+				ROUND(
+					IF(latest_sc.effect > 0,
+						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
+						NULL
+					),
+					2
+				) AS time_left_hours,
+				latest_sc.unix_time AS last_sample_time
+			FROM meters m
+			JOIN meter_groups mg ON m.`group` = mg.`id`
+			LEFT JOIN (
+				SELECT sc1.*
+				FROM samples_cache sc1
+				INNER JOIN (
+					SELECT serial, MAX(unix_time) AS max_time
+					FROM samples_cache
+					GROUP BY serial
+				) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+			) latest_sc ON m.serial = latest_sc.serial
+			LEFT JOIN (
+				SELECT serial, SUM(amount / price) AS paid_kwh
+				FROM accounts
+				GROUP BY serial
+			) paid_kwh_table ON m.serial = paid_kwh_table.serial
+			WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
+			ORDER BY mg.`id`, m.info
 		];
 
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my %nodes;			# serial => node hashref
+		my %nodes;            # serial => node hashref
 		my %pending_children; # ssid => arrayref of child nodes
 
 		while (my $row = $sth->fetchrow_hashref) {
 			my $serial = $row->{serial} or next;
-			my $info   = $row->{info}   || '';
 			my $ssid   = $row->{ssid}   || '';
 
+			# meter contains the whole row hashref as-is
 			my $node = {
-				meter   => {		  # renamed from 'text' to 'meter'
-					name  => "$info ($serial)",
-					title => $ssid,
-				},
+				meter   => $row,
 				clients => [],
 			};
 
@@ -63,7 +94,6 @@ sub handler {
 				$attached{ $_ } = 1 for @$children;
 			}
 			else {
-				# synthetic root node gets 'router' key instead of 'meter'
 				push @roots, {
 					router  => { name => $ssid },
 					clients => $children,
@@ -95,8 +125,8 @@ sub _sort_clients_recursively {
 	return unless $node->{clients} && ref $node->{clients} eq 'ARRAY';
 
 	@{ $node->{clients} } = sort {
-		( ($a->{meter}{name} // $a->{router}{name} // '') cmp
-		  ($b->{meter}{name} // $b->{router}{name} // '') )
+		( ($a->{meter}{info} // $a->{router}{name} // '') cmp
+		  ($b->{meter}{info} // $b->{router}{name} // '') )
 	} @{ $node->{clients} };
 
 	_sort_clients_recursively($_) for @{ $node->{clients} };
