@@ -1,73 +1,87 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Multiple Trees with Treant.js</title>
-
-	<!-- Treant CSS -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.min.js"></script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.css" />
-
 	<style>
-		body {
-			font-family: Arial, sans-serif;
-			margin: 20px;
-		}
-		.tree-wrapper {
-			margin-bottom: 40px;
-			max-width: 900px;
-			border: 1px solid #ccc;
-			padding: 10px;
-			overflow: auto;
-		}
+		.chart-container { width: 600px; height: 400px; margin-bottom: 40px; border: 1px solid #ccc; }
 	</style>
 </head>
 <body>
-	<h1>Multiple Trees Visualization</h1>
-	<div id="trees-root"></div>
 
-	<!-- Dependencies -->
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.3.0/raphael.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/treant-js/1.0/Treant.min.js"></script>
+<div id="trees">Loading tree data...</div>
 
-	<script>
-		async function loadTrees() {
-			try {
-				const response = await fetch('/api/meters/tree');
-				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+<script>
+	// Recursive function to create Treant nodes for clients and nested clients
+	function createClientNode(client) {
+		const meter = client.meter || {};
+		const name = meter.info ? `${meter.info} (Serial: ${meter.serial || 'N/A'})` : "Client";
 
-				const treesArray = await response.json(); // Expecting array of treant config objects
-
-				const treesRoot = document.getElementById('trees-root');
-				treesRoot.innerHTML = '';
-
-				treesArray.forEach((treeConfig, index) => {
-					// Create container for each tree
-					const wrapper = document.createElement('div');
-					wrapper.className = 'tree-wrapper';
-
-					const container = document.createElement('div');
-					container.id = `tree-container-${index}`;
-					wrapper.appendChild(container);
-					treesRoot.appendChild(wrapper);
-
-					// Assign the container ID to the chart config
-					if (!treeConfig.chart) treeConfig.chart = {};
-					treeConfig.chart.container = `#${container.id}`;
-
-					// Optional: Customize orientation or node style here
-					// e.g. treeConfig.chart.rootOrientation = "WEST";
-
-					// Initialize Treant
-					new Treant(treeConfig);
-				});
-			} catch (err) {
-				console.error('Error loading or rendering trees:', err);
-				document.getElementById('trees-root').textContent = 'Failed to load trees.';
-			}
+		let children = [];
+		if (client.clients && client.clients.length) {
+			children = client.clients.map(createClientNode);
 		}
 
-		loadTrees();
-	</script>
+		return {
+			text: { name },
+			children: children
+		};
+	}
+
+	// Convert each router object into Treant config
+	function createTreeConfig(routerObj, index) {
+		const routerName = routerObj.router?.name || "Router";
+
+		// Root node is the router
+		const rootNode = {
+			text: { name: `Router: ${routerName}` },
+			children: []
+		};
+
+		// Add top-level clients recursively
+		if (routerObj.clients && routerObj.clients.length) {
+			rootNode.children = routerObj.clients.map(createClientNode);
+		}
+
+		return {
+			chart: { container: `#tree${index}` },
+			nodeStructure: rootNode
+		};
+	}
+
+	async function fetchAndRenderTrees() {
+		try {
+			const response = await fetch('/api/meters/tree');
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+			const data = await response.json();
+
+			const container = document.getElementById('trees');
+			container.innerHTML = '';	// clear loading text
+
+			data.forEach((routerObj, i) => {
+				// Create div for each tree
+				const treeDiv = document.createElement('div');
+				treeDiv.id = `tree${i}`;
+				treeDiv.className = 'chart-container';
+				container.appendChild(treeDiv);
+
+				// Create Treant config
+				const config = createTreeConfig(routerObj, i);
+
+				// Render tree
+				new Treant(config);
+			});
+
+		} catch (err) {
+			document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
+			console.error(err);
+		}
+	}
+
+	fetchAndRenderTrees();
+</script>
+
 </body>
 </html>
