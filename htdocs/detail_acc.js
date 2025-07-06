@@ -2,7 +2,7 @@ var colorSets = [['#999999'], null];
 var g;
 var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
 var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
-var markersUrl = '/api/account/' + meter_serial;
+var accountUrl = '/api/account/' + meter_serial;
 
 // Convert CSV timestamps from seconds to milliseconds
 function convertCsvSecondsToMs(csv) {
@@ -39,7 +39,7 @@ function addAnnotations(graph) {
 	}
 
 	// Fetch markers and add them as annotations
-	fetch(markersUrl)
+	fetch(accountUrl)
 		.then(r => r.json())
 		.then(markers => {
 			console.log("Fetched markers:", markers);  // Log all markers here
