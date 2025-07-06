@@ -65,11 +65,29 @@ fetch(dataUrlCoarse)
 			}
 		);
 
-		g.ready(function () {
-			update_consumption();
-			loadAndMergeDetailedData();
-		});
+//		g.ready(function () {
+//			update_consumption();
+//			loadAndMergeDetailedData();
+//		});
+		g.ready(() => {
+			const labels = g.getLabels();
+			console.log("Dygraph labels:", labels);
 
+			const seriesName = labels[1];	// Second item is the first data series
+			const midpoint = g.rawData_[Math.floor(g.rawData_.length / 2)];
+
+			const annotation = {
+				series: seriesName,
+				x: midpoint[0], // Date object or timestamp
+				shortText: "X",
+				text: "Test Annotation",
+				cssClass: 'custom-marker'
+			};
+
+			g.setAnnotations([annotation]);
+
+			console.log("Annotation added:", annotation);
+		});
 		setInterval(function() {
 			const range = g.xAxisRange();
 			g.updateOptions({
@@ -80,6 +98,8 @@ fetch(dataUrlCoarse)
 			update_kwh_left();
 			update_consumption();
 		}, 60000);
+		
+		console.log("Dygraph labels:", g.getLabels());
 	});
 
 // Load and merge detailed data, then load markers and add annotations
@@ -101,9 +121,10 @@ function loadAndMergeDetailedData() {
 //				.catch(() => {
 //					console.warn('Failed to load markers, skipping marker annotations');
 //				});
+			console.log("Sample Dygraph data:", g.rawData_.slice(0, 5));
 			const testMarkers = [
-				{ x: 1751751485000, label: "T", title: "Test marker now" },
-				{ x: 1751543685000, label: "P", title: "Test marker 1 hour ago" }
+				{ x: 1751208914000, label: "T", title: "Test marker now", series: "Energy" },
+				{ x: 1751543685000, label: "P", title: "Test marker 1 hour ago", series: "Energy" },
 			];
 			addMarkersToDygraph(g, testMarkers);
 		});
@@ -136,7 +157,7 @@ function addMarkersToDygraph(graph, markerEntries) {
 	if (!graph || !graph.setAnnotations) return;
 
 	const labels = graph.getLabels();
-	const seriesName = labels.length > 1 ? labels[1] : "";
+	const seriesName = labels[1];
 	console.log("Series name used for annotations:", seriesName);
 
 	// Extract all existing timestamps (x values) from the Dygraph data
