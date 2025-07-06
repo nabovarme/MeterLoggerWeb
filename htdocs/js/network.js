@@ -92,7 +92,7 @@ function createTreeConfig(routerObj, index) {
 
 async function fetchAndRenderTrees() {
 	try {
-		const response = await fetch('/api/meters/tree');
+		const response = await fetch('/api/meters/network_tree');
 		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
 		const data = await response.json();
