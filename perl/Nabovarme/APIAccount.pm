@@ -75,9 +75,12 @@ sub handler {
 
 			# Push a hashref with selected keys into the array for encoding later
 			push @encoded_rows, {
-				x     => $row->{payment_time},
-				label => $row->{type},
-				title => $row->{info},
+				series => 'Energy',
+				x      => $row->{payment_time},
+				label  => $row->{type},
+				title  => $row->{info},
+				amount => $row->{amount},
+				id     => $row->{id},
 			};
 		}
 

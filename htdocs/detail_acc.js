@@ -23,8 +23,6 @@ function addAnnotations(graph) {
 	const labels = graph.getLabels();
 	if (!graph.rawData_ || graph.rawData_.length === 0) return;
 
-	const seriesName = labels[1]; // Second item is first data series
-
 	// Function to snap marker x to nearest timestamp in data
 	function snapToNearestTimestamp(target, timestamps) {
 		let closest = timestamps[0];
@@ -56,8 +54,8 @@ function addAnnotations(graph) {
 				return {
 					x: xVal,
 					shortText: entry.label || '|',
-					text: entry.title || '',
-					series: seriesName,
+					text: `info: ${entry.title || ''}\namount: ${entry.amount || ''}`,
+					series: entry.series
 					cssClass: 'custom-marker'
 				};
 			}).filter(a => a !== null);
