@@ -11,8 +11,8 @@ function convertCsvSecondsToMs(csv) {
 	const header = lines[0];
 	const convertedLines = lines.slice(1).map(line => {
 		const parts = line.split(",");
-		// multiply timestamp (first column) by 1000
-		parts[0] = new Date(parseInt(parts[0], 10) * 1000).toISOString();
+		// Convert timestamp to milliseconds (number), not ISO string
+		parts[0] = (parseInt(parts[0], 10) * 1000).toString();
 		return parts.join(",");
 	});
 	return [header, ...convertedLines].join("\n");
@@ -43,6 +43,11 @@ fetch(dataUrlCoarse)
 					x: {
 						valueFormatter: function(x) {
 							return formatDate(new Date(x));
+						},
+						axisLabelFormatter: function(x) {
+							const d = new Date(x);
+							// Example: 06 Jul 13:30
+							return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('default', { month: 'short' })} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 						}
 					}
 				},
