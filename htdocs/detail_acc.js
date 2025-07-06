@@ -25,7 +25,7 @@ fetch(dataUrlCoarse)
 		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
 
 		g = new Dygraph(
-			document.getElementById("div_nabovarme"),
+			document.getElementById("div_dygraph"),
 			coarseCsvMs,
 			{
 				colors: colorSets[0],
@@ -137,6 +137,7 @@ function addMarkersToDygraph(graph, markerEntries) {
 
 	const labels = graph.getLabels();
 	const seriesName = labels.length > 1 ? labels[1] : "";
+	console.log("Series name used for annotations:", seriesName);
 
 	// Extract all existing timestamps (x values) from the Dygraph data
 	const dataTimestamps = graph.rawData_.map(row => row[0]);
