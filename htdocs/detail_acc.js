@@ -1,17 +1,32 @@
 var colorSets = [['#999999'], null];
 var g;
-var dataUrlCoarse = 'data/' + meter_serial + '/acc_coarse';
-var dataUrlFine = 'data/' + meter_serial + '/acc_fine';
+var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
+var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
 // markersUrl should return JSON array like [{ x: 1688563200000, label: "A", title: "Event A" }, ...]
 var markersUrl = '/payments.json';
+
+// Convert CSV timestamps from seconds to milliseconds
+function convertCsvSecondsToMs(csv) {
+	const lines = csv.trim().split("\n");
+	const header = lines[0];
+	const convertedLines = lines.slice(1).map(line => {
+		const parts = line.split(",");
+		// multiply timestamp (first column) by 1000
+		parts[0] = new Date(parseInt(parts[0], 10) * 1000).toISOString();
+		return parts.join(",");
+	});
+	return [header, ...convertedLines].join("\n");
+}
 
 // Load initial coarse data and initialize graph
 fetch(dataUrlCoarse)
 	.then(r => r.text())
 	.then(coarseCsv => {
+		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
+
 		g = new Dygraph(
 			document.getElementById("div_nabovarme"),
-			coarseCsv,
+			coarseCsvMs,
 			{
 				colors: colorSets[0],
 				strokeWidth: 1.5,
@@ -67,22 +82,29 @@ function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
-			const mergedCsv = mergeCsv(g.file_, detailedCsv);
+			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
+			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
 			// Now load markers and add annotations
-			fetch(markersUrl)
-				.then(r => r.json())
-				.then(markers => {
-					addMarkersToDygraph(g, markers);
-				})
-				.catch(() => {
-					console.warn('Failed to load markers, skipping marker annotations');
-				});
+			// If markers come in seconds, convert them here; example uses ms timestamps
+//			fetch(markersUrl)
+//				.then(r => r.json())
+//				.then(markers => {
+//					addMarkersToDygraph(g, markers);
+//				})
+//				.catch(() => {
+//					console.warn('Failed to load markers, skipping marker annotations');
+//				});
+			const testMarkers = [
+				{ x: 1751751485000, label: "T", title: "Test marker now" },
+				{ x: 1751543685000, label: "P", title: "Test marker 1 hour ago" }
+			];
+			addMarkersToDygraph(g, testMarkers);
 		});
 }
 
-// Merge CSVs by timestamp (assuming first column is timestamp string parseable by Date)
+// Merge CSVs by timestamp (timestamps expected in milliseconds)
 function mergeCsv(csv1, csv2) {
 	const lines1 = csv1.trim().split("\n");
 	const lines2 = csv2.trim().split("\n");
@@ -97,41 +119,70 @@ function mergeCsv(csv1, csv2) {
 	}
 
 	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
-		return new Date(a.split(",")[0]) - new Date(b.split(",")[0]);
+		// Numeric compare for timestamps in ms
+		return parseInt(a.split(",")[0], 10) - parseInt(b.split(",")[0], 10);
 	});
 
 	return [header].concat(sortedRows).join("\n");
 }
 
 // Add markers to Dygraph as annotations
-// markers: array of {x: epoch ms, label: string, title: string}
 function addMarkersToDygraph(graph, markerEntries) {
 	if (!graph || !graph.setAnnotations) return;
 
 	const labels = graph.getLabels();
 	const seriesName = labels.length > 1 ? labels[1] : "";
 
+	// Extract all existing timestamps (x values) from the Dygraph data
+	const dataTimestamps = graph.rawData_.map(row => row[0]);
+
+	// Helper: find closest timestamp in data to given target
+	function snapToNearestTimestamp(target, timestamps) {
+		let closest = timestamps[0];
+		let minDiff = Math.abs(target - closest);
+		for (let ts of timestamps) {
+			let diff = Math.abs(target - ts);
+			if (diff < minDiff) {
+				closest = ts;
+				minDiff = diff;
+			}
+		}
+		return closest;
+	}
+
 	const annotations = markerEntries.map(entry => {
 		let xVal = entry.x;
 		if (typeof xVal === 'string') {
-			xVal = parseInt(xVal, 10);  // string -> int (epoch ms)
+			xVal = parseInt(xVal, 10);
 		}
+
+		// Expect xVal in milliseconds
+		if (typeof xVal === 'number') {
+			xVal = snapToNearestTimestamp(xVal, dataTimestamps);
+		}
+
 		if (!(xVal instanceof Date)) {
-			xVal = new Date(xVal);  // epoch ms -> Date
+			xVal = new Date(xVal);
+		}
+
+		if (isNaN(xVal.getTime())) {
+			console.warn('Invalid marker x value:', entry.x);
+			return null;
 		}
 
 		return {
 			x: xVal,
-			shortText: '|',
-			text: entry.text || '',
+			shortText: entry.label || '|',
+			text: entry.title || '',
 			series: seriesName,
 			cssClass: 'custom-marker'
 		};
-	});
+	}).filter(a => a !== null);
 
+	console.log("Setting annotations:", annotations);
+	console.log("Dygraph labels:", graph.getLabels());
 	graph.setAnnotations(annotations);
 }
-
 
 function update_consumption() {
 	if (!g || !g.rawData_) return;
