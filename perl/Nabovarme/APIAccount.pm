@@ -59,7 +59,7 @@ sub handler {
 			WHERE 
 				a.serial = $quoted_serial
 			ORDER BY 
-				a.payment_time DESC
+				a.payment_time ASC
 		]);
 		$sth->execute();
 
@@ -71,16 +71,16 @@ sub handler {
 		# Fetch each row from the query result and build a hashref for JSON output
 		while (my $row = $sth->fetchrow_hashref) {
 			# Convert payment_time from seconds to milliseconds (JavaScript timestamp format)
-			$row->{payment_time} = $row->{payment_time} * 1000;
+#			$row->{payment_time} = $row->{payment_time} * 1000;
 
 			# Push a hashref with selected keys into the array for encoding later
 			push @encoded_rows, {
-				series => 'Energy',
-				x      => $row->{payment_time},
-				label  => $row->{type},
-				title  => $row->{info},
-				amount => $row->{amount},
-				id     => $row->{id},
+				id           => $row->{id},
+				type         => $row->{type},
+				payment_time => $row->{payment_time},
+				info         => $row->{info},
+				amount       => $row->{amount},
+				price        => $row->{price}
 			};
 		}
 
