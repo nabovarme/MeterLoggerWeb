@@ -23,19 +23,53 @@ function addAnnotations(graph) {
 	const labels = graph.getLabels();
 	if (!graph.rawData_ || graph.rawData_.length === 0) return;
 
-	const seriesName = labels[1];	// Second item is first data series
-	const midpoint = graph.rawData_[Math.floor(graph.rawData_.length / 2)];
+	const seriesName = labels[1]; // Second item is first data series
 
-	const annotation = {
-		series: seriesName,
-		x: midpoint[0], // timestamp in ms
-		shortText: "X",
-		text: "Test Annotation",
-		cssClass: 'custom-marker'
-	};
+	// Function to snap marker x to nearest timestamp in data
+	function snapToNearestTimestamp(target, timestamps) {
+		let closest = timestamps[0];
+		let minDiff = Math.abs(target - closest);
+		for (let ts of timestamps) {
+			let diff = Math.abs(target - ts);
+			if (diff < minDiff) {
+				closest = ts;
+				minDiff = diff;
+			}
+		}
+		return closest;
+	}
 
-	graph.setAnnotations([annotation]);
-	console.log("Annotation added:", annotation);
+	// Fetch markers and add them as annotations
+	fetch(markersUrl)
+		.then(r => r.json())
+		.then(markers => {
+			console.log("Fetched markers:", markers);  // Log all markers here
+
+			const dataTimestamps = graph.rawData_.map(row => row[0]);
+
+			const markerAnnotations = markers.map(entry => {
+				let xVal = entry.x;  // already a number in ms
+
+				// Snap to nearest timestamp in graph data
+				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
+
+				return {
+					x: xVal,
+					shortText: entry.label || '|',
+					text: entry.title || '',
+					series: seriesName,
+					cssClass: 'custom-marker'
+				};
+			}).filter(a => a !== null);
+
+			graph.setAnnotations(markerAnnotations);
+			console.log("All annotations added:", markerAnnotations);
+		})
+		.catch(() => {
+			// No fallback annotations now
+			graph.setAnnotations([]);
+			console.warn('Failed to load markers, no annotations added');
+		});
 }
 
 // Load initial coarse data and initialize graph
