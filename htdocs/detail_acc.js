@@ -3,7 +3,7 @@ var g;
 var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
 var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
 // markersUrl should return JSON array like [{ x: 1688563200000, label: "A", title: "Event A" }, ...]
-var markersUrl = '/payments.json';
+var markersUrl = '/api/account/' + meter_serial;
 
 // Convert CSV timestamps from seconds to milliseconds
 function convertCsvSecondsToMs(csv) {
