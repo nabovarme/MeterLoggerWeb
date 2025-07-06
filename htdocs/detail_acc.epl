@@ -224,19 +224,8 @@
 				<td align="left"><span class="default-bold">Price</span></td>
 			</tr>
 		
-			[$ if ($payments_sth->rows) $]
-			[$ while ($d = $payments_sth->fetchrow_hashref) $]
-				<tr align="left" valign="bottom">
-					<td align="left"><span class="default">[+ $d->{date_string} +]</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ sprintf("%.0f", ($d->{amount} / $d->{price})) . " kWh" +] [$ endif $][+ $d->{info} +] </span></td>
-					<td>&nbsp;</td>
-					<td align="right"><span class="default">[+ Nabovarme::Admin::normalize_amount($d->{amount} || 0) +] kr</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default">[$ if $d->{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($d->{price} || 0) +] kr/kWh[$ endif $]</span></td>
-				</tr>
-			[$ endwhile $]
-			[$ endif $]
+<table id="payments-table" align="left" valign="bottom">
+
 			[$ if ($is_admin) $]
 				[$ if ($fdat{add_state} =~ /preview/i) $]
 					<form method="GET" action="">
