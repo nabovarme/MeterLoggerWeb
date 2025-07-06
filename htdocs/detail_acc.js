@@ -18,6 +18,26 @@ function convertCsvSecondsToMs(csv) {
 	return [header, ...convertedLines].join("\n");
 }
 
+// Function to add annotations to Dygraph
+function addAnnotations(graph) {
+	const labels = graph.getLabels();
+	if (!graph.rawData_ || graph.rawData_.length === 0) return;
+
+	const seriesName = labels[1];	// Second item is first data series
+	const midpoint = graph.rawData_[Math.floor(graph.rawData_.length / 2)];
+
+	const annotation = {
+		series: seriesName,
+		x: midpoint[0], // timestamp in ms
+		shortText: "X",
+		text: "Test Annotation",
+		cssClass: 'custom-marker'
+	};
+
+	graph.setAnnotations([annotation]);
+	console.log("Annotation added:", annotation);
+}
+
 // Load initial coarse data and initialize graph
 fetch(dataUrlCoarse)
 	.then(r => r.text())
@@ -65,29 +85,14 @@ fetch(dataUrlCoarse)
 			}
 		);
 
-//		g.ready(function () {
-//			update_consumption();
-//			loadAndMergeDetailedData();
-//		});
 		g.ready(() => {
-			const labels = g.getLabels();
-			console.log("Dygraph labels:", labels);
+			console.log("Dygraph labels:", g.getLabels());
 
-			const seriesName = labels[1];	// Second item is the first data series
-			const midpoint = g.rawData_[Math.floor(g.rawData_.length / 2)];
-
-			const annotation = {
-				series: seriesName,
-				x: midpoint[0], // Date object or timestamp
-				shortText: "X",
-				text: "Test Annotation",
-				cssClass: 'custom-marker'
-			};
-
-			g.setAnnotations([annotation]);
-
-			console.log("Annotation added:", annotation);
+			update_consumption();
+			loadAndMergeDetailedData();
+			addAnnotations(g);
 		});
+
 		setInterval(function() {
 			const range = g.xAxisRange();
 			g.updateOptions({
@@ -98,11 +103,11 @@ fetch(dataUrlCoarse)
 			update_kwh_left();
 			update_consumption();
 		}, 60000);
-		
+
 		console.log("Dygraph labels:", g.getLabels());
 	});
 
-// Load and merge detailed data, then load markers and add annotations
+// Load and merge detailed data, then add annotations again
 function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
@@ -110,23 +115,9 @@ function loadAndMergeDetailedData() {
 			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
+			addAnnotations(g);  // Add annotations after merging detailed data
 
-			// Now load markers and add annotations
-			// If markers come in seconds, convert them here; example uses ms timestamps
-//			fetch(markersUrl)
-//				.then(r => r.json())
-//				.then(markers => {
-//					addMarkersToDygraph(g, markers);
-//				})
-//				.catch(() => {
-//					console.warn('Failed to load markers, skipping marker annotations');
-//				});
 			console.log("Sample Dygraph data:", g.rawData_.slice(0, 5));
-			const testMarkers = [
-				{ x: 1751208914000, label: "T", title: "Test marker now", series: "Energy" },
-				{ x: 1751543685000, label: "P", title: "Test marker 1 hour ago", series: "Energy" },
-			];
-			addMarkersToDygraph(g, testMarkers);
 		});
 }
 
@@ -150,65 +141,6 @@ function mergeCsv(csv1, csv2) {
 	});
 
 	return [header].concat(sortedRows).join("\n");
-}
-
-// Add markers to Dygraph as annotations
-function addMarkersToDygraph(graph, markerEntries) {
-	if (!graph || !graph.setAnnotations) return;
-
-	const labels = graph.getLabels();
-	const seriesName = labels[1];
-	console.log("Series name used for annotations:", seriesName);
-
-	// Extract all existing timestamps (x values) from the Dygraph data
-	const dataTimestamps = graph.rawData_.map(row => row[0]);
-
-	// Helper: find closest timestamp in data to given target
-	function snapToNearestTimestamp(target, timestamps) {
-		let closest = timestamps[0];
-		let minDiff = Math.abs(target - closest);
-		for (let ts of timestamps) {
-			let diff = Math.abs(target - ts);
-			if (diff < minDiff) {
-				closest = ts;
-				minDiff = diff;
-			}
-		}
-		return closest;
-	}
-
-	const annotations = markerEntries.map(entry => {
-		let xVal = entry.x;
-		if (typeof xVal === 'string') {
-			xVal = parseInt(xVal, 10);
-		}
-
-		// Expect xVal in milliseconds
-		if (typeof xVal === 'number') {
-			xVal = snapToNearestTimestamp(xVal, dataTimestamps);
-		}
-
-		if (!(xVal instanceof Date)) {
-			xVal = new Date(xVal);
-		}
-
-		if (isNaN(xVal.getTime())) {
-			console.warn('Invalid marker x value:', entry.x);
-			return null;
-		}
-
-		return {
-			x: xVal,
-			shortText: entry.label || '|',
-			text: entry.title || '',
-			series: seriesName,
-			cssClass: 'custom-marker'
-		};
-	}).filter(a => a !== null);
-
-	console.log("Setting annotations:", annotations);
-	console.log("Dygraph labels:", graph.getLabels());
-	graph.setAnnotations(annotations);
 }
 
 function update_consumption() {
