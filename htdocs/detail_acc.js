@@ -1,16 +1,86 @@
 var colorSets = [['#999999'], null];
 var g;
-//var meter_serial = '123456'; // Replace this dynamically if needed
-var dataUrlCoarse = 'data/' + meter_serial + '/acc_coarse';
-var dataUrlFine = 'data/' + meter_serial + '/acc_fine';
+var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
+var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
+// markersUrl should return JSON array like [{ x: 1688563200000, label: "A", title: "Event A" }, ...]
+var markersUrl = '/api/account/' + meter_serial;
 
-// Load initial coarse data
+// Convert CSV timestamps from seconds to milliseconds
+function convertCsvSecondsToMs(csv) {
+	const lines = csv.trim().split("\n");
+	const header = lines[0];
+	const convertedLines = lines.slice(1).map(line => {
+		const parts = line.split(",");
+		// Convert timestamp to milliseconds (number), not ISO string
+		parts[0] = (parseInt(parts[0], 10) * 1000).toString();
+		return parts.join(",");
+	});
+	return [header, ...convertedLines].join("\n");
+}
+
+// Function to add annotations to Dygraph
+function addAnnotations(graph) {
+	const labels = graph.getLabels();
+	if (!graph.rawData_ || graph.rawData_.length === 0) return;
+
+	const seriesName = labels[1]; // Second item is first data series
+
+	// Function to snap marker x to nearest timestamp in data
+	function snapToNearestTimestamp(target, timestamps) {
+		let closest = timestamps[0];
+		let minDiff = Math.abs(target - closest);
+		for (let ts of timestamps) {
+			let diff = Math.abs(target - ts);
+			if (diff < minDiff) {
+				closest = ts;
+				minDiff = diff;
+			}
+		}
+		return closest;
+	}
+
+	// Fetch markers and add them as annotations
+	fetch(markersUrl)
+		.then(r => r.json())
+		.then(markers => {
+			console.log("Fetched markers:", markers);  // Log all markers here
+
+			const dataTimestamps = graph.rawData_.map(row => row[0]);
+
+			const markerAnnotations = markers.map(entry => {
+				let xVal = entry.x;  // already a number in ms
+
+				// Snap to nearest timestamp in graph data
+				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
+
+				return {
+					x: xVal,
+					shortText: entry.label || '|',
+					text: entry.title || '',
+					series: seriesName,
+					cssClass: 'custom-marker'
+				};
+			}).filter(a => a !== null);
+
+			graph.setAnnotations(markerAnnotations);
+			console.log("All annotations added:", markerAnnotations);
+		})
+		.catch(() => {
+			// No fallback annotations now
+			graph.setAnnotations([]);
+			console.warn('Failed to load markers, no annotations added');
+		});
+}
+
+// Load initial coarse data and initialize graph
 fetch(dataUrlCoarse)
 	.then(r => r.text())
 	.then(coarseCsv => {
+		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
+
 		g = new Dygraph(
-			document.getElementById("div_nabovarme"),
-			coarseCsv,
+			document.getElementById("div_dygraph"),
+			coarseCsvMs,
 			{
 				colors: colorSets[0],
 				strokeWidth: 1.5,
@@ -27,6 +97,11 @@ fetch(dataUrlCoarse)
 					x: {
 						valueFormatter: function(x) {
 							return formatDate(new Date(x));
+						},
+						axisLabelFormatter: function(x) {
+							const d = new Date(x);
+							// Example: 06 Jul 13:30
+							return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('default', { month: 'short' })} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 						}
 					}
 				},
@@ -44,54 +119,61 @@ fetch(dataUrlCoarse)
 			}
 		);
 
-		g.ready(function () {
+		g.ready(() => {
+			console.log("Dygraph labels:", g.getLabels());
+
 			update_consumption();
 			loadAndMergeDetailedData();
+			addAnnotations(g);
 		});
 
-		// Pan right every minute
 		setInterval(function() {
 			const range = g.xAxisRange();
 			g.updateOptions({
-				file: coarseCsv,
+				file: g.file_,
 				dateWindow: [range[0] + 60000, range[1] + 60000]
 			});
 			update_last_energy();
 			update_kwh_left();
 			update_consumption();
 		}, 60000);
+
+		console.log("Dygraph labels:", g.getLabels());
 	});
 
-// Load and merge detailed data
+// Load and merge detailed data, then add annotations again
 function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
-			const mergedCsv = mergeCsv(g.file_, detailedCsv);
+			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
+			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
+			addAnnotations(g);  // Add annotations after merging detailed data
+
+			console.log("Sample Dygraph data:", g.rawData_.slice(0, 5));
 		});
 }
 
-// Merge CSVs by timestamp
+// Merge CSVs by timestamp (timestamps expected in milliseconds)
 function mergeCsv(csv1, csv2) {
 	const lines1 = csv1.trim().split("\n");
 	const lines2 = csv2.trim().split("\n");
-	
+
 	const header = lines1[0];
 	const allLines = lines1.slice(1).concat(lines2.slice(1));
-	
-	// Use a Map to remove duplicates by timestamp
+
 	const uniqueRows = new Map();
 	for (const line of allLines) {
-		const timestamp = line.split(",")[0]; // assumes timestamp is the first column
-		uniqueRows.set(timestamp, line); // newer value overwrites older
+		const timestamp = line.split(",")[0];
+		uniqueRows.set(timestamp, line);
 	}
-	
-	// Sort by timestamp
+
 	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
-		return new Date(a.split(",")[0]) - new Date(b.split(",")[0]);
+		// Numeric compare for timestamps in ms
+		return parseInt(a.split(",")[0], 10) - parseInt(b.split(",")[0], 10);
 	});
-	
+
 	return [header].concat(sortedRows).join("\n");
 }
 
@@ -137,31 +219,23 @@ function formatDate(d) {
 function update_last_energy() {
 	fetch('last_energy.epl?serial=' + meter_serial)
 		.then(response => {
-			if (!response.ok) {
-				throw new Error('Network response was not ok');
-			}
+			if (!response.ok) throw new Error('Network response was not ok');
 			return response.text();
 		})
 		.then(data => {
 			document.getElementById("last_energy").innerHTML = data;
 		})
-		.catch(error => {
-			console.error('Fetch error:', error);
-		});
+		.catch(error => console.error('Fetch error:', error));
 }
 
 function update_kwh_left() {
 	fetch('kwh_left.epl?serial=' + meter_serial)
 		.then(response => {
-			if (!response.ok) {
-				throw new Error('Network response was not ok');
-			}
+			if (!response.ok) throw new Error('Network response was not ok');
 			return response.text();
 		})
 		.then(data => {
 			document.getElementById("kwh_left").innerHTML = data;
 		})
-		.catch(error => {
-			console.error('There was a problem with the fetch operation:', error);
-		});
+		.catch(error => console.error('Fetch error:', error));
 }

@@ -1,4 +1,4 @@
-package Nabovarme::APIMetersTree;
+package Nabovarme::APIMetersNetworkTree;
 
 use strict;
 use warnings;
