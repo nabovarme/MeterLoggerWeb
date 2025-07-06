@@ -10,21 +10,19 @@ function convertCsvSecondsToMs(csv) {
 	const header = lines[0];
 	const convertedLines = lines.slice(1).map(line => {
 		const parts = line.split(",");
-		// Convert timestamp to milliseconds (number), not ISO string
 		parts[0] = (parseInt(parts[0], 10) * 1000).toString();
 		return parts.join(",");
 	});
 	return [header, ...convertedLines].join("\n");
 }
 
-// Function to add annotations to Dygraph
+// Function to add annotations to Dygraph and return markers data
 function addAnnotations(graph) {
 	const labels = graph.getLabels();
-	if (!graph.rawData_ || graph.rawData_.length === 0) return;
-	
+	if (!graph.rawData_ || graph.rawData_.length === 0) return Promise.resolve([]);
+
 	const seriesName = labels[1]; // Second item is first data series
 
-	// Function to snap marker x to nearest timestamp in data
 	function snapToNearestTimestamp(target, timestamps) {
 		let closest = timestamps[0];
 		let minDiff = Math.abs(target - closest);
@@ -38,18 +36,14 @@ function addAnnotations(graph) {
 		return closest;
 	}
 
-	// Fetch markers and add them as annotations
-	fetch(accountUrl)
+	return fetch(accountUrl)
 		.then(r => r.json())
 		.then(markers => {
-			console.log("Fetched markers:", markers);  // Log all markers here
-
 			const dataTimestamps = graph.rawData_.map(row => row[0]);
 
 			const markerAnnotations = markers.map(entry => {
-				let xVal = entry.payment_time * 1000; // js use mS
+				let xVal = entry.payment_time * 1000; // ms
 
-				// Snap to nearest timestamp in graph data
 				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
 
 				return {
@@ -62,13 +56,44 @@ function addAnnotations(graph) {
 			}).filter(a => a !== null);
 
 			graph.setAnnotations(markerAnnotations);
-			console.log("All annotations added:", markerAnnotations);
+			return markers;	// return markers data here
 		})
 		.catch(() => {
-			// No fallback annotations now
 			graph.setAnnotations([]);
 			console.warn('Failed to load markers, no annotations added');
+			return [];
 		});
+}
+
+// Render payments table using markers JSON data
+function renderPaymentsTableFromMarkers(payments) {
+	const tbody = document.querySelector("#payments-table tbody");
+	tbody.innerHTML = '';
+
+	if (!payments.length) {
+		tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No payments data available</td></tr>';
+		return;
+	}
+
+	payments.forEach(d => {
+		const tr = document.createElement('tr');
+		tr.style.textAlign = "left";
+		tr.style.verticalAlign = "bottom";
+
+		// Safely format kWh
+		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
+
+		tr.innerHTML = `
+			<td><span class="default">${d.date_string}</span></td>
+			<td>&nbsp;</td>
+			<td><span class="default">${kWh} ${d.info || ''}</span></td>
+			<td>&nbsp;</td>
+			<td style="text-align:right"><span class="default">${normalizeAmount(d.amount || 0)} kr</span></td>
+			<td>&nbsp;</td>
+			<td><span class="default">${d.type === 'payment' ? normalizeAmount(d.price || 0) + ' kr/kWh' : ''}</span></td>
+		`;
+		tbody.appendChild(tr);
+	});
 }
 
 // Load initial coarse data and initialize graph
@@ -99,7 +124,6 @@ fetch(dataUrlCoarse)
 						},
 						axisLabelFormatter: function(x) {
 							const d = new Date(x);
-							// Example: 06 Jul 13:30
 							return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('default', { month: 'short' })} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 						}
 					}
@@ -123,7 +147,10 @@ fetch(dataUrlCoarse)
 
 			update_consumption();
 			loadAndMergeDetailedData();
-			addAnnotations(g);
+
+			addAnnotations(g).then(markers => {
+				renderPaymentsTableFromMarkers(markers);
+			});
 		});
 
 		setInterval(function() {
@@ -146,7 +173,9 @@ function loadAndMergeDetailedData() {
 			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
-			addAnnotations(g);  // Add annotations after merging detailed data
+			addAnnotations(g).then(markers => {
+				renderPaymentsTableFromMarkers(markers);
+			});
 		});
 }
 
@@ -165,7 +194,6 @@ function mergeCsv(csv1, csv2) {
 	}
 
 	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
-		// Numeric compare for timestamps in ms
 		return parseInt(a.split(",")[0], 10) - parseInt(b.split(",")[0], 10);
 	});
 
@@ -233,4 +261,10 @@ function update_kwh_left() {
 			document.getElementById("kwh_left").innerHTML = data;
 		})
 		.catch(error => console.error('Fetch error:', error));
+}
+
+// Your normalizeAmount function from your original code or define as needed
+function normalizeAmount(amount) {
+	// Example: Format as fixed 2 decimals or your custom logic here
+	return parseFloat(amount).toFixed(2);
 }
