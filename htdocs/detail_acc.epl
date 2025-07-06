@@ -85,19 +85,14 @@
 
 		<style type="text/css">
 			/* Graph container fills width with no margin/padding */
-			#spinner {
+			#div_dygraph {
 				width: 100%;
 				height: 400px;
 				position: relative;
-				margin: 0;
-				padding: 0;
-			}
-			#div_nabovarme {
-				width: 100%;
-				height: 400px;
-				position: absolute;
 				top: 0;
 				left: 0;
+				margin: 0;
+				padding: 0;
 				margin-right: 120px;
 			}
 			/* Align Y-axis labels right, near graph */
@@ -149,7 +144,7 @@
 			}
 
 			@media (max-width: 600px) {
-				#spinner, #div_nabovarme {
+				#spinner, #div_dygraph {
 					height: 300px;
 				}
 				input[type="checkbox"] {
@@ -190,9 +185,7 @@
 			[$ endif $]
 			</div>
 		</span>
-		<div id="spinner">
-			<div id="div_nabovarme"></div>
-		</div>
+			<div id="div_dygraph"></div>
 		<br>
 		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%">
 			<tr align="left" valign="bottom">
