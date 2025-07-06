@@ -107,27 +107,40 @@
 				text-align: left;
 				background: none;
 			}
+			
 			.dygraph-axis-label {
 				font-family: Verdana, Geneva, sans-serif;
 			}
+			
+			.custom-marker {
+//			  background-color: red;
+//			  color: white;
+			  font-weight: bold;
+			}
+			
 			.highlight {
 				font-weight: bold;
 			}
+			
 			.default {
 				font-family: Verdana, Geneva, sans-serif;
 			}
+			
 			.default-small {
 				font-family: Verdana, Geneva, sans-serif;
 				font-size: 50%;
 			}
+			
 			.default-bold {
 				font-family: Verdana, Geneva, sans-serif;
 				font-weight: bold;
 			}
+			
 			.default-highlight {
 				font-family: Verdana, Geneva, sans-serif;
 				background-color:#FFFF00;
 			}
+			
 			/* Scale checkboxes for mobile */
 			input[type="checkbox"] {
 				transform: scale(1.5);
