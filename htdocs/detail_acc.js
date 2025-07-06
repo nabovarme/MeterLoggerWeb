@@ -2,7 +2,6 @@ var colorSets = [['#999999'], null];
 var g;
 var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
 var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
-// markersUrl should return JSON array like [{ x: 1688563200000, label: "A", title: "Event A" }, ...]
 var markersUrl = '/api/account/' + meter_serial;
 
 // Convert CSV timestamps from seconds to milliseconds
@@ -22,6 +21,8 @@ function convertCsvSecondsToMs(csv) {
 function addAnnotations(graph) {
 	const labels = graph.getLabels();
 	if (!graph.rawData_ || graph.rawData_.length === 0) return;
+	
+	const seriesName = labels[1]; // Second item is first data series
 
 	// Function to snap marker x to nearest timestamp in data
 	function snapToNearestTimestamp(target, timestamps) {
@@ -46,16 +47,16 @@ function addAnnotations(graph) {
 			const dataTimestamps = graph.rawData_.map(row => row[0]);
 
 			const markerAnnotations = markers.map(entry => {
-				let xVal = entry.x;  // already a number in ms
+				let xVal = entry.payment_time * 1000; // js use mS
 
 				// Snap to nearest timestamp in graph data
 				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
 
 				return {
 					x: xVal,
-					shortText: entry.label || '|',
-					text: `info: ${entry.title || ''}\namount: ${entry.amount || ''}`,
-					series: entry.series
+					shortText: entry.type || '|',
+					text: `info: ${entry.info || ''}\namount: ${entry.amount || ''}`,
+					series: seriesName,
 					cssClass: 'custom-marker'
 				};
 			}).filter(a => a !== null);
@@ -135,8 +136,6 @@ fetch(dataUrlCoarse)
 			update_kwh_left();
 			update_consumption();
 		}, 60000);
-
-		console.log("Dygraph labels:", g.getLabels());
 	});
 
 // Load and merge detailed data, then add annotations again
@@ -148,8 +147,6 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 			addAnnotations(g);  // Add annotations after merging detailed data
-
-			console.log("Sample Dygraph data:", g.rawData_.slice(0, 5));
 		});
 }
 
