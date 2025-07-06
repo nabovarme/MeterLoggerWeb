@@ -185,6 +185,7 @@
 			[$ endif $]
 			</div>
 		</span>
+			<div id="ann_div"></div>
 			<div id="div_dygraph"></div>
 		<br>
 		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%">
