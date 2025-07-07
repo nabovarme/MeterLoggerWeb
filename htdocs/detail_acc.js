@@ -166,6 +166,7 @@ function renderPaymentsTableFromMarkers(payments) {
 
 		container.appendChild(row);
 	});
+}
 
 /*-----------------------
  * Annotation functions
