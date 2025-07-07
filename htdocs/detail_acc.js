@@ -183,13 +183,13 @@ function renderPaymentsTableFromMarkers(payments) {
 // Assigns data-annotation-id attributes and sets up hover event listeners on annotation DOM elements
 function assignAnnotationIdsAndListeners(graph) {
 	setTimeout(() => {
+		if (!graph || !graph.annotations_) return;
+
 		const annotations = document.querySelectorAll('.dygraph-annotation');
-		const markerAnnotations = graph.annotations_ || [];
+		const markerAnnotations = graph.annotations_;
 
 		annotations.forEach(el => {
 			const title = el.getAttribute('title'); // This includes the full text
-
-			// Extract the ID from the text (first line starts with "#")
 			const lines = title.split("\n");
 			const idLine = lines[0];
 			if (!idLine.startsWith("#")) return;
@@ -359,6 +359,9 @@ fetch(dataUrlCoarse)
 	.then(coarseCsv => {
 		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
 
+		const now = Date.now();
+		const oneYearAgo = now - 365 * 24 * 3600 * 1000;
+
 		g = new Dygraph(
 			document.getElementById("div_dygraph"),
 			coarseCsvMs,
@@ -374,6 +377,9 @@ fetch(dataUrlCoarse)
 				},
 				labelsSeparateLines: true,
 				labelsDivWidth: 700,
+				showRangeSelector: true,
+				dateWindow: [oneYearAgo, now],
+				interactionModel: Dygraph.defaultInteractionModel,
 				axes: {
 					x: {
 						valueFormatter: function(x) {
@@ -399,7 +405,10 @@ fetch(dataUrlCoarse)
 					strokeWidth: 2,
 					strokeBorderWidth: 1,
 				},
-				zoomCallback: update_consumption,
+				zoomCallback: function(minX, maxX, yRanges) {
+					update_consumption();
+					filterPaymentTableByGraphRange(g);
+				},
 				drawCallback: () => {
 					assignAnnotationIdsAndListeners(g);
 				}
