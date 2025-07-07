@@ -15,13 +15,7 @@ use Nabovarme::Utils;
 
 sub handler {
 	my $r = shift;
-	my ($dbh, $sth, $d);
-
-	# Get cache path from Apache config or fallback to default '/cache'
-	my $data_cache_path = $r->dir_config('DataCachePath') || '/cache';
-
-	# Get the Apache document root path (not currently used but may be useful)
-	my $document_root = $r->document_root();
+	my ($dbh, $sth);
 
 	# Extract the serial number from the URI (last path component)
 	my ($serial) = $r->uri =~ m|([^/]+)$|;
@@ -41,9 +35,6 @@ sub handler {
 
 		# Add CORS header to allow all origins
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
-
-		# Debug: dump the serial to error log
-		warn Dumper $serial;
 
 		# Quote the serial for safe use in SQL (prevents injection)
 		$quoted_serial = $dbh->quote($serial);
@@ -133,7 +124,7 @@ sub handler {
 			  AND m.serial = $quoted_serial;
 		]);
 		$sth_summary->execute();
-		$d = $sth_summary->fetchrow_hashref || {};
+		my $summary_row = $sth_summary->fetchrow_hashref || {};
 
 		# Prepare SQL statement to select account and related meter info
 		my $sth = $dbh->prepare(qq[
@@ -174,11 +165,11 @@ sub handler {
 
 		# Encode the entire response with summary keys and payments array
 		my $response = {
-			kwh_left            => $d->{kwh_left} || 0,
-			time_left_hours     => $d->{time_left_hours} || 0,
-			energy_last_day     => $d->{energy_last_day} || 0,
-			time_left_str       => ($d->{energy_last_day} > 0) ? "$d->{energy_last_day}" : '∞',
-			avg_energy_last_day => $d->{avg_energy_last_day},
+			kwh_left            => $summary_row->{kwh_left} || 0,
+			time_left_hours     => $summary_row->{time_left_hours} || 0,
+			energy_last_day     => $summary_row->{energy_last_day} || 0,
+			time_left_str       => ($summary_row->{energy_last_day} > 0) ? "$summary_row->{energy_last_day}" : '∞',
+			avg_energy_last_day => $summary_row->{avg_energy_last_day},
 			last_hours          => $last_hours,
 			last_volume         => $last_volume,
 			last_energy         => $last_energy,
