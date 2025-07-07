@@ -48,6 +48,8 @@
 		<link rel="stylesheet" href="/css/detail_acc.css">
 	</HEAD>
 	<BODY>
+		<div class="watermark">BETA-TEST</div>
+
 		<span class="default-bold">
 			[+ $info +]
 		</span>
