@@ -115,7 +115,7 @@ html, body {
 .payment-row {
 	font-family: Verdana, Geneva, sans-serif;
 	display: grid;
-	grid-template-columns: 1fr 3fr 1fr 1fr;
+	grid-template-columns: 2fr 3fr 1fr 1fr;
 	align-items: left;
 	padding: 6px 0;
 	gap: 6px;
