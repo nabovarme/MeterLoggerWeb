@@ -385,10 +385,6 @@ fetch(dataUrlCoarse)
 				labelsSeparateLines: true,
 				labelsDivWidth: 700,
 				showRangeSelector: true,
-				rangeSelectorCallback: function(minX, maxX) {
-					update_consumption();
-					filterPaymentTableByGraphRange(g);
-				},
 				dateWindow: [oneYearAgo, now],
 				interactionModel: Dygraph.defaultInteractionModel,
 				axes: {
@@ -420,8 +416,11 @@ fetch(dataUrlCoarse)
 					update_consumption();
 					filterPaymentTableByGraphRange(g);
 				},
-				drawCallback: () => {
-					assignAnnotationIdsAndListeners(g);
+				drawCallback: (graph) => {
+					const range = graph.xAxisRange();
+					update_consumption();
+					filterPaymentTableByGraphRange(graph);
+					assignAnnotationIdsAndListeners(graph);
 				}
 			}
 		);
