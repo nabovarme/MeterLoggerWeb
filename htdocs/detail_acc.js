@@ -231,6 +231,20 @@ function setupAnnotationHoverHandlers() {
 				el.setAttribute('title', original);
 			}
 		});
+		
+		el.addEventListener('click', () => {
+			console.log('Clicked on', annotationId);
+			const row = document.getElementById(annotationId);
+			if (row) {
+				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				row.classList.add('highlight-clicked');
+		
+				// Optional: Remove highlight after some delay
+				setTimeout(() => {
+					row.classList.remove('highlight-clicked');
+				}, 2000);
+			}
+		});
 	});
 }
 
