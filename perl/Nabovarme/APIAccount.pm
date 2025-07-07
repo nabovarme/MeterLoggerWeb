@@ -1,6 +1,7 @@
 package Nabovarme::APIAccount;
 
 use strict;
+use utf8;
 use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
@@ -50,11 +51,17 @@ sub handler {
 		# --- New query to get summary values ---
 		my $sth_summary = $dbh->prepare(qq[
 			SELECT
+				m.serial,
+	
+				-- Calculate remaining kilowatt-hours:
+				-- paid_kwh - consumed energy + any setup (initial) value
 				ROUND(
 					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
 					2
 				) AS kwh_left,
-
+	
+				-- Estimate time left in hours:
+				-- kwh_left / current power usage (effect), if effect > 0
 				ROUND(
 					IF(latest_sc.effect > 0,
 						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
@@ -62,14 +69,23 @@ sub handler {
 					),
 					2
 				) AS time_left_hours,
-
+	
+				-- Energy used in the last 24 hours:
+				-- difference between latest and previous day's energy readings
 				ROUND(
 					latest_sc.energy - prev_sc.energy,
 					2
-				) AS energy_last_day
-
+				) AS energy_last_day,
+	
+				-- Average hourly power usage for the last 24 hours:
+				-- energy_last_day divided by 24 hours
+				ROUND(
+					(latest_sc.energy - prev_sc.energy) / 24,
+					2
+				) AS avg_energy_last_day
+	
 			FROM meters m
-
+	
 			-- Join the latest available sample for each serial
 			LEFT JOIN (
 				SELECT sc1.*
@@ -81,7 +97,7 @@ sub handler {
 					GROUP BY serial
 				) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
 			) latest_sc ON m.serial = latest_sc.serial
-
+	
 			-- Join the latest sample from ~24 hours ago for each serial
 			LEFT JOIN (
 				SELECT sc2.*
@@ -94,20 +110,20 @@ sub handler {
 					GROUP BY serial
 				) prev ON sc2.serial = prev.serial AND sc2.unix_time = prev.max_time
 			) prev_sc ON m.serial = prev_sc.serial
-
+	
 			-- Join total energy purchased (converted from money to kWh) per serial
 			LEFT JOIN (
 				SELECT serial, SUM(amount / price) AS paid_kwh
 				FROM accounts
 				GROUP BY serial
 			) paid_kwh_table ON m.serial = paid_kwh_table.serial
-
+	
 			-- Filter only heat-related meter types, and target a specific serial
 			WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
 			  AND m.serial = $quoted_serial;
 		]);
 		$sth_summary->execute();
-		my $summary = $sth_summary->fetchrow_hashref || {};
+		my $d = $sth_summary->fetchrow_hashref || {};
 
 		# Prepare SQL statement to select account and related meter info
 		my $sth = $dbh->prepare(qq[
@@ -148,10 +164,12 @@ sub handler {
 
 		# Encode the entire response with summary keys and payments array
 		my $response = {
-			kwh_left        => $summary->{kwh_left} || 0,
-			time_left_hours => $summary->{time_left_hours} || undef,
-			energy_last_day => $summary->{energy_last_day} || 0,
-			account         => \@encoded_rows,
+			kwh_left            => $d->{kwh_left} || 0,
+			time_left_hours     => $d->{time_left_hours} || 0,
+			energy_last_day     => $d->{energy_last_day} || 0,
+			time_left_str       => ($d->{energy_last_day} > 0) ? "$d->{energy_last_day}" : '∞',
+			avg_energy_last_day => $d->{avg_energy_last_day},
+			account             => \@encoded_rows,
 		};
 
 		$r->print($json_obj->encode($response));
