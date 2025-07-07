@@ -118,6 +118,11 @@ html, body {
 	font-weight: normal;
 }
 
+.payment-row.highlight-clicked {
+	background-color: #f2f2f2;
+	transition: background-color 0.5s ease;
+}
+
 .payment-header {
 	font-family: Verdana, Geneva, sans-serif;
 	font-weight: bold;
