@@ -48,7 +48,7 @@ html, body {
 
 /* Dygraph layout */
 #div_dygraph {
-	width: 100%;
+	width: calc(100% - 10px);
 	height: 400px;
 	position: relative;
 	top: 0;
