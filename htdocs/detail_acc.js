@@ -54,7 +54,7 @@ function refreshAccountInfo(graph) {
 				const markerAnnotations = data.account.map(entry => {
 					let xVal = entry.payment_time * 1000;
 					xVal = snapToNearestTimestamp(xVal, dataTimestamps);
-					
+
 					const typeMap = {
 						payment: 'P',
 						membership: 'M',
@@ -67,11 +67,25 @@ function refreshAccountInfo(graph) {
 						shortText: shortText,
 						text: `${entry.info}\n${entry.amount} kr`,
 						series: seriesName,
-						cssClass: 'custom-marker'
+						cssClass: 'custom-marker',
+						annotationId: `payment-${entry.id}`
 					};
 				}).filter(a => a !== null);
 
 				graph.setAnnotations(markerAnnotations);
+
+				// 💡 Add data-annotation-id to each annotation div
+				setTimeout(() => {
+					const annotations = document.querySelectorAll('.dygraph-annotation');
+					annotations.forEach(el => {
+						const title = el.getAttribute('title');
+						const match = markerAnnotations.find(a => a.text === title);
+						if (match) {
+							el.dataset.annotationId = match.annotationId;
+						}
+					});
+					setupAnnotationHoverHandlers(); // now called after DOM annotations are present
+				}, 0);
 			}
 
 			renderPaymentsTableFromMarkers(data.account);
@@ -81,6 +95,25 @@ function refreshAccountInfo(graph) {
 			console.warn('Failed to refresh account data and UI:', err);
 			if (graph) graph.setAnnotations([]);
 		});
+}
+
+function setupAnnotationHoverHandlers() {
+	const annotations = document.querySelectorAll('.dygraph-annotation');
+
+	annotations.forEach(el => {
+		const annotationId = el.dataset.annotationId;
+		if (!annotationId) return;
+
+		el.addEventListener('mouseenter', () => {
+			const row = document.getElementById(annotationId);
+			if (row) row.classList.add('highlight');
+		});
+
+		el.addEventListener('mouseleave', () => {
+			const row = document.getElementById(annotationId);
+			if (row) row.classList.remove('highlight');
+		});
+	});
 }
 
 // Builds a table of payment records below the graph
@@ -106,6 +139,7 @@ function renderPaymentsTableFromMarkers(payments) {
 	payments.forEach(d => {
 		const row = document.createElement('div');
 		row.className = 'payment-row';
+		row.id = `payment-${d.id}`;
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
 		const amountStr = normalizeAmount(d.amount || 0) + ' kr';

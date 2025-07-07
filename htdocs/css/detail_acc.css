@@ -112,6 +112,11 @@ html, body {
 	gap: 6px;
 }
 
+.payment-row.highlight {
+	background-color: #fffbcc;
+	transition: background-color 0.3s ease;
+}
+
 .payment-header {
 	font-family: Verdana, Geneva, sans-serif;
 	font-weight: bold;
