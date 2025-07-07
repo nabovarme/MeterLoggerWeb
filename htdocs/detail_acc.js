@@ -150,8 +150,15 @@ fetch(dataUrlCoarse)
 						},
 						axisLabelFormatter: function(x) {
 							const d = new Date(x);
-							return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('default', { month: 'short' })} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-						}
+							return d.toLocaleString('da-DA', {
+								day: '2-digit',
+								month: '2-digit',
+								year: 'numeric',
+								hour: '2-digit',
+								minute: '2-digit'
+							}).replace('T', ' ');
+						},
+						pixelsPerLabel: 80
 					}
 				},
 				maxNumberWidth: 12,

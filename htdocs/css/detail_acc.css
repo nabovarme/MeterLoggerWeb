@@ -33,11 +33,17 @@ html, body {
 }
 
 .custom-marker {
+	border-radius: 50%;
+	padding: 2px 4px;
 	font-weight: bold;
-	/* Uncomment if needed:
-	background-color: red;
-	color: white;
-	*/
+	transition: background-color 0.2s, color 0.2s;
+	transform: translate(-5px, -8px); /* Move up by 20px */
+}
+
+.custom-marker:hover {
+	font-weight: bold;
+	background-color: black;
+	color: white !important;
 }
 
 /* Dygraph layout */
@@ -58,8 +64,12 @@ html, body {
 	font-family: Verdana, Geneva, sans-serif;
 }
 
-.dygraph-axis-label.ylabel {
-	text-align: right !important;
+.dygraph-axis-label-x {
+	width: 120px;
+}
+
+.dygraph-axis-label-y {
+	text-align: right;
 	padding-right: 4px;
 }
 
