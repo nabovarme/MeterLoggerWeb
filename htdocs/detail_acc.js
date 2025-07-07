@@ -54,11 +54,18 @@ function refreshAccountInfo(graph) {
 				const markerAnnotations = data.account.map(entry => {
 					let xVal = entry.payment_time * 1000;
 					xVal = snapToNearestTimestamp(xVal, dataTimestamps);
+					
+					const typeMap = {
+						payment: 'P',
+						membership: 'M',
+						charge: 'C',
+					};
+					const shortText = typeMap[entry.type] || '|';
 
 					return {
 						x: xVal,
-						shortText: entry.type || '|',
-						text: `info: ${entry.info || ''}\namount: ${entry.amount || ''}`,
+						shortText: shortText,
+						text: `${entry.info}\n${entry.amount} kr`,
 						series: seriesName,
 						cssClass: 'custom-marker'
 					};
