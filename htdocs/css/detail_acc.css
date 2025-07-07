@@ -12,7 +12,7 @@ html, body {
 
 /* Layout padding wrapper */
 .page-wrapper {
-	padding: 4px;
+	padding: 6px;
 }
 /* Reusable font utility classes */
 .default {
@@ -104,6 +104,7 @@ html, body {
 
 #add_payment {
 	width: 100%;
+	padding: 6px;
 	margin-bottom: 2em;
 }
 
@@ -114,6 +115,7 @@ html, body {
 
 #kwh_left {
 	font-weight: bold;
+	padding: 6px;
 }
 
 /* Payment row layout */
