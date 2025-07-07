@@ -24,6 +24,22 @@ function convertCsvSecondsToMs(csv) {
 	return [header, ...convertedLines].join("\n");
 }
 
+function assignAnnotationIdsAndListeners(graph) {
+	setTimeout(() => {
+		const annotations = document.querySelectorAll('.dygraph-annotation');
+		const markerAnnotations = graph.annotations_ || [];
+
+		annotations.forEach(el => {
+			const title = el.getAttribute('title');
+			const match = markerAnnotations.find(a => a.text === title);
+			if (match) {
+				el.dataset.annotationId = match.annotationId;
+			}
+		});
+		setupAnnotationHoverHandlers();
+	}, 0);
+}
+
 // ✅ Refactored: Fetches account data, updates UI, sets annotations, renders table
 function refreshAccountInfo(graph) {
 	return fetch(accountUrl)
@@ -73,19 +89,7 @@ function refreshAccountInfo(graph) {
 				}).filter(a => a !== null);
 
 				graph.setAnnotations(markerAnnotations);
-
-				// 💡 Add data-annotation-id to each annotation div
-				setTimeout(() => {
-					const annotations = document.querySelectorAll('.dygraph-annotation');
-					annotations.forEach(el => {
-						const title = el.getAttribute('title');
-						const match = markerAnnotations.find(a => a.text === title);
-						if (match) {
-							el.dataset.annotationId = match.annotationId;
-						}
-					});
-					setupAnnotationHoverHandlers(); // now called after DOM annotations are present
-				}, 0);
+				assignAnnotationIdsAndListeners(graph);
 			}
 
 			renderPaymentsTableFromMarkers(data.account);
@@ -99,17 +103,20 @@ function refreshAccountInfo(graph) {
 
 function setupAnnotationHoverHandlers() {
 	const annotations = document.querySelectorAll('.dygraph-annotation');
+	console.log('Setting hover handlers for', annotations.length, 'annotations');
 
 	annotations.forEach(el => {
 		const annotationId = el.dataset.annotationId;
 		if (!annotationId) return;
 
 		el.addEventListener('mouseenter', () => {
+			console.log('Hover enter on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.add('highlight');
 		});
 
 		el.addEventListener('mouseleave', () => {
+			console.log('Hover leave on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.remove('highlight');
 		});
@@ -203,6 +210,9 @@ fetch(dataUrlCoarse)
 					strokeBorderWidth: 1,
 				},
 				zoomCallback: update_consumption,
+				drawCallback: () => {
+					assignAnnotationIdsAndListeners(g);
+				}
 			}
 		);
 
@@ -234,6 +244,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
+			assignAnnotationIdsAndListeners(g);
 			refreshAccountInfo(g);
 		});
 }
