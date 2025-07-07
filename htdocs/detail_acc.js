@@ -159,6 +159,14 @@ function renderPaymentsTableFromMarkers(payments) {
 		`;
 		container.appendChild(row);
 	});
+	
+	// Log ID on row hover
+	const rows = container.querySelectorAll('.payment-row');
+	rows.forEach(row => {
+		row.addEventListener('mouseenter', () => {
+			console.log('Hovered row ID:', row.id);
+		});
+	});
 }
 
 /*-----------------------
@@ -172,12 +180,18 @@ function assignAnnotationIdsAndListeners(graph) {
 		const markerAnnotations = graph.annotations_ || [];
 
 		annotations.forEach(el => {
-			const title = el.getAttribute('title');
-			const match = markerAnnotations.find(a => a.text === title);
-			if (match) {
-				el.dataset.annotationId = match.annotationId;
-			}
+			const title = el.getAttribute('title'); // This includes the full text
+
+			// Extract the ID from the text (first line starts with "#")
+			const lines = title.split("\n");
+			const idLine = lines[0];
+			if (!idLine.startsWith("#")) return;
+
+			const rawId = idLine.substring(1);
+			const annotationId = `payment-${rawId}`;
+			el.dataset.annotationId = annotationId;
 		});
+
 		setupAnnotationHoverHandlers();
 	}, 0);
 }
@@ -251,7 +265,7 @@ function refreshAccountInfo(graph) {
 					return {
 						x: xVal,
 						shortText: shortText,
-						text: `${entry.info}\n${entry.amount} kr`,
+						text: `#${entry.id}\n${entry.info}\n${entry.amount} kr`,
 						series: seriesName,
 						cssClass: 'custom-marker',
 						annotationId: `payment-${entry.id}`
