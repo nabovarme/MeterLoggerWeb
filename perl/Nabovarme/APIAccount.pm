@@ -47,6 +47,68 @@ sub handler {
 		# Quote the serial for safe use in SQL (prevents injection)
 		$quoted_serial = $dbh->quote($serial);
 
+		# --- New query to get summary values ---
+		my $sth_summary = $dbh->prepare(qq[
+			SELECT
+				ROUND(
+					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
+					2
+				) AS kwh_left,
+
+				ROUND(
+					IF(latest_sc.effect > 0,
+						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
+						NULL
+					),
+					2
+				) AS time_left_hours,
+
+				ROUND(
+					latest_sc.energy - prev_sc.energy,
+					2
+				) AS energy_last_day
+
+			FROM meters m
+
+			-- Join the latest available sample for each serial
+			LEFT JOIN (
+				SELECT sc1.*
+				FROM samples_cache sc1
+				INNER JOIN (
+					-- Get the most recent timestamp per serial
+					SELECT serial, MAX(unix_time) AS max_time
+					FROM samples_cache
+					GROUP BY serial
+				) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+			) latest_sc ON m.serial = latest_sc.serial
+
+			-- Join the latest sample from ~24 hours ago for each serial
+			LEFT JOIN (
+				SELECT sc2.*
+				FROM samples_cache sc2
+				INNER JOIN (
+					-- Get the latest sample *before* 24 hours ago per serial
+					SELECT serial, MAX(unix_time) AS max_time
+					FROM samples_cache
+					WHERE unix_time <= UNIX_TIMESTAMP(NOW()) - 86400  -- 86400 seconds = 24 hours
+					GROUP BY serial
+				) prev ON sc2.serial = prev.serial AND sc2.unix_time = prev.max_time
+			) prev_sc ON m.serial = prev_sc.serial
+
+			-- Join total energy purchased (converted from money to kWh) per serial
+			LEFT JOIN (
+				SELECT serial, SUM(amount / price) AS paid_kwh
+				FROM accounts
+				GROUP BY serial
+			) paid_kwh_table ON m.serial = paid_kwh_table.serial
+
+			-- Filter only heat-related meter types, and target a specific serial
+			WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
+			  AND m.serial = $quoted_serial;
+		]);
+		$sth_summary->execute();
+		my $summary = $sth_summary->fetchrow_hashref || {};
+
 		# Prepare SQL statement to select account and related meter info
 		my $sth = $dbh->prepare(qq[
 			SELECT 
@@ -71,7 +133,7 @@ sub handler {
 		# Fetch each row from the query result and build a hashref for JSON output
 		while (my $row = $sth->fetchrow_hashref) {
 			# Convert payment_time from seconds to milliseconds (JavaScript timestamp format)
-#			$row->{payment_time} = $row->{payment_time} * 1000;
+	#	   $row->{payment_time} = $row->{payment_time} * 1000;
 
 			# Push a hashref with selected keys into the array for encoding later
 			push @encoded_rows, {
@@ -84,8 +146,15 @@ sub handler {
 			};
 		}
 
-		# Encode the entire array of records as a JSON array and print it to the response
-		$r->print($json_obj->encode(\@encoded_rows));
+		# Encode the entire response with summary keys and payments array
+		my $response = {
+			kwh_left        => $summary->{kwh_left} || 0,
+			time_left_hours => $summary->{time_left_hours} || undef,
+			energy_last_day => $summary->{energy_last_day} || 0,
+			account         => \@encoded_rows,
+		};
+
+		$r->print($json_obj->encode($response));
 
 		return Apache2::Const::OK;
 	}

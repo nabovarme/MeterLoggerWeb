@@ -84,6 +84,16 @@
 		<link rel="stylesheet" href="/css/dygraph.css">
 
 		<style type="text/css">
+			/* Global layout and defaults */
+			html, body {
+				height: 100%;
+				margin: 4;
+				padding: 0;
+				font-family: Verdana, Geneva, sans-serif;
+				font-size: 100%;
+				overflow-x: hidden; /* Prevent horizontal scroll */
+			}
+
 			/* Graph container fills width with no margin/padding */
 			#div_dygraph {
 				width: 100%;
@@ -165,6 +175,33 @@
 				}
 			}
 		</style>
+		
+		<style type="text/css">
+			#payments-table {
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+				margin-top: 24px; /* Add some space above */
+			}
+			
+			.payment-row {
+				font-family: Verdana, Geneva, sans-serif;
+				display: grid;
+				grid-template-columns: 1fr 3fr 1fr 1fr;
+				align-items: left;
+				padding: 4px 0;
+			}
+
+			.payment-header {
+				font-family: Verdana, Geneva, sans-serif;
+				font-weight: bold;
+			}
+
+			.payment-row.empty {
+				text-align: left;
+				grid-column: span 7;
+			}
+		</style>
 		[$ if ($is_admin) $]
 			<style type="text/css">
 				td input {
@@ -201,7 +238,7 @@
 			<div id="ann_div"></div>
 			<div id="div_dygraph"></div>
 		<br>
-		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%">
+		<table border="1" align="left" cellpadding="0" cellspacing="6" width="100%">
 			<tr align="left" valign="bottom">
 				<td colspan="7" align="left"><div id="consumption_in_range">&nbsp;</div></td>
 			</tr>
@@ -223,8 +260,6 @@
 				<td>&nbsp;</td>
 				<td align="left"><span class="default-bold">Price</span></td>
 			</tr>
-		
-<table id="payments-table" align="left" valign="bottom">
 
 			[$ if ($is_admin) $]
 				[$ if ($fdat{add_state} =~ /preview/i) $]
@@ -352,6 +387,11 @@
 				<td>&nbsp;</td>
 			</tr>
 		</table>
+
+		<!-- Add this clear-fix to force the div below -->
+		<div style="clear: both;"></div>
+
+		<div id="payments-table" align="left" valign="bottom"></div>
 		
 		<script src="detail_acc.js"></script>
 	</BODY>
