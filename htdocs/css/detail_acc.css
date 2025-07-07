@@ -1,13 +1,19 @@
 /* Global layout and defaults */
 html, body {
 	height: 100%;
-	margin: 4px;
+	margin: 0; /* changed from 4px to 0 to prevent scrollbars */
 	padding: 0;
 	font-family: Verdana, Geneva, sans-serif;
 	font-size: 100%;
 	overflow-x: hidden; /* Prevent horizontal scroll */
+	overflow-y: auto;   /* Allow vertical scroll */
+	box-sizing: border-box;
 }
 
+/* Layout padding wrapper */
+.page-wrapper {
+	padding: 4px;
+}
 /* Reusable font utility classes */
 .default {
 	font-family: Verdana, Geneva, sans-serif;
@@ -48,13 +54,15 @@ html, body {
 
 /* Dygraph layout */
 #div_dygraph {
-	width: calc(100% - 10px);
+	width: calc(100% - 10px);  /* fix clipping */
+	max-width: 100%;            /* avoid horizontal overflow */
 	height: 400px;
 	position: relative;
 	top: 0;
 	left: 0;
 	margin: 0 120px 2em 0; /* Right: 120px, Bottom: 2em */
 	padding: 0;
+	box-sizing: border-box;
 }
 
 /* Dygraph labels and legends */
@@ -90,6 +98,8 @@ html, body {
 #payments_table {
 	width: 100%;
 	margin-top: 2em;
+	display: flex;
+	flex-direction: column;
 }
 
 #add_payment {
@@ -100,11 +110,6 @@ html, body {
 #last_energy {
 	width: 100%;
 	margin-bottom: 2em;
-}
-
-#payments_table {
-	display: flex;
-	flex-direction: column;
 }
 
 #kwh_left {
@@ -143,7 +148,13 @@ html, body {
 }
 
 /* Form elements */
-/*
+input {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* Keep this block commented out */
+ /*
 input[type="checkbox"] {
 	transform: scale(1.5);
 	-ms-transform: scale(1.5);
@@ -153,11 +164,6 @@ input[type="checkbox"] {
 	vertical-align: middle;
 }
 */
-
-input {
-	width: 100%;
-	box-sizing: border-box;
-}
 
 /* Responsive adjustments */
 @media (max-width: 600px) {
