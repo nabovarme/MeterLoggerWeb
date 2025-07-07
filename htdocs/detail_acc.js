@@ -136,7 +136,7 @@ function renderPaymentsTableFromMarkers(payments) {
 	header.innerHTML = `
 		<div>Date</div>
 		<div>Info</div>
-		<div>Amount</div>
+		<div style>Amount</div>
 		<div>Price</div>
 	`;
 	container.appendChild(header);
