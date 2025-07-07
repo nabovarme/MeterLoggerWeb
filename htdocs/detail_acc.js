@@ -1,10 +1,18 @@
+// Colors for graph
 var colorSets = [['#999999'], null];
+
+// Graph instance
 var g;
+
+// Data and account API URLs
 var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
 var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
 var accountUrl = '/api/account/' + meter_serial;
 
-// Convert CSV timestamps from seconds to milliseconds
+// ✅ Cache for full account data JSON
+var accountData = null;
+
+// Converts CSV timestamps from seconds to milliseconds (Dygraph expects ms)
 function convertCsvSecondsToMs(csv) {
 	const lines = csv.trim().split("\n");
 	const header = lines[0];
@@ -16,12 +24,12 @@ function convertCsvSecondsToMs(csv) {
 	return [header, ...convertedLines].join("\n");
 }
 
-// Function to add annotations to Dygraph and return markers data
+// Adds annotations to the graph from account data
 function addAnnotations(graph) {
 	const labels = graph.getLabels();
 	if (!graph.rawData_ || graph.rawData_.length === 0) return Promise.resolve([]);
 
-	const seriesName = labels[1]; // Second item is first data series
+	const seriesName = labels[1];
 
 	function snapToNearestTimestamp(target, timestamps) {
 		let closest = timestamps[0];
@@ -39,11 +47,12 @@ function addAnnotations(graph) {
 	return fetch(accountUrl)
 		.then(r => r.json())
 		.then(markers => {
+			accountData = markers; // ✅ Cache full JSON object for reuse
+
 			const dataTimestamps = graph.rawData_.map(row => row[0]);
 
 			const markerAnnotations = markers.account.map(entry => {
-				let xVal = entry.payment_time * 1000; // ms
-
+				let xVal = entry.payment_time * 1000;
 				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
 
 				return {
@@ -56,7 +65,10 @@ function addAnnotations(graph) {
 			}).filter(a => a !== null);
 
 			graph.setAnnotations(markerAnnotations);
-			return markers;	// return markers data here
+
+			update_kwh_left();
+
+			return markers;
 		})
 		.catch(() => {
 			graph.setAnnotations([]);
@@ -65,7 +77,7 @@ function addAnnotations(graph) {
 		});
 }
 
-// Render payments table using markers JSON data
+// Builds a table of payment records below the graph
 function renderPaymentsTableFromMarkers(payments) {
 	const container = document.getElementById("payments-table");
 	container.innerHTML = '';
@@ -75,7 +87,6 @@ function renderPaymentsTableFromMarkers(payments) {
 		return;
 	}
 
-	// Header
 	const header = document.createElement('div');
 	header.className = 'payment-row payment-header';
 	header.innerHTML = `
@@ -86,7 +97,6 @@ function renderPaymentsTableFromMarkers(payments) {
 	`;
 	container.appendChild(header);
 
-	// Rows
 	payments.forEach(d => {
 		const row = document.createElement('div');
 		row.className = 'payment-row';
@@ -106,7 +116,7 @@ function renderPaymentsTableFromMarkers(payments) {
 	});
 }
 
-// Load initial coarse data and initialize graph
+// Initial fetch of coarse data and graph setup
 fetch(dataUrlCoarse)
 	.then(r => r.text())
 	.then(coarseCsv => {
@@ -153,8 +163,7 @@ fetch(dataUrlCoarse)
 		);
 
 		g.ready(() => {
-			console.log("Dygraph labels:", g.getLabels());
-
+			update_kwh_left();
 			update_consumption();
 			loadAndMergeDetailedData();
 
@@ -163,6 +172,7 @@ fetch(dataUrlCoarse)
 			});
 		});
 
+		// Set up regular refresh
 		setInterval(function() {
 			const range = g.xAxisRange();
 			g.updateOptions({
@@ -175,7 +185,7 @@ fetch(dataUrlCoarse)
 		}, 60000);
 	});
 
-// Load and merge detailed data, then add annotations again
+// Loads more fine-grained data and merges with existing graph
 function loadAndMergeDetailedData() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
@@ -183,13 +193,14 @@ function loadAndMergeDetailedData() {
 			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
+
 			addAnnotations(g).then(markers => {
 				renderPaymentsTableFromMarkers(markers.account);
 			});
 		});
 }
 
-// Merge CSVs by timestamp (timestamps expected in milliseconds)
+// Merges two CSVs, avoiding duplicates, keeping latest entry per timestamp
 function mergeCsv(csv1, csv2) {
 	const lines1 = csv1.trim().split("\n");
 	const lines2 = csv2.trim().split("\n");
@@ -210,6 +221,7 @@ function mergeCsv(csv1, csv2) {
 	return [header].concat(sortedRows).join("\n");
 }
 
+// Updates the displayed energy use over the currently selected graph range
 function update_consumption() {
 	if (!g || !g.rawData_) return;
 
@@ -239,6 +251,7 @@ function update_consumption() {
 		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 }
 
+// Formats timestamps for display
 function formatDate(d) {
 	const pad = (n) => (n < 10 ? '0' + n : n);
 	const now = new Date();
@@ -249,6 +262,7 @@ function formatDate(d) {
 	}
 }
 
+// Loads and updates the most recent energy reading from a separate endpoint
 function update_last_energy() {
 	fetch('last_energy.epl?serial=' + meter_serial)
 		.then(response => {
@@ -262,19 +276,19 @@ function update_last_energy() {
 }
 
 function update_kwh_left() {
-	fetch('kwh_left.epl?serial=' + meter_serial)
-		.then(response => {
-			if (!response.ok) throw new Error('Network response was not ok');
-			return response.text();
-		})
-		.then(data => {
-			document.getElementById("kwh_left").innerHTML = data;
-		})
-		.catch(error => console.error('Fetch error:', error));
+	if (accountData && accountData.kwh_left != null) {
+		document.getElementById("kwh_left").innerHTML = normalizeAmount(accountData.kwh_left) + " kWh left, " + accountData.time_left_str + " at " + accountData.avg_energy_last_day + " kWh/h";
+	} else {
+		// fallback if not yet cached
+		// fetch(accountUrl)
+		//     .then(r => r.json())
+		//     .then(data => {
+		//         document.getElementById("kwh_left").innerHTML = normalizeAmount(data.kwh_left) + " kWh";
+		//     });
+	}
 }
 
-// Your normalizeAmount function from your original code or define as needed
+// Helper to ensure all amounts show with 2 decimals
 function normalizeAmount(amount) {
-	// Example: Format as fixed 2 decimals or your custom logic here
 	return parseFloat(amount).toFixed(2);
 }
