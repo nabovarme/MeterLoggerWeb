@@ -47,6 +47,16 @@ sub handler {
 
 		# Quote the serial for safe use in SQL (prevents injection)
 		$quoted_serial = $dbh->quote($serial);
+		
+		# --- New query to get last sample values ---
+		my $sth_last_energy = $dbh->prepare(qq[
+			SELECT hours, volume, energy
+			FROM samples_cache
+			WHERE serial = $quoted_serial
+			ORDER BY `unix_time` DESC LIMIT 1
+		]);
+		$sth_last_energy->execute;
+		my ($last_hours, $last_volume, $last_energy) = $sth_last_energy->fetchrow_array;
 
 		# --- New query to get summary values ---
 		my $sth_summary = $dbh->prepare(qq[
@@ -123,7 +133,7 @@ sub handler {
 			  AND m.serial = $quoted_serial;
 		]);
 		$sth_summary->execute();
-		my $d = $sth_summary->fetchrow_hashref || {};
+		$d = $sth_summary->fetchrow_hashref || {};
 
 		# Prepare SQL statement to select account and related meter info
 		my $sth = $dbh->prepare(qq[
@@ -169,6 +179,9 @@ sub handler {
 			energy_last_day     => $d->{energy_last_day} || 0,
 			time_left_str       => ($d->{energy_last_day} > 0) ? "$d->{energy_last_day}" : '∞',
 			avg_energy_last_day => $d->{avg_energy_last_day},
+			last_hours          => $last_hours,
+			last_volume         => $last_volume,
+			last_energy         => $last_energy,
 			account             => \@encoded_rows,
 		};
 

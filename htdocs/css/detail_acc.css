@@ -1,0 +1,140 @@
+/* Global layout and defaults */
+html, body {
+	height: 100%;
+	margin: 4px;
+	padding: 0;
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 100%;
+	overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Reusable font utility classes */
+.default {
+	font-family: Verdana, Geneva, sans-serif;
+}
+
+.default-small {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 50%;
+}
+
+.default-bold {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+}
+
+.default-highlight {
+	font-family: Verdana, Geneva, sans-serif;
+	background-color: #FFFF00;
+}
+
+.highlight {
+	font-weight: bold;
+}
+
+.custom-marker {
+	font-weight: bold;
+	/* Uncomment if needed:
+	background-color: red;
+	color: white;
+	*/
+}
+
+/* Dygraph layout */
+#div_dygraph {
+	width: 100%;
+	height: 400px;
+	position: relative;
+	top: 0;
+	left: 0;
+	margin: 0 120px 2em 0; /* Right: 120px, Bottom: 2em */
+	padding: 0;
+}
+
+/* Dygraph labels and legends */
+.dygraph-axis-label,
+.dygraph-legend,
+.dygraph-label {
+	font-family: Verdana, Geneva, sans-serif;
+}
+
+.dygraph-axis-label.ylabel {
+	text-align: right !important;
+	padding-right: 4px;
+}
+
+.dygraph-legend,
+.dygraph-label {
+	text-align: left;
+	background: none;
+}
+
+/* Table and consumption section layouts */
+#payments_table,
+#consumption_in_range,
+#kwh_left {
+	width: 100%;
+	margin-top: 2em;
+	margin-bottom: 2em;
+}
+
+#last_energy {
+	width: 100%;
+	margin-bottom: 2em;
+}
+
+#payments_table {
+	display: flex;
+	flex-direction: column;
+}
+
+#kwh_left {
+	font-weight: bold;
+}
+
+/* Payment row layout */
+.payment-row {
+	font-family: Verdana, Geneva, sans-serif;
+	display: grid;
+	grid-template-columns: 1fr 3fr 1fr 1fr;
+	align-items: left;
+	padding: 6px 0;
+	gap: 6px;
+}
+
+.payment-header {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+}
+
+.payment-row.empty {
+	text-align: left;
+	grid-column: span 7;
+}
+
+/* Form elements */
+/*
+input[type="checkbox"] {
+	transform: scale(1.5);
+	-ms-transform: scale(1.5);
+	-webkit-transform: scale(1.5);
+	transform-origin: 0 0;
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+td input {
+	width: 100%;
+	box-sizing: border-box;
+}
+*/
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+	#div_dygraph {
+		height: 300px;
+	}
+	input[type="checkbox"] {
+		transform: scale(2);
+	}
+}
