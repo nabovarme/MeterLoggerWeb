@@ -1,6 +1,7 @@
 package Nabovarme::APIAccount;
 
 use strict;
+use utf8;
 use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
@@ -14,40 +15,112 @@ use Nabovarme::Utils;
 
 sub handler {
 	my $r = shift;
-	my ($dbh, $sth, $d);
+	my ($dbh, $sth);
 
-	# Get cache path from Apache config or fallback to default '/cache'
-	my $data_cache_path = $r->dir_config('DataCachePath') || '/cache';
-
-	# Get the Apache document root path (not currently used but may be useful)
-	my $document_root = $r->document_root();
-
-	# Extract the serial number from the URI (last path component)
+	# Extract the serial number from the last path component of the request URI
 	my ($serial) = $r->uri =~ m|([^/]+)$|;
 
 	my $quoted_serial;
 	my $setup_value = 0;
 
-	# Connect to the database using Nabovarme::Db module
+	# Attempt database connection
 	if ($dbh = Nabovarme::Db->my_connect) {
 
 		# Set response content type to JSON with UTF-8 encoding
 		$r->content_type("application/json; charset=utf-8");
 
-		# Set caching headers: public cache for 60 seconds
+		# Add caching headers (60-second public cache)
 		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 
-		# Add CORS header to allow all origins
+		# Allow CORS from any origin
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
-		# Debug: dump the serial to error log
-		warn Dumper $serial;
-
-		# Quote the serial for safe use in SQL (prevents injection)
+		# Safely quote serial number for SQL usage
 		$quoted_serial = $dbh->quote($serial);
 
-		# Prepare SQL statement to select account and related meter info
+		# --- Retrieve most recent sample data for this meter ---
+		my $sth_last_energy = $dbh->prepare(qq[
+			SELECT hours, volume, energy
+			FROM samples_cache
+			WHERE serial = $quoted_serial
+			ORDER BY `unix_time` DESC LIMIT 1
+		]);
+		$sth_last_energy->execute;
+		my ($last_hours, $last_volume, $last_energy) = $sth_last_energy->fetchrow_array;
+
+		# --- Compute summary metrics including kWh left, estimated time, and usage stats ---
+		my $sth_summary = $dbh->prepare(qq[
+			SELECT
+				m.serial,
+
+				-- Remaining energy: paid - consumed + setup
+				ROUND(
+					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
+					2
+				) AS kwh_left,
+
+				-- Estimated time left (hours), only if effect > 0
+				ROUND(
+					IF(latest_sc.effect > 0,
+						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
+						NULL
+					),
+					2
+				) AS time_left_hours,
+
+				-- Energy used in last 24 hours
+				ROUND(
+					latest_sc.energy - prev_sc.energy,
+					2
+				) AS energy_last_day,
+
+				-- Average power usage in last 24 hours (kWh/hour)
+				ROUND(
+					(latest_sc.energy - prev_sc.energy) / 24,
+					2
+				) AS avg_energy_last_day
+
+			FROM meters m
+
+			-- Join most recent sample
+			LEFT JOIN (
+				SELECT sc1.*
+				FROM samples_cache sc1
+				INNER JOIN (
+					SELECT serial, MAX(unix_time) AS max_time
+					FROM samples_cache
+					GROUP BY serial
+				) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+			) latest_sc ON m.serial = latest_sc.serial
+
+			-- Join sample from ~24 hours ago
+			LEFT JOIN (
+				SELECT sc2.*
+				FROM samples_cache sc2
+				INNER JOIN (
+					SELECT serial, MAX(unix_time) AS max_time
+					FROM samples_cache
+					WHERE unix_time <= UNIX_TIMESTAMP(NOW()) - 86400
+					GROUP BY serial
+				) prev ON sc2.serial = prev.serial AND sc2.unix_time = prev.max_time
+			) prev_sc ON m.serial = prev_sc.serial
+
+			-- Join paid energy (money converted to kWh)
+			LEFT JOIN (
+				SELECT serial, SUM(amount / price) AS paid_kwh
+				FROM accounts
+				GROUP BY serial
+			) paid_kwh_table ON m.serial = paid_kwh_table.serial
+
+			-- Only process heat-related meters for the requested serial
+			WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
+			  AND m.serial = $quoted_serial;
+		]);
+		$sth_summary->execute();
+		my $summary_row = $sth_summary->fetchrow_hashref || {};
+
+		# --- Retrieve account records for this serial, with meter info ---
 		my $sth = $dbh->prepare(qq[
 			SELECT 
 				m.info,
@@ -59,35 +132,47 @@ sub handler {
 			WHERE 
 				a.serial = $quoted_serial
 			ORDER BY 
-				a.payment_time DESC
+				a.payment_time ASC
 		]);
 		$sth->execute();
 
-		# Create a JSON::XS object for encoding data with UTF-8 and sorted keys
+		# Use JSON::XS for consistent, UTF-8 encoded JSON output
 		my $json_obj = JSON::XS->new->utf8->canonical;
 
 		my @encoded_rows;
 
-		# Fetch each row from the query result and build a hashref for JSON output
+		# Extract relevant fields from account rows
 		while (my $row = $sth->fetchrow_hashref) {
-			# Convert payment_time from seconds to milliseconds (JavaScript timestamp format)
-			$row->{payment_time} = $row->{payment_time} * 1000;
-
-			# Push a hashref with selected keys into the array for encoding later
 			push @encoded_rows, {
-				x     => $row->{payment_time},
-				label => $row->{type},
-				title => $row->{info},
+				id           => $row->{id},
+				type         => $row->{type},
+				payment_time => $row->{payment_time},
+				info         => $row->{info},
+				amount       => $row->{amount},
+				price        => $row->{price}
 			};
 		}
 
-		# Encode the entire array of records as a JSON array and print it to the response
-		$r->print($json_obj->encode(\@encoded_rows));
+		# Construct final response payload
+		my $response = {
+			kwh_left            => $summary_row->{kwh_left} || 0,
+			time_left_hours     => $summary_row->{time_left_hours} || 0,
+			energy_last_day     => $summary_row->{energy_last_day} || 0,
+			time_left_str       => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_left} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
+			avg_energy_last_day     => $summary_row->{avg_energy_last_day},
+			last_hours          => $last_hours,
+			last_volume         => $last_volume,
+			last_energy         => $last_energy,
+			account             => \@encoded_rows,
+		};
+
+		# Output the JSON response
+		$r->print($json_obj->encode($response));
 
 		return Apache2::Const::OK;
 	}
 	else {
-		# Database connection failed: return 500 Internal Server Error with plain text message
+		# If DB connection fails, return 500 with plain error text
 		$r->status(Apache2::Const::SERVER_ERROR);
 		$r->content_type('text/plain');
 		$r->print("Database connection failed.\n");
