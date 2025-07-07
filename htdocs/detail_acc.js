@@ -101,6 +101,9 @@ function update_consumption() {
 		'<span class="default-bold">Consumption for selected period </span>' +
 		'<span class="default">' +
 		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
+
+	// 👇 Filter payments table
+	filterPaymentTableByGraphRange(g);
 }
 
 // Updates the displayed last energy, volume and hours from accountData
@@ -131,36 +134,40 @@ function renderPaymentsTableFromMarkers(payments) {
 		return;
 	}
 
+	// Add header row
 	const header = document.createElement('div');
 	header.className = 'payment-row payment-header';
 	header.innerHTML = `
 		<div>Date</div>
 		<div>Info</div>
-		<div style>Amount</div>
+		<div>Amount</div>
 		<div>Price</div>
 	`;
 	container.appendChild(header);
 
+	// Add payment rows
 	payments.forEach(d => {
 		const row = document.createElement('div');
 		row.className = 'payment-row';
 		row.id = `payment-${d.id}`;
+		row.setAttribute('data-payment-time', d.payment_time); // ✅ needed for filtering
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
 		const amountStr = normalizeAmount(d.amount || 0) + ' kr';
 		const priceStr = (d.type === 'payment' && d.price) ? normalizeAmount(d.price || 0) + ' kr/kWh' : '';
 		const dateStr = new Date(d.payment_time * 1000).toLocaleString('da-DA').replace('T', ' ');
-		
+
 		row.innerHTML = `
 			<div>${dateStr}</div>
 			<div>${kWh} ${d.info || ''}</div>
 			<div>${amountStr}</div>
 			<div>${priceStr}</div>
 		`;
+
 		container.appendChild(row);
 	});
-	
-	// Log ID on row hover
+
+	// Optional: log row hovers for debugging
 	const rows = container.querySelectorAll('.payment-row');
 	rows.forEach(row => {
 		row.addEventListener('mouseenter', () => {
@@ -245,6 +252,22 @@ function setupAnnotationHoverHandlers() {
 				}, 2000);
 			}
 		});
+	});
+}
+
+function filterPaymentTableByGraphRange(graph) {
+	const [start, end] = graph.xAxisRange(); // in ms
+
+	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
+
+	rows.forEach(row => {
+		const ts = parseInt(row.getAttribute('data-payment-time')) * 1000; // convert to ms
+
+		if (ts >= start && ts <= end) {
+			row.style.display = '';
+		} else {
+			row.style.display = 'none';
+		}
 	});
 }
 
