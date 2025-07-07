@@ -83,10 +83,10 @@ document.addEventListener('DOMContentLoaded', () => {
 				rowDiv.innerHTML = `
 					<div><a href="detail_acc.epl?serial=${encodeURIComponent(meter.serial || '')}">${meter.serial || ''}</a></div>
 					<div>${meter.info || ''}</div>
-					<div>${meter.energy || ''}</div>
-					<div>${meter.volume || ''}</div>
-					<div>${meter.hours || ''}</div>
-					<div>${meter.kwh_left || ''}</div>
+					<div>${meter.energy || 0}</div>
+					<div>${meter.volume || 0}</div>
+					<div>${meter.hours || 0}</div>
+					<div>${meter.kwh_left || 0}</div>
 					<div>${meter.time_left_hours_string || ''}</div>
 				`;
 
