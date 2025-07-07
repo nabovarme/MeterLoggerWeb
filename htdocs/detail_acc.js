@@ -101,6 +101,9 @@ function update_consumption() {
 		'<span class="default-bold">Consumption for selected period </span>' +
 		'<span class="default">' +
 		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
+
+	// 👇 Filter payments table
+	filterPaymentTableByGraphRange(g);
 }
 
 // Updates the displayed last energy, volume and hours from accountData
@@ -131,41 +134,37 @@ function renderPaymentsTableFromMarkers(payments) {
 		return;
 	}
 
+	// Add header row
 	const header = document.createElement('div');
 	header.className = 'payment-row payment-header';
 	header.innerHTML = `
 		<div>Date</div>
 		<div>Info</div>
-		<div style>Amount</div>
+		<div>Amount</div>
 		<div>Price</div>
 	`;
 	container.appendChild(header);
 
+	// Add payment rows
 	payments.forEach(d => {
 		const row = document.createElement('div');
 		row.className = 'payment-row';
 		row.id = `payment-${d.id}`;
+		row.setAttribute('data-payment-time', d.payment_time); // ✅ needed for filtering
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
 		const amountStr = normalizeAmount(d.amount || 0) + ' kr';
 		const priceStr = (d.type === 'payment' && d.price) ? normalizeAmount(d.price || 0) + ' kr/kWh' : '';
 		const dateStr = new Date(d.payment_time * 1000).toLocaleString('da-DA').replace('T', ' ');
-		
+
 		row.innerHTML = `
 			<div>${dateStr}</div>
 			<div>${kWh} ${d.info || ''}</div>
 			<div>${amountStr}</div>
 			<div>${priceStr}</div>
 		`;
+
 		container.appendChild(row);
-	});
-	
-	// Log ID on row hover
-	const rows = container.querySelectorAll('.payment-row');
-	rows.forEach(row => {
-		row.addEventListener('mouseenter', () => {
-			console.log('Hovered row ID:', row.id);
-		});
 	});
 }
 
@@ -176,13 +175,13 @@ function renderPaymentsTableFromMarkers(payments) {
 // Assigns data-annotation-id attributes and sets up hover event listeners on annotation DOM elements
 function assignAnnotationIdsAndListeners(graph) {
 	setTimeout(() => {
+		if (!graph || !graph.annotations_) return;
+
 		const annotations = document.querySelectorAll('.dygraph-annotation');
-		const markerAnnotations = graph.annotations_ || [];
+		const markerAnnotations = graph.annotations_;
 
 		annotations.forEach(el => {
 			const title = el.getAttribute('title'); // This includes the full text
-
-			// Extract the ID from the text (first line starts with "#")
 			const lines = title.split("\n");
 			const idLine = lines[0];
 			if (!idLine.startsWith("#")) return;
@@ -199,14 +198,12 @@ function assignAnnotationIdsAndListeners(graph) {
 // Attaches mouseenter and mouseleave event handlers to annotation elements for hover highlighting
 function setupAnnotationHoverHandlers() {
 	const annotations = document.querySelectorAll('.dygraph-annotation');
-	console.log('Setting hover handlers for', annotations.length, 'annotations');
 
 	annotations.forEach(el => {
 		const annotationId = el.dataset.annotationId;
 		if (!annotationId) return;
 
 		el.addEventListener('mouseenter', () => {
-			console.log('Hover enter on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.add('highlight');
 			
@@ -221,7 +218,6 @@ function setupAnnotationHoverHandlers() {
 		});
 
 		el.addEventListener('mouseleave', () => {
-			console.log('Hover leave on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.remove('highlight');
 			
@@ -233,7 +229,6 @@ function setupAnnotationHoverHandlers() {
 		});
 		
 		el.addEventListener('click', () => {
-			console.log('Clicked on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) {
 				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -245,6 +240,22 @@ function setupAnnotationHoverHandlers() {
 				}, 2000);
 			}
 		});
+	});
+}
+
+function filterPaymentTableByGraphRange(graph) {
+	const [start, end] = graph.xAxisRange(); // in ms
+
+	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
+
+	rows.forEach(row => {
+		const ts = parseInt(row.getAttribute('data-payment-time')) * 1000; // convert to ms
+
+		if (ts >= start && ts <= end) {
+			row.style.display = '';
+		} else {
+			row.style.display = 'none';
+		}
 	});
 }
 
@@ -305,6 +316,13 @@ function refreshAccountInfo(graph) {
 			}
 
 			renderPaymentsTableFromMarkers(data.account);
+
+			if (graph) {
+				setTimeout(() => {
+					filterPaymentTableByGraphRange(graph); // ensure filter happens after table DOM exists
+				}, 0);
+			}
+
 			return data;
 		})
 		.catch(err => {
@@ -336,13 +354,16 @@ fetch(dataUrlCoarse)
 	.then(coarseCsv => {
 		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
 
+		const now = Date.now();
+		const oneYearAgo = now - 365 * 24 * 3600 * 1000;
+
 		g = new Dygraph(
 			document.getElementById("div_dygraph"),
 			coarseCsvMs,
 			{
 				colors: colorSets[0],
 				strokeWidth: 1.5,
-				animatedZooms: true,
+				animatedZooms: false,
 				showLabelsOnHighlight: true,
 				labelsDivStyles: {
 					'font-family': 'Verdana, Geneva, sans-serif',
@@ -351,6 +372,10 @@ fetch(dataUrlCoarse)
 				},
 				labelsSeparateLines: true,
 				labelsDivWidth: 700,
+				showRangeSelector: true,
+				xAxisHeight: 40,
+				dateWindow: [oneYearAgo, now],
+				interactionModel: Dygraph.defaultInteractionModel,
 				axes: {
 					x: {
 						valueFormatter: function(x) {
@@ -376,9 +401,15 @@ fetch(dataUrlCoarse)
 					strokeWidth: 2,
 					strokeBorderWidth: 1,
 				},
-				zoomCallback: update_consumption,
-				drawCallback: () => {
-					assignAnnotationIdsAndListeners(g);
+				zoomCallback: function(minX, maxX, yRanges) {
+					update_consumption();
+					filterPaymentTableByGraphRange(g);
+				},
+				drawCallback: (graph) => {
+					const range = graph.xAxisRange();
+					update_consumption();
+					filterPaymentTableByGraphRange(graph);
+					assignAnnotationIdsAndListeners(graph);
 				}
 			}
 		);
@@ -386,6 +417,7 @@ fetch(dataUrlCoarse)
 		g.ready(() => {
 			refreshAccountInfo(g).then(() => {
 				update_consumption();
+				filterPaymentTableByGraphRange(g);
 			});
 			loadAndMergeDetailedData();
 		});
