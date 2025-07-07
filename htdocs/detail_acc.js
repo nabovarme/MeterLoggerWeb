@@ -373,6 +373,7 @@ fetch(dataUrlCoarse)
 				labelsSeparateLines: true,
 				labelsDivWidth: 700,
 				showRangeSelector: true,
+				xAxisHeight: 40,
 				dateWindow: [oneYearAgo, now],
 				interactionModel: Dygraph.defaultInteractionModel,
 				axes: {
