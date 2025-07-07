@@ -132,7 +132,7 @@ sub handler {
 			WHERE 
 				a.serial = $quoted_serial
 			ORDER BY 
-				a.payment_time DESC
+				a.payment_time ASC
 		]);
 		$sth->execute();
 

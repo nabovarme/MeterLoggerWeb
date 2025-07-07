@@ -66,9 +66,87 @@
 		
 		<div id="div_dygraph"></div>
 		<div id="consumption_in_range"></div>
+		
 		<div id="payments_table" align="left" valign="bottom"></div>
 		[$ if ($is_admin) $]
-		<div id="add_payment"></div>
+			[$ if ($fdat{add_state} =~ /preview/i) $]
+		<form method="GET" action="">
+		<div id="add_payment" align="left" valign="bottom">
+			<div class="payment-row">
+				<div class="cell">
+					<span class="default-highlight">
+						[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]
+					</span>
+				</div>
+				<div class="cell">
+					<span class="default-highlight">
+						[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]
+					</span>
+				</div>
+				<div class="cell">
+					<span class="default-highlight">
+						[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr
+					</span>
+				</div>
+				<div class="cell">
+					<span class="default-highlight">
+						[$ if $fdat{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($fdat{price}) +] kr/kWh[$ endif $]
+					</span>
+				</div>
+			</div>
+			<div class="payment-row">
+				<div class="cell">
+					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+					<input type="hidden" name="type" value="[+ $fdat{type} +]">
+					<input type="hidden" name="low" value="[+ $fdat{low} +]">
+					<input type="hidden" name="unix_time" value="[+ time() +]">
+					<input type="hidden" name="info" value="[+ $fdat{info} +]">
+					<input type="hidden" name="amount" value="[+ $fdat{amount} +]">
+					<input type="hidden" name="price" value="[+ $fdat{price} +]">
+					<input type="hidden" name="add_state" value="add">
+					<input type="submit" name="add" value="Add" style="width: 100px;">
+				</div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+			</div>
+		</div>
+		</form>
+			[$ else $]
+		<form method="GET" action="">
+		<div id="add_payment" align="left" valign="bottom">
+			<div class="payment-row">
+				<div class="cell">
+					<select name="type">
+						<option value="payment">Payment</option>
+						<option value="membership">Membership</option>
+						<option value="charge">Charge</option>
+					</select>
+				</div>
+				<div class="cell">
+					<input type="text" inputmode="text" name="info" value="" size="32">
+				</div>
+				<div class="cell">
+					<input type="text" inputmode="text" name="amount" value="" size="5">
+				</div>
+				<div class="cell">
+					<input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3">
+				</div>
+			</div>
+			<div class="payment-row">
+				<div class="cell">
+					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+					<input type="hidden" name="low" value="[+ $fdat{low} +]">
+					<input type="hidden" name="add_state" value="preview">
+					<input type="submit" name="add" value="Preview" style="width: 100px;">
+				</div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+			</div>
+		</div>
+		</form>
+			[$ endif $]
 		[$ endif $]
 		<div id="kwh_left"></div>
 
