@@ -91,7 +91,7 @@
 		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{auth_state} +]</span></td>
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{sms_code} +]</span></td>
+		<td align="left"><span class="default">******</span></td>
 		<td>&nbsp;</td>
 		<td align="left"><span class="default">[+ $d->{remote_host} +]</span></td>
 		<td>&nbsp;</td>
