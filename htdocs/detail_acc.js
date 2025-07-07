@@ -328,6 +328,13 @@ function refreshAccountInfo(graph) {
 			}
 
 			renderPaymentsTableFromMarkers(data.account);
+
+			if (graph) {
+				setTimeout(() => {
+					filterPaymentTableByGraphRange(graph); // ensure filter happens after table DOM exists
+				}, 0);
+			}
+
 			return data;
 		})
 		.catch(err => {
@@ -368,7 +375,7 @@ fetch(dataUrlCoarse)
 			{
 				colors: colorSets[0],
 				strokeWidth: 1.5,
-				animatedZooms: true,
+				animatedZooms: false,
 				showLabelsOnHighlight: true,
 				labelsDivStyles: {
 					'font-family': 'Verdana, Geneva, sans-serif',
@@ -378,6 +385,10 @@ fetch(dataUrlCoarse)
 				labelsSeparateLines: true,
 				labelsDivWidth: 700,
 				showRangeSelector: true,
+				rangeSelectorCallback: function(minX, maxX) {
+					update_consumption();
+					filterPaymentTableByGraphRange(g);
+				},
 				dateWindow: [oneYearAgo, now],
 				interactionModel: Dygraph.defaultInteractionModel,
 				axes: {
@@ -418,6 +429,7 @@ fetch(dataUrlCoarse)
 		g.ready(() => {
 			refreshAccountInfo(g).then(() => {
 				update_consumption();
+				filterPaymentTableByGraphRange(g);
 			});
 			loadAndMergeDetailedData();
 		});
