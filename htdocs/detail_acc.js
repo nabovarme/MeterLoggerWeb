@@ -41,7 +41,7 @@ function addAnnotations(graph) {
 		.then(markers => {
 			const dataTimestamps = graph.rawData_.map(row => row[0]);
 
-			const markerAnnotations = markers.map(entry => {
+			const markerAnnotations = markers.account.map(entry => {
 				let xVal = entry.payment_time * 1000; // ms
 
 				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
@@ -67,32 +67,42 @@ function addAnnotations(graph) {
 
 // Render payments table using markers JSON data
 function renderPaymentsTableFromMarkers(payments) {
-	const tbody = document.querySelector("#payments-table tbody");
-	tbody.innerHTML = '';
+	const container = document.getElementById("payments-table");
+	container.innerHTML = '';
 
 	if (!payments.length) {
-		tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No payments data available</td></tr>';
+		container.innerHTML = '<div class="payment-row empty">No payments data available</div>';
 		return;
 	}
 
+	// Header
+	const header = document.createElement('div');
+	header.className = 'payment-row payment-header';
+	header.innerHTML = `
+		<div>Date</div>
+		<div>Info</div>
+		<div>Amount</div>
+		<div>Price</div>
+	`;
+	container.appendChild(header);
+
+	// Rows
 	payments.forEach(d => {
-		const tr = document.createElement('tr');
-		tr.style.textAlign = "left";
-		tr.style.verticalAlign = "bottom";
+		const row = document.createElement('div');
+		row.className = 'payment-row';
 
-		// Safely format kWh
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
-
-		tr.innerHTML = `
-			<td><span class="default">${d.date_string}</span></td>
-			<td>&nbsp;</td>
-			<td><span class="default">${kWh} ${d.info || ''}</span></td>
-			<td>&nbsp;</td>
-			<td style="text-align:right"><span class="default">${normalizeAmount(d.amount || 0)} kr</span></td>
-			<td>&nbsp;</td>
-			<td><span class="default">${d.type === 'payment' ? normalizeAmount(d.price || 0) + ' kr/kWh' : ''}</span></td>
+		const amountStr = normalizeAmount(d.amount || 0) + ' kr';
+		const priceStr = (d.type === 'payment' && d.price) ? normalizeAmount(d.price || 0) + ' kr/kWh' : '';
+		const dateStr = new Date(d.payment_time * 1000).toLocaleString('da-DA').replace('T', ' ');
+		
+		row.innerHTML = `
+			<div>${dateStr}</div>
+			<div>${kWh} ${d.info || ''}</div>
+			<div>${amountStr}</div>
+			<div>${priceStr}</div>
 		`;
-		tbody.appendChild(tr);
+		container.appendChild(row);
 	});
 }
 
@@ -135,10 +145,10 @@ fetch(dataUrlCoarse)
 					strokeWidth: 2,
 					strokeBorderWidth: 1,
 				},
-				highlightCallback: update_consumption,
-				unhighlightCallback: update_consumption,
+//				highlightCallback: update_consumption,
+//				unhighlightCallback: update_consumption,
 				zoomCallback: update_consumption,
-				clickCallback: update_consumption,
+//				clickCallback: update_consumption,
 			}
 		);
 
@@ -149,7 +159,7 @@ fetch(dataUrlCoarse)
 			loadAndMergeDetailedData();
 
 			addAnnotations(g).then(markers => {
-				renderPaymentsTableFromMarkers(markers);
+				renderPaymentsTableFromMarkers(markers.account);
 			});
 		});
 
@@ -174,7 +184,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 			addAnnotations(g).then(markers => {
-				renderPaymentsTableFromMarkers(markers);
+				renderPaymentsTableFromMarkers(markers.account);
 			});
 		});
 }
