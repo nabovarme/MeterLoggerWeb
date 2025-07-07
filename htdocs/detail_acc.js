@@ -117,7 +117,7 @@ function update_kwh_left() {
 		document.getElementById("kwh_left").innerHTML =
 			normalizeAmount(accountData.kwh_left) + " kWh left, " +
 			accountData.time_left_str + " at " +
-			accountData.avg_energy_last_day + " kWh/h";
+			accountData.avg_energy_last_day + " kW/h";
 	}
 }
 
