@@ -24,62 +24,61 @@ function convertCsvSecondsToMs(csv) {
 	return [header, ...convertedLines].join("\n");
 }
 
-// Adds annotations to the graph from account data
-function addAnnotations(graph) {
-	const labels = graph.getLabels();
-	if (!graph.rawData_ || graph.rawData_.length === 0) return Promise.resolve([]);
-
-	const seriesName = labels[1];
-
-	function snapToNearestTimestamp(target, timestamps) {
-		let closest = timestamps[0];
-		let minDiff = Math.abs(target - closest);
-		for (let ts of timestamps) {
-			let diff = Math.abs(target - ts);
-			if (diff < minDiff) {
-				closest = ts;
-				minDiff = diff;
-			}
-		}
-		return closest;
-	}
-
+// ✅ Refactored: Fetches account data, updates UI, sets annotations, renders table
+function refreshAccountInfoAndUI(graph) {
 	return fetch(accountUrl)
 		.then(r => r.json())
-		.then(markers => {
-			accountData = markers; // ✅ Cache full JSON object for reuse
-
-			const dataTimestamps = graph.rawData_.map(row => row[0]);
-
-			const markerAnnotations = markers.account.map(entry => {
-				let xVal = entry.payment_time * 1000;
-				xVal = snapToNearestTimestamp(xVal, dataTimestamps);
-
-				return {
-					x: xVal,
-					shortText: entry.type || '|',
-					text: `info: ${entry.info || ''}\namount: ${entry.amount || ''}`,
-					series: seriesName,
-					cssClass: 'custom-marker'
-				};
-			}).filter(a => a !== null);
-
-			graph.setAnnotations(markerAnnotations);
-
+		.then(data => {
+			accountData = data;
 			update_kwh_left();
+			update_last_energy();
 
-			return markers;
+			if (graph && graph.rawData_ && graph.rawData_.length > 0) {
+				const labels = graph.getLabels();
+				const seriesName = labels[1];
+				const dataTimestamps = graph.rawData_.map(row => row[0]);
+
+				function snapToNearestTimestamp(target, timestamps) {
+					let closest = timestamps[0];
+					let minDiff = Math.abs(target - closest);
+					for (let ts of timestamps) {
+						let diff = Math.abs(target - ts);
+						if (diff < minDiff) {
+							closest = ts;
+							minDiff = diff;
+						}
+					}
+					return closest;
+				}
+
+				const markerAnnotations = data.account.map(entry => {
+					let xVal = entry.payment_time * 1000;
+					xVal = snapToNearestTimestamp(xVal, dataTimestamps);
+
+					return {
+						x: xVal,
+						shortText: entry.type || '|',
+						text: `info: ${entry.info || ''}\namount: ${entry.amount || ''}`,
+						series: seriesName,
+						cssClass: 'custom-marker'
+					};
+				}).filter(a => a !== null);
+
+				graph.setAnnotations(markerAnnotations);
+			}
+
+			renderPaymentsTableFromMarkers(data.account);
+			return data;
 		})
-		.catch(() => {
-			graph.setAnnotations([]);
-			console.warn('Failed to load markers, no annotations added');
-			return [];
+		.catch(err => {
+			console.warn('Failed to refresh account data and UI:', err);
+			if (graph) graph.setAnnotations([]);
 		});
 }
 
 // Builds a table of payment records below the graph
 function renderPaymentsTableFromMarkers(payments) {
-	const container = document.getElementById("payments-table");
+	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
 
 	if (!payments.length) {
@@ -155,33 +154,26 @@ fetch(dataUrlCoarse)
 					strokeWidth: 2,
 					strokeBorderWidth: 1,
 				},
-//				highlightCallback: update_consumption,
-//				unhighlightCallback: update_consumption,
 				zoomCallback: update_consumption,
-//				clickCallback: update_consumption,
 			}
 		);
 
 		g.ready(() => {
-			update_kwh_left();
-			update_consumption();
-			loadAndMergeDetailedData();
-
-			addAnnotations(g).then(markers => {
-				renderPaymentsTableFromMarkers(markers.account);
+			refreshAccountInfoAndUI(g).then(() => {
+				update_consumption();
 			});
+			loadAndMergeDetailedData();
 		});
 
-		// Set up regular refresh
 		setInterval(function() {
 			const range = g.xAxisRange();
-			g.updateOptions({
-				file: g.file_,
-				dateWindow: [range[0] + 60000, range[1] + 60000]
+			refreshAccountInfoAndUI(g).then(() => {
+				g.updateOptions({
+					file: g.file_,
+					dateWindow: [range[0] + 60000, range[1] + 60000]
+				});
+				update_consumption();
 			});
-			update_last_energy();
-			update_kwh_left();
-			update_consumption();
 		}, 60000);
 	});
 
@@ -194,9 +186,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
-			addAnnotations(g).then(markers => {
-				renderPaymentsTableFromMarkers(markers.account);
-			});
+			refreshAccountInfoAndUI(g);
 		});
 }
 
@@ -264,27 +254,12 @@ function formatDate(d) {
 
 // Loads and updates the most recent energy reading from a separate endpoint
 function update_last_energy() {
-	fetch('last_energy.epl?serial=' + meter_serial)
-		.then(response => {
-			if (!response.ok) throw new Error('Network response was not ok');
-			return response.text();
-		})
-		.then(data => {
-			document.getElementById("last_energy").innerHTML = data;
-		})
-		.catch(error => console.error('Fetch error:', error));
+	document.getElementById("last_energy").innerHTML = normalizeAmount(accountData.last_energy) + " kWh<br> " + normalizeAmount(accountData.last_volume) + " m<sup>3</sup><br>" + normalizeAmount(accountData.last_hours) + " hours<br>";
 }
 
 function update_kwh_left() {
 	if (accountData && accountData.kwh_left != null) {
 		document.getElementById("kwh_left").innerHTML = normalizeAmount(accountData.kwh_left) + " kWh left, " + accountData.time_left_str + " at " + accountData.avg_energy_last_day + " kWh/h";
-	} else {
-		// fallback if not yet cached
-		// fetch(accountUrl)
-		//     .then(r => r.json())
-		//     .then(data => {
-		//         document.getElementById("kwh_left").innerHTML = normalizeAmount(data.kwh_left) + " kWh";
-		//     });
 	}
 }
 

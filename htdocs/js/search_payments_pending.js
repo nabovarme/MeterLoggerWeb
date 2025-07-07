@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('paymentsPendingSearch');
-	const table = document.getElementById('payments-table');
+	const table = document.getElementById('payments_table');
 	const rows = () => table.querySelectorAll('tbody tr');
 	let debounceTimeout;
 	let refreshTimeout;

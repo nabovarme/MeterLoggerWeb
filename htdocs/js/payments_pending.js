@@ -4,7 +4,7 @@ async function loadPayments() {
 		if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
 		const data = await resp.json();
 
-		const tbody = document.querySelector('#payments-table tbody');
+		const tbody = document.querySelector('#payments_table tbody');
 		tbody.innerHTML = ''; // clear existing rows
 
 		for (const row of data) {
