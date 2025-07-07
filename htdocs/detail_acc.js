@@ -167,15 +167,6 @@ function renderPaymentsTableFromMarkers(payments) {
 		container.appendChild(row);
 	});
 
-	// Optional: log row hovers for debugging
-	const rows = container.querySelectorAll('.payment-row');
-	rows.forEach(row => {
-		row.addEventListener('mouseenter', () => {
-			console.log('Hovered row ID:', row.id);
-		});
-	});
-}
-
 /*-----------------------
  * Annotation functions
  *----------------------*/
@@ -206,14 +197,12 @@ function assignAnnotationIdsAndListeners(graph) {
 // Attaches mouseenter and mouseleave event handlers to annotation elements for hover highlighting
 function setupAnnotationHoverHandlers() {
 	const annotations = document.querySelectorAll('.dygraph-annotation');
-	console.log('Setting hover handlers for', annotations.length, 'annotations');
 
 	annotations.forEach(el => {
 		const annotationId = el.dataset.annotationId;
 		if (!annotationId) return;
 
 		el.addEventListener('mouseenter', () => {
-			console.log('Hover enter on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.add('highlight');
 			
@@ -228,7 +217,6 @@ function setupAnnotationHoverHandlers() {
 		});
 
 		el.addEventListener('mouseleave', () => {
-			console.log('Hover leave on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.remove('highlight');
 			
@@ -240,7 +228,6 @@ function setupAnnotationHoverHandlers() {
 		});
 		
 		el.addEventListener('click', () => {
-			console.log('Clicked on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) {
 				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
