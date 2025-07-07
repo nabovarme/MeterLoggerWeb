@@ -209,12 +209,27 @@ function setupAnnotationHoverHandlers() {
 			console.log('Hover enter on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.add('highlight');
+			
+			// 🔻 Strip the ID from the tooltip (first line in title)
+			const title = el.getAttribute('title') || '';
+			const lines = title.split('\n');
+			if (lines.length > 1) {
+				const stripped = lines.slice(1).join('\n');
+				el.setAttribute('data-original-title', title); // optional: backup
+				el.setAttribute('title', stripped);
+			}
 		});
 
 		el.addEventListener('mouseleave', () => {
 			console.log('Hover leave on', annotationId);
 			const row = document.getElementById(annotationId);
 			if (row) row.classList.remove('highlight');
+			
+			// 🔁 Restore original title
+			const original = el.getAttribute('data-original-title');
+			if (original) {
+				el.setAttribute('title', original);
+			}
 		});
 	});
 }
