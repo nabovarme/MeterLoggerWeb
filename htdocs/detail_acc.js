@@ -25,7 +25,7 @@ function convertCsvSecondsToMs(csv) {
 }
 
 // ✅ Refactored: Fetches account data, updates UI, sets annotations, renders table
-function refreshAccountInfoAndUI(graph) {
+function refreshAccountInfo(graph) {
 	return fetch(accountUrl)
 		.then(r => r.json())
 		.then(data => {
@@ -159,7 +159,7 @@ fetch(dataUrlCoarse)
 		);
 
 		g.ready(() => {
-			refreshAccountInfoAndUI(g).then(() => {
+			refreshAccountInfo(g).then(() => {
 				update_consumption();
 			});
 			loadAndMergeDetailedData();
@@ -167,7 +167,7 @@ fetch(dataUrlCoarse)
 
 		setInterval(function() {
 			const range = g.xAxisRange();
-			refreshAccountInfoAndUI(g).then(() => {
+			refreshAccountInfo(g).then(() => {
 				g.updateOptions({
 					file: g.file_,
 					dateWindow: [range[0] + 60000, range[1] + 60000]
@@ -186,7 +186,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
-			refreshAccountInfoAndUI(g);
+			refreshAccountInfo(g);
 		});
 }
 
