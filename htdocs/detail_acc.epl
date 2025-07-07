@@ -178,8 +178,15 @@
 		
 		<style type="text/css">
 			#payments-table {
+				width: 100%;
 				display: flex;
 				flex-direction: column;
+				gap: 4px;
+				margin-top: 24px; /* Add some space above */
+			}
+			
+			#consumption_in_range {
+				width: 100%;
 				gap: 4px;
 				margin-top: 24px; /* Add some space above */
 			}
@@ -235,12 +242,12 @@
 			[$ endif $]
 			</div>
 		</span>
-			<div id="ann_div"></div>
 			<div id="div_dygraph"></div>
+			<div id="consumption_in_range"></div>
 		<br>
 		<table border="1" align="left" cellpadding="0" cellspacing="6" width="100%">
 			<tr align="left" valign="bottom">
-				<td colspan="7" align="left"><div id="consumption_in_range">&nbsp;</div></td>
+				<td colspan="7" align="left"></td>
 			</tr>
 			<tr align="left" valign="bottom">
 				<td>&nbsp;</td>
