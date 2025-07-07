@@ -48,30 +48,32 @@
 		<link rel="stylesheet" href="/css/detail_acc.css">
 	</HEAD>
 	<BODY>
-		<!-- >
-			<div class="watermark">BETA-TEST</div>
-		< -->
+		<div class="page-wrapper">
+			<!-- >
+				<div class="watermark">BETA-TEST</div>
+			< -->
+			<span class="default-bold">
+				[+ $info +]
+			</span>
+			<span class="default">
+				<a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a>
+			</span>
+			<span class="default-small">
+				<a href="/qr/[+ $fdat{'serial'} +]">QR</a>
+				[$ if ($is_admin) $] <a href="update_wifi.epl?serial=[+ $fdat{'serial'} +]">Update wifi</a>[$ endif $]
+			</span>
+			<br>
+			<span class="default">
+				serial [+ $fdat{'serial'} +]<br>
+				<div id="last_energy"></div>
+			</span>
+			
+			<div id="div_dygraph"></div>
+			<div id="consumption_in_range"></div>
+			
+			<div id="payments_table" align="left" valign="bottom"></div>
+		</div>
 
-		<span class="default-bold">
-			[+ $info +]
-		</span>
-		<span class="default">
-			<a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a>
-		</span>
-		<span class="default-small">
-			<a href="/qr/[+ $fdat{'serial'} +]">QR</a>
-			[$ if ($is_admin) $] <a href="update_wifi.epl?serial=[+ $fdat{'serial'} +]">Update wifi</a>[$ endif $]
-		</span>
-		<br>
-		<span class="default">
-			serial [+ $fdat{'serial'} +]<br>
-			<div id="last_energy"></div>
-		</span>
-		
-		<div id="div_dygraph"></div>
-		<div id="consumption_in_range"></div>
-		
-		<div id="payments_table" align="left" valign="bottom"></div>
 		[$ if ($is_admin) $]
 			[$ if ($fdat{add_state} =~ /preview/i) $]
 		<form method="GET" action="">
