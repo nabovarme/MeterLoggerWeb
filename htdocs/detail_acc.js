@@ -72,7 +72,7 @@ function mergeCsv(csv1, csv2) {
  *---------------------*/
 
 // Update the displayed energy use over the currently selected graph range
-function update_consumption() {
+function updateConsumptionFromGraphRange() {
 	if (!g || !g.rawData_) return;
 
 	const range = g.xAxisRange();
@@ -103,11 +103,11 @@ function update_consumption() {
 		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 
 	// 👇 Filter payments table
-	filterPaymentTableByGraphRange(g);
+	filterPaymentsBySelectedGraphRange(g);
 }
 
 // Updates the displayed last energy, volume and hours from accountData
-function update_last_energy() {
+function updateLastReadingStats() {
 	document.getElementById("last_energy").innerHTML =
 		normalizeAmount(accountData.last_energy) + " kWh<br> " +
 		normalizeAmount(accountData.last_volume) + " m<sup>3</sup><br>" +
@@ -115,7 +115,7 @@ function update_last_energy() {
 }
 
 // Updates remaining kWh left info from accountData
-function update_kwh_left() {
+function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_left != null) {
 		document.getElementById("kwh_left").innerHTML =
 			normalizeAmount(accountData.kwh_left) + " kWh left, " +
@@ -125,7 +125,7 @@ function update_kwh_left() {
 }
 
 // Builds a table of payment records below the graph
-function renderPaymentsTableFromMarkers(payments) {
+function renderPaymentRowsFromAccountData(payments) {
 	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
 
@@ -173,7 +173,7 @@ function renderPaymentsTableFromMarkers(payments) {
  *----------------------*/
 
 // Assigns data-annotation-id attributes and sets up hover event listeners on annotation DOM elements
-function assignAnnotationIdsAndListeners(graph) {
+function bindAnnotationEventsAndIds(graph) {
 	setTimeout(() => {
 		if (!graph || !graph.annotations_) return;
 
@@ -191,12 +191,12 @@ function assignAnnotationIdsAndListeners(graph) {
 			el.dataset.annotationId = annotationId;
 		});
 
-		setupAnnotationHoverHandlers();
+		initAnnotationHoverListeners();
 	}, 0);
 }
 
 // Attaches mouseenter and mouseleave event handlers to annotation elements for hover highlighting
-function setupAnnotationHoverHandlers() {
+function initAnnotationHoverListeners() {
 	const annotations = document.querySelectorAll('.dygraph-annotation');
 
 	annotations.forEach(el => {
@@ -243,7 +243,7 @@ function setupAnnotationHoverHandlers() {
 	});
 }
 
-function filterPaymentTableByGraphRange(graph) {
+function filterPaymentsBySelectedGraphRange(graph) {
 	const [start, end] = graph.xAxisRange(); // in ms
 
 	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
@@ -264,13 +264,13 @@ function filterPaymentTableByGraphRange(graph) {
  *-----------------------*/
 
 // Fetches account data, updates UI, sets graph annotations and renders payment table
-function refreshAccountInfo(graph) {
+function fetchAndRenderAccountInfo(graph) {
 	return fetch(accountUrl)
 		.then(r => r.json())
 		.then(data => {
 			accountData = data;
-			update_kwh_left();
-			update_last_energy();
+			updateRemainingKwhInfo();
+			updateLastReadingStats();
 
 			if (graph && graph.rawData_ && graph.rawData_.length > 0) {
 				const labels = graph.getLabels();
@@ -315,11 +315,11 @@ function refreshAccountInfo(graph) {
 				graph.setAnnotations(markerAnnotations);
 			}
 
-			renderPaymentsTableFromMarkers(data.account);
+			renderPaymentRowsFromAccountData(data.account);
 
 			if (graph) {
 				setTimeout(() => {
-					filterPaymentTableByGraphRange(graph); // ensure filter happens after table DOM exists
+					filterPaymentsBySelectedGraphRange(graph); // ensure filter happens after table DOM exists
 				}, 0);
 			}
 
@@ -332,7 +332,7 @@ function refreshAccountInfo(graph) {
 }
 
 // Loads more fine-grained data and merges it into existing graph data
-function loadAndMergeDetailedData() {
+function loadFineDataAndMergeIntoGraph() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
@@ -340,7 +340,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
-			refreshAccountInfo(g);
+			fetchAndRenderAccountInfo(g);
 		});
 }
 
@@ -402,34 +402,34 @@ fetch(dataUrlCoarse)
 					strokeBorderWidth: 1,
 				},
 				zoomCallback: function(minX, maxX, yRanges) {
-					update_consumption();
-					filterPaymentTableByGraphRange(g);
+					updateConsumptionFromGraphRange();
+					filterPaymentsBySelectedGraphRange(g);
 				},
 				drawCallback: (graph) => {
 					const range = graph.xAxisRange();
-					update_consumption();
-					filterPaymentTableByGraphRange(graph);
-					assignAnnotationIdsAndListeners(graph);
+					updateConsumptionFromGraphRange();
+					filterPaymentsBySelectedGraphRange(graph);
+					bindAnnotationEventsAndIds(graph);
 				}
 			}
 		);
 
 		g.ready(() => {
-			refreshAccountInfo(g).then(() => {
-				update_consumption();
-				filterPaymentTableByGraphRange(g);
+			fetchAndRenderAccountInfo(g).then(() => {
+				updateConsumptionFromGraphRange();
+				filterPaymentsBySelectedGraphRange(g);
 			});
-			loadAndMergeDetailedData();
+			loadFineDataAndMergeIntoGraph();
 		});
 
 		setInterval(function() {
 			const range = g.xAxisRange();
-			refreshAccountInfo(g).then(() => {
+			fetchAndRenderAccountInfo(g).then(() => {
 				g.updateOptions({
 					file: g.file_,
 					dateWindow: [range[0] + 60000, range[1] + 60000]
 				});
-				update_consumption();
+				updateConsumptionFromGraphRange();
 			});
 		}, 60000);
 	});
