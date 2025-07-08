@@ -49,7 +49,7 @@ sub handler {
 		$sth_last_energy->execute;
 		my ($last_hours, $last_volume, $last_energy) = $sth_last_energy->fetchrow_array;
 
-		# --- Compute summary metrics including kWh left, estimated time, and usage stats ---
+		# --- Compute summary metrics including kWh remaining, estimated time, and usage stats ---
 		my $sth_summary = $dbh->prepare(qq[
 			SELECT
 				m.serial,
@@ -58,9 +58,9 @@ sub handler {
 				ROUND(
 					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
 					2
-				) AS kwh_left,
+				) AS kwh_remaining,
 
-				-- Estimated time left (hours), only if effect > 0
+				-- Estimated time remaining (hours), only if effect > 0
 				ROUND(
 					IF(latest_sc.effect > 0,
 						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
@@ -155,10 +155,10 @@ sub handler {
 
 		# Construct final response payload
 		my $response = {
-			kwh_left            => $summary_row->{kwh_left} || 0,
+			kwh_remaining            => $summary_row->{kwh_remaining} || 0,
 			time_left_hours     => $summary_row->{time_left_hours} || 0,
 			energy_last_day     => $summary_row->{energy_last_day} || 0,
-			time_left_str       => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_left} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
+			time_left_str       => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
 			avg_energy_last_day     => $summary_row->{avg_energy_last_day},
 			last_hours          => $last_hours,
 			last_volume         => $last_volume,

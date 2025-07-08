@@ -80,7 +80,7 @@
 	(SELECT \
 		(SELECT samples.energy FROM samples WHERE samples.serial = $quoted_serial ORDER BY samples.unix_time DESC LIMIT 1) - \
 		(SELECT meters.last_energy FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-	), 2) AS kwh_left]);
+	), 2) AS kwh_remaining]);
 	$sth3->execute;
 	$d3 = $sth3->fetchrow_hashref;
 -]

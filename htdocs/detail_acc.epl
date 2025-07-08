@@ -156,7 +156,7 @@
 		</form>
 			[$ endif $]
 		[$ endif $]
-		<div id="kwh_left"></div>
+		<div id="kwh_remaining"></div>
 
 		<script src="detail_acc.js"></script>
 	</BODY>

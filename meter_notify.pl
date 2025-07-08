@@ -26,13 +26,13 @@ my $mqtt_data = undef;
 
 my $dbh;
 my $sth;
-my $sth_kwh_left;
+my $sth_kwh_remaining;
 my $sth_energy_now;
 my $sth_energy_last;
 my $d;
 my $d_energy_now;
 my $d_energy_last;
-my $d_kwh_left;
+my $d_kwh_remaining;
 
 my $energy_now;
 my $energy_last;
@@ -62,14 +62,14 @@ while (1) {
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 			
-		# get kWh left from db
-		$sth_kwh_left = $dbh->prepare(qq[SELECT ROUND( \
+		# get kWh remaining from db
+		$sth_kwh_remaining = $dbh->prepare(qq[SELECT ROUND( \
 		(SELECT SUM(amount/price) AS paid_kwh FROM accounts WHERE serial = $quoted_serial) - \
 		(SELECT \
 			(SELECT samples_cache.energy FROM samples_cache WHERE samples_cache.serial = $quoted_serial ORDER BY samples_cache.unix_time DESC LIMIT 1) - \
 			(SELECT meters.setup_value FROM meters WHERE meters.serial = $quoted_serial) AS consumed_kwh \
-		), 2) AS kwh_left]);
-		$sth_kwh_left->execute;
+		), 2) AS kwh_remaining]);
+		$sth_kwh_remaining->execute;
 
 		# get last days energy usage
 		$sth_energy_now = $dbh->prepare(qq[SELECT `energy`, `unix_time` FROM nabovarme.samples_cache \
@@ -96,8 +96,8 @@ while (1) {
 			$energy_last_day = (($energy_now || 0) - ($energy_last || 0)) / ((($time_now || 0) - ($time_last || 0)) / 60 / 60);
 		}
 
-		if ($d_kwh_left = $sth_kwh_left->fetchrow_hashref) {
-			$energy_left = ($d_kwh_left->{kwh_left} || 0) - ($d->{min_amount} || 0);
+		if ($d_kwh_remaining = $sth_kwh_remaining->fetchrow_hashref) {
+			$energy_left = ($d_kwh_remaining->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 			if ($energy_last_day <= 0.0) {
 				next;
 			}

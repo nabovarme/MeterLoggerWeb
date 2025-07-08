@@ -132,11 +132,11 @@ function updateLastReadingStats() {
 		normalizeAmount(accountData.last_hours) + " hours<br>";
 }
 
-// Updates remaining kWh left info from accountData
+// Updates remaining kWh info from accountData
 function updateRemainingKwhInfo() {
-	if (accountData && accountData.kwh_left != null) {
-		document.getElementById("kwh_left").innerHTML =
-			normalizeAmount(accountData.kwh_left) + " kWh left, " +
+	if (accountData && accountData.kwh_remaining != null) {
+		document.getElementById("kwh_remaining").innerHTML =
+			normalizeAmount(accountData.kwh_remaining) + " kWh remaining, " +
 			accountData.time_left_str + " at " +
 			accountData.avg_energy_last_day + " kW/h";
 	}
