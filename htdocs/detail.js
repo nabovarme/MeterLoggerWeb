@@ -88,7 +88,7 @@ setInterval(() => {
 		range[1] += reload_time_diff;
 
 		g.updateOptions({ file: merged, dateWindow: range });
-		update_last_energy();
+		updateLastReadingStats();
 
 		window.history.replaceState("", "", `${current_url}#${range[0]}-${range[1]};${data_series_enabled}`);
 	});
@@ -140,7 +140,7 @@ function change(el) {
 	window.history.replaceState("", "", `${current_url}#${range[0]}-${range[1]};${data_series_enabled}`);
 }
 
-function update_last_energy() {
+function updateLastReadingStats() {
 	fetch('last_energy.epl?serial=' + meter_serial)
 		.then(r => r.text())
 		.then(text => {
