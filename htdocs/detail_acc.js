@@ -13,7 +13,6 @@
  * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
  */
 
-
 // Colors for graph
 var colorSets = [['#999999'], null];
 
@@ -87,28 +86,34 @@ function mergeCsv(csv1, csv2) {
  * UI update functions
  *---------------------*/
 
-// Update the displayed energy use over the currently selected graph range
+// Updates the stats based on selected time range in graph
 function updateConsumptionFromGraphRange() {
 	if (!g || !g.rawData_) return;
 
 	const range = g.xAxisRange();
-	let minY, maxY;
+	let minY = null, maxY = null;
 
 	// Find minY at start of range
 	for (let i = 0; i < g.rawData_.length; i++) {
-		if (g.rawData_[i][0] >= range[0]) {
-			minY = parseFloat(g.rawData_[i][1]);
+		const ts = g.rawData_[i][0];
+		const val = parseFloat(g.rawData_[i][1]);
+		if (ts >= range[0]) {
+			minY = val;
 			break;
 		}
 	}
 
 	// Find maxY at end of range
 	for (let i = g.rawData_.length - 1; i >= 0; i--) {
-		if (g.rawData_[i][0] <= range[1]) {
-			maxY = parseFloat(g.rawData_[i][1]);
+		const ts = g.rawData_[i][0];
+		const val = parseFloat(g.rawData_[i][1]);
+		if (ts <= range[1]) {
+			maxY = val;
 			break;
 		}
 	}
+
+	if (minY == null || maxY == null) return;
 
 	const consumption = (maxY - minY);
 	const avg = consumption / ((range[1] - range[0]) / (1000 * 3600));
@@ -122,7 +127,6 @@ function updateConsumptionFromGraphRange() {
 	filterPaymentsBySelectedGraphRange(g);
 }
 
-// Updates the displayed last energy, volume and hours from accountData
 function updateLastReadingStats() {
 	document.getElementById("last_energy").innerHTML =
 		normalizeAmount(accountData.last_energy) + " kWh<br> " +
@@ -130,7 +134,6 @@ function updateLastReadingStats() {
 		normalizeAmount(accountData.last_hours) + " hours<br>";
 }
 
-// Updates kWh remaining info from accountData
 function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
 		document.getElementById("kwh_remaining").innerHTML =
@@ -140,7 +143,7 @@ function updateRemainingKwhInfo() {
 	}
 }
 
-// Builds a table of payment records below the graph
+// Renders the payment rows in the table
 function renderPaymentRowsFromAccountData(payments) {
 	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
@@ -150,7 +153,6 @@ function renderPaymentRowsFromAccountData(payments) {
 		return;
 	}
 
-	// Add header row
 	const header = document.createElement('div');
 	header.className = 'payment-row payment-header';
 	header.innerHTML = `
@@ -161,12 +163,11 @@ function renderPaymentRowsFromAccountData(payments) {
 	`;
 	container.appendChild(header);
 
-	// Add payment rows
 	payments.forEach(d => {
 		const row = document.createElement('div');
 		row.className = 'payment-row';
 		row.id = `payment-${d.id}`;
-		row.setAttribute('data-payment-time', d.payment_time); // ✅ needed for filtering
+		row.setAttribute('data-payment-time', d.payment_time);
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
 		const amountStr = normalizeAmount(d.amount || 0) + ' kr';
@@ -188,89 +189,81 @@ function renderPaymentRowsFromAccountData(payments) {
  * Annotation functions
  *----------------------*/
 
-// Assigns data-annotation-id attributes and sets up hover event listeners on annotation DOM elements
+function handleAnnotationHoverIn(e) {
+	const el = e.currentTarget;
+	const annotationId = el.dataset.annotationId;
+	if (!annotationId) return;
+	const row = document.getElementById(annotationId);
+	if (row) row.classList.add('highlight');
+	const title = el.getAttribute('title') || '';
+	const lines = title.split('\n');
+	if (lines.length > 1) {
+		el.setAttribute('data-original-title', title);
+		el.setAttribute('title', lines.slice(1).join('\n'));
+	}
+}
+
+function handleAnnotationHoverOut(e) {
+	const el = e.currentTarget;
+	const annotationId = el.dataset.annotationId;
+	if (!annotationId) return;
+	const row = document.getElementById(annotationId);
+	if (row) row.classList.remove('highlight');
+	const original = el.getAttribute('data-original-title');
+	if (original) {
+		el.setAttribute('title', original);
+		el.removeAttribute('data-original-title');
+	}
+}
+
+function handleAnnotationClick(e) {
+	const el = e.currentTarget;
+	const annotationId = el.dataset.annotationId;
+	if (!annotationId) return;
+	const row = document.getElementById(annotationId);
+	if (row) {
+		row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		row.classList.add('highlight-clicked');
+		setTimeout(() => row.classList.remove('highlight-clicked'), 2000);
+	}
+}
+
+function initAnnotationHoverListeners() {
+	const annotations = document.querySelectorAll('.dygraph-annotation');
+	annotations.forEach(el => {
+		el.removeEventListener('mouseenter', handleAnnotationHoverIn);
+		el.removeEventListener('mouseleave', handleAnnotationHoverOut);
+		el.removeEventListener('click', handleAnnotationClick);
+		el.addEventListener('mouseenter', handleAnnotationHoverIn);
+		el.addEventListener('mouseleave', handleAnnotationHoverOut);
+		el.addEventListener('click', handleAnnotationClick);
+	});
+}
+
+// Binds DOM elements to corresponding payment rows via annotation IDs
 function bindAnnotationEventsAndIds(graph) {
 	setTimeout(() => {
 		if (!graph || !graph.annotations_) return;
-
 		const annotations = document.querySelectorAll('.dygraph-annotation');
-
 		annotations.forEach(el => {
-			const title = el.getAttribute('title'); // This includes the full text
+			const title = el.getAttribute('title');
 			const lines = title.split("\n");
 			const idLine = lines[0];
 			if (!idLine.startsWith("#")) return;
-
 			const rawId = idLine.substring(1);
 			const annotationId = `payment-${rawId}`;
 			el.dataset.annotationId = annotationId;
 		});
-
 		initAnnotationHoverListeners();
 	}, 0);
 }
 
-// Attaches mouseenter and mouseleave event handlers to annotation elements for hover highlighting
-function initAnnotationHoverListeners() {
-	const annotations = document.querySelectorAll('.dygraph-annotation');
-
-	annotations.forEach(el => {
-		const annotationId = el.dataset.annotationId;
-		if (!annotationId) return;
-
-		el.addEventListener('mouseenter', () => {
-			const row = document.getElementById(annotationId);
-			if (row) row.classList.add('highlight');
-			
-			// 🔻 Strip the ID from the tooltip (first line in title)
-			const title = el.getAttribute('title') || '';
-			const lines = title.split('\n');
-			if (lines.length > 1) {
-				const stripped = lines.slice(1).join('\n');
-				el.setAttribute('data-original-title', title); // optional: backup
-				el.setAttribute('title', stripped);
-			}
-		});
-
-		el.addEventListener('mouseleave', () => {
-			const row = document.getElementById(annotationId);
-			if (row) row.classList.remove('highlight');
-			
-			// 🔁 Restore original title
-			const original = el.getAttribute('data-original-title');
-			if (original) {
-				el.setAttribute('title', original);
-			}
-		});
-		
-		el.addEventListener('click', () => {
-			const row = document.getElementById(annotationId);
-			if (row) {
-				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				row.classList.add('highlight-clicked');
-		
-				// Optional: Remove highlight after some delay
-				setTimeout(() => {
-					row.classList.remove('highlight-clicked');
-				}, 2000);
-			}
-		});
-	});
-}
-
 function filterPaymentsBySelectedGraphRange(graph) {
-	const [start, end] = graph.xAxisRange(); // in ms
-
+	const [start, end] = graph.xAxisRange();
 	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
-
 	rows.forEach(row => {
-		const ts = parseInt(row.getAttribute('data-payment-time')) * 1000; // convert to ms
-
-		if (ts >= start && ts <= end) {
-			row.style.display = '';
-		} else {
-			row.style.display = 'none';
-		}
+		const ts = parseInt(row.getAttribute('data-payment-time')) * 1000;
+		row.style.display = (ts >= start && ts <= end) ? '' : 'none';
 	});
 }
 
