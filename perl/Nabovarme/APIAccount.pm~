@@ -160,9 +160,9 @@ sub handler {
 		my $response = {
 			kwh_remaining       => $summary_row->{kwh_remaining} || 0,
 			time_remaining_hours     => $summary_row->{time_remaining_hours} || 0,
-			time_remaining_hours_string  => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
 			energy_last_day     => $summary_row->{energy_last_day} || 0,
-			avg_energy_last_day     => $summary_row->{avg_energy_last_day} || 0,
+			time_remaining_hours_string  => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
+			avg_energy_last_day     => $summary_row->{avg_energy_last_day},
 			last_hours          => $last_hours,
 			last_volume         => $last_volume,
 			last_energy         => $last_energy,
