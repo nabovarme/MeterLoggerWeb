@@ -30,8 +30,11 @@ sub handler {
 		$r->content_type("application/json; charset=utf-8");
 
 		# Add caching headers (60-second public cache)
-		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
-		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+#		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
+#		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+		# DEBUG: dont cache, when adding payments it does not get updated if we do
+		$r->headers_out->set('Pragma' => 'no-cache');
+		$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate');
 
 		# Allow CORS from any origin
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
