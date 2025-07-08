@@ -12,7 +12,10 @@ html, body {
 
 /* Layout padding wrapper */
 .page-wrapper {
-	padding: 6px;
+	padding-top: 6px;
+	padding-right: 6px;
+	padding-left: 6px;
+	padding-bottom: 0;
 }
 /* Reusable font utility classes */
 .default {
@@ -102,7 +105,8 @@ html, body {
 
 #add_payment {
 	width: 100%;
-	padding: 6px;
+	padding-right: 6px;
+	padding-left: 6px;
 	margin-bottom: 2em;
 }
 
@@ -117,6 +121,7 @@ html, body {
 
 /* Payment row layout */
 .payment-row {
+	width: 100%;
 	font-family: Verdana, Geneva, sans-serif;
 	display: grid;
 	grid-template-columns: 2fr 3fr 1fr 1fr;
