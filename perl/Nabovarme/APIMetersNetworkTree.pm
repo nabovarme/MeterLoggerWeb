@@ -33,7 +33,7 @@ sub handler {
 				ROUND(
 					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
 					2
-				) AS kwh_left,
+				) AS kwh_remaining,
 				ROUND(
 					IF(latest_sc.effect > 0,
 						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,

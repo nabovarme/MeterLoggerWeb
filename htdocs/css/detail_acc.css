@@ -89,7 +89,7 @@ html, body {
 
 /* Table and consumption section layouts */
 #consumption_in_range,
-#kwh_left {
+#kwh_remaining {
 	width: 100%;
 	margin-top: 2em;
 	margin-bottom: 2em;
@@ -113,7 +113,7 @@ html, body {
 	margin-bottom: 2em;
 }
 
-#kwh_left {
+#kwh_remaining {
 	font-weight: bold;
 	padding: 6px;
 }

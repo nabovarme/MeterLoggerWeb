@@ -36,7 +36,7 @@ sub handler {
 				ROUND(
 					IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
 					2
-				) AS kwh_left,
+				) AS kwh_remaining,
 				ROUND(
 					IF(latest_sc.effect > 0,
 						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
@@ -118,7 +118,7 @@ sub handler {
 				energy                => defined $row->{energy} ? int($row->{energy}) : 0,
 				volume                => defined $row->{volume} ? int($row->{volume}) : 0,
 				hours                 => $row->{hours} || 0,
-				kwh_left              => defined $row->{kwh_left} ? int($row->{kwh_left}) : 0,
+				kwh_remaining              => defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
 				time_left_hours       => defined $time_left_hours ? $time_left_hours : 0,
 				time_left_hours_string => $time_left_hours_string,
 			};
