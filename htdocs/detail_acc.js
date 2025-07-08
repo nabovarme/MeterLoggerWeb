@@ -1,3 +1,19 @@
+/*
+ * Energy Detail Dashboard Script
+ *
+ * This script powers the interactive energy usage detail view. It performs the following functions:
+ *
+ * - Initializes a Dygraph instance using coarse data from the backend.
+ * - Loads and merges higher-resolution (fine) CSV data into the graph.
+ * - Fetches account data (e.g. last energy reading, volume, remaining kWh) from the API and updates the UI.
+ * - Displays time-aligned annotations (e.g. payments, memberships) on the graph.
+ * - Enables hover and click behavior on annotations to highlight and scroll to corresponding payment rows.
+ * - Calculates and displays consumption statistics (total kWh and average kW/h) for the currently selected graph range.
+ * - Dynamically renders a payment history table and filters it based on the visible time window in the graph.
+ * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
+ */
+
+
 // Colors for graph
 var colorSets = [['#999999'], null];
 
@@ -11,6 +27,8 @@ var accountUrl = '/api/account/' + meter_serial;
 
 // ✅ Cache for full account data JSON
 var accountData = null;
+
+const boundAnnotationIds = new Set();
 
 /*----------------
  * Helper functions
@@ -72,7 +90,7 @@ function mergeCsv(csv1, csv2) {
  *---------------------*/
 
 // Update the displayed energy use over the currently selected graph range
-function update_consumption() {
+function updateConsumptionFromGraphRange() {
 	if (!g || !g.rawData_) return;
 
 	const range = g.xAxisRange();
@@ -103,11 +121,11 @@ function update_consumption() {
 		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 
 	// 👇 Filter payments table
-	filterPaymentTableByGraphRange(g);
+	filterPaymentsBySelectedGraphRange(g);
 }
 
 // Updates the displayed last energy, volume and hours from accountData
-function update_last_energy() {
+function updateLastReadingStats() {
 	document.getElementById("last_energy").innerHTML =
 		normalizeAmount(accountData.last_energy) + " kWh<br> " +
 		normalizeAmount(accountData.last_volume) + " m<sup>3</sup><br>" +
@@ -115,7 +133,7 @@ function update_last_energy() {
 }
 
 // Updates remaining kWh left info from accountData
-function update_kwh_left() {
+function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_left != null) {
 		document.getElementById("kwh_left").innerHTML =
 			normalizeAmount(accountData.kwh_left) + " kWh left, " +
@@ -125,7 +143,7 @@ function update_kwh_left() {
 }
 
 // Builds a table of payment records below the graph
-function renderPaymentsTableFromMarkers(payments) {
+function renderPaymentRowsFromAccountData(payments) {
 	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
 
@@ -173,15 +191,14 @@ function renderPaymentsTableFromMarkers(payments) {
  *----------------------*/
 
 // Assigns data-annotation-id attributes and sets up hover event listeners on annotation DOM elements
-function assignAnnotationIdsAndListeners(graph) {
+function bindAnnotationEventsAndIds(graph) {
 	setTimeout(() => {
 		if (!graph || !graph.annotations_) return;
 
 		const annotations = document.querySelectorAll('.dygraph-annotation');
-		const markerAnnotations = graph.annotations_;
 
 		annotations.forEach(el => {
-			const title = el.getAttribute('title'); // This includes the full text
+			const title = el.getAttribute('title');
 			const lines = title.split("\n");
 			const idLine = lines[0];
 			if (!idLine.startsWith("#")) return;
@@ -189,14 +206,37 @@ function assignAnnotationIdsAndListeners(graph) {
 			const rawId = idLine.substring(1);
 			const annotationId = `payment-${rawId}`;
 			el.dataset.annotationId = annotationId;
-		});
 
-		setupAnnotationHoverHandlers();
+			if (boundAnnotationIds.has(annotationId)) return; // ✅ Prevent duplicate
+			boundAnnotationIds.add(annotationId);
+
+			const row = document.getElementById(annotationId);
+			if (!row) return;
+
+			el.addEventListener('mouseenter', () => {
+				row.classList.add('highlight');
+				const lines = title.split('\n');
+				if (lines.length > 1) {
+					el.setAttribute('data-original-title', title);
+					el.setAttribute('title', lines.slice(1).join('\n'));
+				}
+			});
+			el.addEventListener('mouseleave', () => {
+				row.classList.remove('highlight');
+				const original = el.getAttribute('data-original-title');
+				if (original) el.setAttribute('title', original);
+			});
+			el.addEventListener('click', () => {
+				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				row.classList.add('highlight-clicked');
+				setTimeout(() => row.classList.remove('highlight-clicked'), 2000);
+			});
+		});
 	}, 0);
 }
 
 // Attaches mouseenter and mouseleave event handlers to annotation elements for hover highlighting
-function setupAnnotationHoverHandlers() {
+function initAnnotationHoverListeners() {
 	const annotations = document.querySelectorAll('.dygraph-annotation');
 
 	annotations.forEach(el => {
@@ -243,7 +283,7 @@ function setupAnnotationHoverHandlers() {
 	});
 }
 
-function filterPaymentTableByGraphRange(graph) {
+function filterPaymentsBySelectedGraphRange(graph) {
 	const [start, end] = graph.xAxisRange(); // in ms
 
 	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
@@ -264,13 +304,13 @@ function filterPaymentTableByGraphRange(graph) {
  *-----------------------*/
 
 // Fetches account data, updates UI, sets graph annotations and renders payment table
-function refreshAccountInfo(graph) {
+function fetchAndRenderAccountInfo(graph) {
 	return fetch(accountUrl)
 		.then(r => r.json())
 		.then(data => {
 			accountData = data;
-			update_kwh_left();
-			update_last_energy();
+			updateRemainingKwhInfo();
+			updateLastReadingStats();
 
 			if (graph && graph.rawData_ && graph.rawData_.length > 0) {
 				const labels = graph.getLabels();
@@ -315,11 +355,11 @@ function refreshAccountInfo(graph) {
 				graph.setAnnotations(markerAnnotations);
 			}
 
-			renderPaymentsTableFromMarkers(data.account);
+			renderPaymentRowsFromAccountData(data.account);
 
 			if (graph) {
 				setTimeout(() => {
-					filterPaymentTableByGraphRange(graph); // ensure filter happens after table DOM exists
+					filterPaymentsBySelectedGraphRange(graph); // ensure filter happens after table DOM exists
 				}, 0);
 			}
 
@@ -328,11 +368,17 @@ function refreshAccountInfo(graph) {
 		.catch(err => {
 			console.warn('Failed to refresh account data and UI:', err);
 			if (graph) graph.setAnnotations([]);
+
+			const errorEl = document.getElementById("error_message");
+			if (errorEl) {
+				errorEl.innerText = "⚠️ Unable to fetch latest account data.";
+				errorEl.style.display = "block";
+			}
 		});
 }
 
 // Loads more fine-grained data and merges it into existing graph data
-function loadAndMergeDetailedData() {
+function loadFineDataAndMergeIntoGraph() {
 	fetch(dataUrlFine)
 		.then(r => r.text())
 		.then(detailedCsv => {
@@ -340,7 +386,7 @@ function loadAndMergeDetailedData() {
 			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
 			g.updateOptions({ file: mergedCsv });
 
-			refreshAccountInfo(g);
+			fetchAndRenderAccountInfo(g);
 		});
 }
 
@@ -402,34 +448,34 @@ fetch(dataUrlCoarse)
 					strokeBorderWidth: 1,
 				},
 				zoomCallback: function(minX, maxX, yRanges) {
-					update_consumption();
-					filterPaymentTableByGraphRange(g);
+					updateConsumptionFromGraphRange();
+					filterPaymentsBySelectedGraphRange(g);
 				},
 				drawCallback: (graph) => {
 					const range = graph.xAxisRange();
-					update_consumption();
-					filterPaymentTableByGraphRange(graph);
-					assignAnnotationIdsAndListeners(graph);
+					updateConsumptionFromGraphRange();
+					filterPaymentsBySelectedGraphRange(graph);
+					bindAnnotationEventsAndIds(graph);
 				}
 			}
 		);
 
 		g.ready(() => {
-			refreshAccountInfo(g).then(() => {
-				update_consumption();
-				filterPaymentTableByGraphRange(g);
+			fetchAndRenderAccountInfo(g).then(() => {
+				updateConsumptionFromGraphRange();
+				filterPaymentsBySelectedGraphRange(g);
 			});
-			loadAndMergeDetailedData();
+			loadFineDataAndMergeIntoGraph();
 		});
 
 		setInterval(function() {
 			const range = g.xAxisRange();
-			refreshAccountInfo(g).then(() => {
+			fetchAndRenderAccountInfo(g).then(() => {
 				g.updateOptions({
 					file: g.file_,
 					dateWindow: [range[0] + 60000, range[1] + 60000]
 				});
-				update_consumption();
+				updateConsumptionFromGraphRange();
 			});
 		}, 60000);
 	});
