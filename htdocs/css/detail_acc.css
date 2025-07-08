@@ -91,8 +91,6 @@ html, body {
 #consumption_in_range,
 #kwh_remaining {
 	width: 100%;
-	margin-top: 2em;
-	margin-bottom: 2em;
 }
 
 #payments_table {
@@ -115,7 +113,6 @@ html, body {
 
 #kwh_remaining {
 	font-weight: bold;
-	padding: 6px;
 }
 
 /* Payment row layout */

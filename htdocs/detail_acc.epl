@@ -71,7 +71,8 @@
 			
 			<div id="div_dygraph"></div>
 			<div id="consumption_in_range"></div>
-			
+			<div id="kwh_remaining"></div>
+
 			<div id="payments_table" align="left" valign="bottom"></div>
 		</div>
 
@@ -155,8 +156,6 @@
 		</form>
 			[$ endif $]
 		[$ endif $]
-		<div id="kwh_remaining"></div>
-
 		<script src="detail_acc.js"></script>
 	</BODY>
 </HTML>
