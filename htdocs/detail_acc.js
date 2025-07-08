@@ -1,3 +1,19 @@
+/*
+ * Energy Detail Dashboard Script
+ *
+ * This script powers the interactive energy usage detail view. It performs the following functions:
+ *
+ * - Initializes a Dygraph instance using coarse data from the backend.
+ * - Loads and merges higher-resolution (fine) CSV data into the graph.
+ * - Fetches account data (e.g. last energy reading, volume, remaining kWh) from the API and updates the UI.
+ * - Displays time-aligned annotations (e.g. payments, memberships) on the graph.
+ * - Enables hover and click behavior on annotations to highlight and scroll to corresponding payment rows.
+ * - Calculates and displays consumption statistics (total kWh and average kW/h) for the currently selected graph range.
+ * - Dynamically renders a payment history table and filters it based on the visible time window in the graph.
+ * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
+ */
+
+
 // Colors for graph
 var colorSets = [['#999999'], null];
 
@@ -114,12 +130,12 @@ function updateLastReadingStats() {
 		normalizeAmount(accountData.last_hours) + " hours<br>";
 }
 
-// Updates remaining kWh left info from accountData
+// Updates kWh remaining info from accountData
 function updateRemainingKwhInfo() {
-	if (accountData && accountData.kwh_left != null) {
-		document.getElementById("kwh_left").innerHTML =
-			normalizeAmount(accountData.kwh_left) + " kWh left, " +
-			accountData.time_left_str + " at " +
+	if (accountData && accountData.kwh_remaining != null) {
+		document.getElementById("kwh_remaining").innerHTML =
+			normalizeAmount(accountData.kwh_remaining) + " kWh remaining, " +
+			accountData.time_remaining_str + " at " +
 			accountData.avg_energy_last_day + " kW/h";
 	}
 }
@@ -328,6 +344,12 @@ function fetchAndRenderAccountInfo(graph) {
 		.catch(err => {
 			console.warn('Failed to refresh account data and UI:', err);
 			if (graph) graph.setAnnotations([]);
+			
+			const errorEl = document.getElementById("error_message");
+			if (errorEl) {
+				errorEl.innerText = "⚠️ Unable to fetch latest account data.";
+				errorEl.style.display = "block";
+			}
 		});
 }
 

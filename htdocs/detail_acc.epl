@@ -52,6 +52,7 @@
 			<!-- >
 				<div class="watermark">BETA-TEST</div>
 			< -->
+			<div id="error_message" style="color: red; display: none;"></div>
 			<span class="default-bold">
 				[+ $info +]
 			</span>
@@ -154,7 +155,7 @@
 		</form>
 			[$ endif $]
 		[$ endif $]
-		<div id="kwh_left"></div>
+		<div id="kwh_remaining"></div>
 
 		<script src="detail_acc.js"></script>
 	</BODY>

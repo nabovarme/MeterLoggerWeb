@@ -46,7 +46,7 @@ These variables are computed by querying the last 5 rows from `samples_cache` fo
 |----------------------|-----------------------------------------------------------------------------|
 | `$energy`            | Median of last 5 values from `samples_cache.energy`                         |
 | `$volume`            | Median of last 5 values from `samples_cache.volume`                         |
-| `$kwh_left`          | Median of last 5 values from `samples_cache.kwh_left` (if present)          |
+| `$kwh_remaining`     | Median of last 5 values from `samples_cache.kwh_remaining` (if present)     |
 | `$valve_status`      | Median (numeric) of last 5 values from `samples_cache.valve_status`         |
 | `$valve_installed`   | From `meters.valve_installed` (not sample-based)                            |
 | `$your_column`       | Any other column from `samples_cache` can be used the same way              |

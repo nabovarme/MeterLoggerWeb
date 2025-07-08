@@ -86,8 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>${meter.energy || 0}</div>
 					<div>${meter.volume || 0}</div>
 					<div>${meter.hours || 0}</div>
-					<div>${meter.kwh_left || 0}</div>
-					<div>${meter.time_left_hours_string || ''}</div>
+					<div>${meter.kwh_remaining || 0}</div>
+					<div>${meter.time_remaining_hours_string || ''}</div>
 				`;
 
 				tableWrapper.appendChild(rowDiv);
