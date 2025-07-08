@@ -43,7 +43,7 @@ sub handler {
 						NULL
 					),
 					2
-				) AS time_left_hours,
+				) AS time_remaining_hours,
 				latest_sc.unix_time AS last_sample_time
 			FROM meters m
 			JOIN meter_groups mg ON m.`group` = mg.`id`
@@ -83,13 +83,13 @@ sub handler {
 				push @groups, $current_group;
 			}
 
-			# Convert time_left_hours to string and seconds as before
-			my $time_left_hours = $row->{time_left_hours};
-			my $time_left_hours_string;
-			if ($time_left_hours) {
-				$time_left_hours_string = rounded_duration($time_left_hours * 3600);
+			# Convert time_remaining_hours to string and seconds as before
+			my $time_remaining_hours = $row->{time_remaining_hours};
+			my $time_remaining_hours_string;
+			if ($time_remaining_hours) {
+				$time_remaining_hours_string = rounded_duration($time_remaining_hours * 3600);
 			} else {
-				$time_left_hours_string = '∞';
+				$time_remaining_hours_string = '∞';
 			}
 
 			# Add meter data hashref
@@ -119,8 +119,8 @@ sub handler {
 				volume                => defined $row->{volume} ? int($row->{volume}) : 0,
 				hours                 => $row->{hours} || 0,
 				kwh_remaining              => defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
-				time_left_hours       => defined $time_left_hours ? $time_left_hours : 0,
-				time_left_hours_string => $time_left_hours_string,
+				time_remaining_hours       => defined $time_remaining_hours ? $time_remaining_hours : 0,
+				time_remaining_hours_string => $time_remaining_hours_string,
 			};
 		}
 

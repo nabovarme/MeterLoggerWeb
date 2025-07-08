@@ -40,7 +40,7 @@ sub handler {
 						NULL
 					),
 					2
-				) AS time_left_hours,
+				) AS time_remaining_hours,
 				latest_sc.unix_time AS last_sample_time
 			FROM meters m
 			JOIN meter_groups mg ON m.`group` = mg.`id`

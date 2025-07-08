@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				<div style="white-space: nowrap;">Energy <div class="meter-columns-unit">kWh</div></div>
 				<div style="white-space: nowrap;">Volume <div class="meter-columns-unit">m<sup>3</sup></div></div>
 				<div>Hours</div>
-				<div style="white-space: nowrap;">Left <div class="meter-columns-unit">kWh</div></div>
+				<div style="white-space: nowrap;">Remaining <div class="meter-columns-unit">kWh</div></div>
 				<div>Time remaining</div>
 			`;
 			tableWrapper.appendChild(columnsDiv);
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>${meter.volume || 0}</div>
 					<div>${meter.hours || 0}</div>
 					<div>${meter.kwh_remaining || 0}</div>
-					<div>${meter.time_left_hours_string || ''}</div>
+					<div>${meter.time_remaining_hours_string || ''}</div>
 				`;
 
 				tableWrapper.appendChild(rowDiv);
