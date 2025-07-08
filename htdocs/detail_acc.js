@@ -138,7 +138,7 @@ function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
 		document.getElementById("kwh_remaining").innerHTML =
 			normalizeAmount(accountData.kwh_remaining) + " kWh remaining, " +
-			accountData.time_remaining_str + " at " +
+			accountData.time_remaining_hours_string + " at " +
 			accountData.avg_energy_last_day + " kW/h";
 	}
 }
