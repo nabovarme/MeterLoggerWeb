@@ -60,7 +60,7 @@ sub handler {
 					2
 				) AS kwh_remaining,
 
-				-- Estimated time remaining (hours), only if effect > 0
+				-- Estimated time left (hours), only if effect > 0
 				ROUND(
 					IF(latest_sc.effect > 0,
 						(IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value) / latest_sc.effect,
@@ -155,10 +155,10 @@ sub handler {
 
 		# Construct final response payload
 		my $response = {
-			kwh_remaining            => $summary_row->{kwh_remaining} || 0,
+			kwh_remaining       => $summary_row->{kwh_remaining} || 0,
 			time_remaining_hours     => $summary_row->{time_remaining_hours} || 0,
 			energy_last_day     => $summary_row->{energy_last_day} || 0,
-			time_left_str       => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
+			time_remaining_str  => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
 			avg_energy_last_day     => $summary_row->{avg_energy_last_day},
 			last_hours          => $last_hours,
 			last_volume         => $last_volume,
