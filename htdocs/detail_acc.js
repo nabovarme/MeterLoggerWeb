@@ -194,7 +194,6 @@ function bindAnnotationEventsAndIds(graph) {
 		if (!graph || !graph.annotations_) return;
 
 		const annotations = document.querySelectorAll('.dygraph-annotation');
-		const markerAnnotations = graph.annotations_;
 
 		annotations.forEach(el => {
 			const title = el.getAttribute('title'); // This includes the full text
