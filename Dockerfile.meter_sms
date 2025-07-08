@@ -94,7 +94,6 @@ COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 
 COPY ./meter_notify.pl /etc/apache2/perl/Nabovarme/bin/meter_notify.pl
-COPY ./meter_notify_water.pl /etc/apache2/perl/Nabovarme/bin/meter_notify_water.pl
 COPY ./meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
 COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
 COPY ./smstools_send.pl /etc/apache2/perl/Nabovarme/bin/smstools_send.pl

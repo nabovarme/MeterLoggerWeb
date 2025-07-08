@@ -28,8 +28,6 @@ var accountUrl = '/api/account/' + meter_serial;
 // ✅ Cache for full account data JSON
 var accountData = null;
 
-const boundAnnotationIds = new Set();
-
 /*----------------
  * Helper functions
  *---------------*/
@@ -132,12 +130,12 @@ function updateLastReadingStats() {
 		normalizeAmount(accountData.last_hours) + " hours<br>";
 }
 
-// Updates remaining kWh info from accountData
+// Updates kWh remaining info from accountData
 function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
 		document.getElementById("kwh_remaining").innerHTML =
 			normalizeAmount(accountData.kwh_remaining) + " kWh remaining, " +
-			accountData.time_left_str + " at " +
+			accountData.time_remaining_str + " at " +
 			accountData.avg_energy_last_day + " kW/h";
 	}
 }
@@ -198,7 +196,7 @@ function bindAnnotationEventsAndIds(graph) {
 		const annotations = document.querySelectorAll('.dygraph-annotation');
 
 		annotations.forEach(el => {
-			const title = el.getAttribute('title');
+			const title = el.getAttribute('title'); // This includes the full text
 			const lines = title.split("\n");
 			const idLine = lines[0];
 			if (!idLine.startsWith("#")) return;
@@ -206,32 +204,9 @@ function bindAnnotationEventsAndIds(graph) {
 			const rawId = idLine.substring(1);
 			const annotationId = `payment-${rawId}`;
 			el.dataset.annotationId = annotationId;
-
-			if (boundAnnotationIds.has(annotationId)) return; // ✅ Prevent duplicate
-			boundAnnotationIds.add(annotationId);
-
-			const row = document.getElementById(annotationId);
-			if (!row) return;
-
-			el.addEventListener('mouseenter', () => {
-				row.classList.add('highlight');
-				const lines = title.split('\n');
-				if (lines.length > 1) {
-					el.setAttribute('data-original-title', title);
-					el.setAttribute('title', lines.slice(1).join('\n'));
-				}
-			});
-			el.addEventListener('mouseleave', () => {
-				row.classList.remove('highlight');
-				const original = el.getAttribute('data-original-title');
-				if (original) el.setAttribute('title', original);
-			});
-			el.addEventListener('click', () => {
-				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				row.classList.add('highlight-clicked');
-				setTimeout(() => row.classList.remove('highlight-clicked'), 2000);
-			});
 		});
+
+		initAnnotationHoverListeners();
 	}, 0);
 }
 
@@ -368,7 +343,7 @@ function fetchAndRenderAccountInfo(graph) {
 		.catch(err => {
 			console.warn('Failed to refresh account data and UI:', err);
 			if (graph) graph.setAnnotations([]);
-
+			
 			const errorEl = document.getElementById("error_message");
 			if (errorEl) {
 				errorEl.innerText = "⚠️ Unable to fetch latest account data.";
