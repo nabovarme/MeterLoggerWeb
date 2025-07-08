@@ -67,7 +67,7 @@ sub handler {
 						NULL
 					),
 					2
-				) AS time_left_hours,
+				) AS time_remaining_hours,
 
 				-- Energy used in last 24 hours
 				ROUND(
@@ -156,7 +156,7 @@ sub handler {
 		# Construct final response payload
 		my $response = {
 			kwh_remaining            => $summary_row->{kwh_remaining} || 0,
-			time_left_hours     => $summary_row->{time_left_hours} || 0,
+			time_remaining_hours     => $summary_row->{time_remaining_hours} || 0,
 			energy_last_day     => $summary_row->{energy_last_day} || 0,
 			time_left_str       => ($summary_row->{avg_energy_last_day} > 0) ? rounded_duration($summary_row->{kwh_remaining} / $summary_row->{avg_energy_last_day} * 3600) : '∞',
 			avg_energy_last_day     => $summary_row->{avg_energy_last_day},
