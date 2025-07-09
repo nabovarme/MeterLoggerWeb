@@ -121,8 +121,8 @@ html, body {
 
 #error_message {
 	width: 100%;
-	margin: 0;
-	padding 6px;
+	margin: 0px;
+	padding: 0px 6px;
 	background-color: #ffff00;
 	font-weight: bold;
 }
