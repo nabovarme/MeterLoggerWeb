@@ -83,7 +83,8 @@
 	<tr class="row" align="left" valign="top">
 		<td align="left"><span class="default nowrap">[+ $d->{t} +]</span></td>
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{phone} +]</span></td>
+		<td align="left"><span class="default">[- $d->{phone} =~ s/^(\d{2})\d+(?=\d{2})/$1 . ('*' x (length($&) - 2))/e; $d->{phone} -][+ $d->{phone} +]
+</span></td>
 		<td align="left"><span class="default">&nbsp;</span></td>
 		<td align="left"><span class="default">[+ $name_info +]</span></td>
 		<td>&nbsp;</td>
