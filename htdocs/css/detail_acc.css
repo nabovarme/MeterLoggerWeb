@@ -119,6 +119,13 @@ html, body {
 	font-weight: bold;
 }
 
+#error_message {
+	width: 100%;
+	margin: 0;
+	background-color: #ffff00;
+	font-weight: bold;
+}
+
 /* Payment row layout */
 .payment-row {
 	width: 100%;

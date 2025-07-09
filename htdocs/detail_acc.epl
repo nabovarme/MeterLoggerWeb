@@ -48,11 +48,11 @@
 		<link rel="stylesheet" href="/css/detail_acc.css">
 	</HEAD>
 	<BODY>
+		<div id="error_message"></div>
 		<div class="page-wrapper">
 			<!-- >
 				<div class="watermark">BETA-TEST</div>
 			< -->
-			<div id="error_message" style="color: red; display: none;"></div>
 			<span class="default-bold">
 				[+ $info +]
 			</span>
