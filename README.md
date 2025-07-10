@@ -71,8 +71,17 @@ These are **delta values** calculated over the **last 24 hours**, excluding the 
 
 ## 💧 $leak Variable — Delayed Valve Closure Detection
 
-The `$leak` variable indicates if a valve has been continuously closed for a configured delay period (default 10 minutes). This helps prevent false alarms from brief valve closures by only flagging a leak when the valve remains closed for the entire delay.
+The $leak variable indicates if a valve has been continuously closed for a configured delay period (default 10 minutes). This helps prevent false alarms from brief or manual valve closures by only flagging a leak when the valve remains closed for the entire delay.
 
+It is functionally similar to:
+
+```perl
+$valve_status ne 'open' && $valve_installed
+```
+
+…but with built-in debounce logic that ensures the valve has remained closed for at least VALVE_CLOSE_DELAY seconds (default: 600 seconds).
+
+### How it works
 - Internally, the system tracks when the valve first reports as `'closed'`.
 - If the valve stays closed longer than the delay (`VALVE_CLOSE_DELAY`), `$leak` is set to `1` (true).
 - Otherwise, `$leak` is `0` (false).
@@ -83,7 +92,7 @@ Use `$leak` in alarm conditions to detect leaks with debounce logic. For example
 $leak && $volume_day > 1
 ```
 
-This triggers an alarm if the valve has been closed long enough to be considered a leak and significant volume was recorded in the last 24 hours.
+This condition triggers an alarm only if the valve has stayed closed long enough to be considered a leak and significant volume was recorded in the last 24 hours—making leak detection more reliable.
 
 ---
 
