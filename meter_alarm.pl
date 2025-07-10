@@ -145,7 +145,7 @@ sub check_delayed_valve_closed {
 			$valve_close_time{$serial} = $now;
 			return 0;
 		}
-		if ($now - $valve_close_time{$serial} >= 300) {
+		if ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) {
 			# Closed long enough — trigger leak detection
 			return 1;
 		} else {
