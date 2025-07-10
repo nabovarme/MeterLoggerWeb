@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 						<div><a href="alarms_detail.epl?id=${alarm.id}">${alarm.id || ''}</a></div>
 						<div>${alarm.sms_notification || ''}</div>
 						<div class="condition${alarm.enabled > 0 ? '' : ' alarm-disabled'}${(alarm.condition_error && alarm.condition_error !== '' && alarm.enabled > 0) ? ' condition-error' : ''}">
-							${alarm.condition || ''}
+							${alarm.condition}
 						</div>
 						<div>${repeat}</div>
 						<div>${snooze}</div>
