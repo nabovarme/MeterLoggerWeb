@@ -74,12 +74,12 @@ sub evaluate_alarm {
 	my $down_message  = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message    = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
-	# Fill dynamic variables into the condition string
-	$condition = interpolate_variables($condition, $serial);
-
-	# Replace $leak with calculated status (based on valve being closed > 5 min)
+	# Now interpolate other variables from DB/sample data
 	my $leak_status = check_delayed_valve_closed($alarm->{serial});
 	$condition =~ s/\$leak/$leak_status/;
+
+	# Fill dynamic variables into the condition string
+	$condition = interpolate_variables($condition, $serial);
 
 	print "checking condition for serial $serial, id $alarm->{id}: $condition\n";
 
