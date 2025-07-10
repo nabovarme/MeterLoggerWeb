@@ -445,5 +445,8 @@ fetch(dataUrlCoarse)
 				});
 				updateConsumptionFromGraphRange();
 			});
+
+			// Load and merge updated fine-grained data to keep the graph current
+			loadFineDataAndMergeIntoGraph();
 		}, 60000);
 	});
