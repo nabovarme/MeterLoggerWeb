@@ -32,7 +32,10 @@ These are predefined variables available in alarm conditions and messages. They 
 |----------------------|-----------------------------------------------------------------------------|
 | `$serial`            | Serial number of the meter                                                  |
 | `$info`              | `info` field from the `meters` table                                        |
-| `$offline`           | Number of seconds since last update (`now - last_updated`)                 |
+| `$offline`           | Number of seconds since last update (`now - last_updated`)                  |
+| `$leak`              | Indicates if the valve has been closed continuously                         |
+|                      | for the configured delay period (e.g., 10 minutes).                         |
+|                      | 0 = no leak, 1 = leak detected                                              |
 | `$id`                | ID of the alarm (mostly for templating, not logic)                          |
 | `$default_snooze`    | Default snooze duration (in seconds) for this alarm                         |
 
@@ -65,6 +68,24 @@ These are **delta values** calculated over the **last 24 hours**, excluding the 
 | `$volume_day`    | Difference in `volume` between 24h+10min ago and 10min ago                  |
 
 📎 **Note:** These help detect ongoing usage or flow even after valve closure.
+
+---
+
+## 💧 $leak Variable — Delayed Valve Closure Detection
+
+The `$leak` variable indicates if a valve has been continuously closed for a configured delay period (default 10 minutes). This helps prevent false alarms from brief valve closures by only flagging a leak when the valve remains closed for the entire delay.
+
+- Internally, the system tracks when the valve first reports as `'closed'`.
+- If the valve stays closed longer than the delay (`VALVE_CLOSE_DELAY`), `$leak` is set to `1` (true).
+- Otherwise, `$leak` is `0` (false).
+
+Use `$leak` in alarm conditions to detect leaks with debounce logic. For example:
+
+```perl
+$leak && $volume_day > 10
+```
+
+This triggers an alarm if the valve has been closed long enough to be considered a leak and significant volume was recorded in the last 24 hours.
 
 ---
 
