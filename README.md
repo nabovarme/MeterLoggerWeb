@@ -33,9 +33,7 @@ These are predefined variables available in alarm conditions and messages. They 
 | `$serial`            | Serial number of the meter                                                  |
 | `$info`              | `info` field from the `meters` table                                        |
 | `$offline`           | Number of seconds since last update (`now - last_updated`)                  |
-| `$leak`              | Indicates if the valve has been closed continuously                         |
-|                      | for the configured delay period (e.g., 10 minutes).                         |
-|                      | 0 = no leak, 1 = leak detected                                              |
+| `$leak`              | Indicates if the valve has been closed continuously for the configured delay period (e.g., 10 minutes). 0 = no leak, 1 = leak detected |
 | `$id`                | ID of the alarm (mostly for templating, not logic)                          |
 | `$default_snooze`    | Default snooze duration (in seconds) for this alarm                         |
 
