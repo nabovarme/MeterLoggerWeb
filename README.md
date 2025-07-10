@@ -80,7 +80,7 @@ The `$leak` variable indicates if a valve has been continuously closed for a con
 Use `$leak` in alarm conditions to detect leaks with debounce logic. For example:
 
 ```perl
-$leak && $volume_day > 10
+$leak && $volume_day > 1
 ```
 
 This triggers an alarm if the valve has been closed long enough to be considered a leak and significant volume was recorded in the last 24 hours.
