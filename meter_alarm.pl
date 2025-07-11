@@ -139,12 +139,14 @@ sub check_delayed_valve_closed {
 	my ($serial) = @_;
 	my $quoted_serial = $dbh->quote($serial);
 
-	my $sth = $dbh->prepare("SELECT valve_status FROM meters WHERE serial = $quoted_serial");
+	my $sth = $dbh->prepare("SELECT valve_status, valve_installed
+		FROM meters
+		WHERE serial = $quoted_serial");
 	$sth->execute;
-	my ($status) = $sth->fetchrow_array;
+	my ($status, $valve_installed) = $sth->fetchrow_array;
 
 	my $now = time();
-	if ($status =~ /close/i) {
+	if ($status =~ /close/i && $valve_installed) {
 		if (!exists $valve_close_time{$serial}) {
 			# Start timer on first closure detection
 			$valve_close_time{$serial} = $now;
