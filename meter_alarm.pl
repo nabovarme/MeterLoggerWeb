@@ -150,12 +150,10 @@ sub check_delayed_valve_closed {
 		if (!exists $valve_close_time{$serial}) {
 			# Start timer on first closure detection
 			$valve_close_time{$serial} = $now;
-			print "Start timer for delayed close, serial: $serial\n";
 			return 0;
 		}
 		if ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) {
 			# Closed long enough b@T trigger false closed detection
-			print "Closed long enoug to trigger 'closed' for serial: $serial\n";
 			return 1;
 		} else {
 			return 0;
