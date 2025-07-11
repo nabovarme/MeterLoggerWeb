@@ -49,7 +49,7 @@ html, body {
 		minmax(100px, 150px)         /* Energy */
 		minmax(100px, 150px)         /* Volume */
 		minmax(100px, 150px)         /* Hours */
-		minmax(100px, 150px)         /* Left */
+		minmax(150px, 200px)         /* Remaining */
 		minmax(100px, 150px);       /* Time left */
 	gap: 6px;
 	padding: 6px;
