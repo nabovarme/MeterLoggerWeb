@@ -11,6 +11,80 @@
  * - Calculates and displays consumption statistics (total kWh and average kW/h) for the currently selected graph range.
  * - Dynamically renders a payment history table and filters it based on the visible time window in the graph.
  * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
+
+                   ┌────────────────────────────────────┐
+                   │ Start                              │
+                   │ fetchAndUpdateGraph()              │
+                   └────────────┬───────────────────────┘
+                                │
+                                ▼
+                ┌────────────────────────────────────┐
+                │ Fetch Coarse CSV                   │
+                │ fetch(dataUrlCoarse)               │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Convert CSV timestamps             │
+                │ convertCsvSecondsToMs()            │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Init or Update Dygraph             │
+                │ new Dygraph(...)                   │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Fetch Account Info                 │
+                │ fetch(accountUrl)                  │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Update UI Stats                            │
+                │ updateRemainingKwhInfo(),                  │
+                │ updateLastReadingStats()                   │
+                └────────────┬───────────────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Create & Set Graph Annotations             │
+                │ graph.setAnnotations(),                    │
+                │ snapToNearestTimestamp()                   │
+                └────────────┬───────────────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Bind Annotation Events                     │
+                │ bindAnnotationEventsAndIds(),              │
+                │ handleAnnotationClick(), etc.              │
+                └────────────┬───────────────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Fetch Fine CSV                     │
+                │ fetch(dataUrlFine)                 │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Merge Coarse + Fine CSV            │
+                │ mergeCsv()                         │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────┐
+                │ Update Dygraph with Merged Data    │
+                │ g.updateOptions()                  │
+                └────────────┬───────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Calculate Consumption for Range            │
+                │ updateConsumptionFromGraphRange()          │
+                └────────────┬───────────────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Filter Payment Table by Graph Range        │
+                │ filterPaymentsBySelectedGraphRange()       │
+                └────────────┬───────────────────────────────┘
+                             ▼
+                ┌────────────────────────────────────────────┐
+                │ Repeat Every 60 Seconds                    │
+                │ setInterval(fetchAndUpdateGraph, 60000)    │
+                └────────────────────────────────────────────┘
  */
 
 // Colors for graph
