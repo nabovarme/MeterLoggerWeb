@@ -6,7 +6,7 @@
 use strict;
 use Data::Dumper;
 use DBI;
-use Statistics::Basic qw(:all);         # for computing medians
+use Statistics::Basic qw(:all);	 # for computing medians
 use Math::Random::Secure qw(rand);      # for generating secure random keys
 use Config;
 
@@ -144,24 +144,27 @@ sub check_delayed_valve_closed {
 	my ($status) = $sth->fetchrow_array;
 
 	my $now = time();
-	if ($status =~ /closed/i) {
+	if ($status =~ /close/i) {
 		if (!exists $valve_close_time{$serial}) {
 			# Start timer on first closure detection
 			$valve_close_time{$serial} = $now;
+			print "Start timer for delayed close, serial: $serial\n";
 			return 0;
 		}
 		if ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) {
-			# Closed long enough — trigger false closed detection
+			# Closed long enough b@T trigger false closed detection
+			print "Closed long enoug to trigger 'closed' for serial: $serial\n";
 			return 1;
 		} else {
 			return 0;
 		}
 	} else {
-		# Valve reopened — reset timer
+		# Valve reopened b@T reset timer
 		delete $valve_close_time{$serial};
 		return 0;
 	}
 }
+
 
 # Replaces $variables in a string with values from meter/sample data
 sub interpolate_variables {
@@ -178,8 +181,8 @@ sub interpolate_variables {
 	]);
 	$sth_meter->execute($serial);
 	if (my $row = $sth_meter->fetchrow_hashref) {
-		$static_vars{offline}        = time() - ($row->{last_updated} || time());
-		$static_vars{info}           = $row->{info} || '';
+		$static_vars{offline}	= time() - ($row->{last_updated} || time());
+		$static_vars{info}	   = $row->{info} || '';
 		$static_vars{valve_status}   = $dbh->quote($row->{valve_status} || '');
 		$static_vars{valve_installed}= $row->{valve_installed} + 0;  # force numeric
 	}
