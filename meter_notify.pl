@@ -126,7 +126,7 @@ while (1) {
 				}
 			}
 			elsif (($d->{notification_state}) == 1) {	# send close notification if not sent before
-				if ($energy_time_remaining <= 0) {			# no energy remaining
+				if ($energy_remaining <= 0) {			# no energy remaining
 					# send close message
 					syslog('info', "close notice sent for serial #" . $d->{serial} 
 						. ", energy remaining: " . $energy_remaining 
