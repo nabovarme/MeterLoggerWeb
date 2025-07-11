@@ -77,9 +77,9 @@ sub evaluate_alarm {
 	# Print the raw condition before any variable replacement
 	print "raw condition for serial $serial, id $alarm->{id}: $condition\n";
 
-	# Replace $leak with calculated status (based on valve being closed > 5 min)
-	my $leak_status = check_delayed_valve_closed($alarm->{serial});
-	$condition =~ s/\$leak/$leak_status/;
+	# Replace $closed with calculated status (based on valve being closed > 5 min)
+	my $closed_status = check_delayed_valve_closed($alarm->{serial});
+	$condition =~ s/\$closed/$closed_status/;
 
 	# Interpolate other variables from DB/sample data
 	$condition = interpolate_variables($condition, $serial);
@@ -150,7 +150,7 @@ sub check_delayed_valve_closed {
 			return 0;
 		}
 		if ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) {
-			# Closed long enough — trigger leak detection
+			# Closed long enough — trigger false closed detection
 			return 1;
 		} else {
 			return 0;

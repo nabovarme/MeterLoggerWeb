@@ -509,12 +509,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
 							<div>
 							  <strong>Predefined Aliases</strong><br>
-							  <span title="Alias for: $energy_day > 1 && $valve_status ne 'open' && $valve_installed">$leak</span>
+							  <span title="Alias for: $valve_status ne 'open' && $valve_installed">$closed</span>
 							</div>
 
 							<div>
 							  <strong>Examples</strong><br>
-							  <code>$leak</code> — Leak detection condition<br>
+							  <code>$closed</code> — False closed detection condition<br>
 							  <code>$flow &lt; 2</code> — Low flow condition<br>
 							  Message example:<br>
 							  <code>Alarm triggered on $serial. Last update: $offline seconds ago.</code>
