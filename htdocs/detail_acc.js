@@ -321,6 +321,9 @@ function fetchAndRenderAccountInfo(graph) {
 				}).filter(a => a !== null);
 
 				graph.setAnnotations(markerAnnotations);
+				bindAnnotationEventsAndIds(graph);
+				renderPaymentRowsFromAccountData(data.account);
+				filterPaymentsBySelectedGraphRange(graph);
 			}
 
 			renderPaymentRowsFromAccountData(data.account);
@@ -345,108 +348,104 @@ function fetchAndRenderAccountInfo(graph) {
 		});
 }
 
-// Loads more fine-grained data and merges it into existing graph data
-function loadFineDataAndMergeIntoGraph() {
-	fetch(dataUrlFine)
+// --- MAIN FETCH AND UPDATE FUNCTION ---
+
+function fetchAndUpdateGraph() {
+	const currentRange = g ? g.xAxisRange() : null;
+
+	return fetch(dataUrlCoarse)
 		.then(r => r.text())
-		.then(detailedCsv => {
-			const detailedCsvMs = convertCsvSecondsToMs(detailedCsv);
-			const mergedCsv = mergeCsv(g.file_, detailedCsvMs);
-			g.updateOptions({ file: mergedCsv });
+		.then(coarseCsv => {
+			const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
+			const now = Date.now();
+			const oneYearAgo = now - 365 * 24 * 3600 * 1000;
 
-			fetchAndRenderAccountInfo(g);
-		});
-}
 
-/*----------------------
- * Initial graph setup and periodic updates
- *---------------------*/
-
-// Initial fetch of coarse data and graph setup
-fetch(dataUrlCoarse)
-	.then(r => r.text())
-	.then(coarseCsv => {
-		const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
-
-		const now = Date.now();
-		const oneYearAgo = now - 365 * 24 * 3600 * 1000;
-
-		g = new Dygraph(
-			document.getElementById("div_dygraph"),
-			coarseCsvMs,
-			{
-				colors: colorSets[0],
-				strokeWidth: 1.5,
-				animatedZooms: false,
-				showLabelsOnHighlight: true,
-				labelsDivStyles: {
-					'font-family': 'Verdana, Geneva, sans-serif',
-					'text-align': 'left',
-					'background': 'none'
-				},
-				labelsSeparateLines: true,
-				labelsDivWidth: 700,
-				showRangeSelector: true,
-				xAxisHeight: 40,
-				dateWindow: [oneYearAgo, now],
-				interactionModel: Dygraph.defaultInteractionModel,
-				axes: {
-					x: {
-						valueFormatter: function(x) {
-							return formatDate(new Date(x));
+			if (!g) {
+				// Initial graph setup
+				g = new Dygraph(
+					document.getElementById("div_dygraph"),
+					coarseCsvMs,
+					{
+						colors: colorSets[0],
+						strokeWidth: 1.5,
+						animatedZooms: false,
+						showLabelsOnHighlight: true,
+						labelsDivStyles: {
+							'font-family': 'Verdana, Geneva, sans-serif',
+							'text-align': 'left',
+							'background': 'none'
 						},
-						axisLabelFormatter: function(x) {
-							const d = new Date(x);
-							return d.toLocaleString('da-DA', {
-								day: '2-digit',
-								month: '2-digit',
-								year: 'numeric',
-								hour: '2-digit',
-								minute: '2-digit'
-							}).replace('T', ' ');
+						labelsSeparateLines: true,
+						labelsDivWidth: 700,
+						showRangeSelector: true,
+						xAxisHeight: 40,
+						dateWindow: [oneYearAgo, now],
+						interactionModel: Dygraph.defaultInteractionModel,
+						axes: {
+							x: {
+								valueFormatter: function(x) {
+									return formatDate(new Date(x));
+								},
+								axisLabelFormatter: function(x) {
+									const d = new Date(x);
+									return d.toLocaleString('da-DA', {
+										day: '2-digit',
+										month: '2-digit',
+										year: 'numeric',
+										hour: '2-digit',
+										minute: '2-digit'
+									}).replace('T', ' ');
+								},
+								pixelsPerLabel: 80
+							}
 						},
-						pixelsPerLabel: 80
+						maxNumberWidth: 12,
+						highlightSeriesOpts: {
+							pointSize: 6,
+							highlightCircleSize: 6,
+							strokeWidth: 2,
+							strokeBorderWidth: 1,
+						},
+						zoomCallback: function(minX, maxX, yRanges) {
+							updateConsumptionFromGraphRange();
+							filterPaymentsBySelectedGraphRange(g);
+						},
+						drawCallback: (graph) => {
+							const range = graph.xAxisRange();
+							updateConsumptionFromGraphRange();
+							filterPaymentsBySelectedGraphRange(graph);
+							bindAnnotationEventsAndIds(graph);
+						}
 					}
-				},
-				maxNumberWidth: 12,
-				highlightSeriesOpts: {
-					pointSize: 6,
-					highlightCircleSize: 6,
-					strokeWidth: 2,
-					strokeBorderWidth: 1,
-				},
-				zoomCallback: function(minX, maxX, yRanges) {
-					updateConsumptionFromGraphRange();
-					filterPaymentsBySelectedGraphRange(g);
-				},
-				drawCallback: (graph) => {
-					const range = graph.xAxisRange();
-					updateConsumptionFromGraphRange();
-					filterPaymentsBySelectedGraphRange(graph);
-					bindAnnotationEventsAndIds(graph);
+				);
+			} else {
+				// Update data and nudge window forward 1 minute
+				g.updateOptions({ file: coarseCsvMs });
+				if (currentRange) {
+					g.updateOptions({
+						dateWindow: [currentRange[0] + 60000, currentRange[1] + 60000]
+					});
 				}
 			}
-		);
 
-		g.ready(() => {
-			fetchAndRenderAccountInfo(g).then(() => {
-				updateConsumptionFromGraphRange();
-				filterPaymentsBySelectedGraphRange(g);
-			});
-			loadFineDataAndMergeIntoGraph();
-		});
+			updateConsumptionFromGraphRange();
 
-		setInterval(function() {
-			const range = g.xAxisRange();
-			fetchAndRenderAccountInfo(g).then(() => {
-				g.updateOptions({
-					file: g.file_,
-					dateWindow: [range[0] + 60000, range[1] + 60000]
-				});
-				updateConsumptionFromGraphRange();
-			});
+			return fetchAndRenderAccountInfo(g);
+		})
+		.then(() => fetch(dataUrlFine))
+		.then(r => r.text())
+		.then(fineCsv => {
+			const fineCsvMs = convertCsvSecondsToMs(fineCsv);
+			const mergedCsv = mergeCsv(g.file_, fineCsvMs);
+			g.updateOptions({ file: mergedCsv });
+			updateConsumptionFromGraphRange();
+		})
+		.catch(console.error);
+}
 
-			// Load and merge updated fine-grained data to keep the graph current
-			loadFineDataAndMergeIntoGraph();
-		}, 60000);
-	});
+// INITIAL call
+fetchAndUpdateGraph();
+
+// PERIODIC updates every 60 seconds
+setInterval(fetchAndUpdateGraph, 60000);
