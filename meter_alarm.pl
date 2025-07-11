@@ -137,13 +137,14 @@ sub fill_template {
 # Returns 1 if valve has been closed for >5 minutes, 0 otherwise
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
+	my $quoted_serial = $dbh->quote($serial);
 
-	my $sth = $dbh->prepare("SELECT valve_status FROM meters WHERE serial = ?");
-	$sth->execute($serial);
+	my $sth = $dbh->prepare("SELECT valve_status FROM meters WHERE serial = $quoted_serial");
+	$sth->execute;
 	my ($status) = $sth->fetchrow_array;
 
 	my $now = time();
-	if ($status eq 'closed') {
+	if ($status =~ /closed/i) {
 		if (!exists $valve_close_time{$serial}) {
 			# Start timer on first closure detection
 			$valve_close_time{$serial} = $now;
