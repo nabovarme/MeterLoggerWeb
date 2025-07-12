@@ -284,13 +284,14 @@ sub sms_send {
 sub add_set_cookie_once {
 	my ($r, $cookie) = @_;
 	my @cookies = $r->err_headers_out->get('Set-Cookie');
+	warn Dumper @cookies;
 	foreach my $c (@cookies) {
 		# Compare the cookie strings roughly (you can customize this)
 		if ($c eq $cookie->as_string) {
 			return;  # Cookie already set
 		}
 	}
-	add_set_cookie_once($r, $cookie);
+	$r->err_headers_out->add('Set-Cookie' => $cookie);
 }
 
 1;
