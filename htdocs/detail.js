@@ -31,75 +31,79 @@ setInterval(() => fetchAndUpdateGraph(false), 60000); // Refresh every 60s
  * @param {boolean} isInitialLoad
  */
 function fetchAndUpdateGraph(isInitialLoad) {
-	Promise.all([
-		fetch(dataUrlCoarse).then(r => r.text()),
-		fetch(dataUrlFine).then(r => r.text())
-	]).then(([coarseCsv, fineCsv]) => {
-		const mergedCsv = mergeCsv(coarseCsv, fineCsv);
+	// Step 1: Fetch coarse CSV and render it
+	fetch(dataUrlCoarse)
+		.then(r => r.text())
+		.then(coarseCsv => {
+			const currentTime = Date.now();
 
-		if (isInitialLoad) {
-			g = new Dygraph(
-				document.getElementById("div_nabovarme"),
-				mergedCsv,
-				{
-					delimiter: ',',
-					colors: colorSets[0],
-					strokeWidth: 1.5,
-					animatedZooms: true,
-					showLabelsOnHighlight: true,
-					labelsDivStyles: {
-						'font-family': 'Verdana, Geneva, sans-serif',
-						'text-align': 'left',
-						'background': 'none'
-					},
-					labelsSeparateLines: true,
-					labelsDivWidth: 700,
-					showRangeSelector: true,
-					interactionModel: Dygraph.defaultInteractionModel,
-					dateWindow: dateRange,
-					axes: {
-						x: {
-							valueFormatter: x => formatDate(new Date(x))
-						}
-					},
-					highlightSeriesOpts: {
-						pointSize: 6,
-						highlightCircleSize: 6,
-						strokeWidth: 2,
-						strokeBorderWidth: 1
-					},
-					unhighlightCallback: updateUrlFromGraph,
-					zoomCallback: updateUrlFromGraph,
-					clickCallback: updateUrlFromGraph
+			if (isInitialLoad) {
+				g = new Dygraph(
+					document.getElementById("div_nabovarme"),
+					coarseCsv,
+					{
+						delimiter: ',',
+						colors: colorSets[0],
+						strokeWidth: 1.5,
+						animatedZooms: true,
+						showLabelsOnHighlight: true,
+						labelsDivStyles: {
+							'font-family': 'Verdana, Geneva, sans-serif',
+							'text-align': 'left',
+							'background': 'none'
+						},
+						labelsSeparateLines: true,
+						labelsDivWidth: 700,
+						showRangeSelector: true,
+						interactionModel: Dygraph.defaultInteractionModel,
+						dateWindow: dateRange,
+						axes: {
+							x: {
+								valueFormatter: x => formatDate(new Date(x))
+							}
+						},
+						highlightSeriesOpts: {
+							pointSize: 6,
+							highlightCircleSize: 6,
+							strokeWidth: 2,
+							strokeBorderWidth: 1
+						},
+						unhighlightCallback: updateUrlFromGraph,
+						zoomCallback: updateUrlFromGraph,
+						clickCallback: updateUrlFromGraph
+					}
+				);
+
+				g.ready(() => {
+					for (let i = 0; i < 5; i++) {
+						const checkbox = document.getElementById(i);
+						checkbox.checked = ((dataSeriesEnabled >> i) & 1) !== 0;
+						g.setVisibility(i, checkbox.checked);
+					}
+					console.log('Initial range:', g.xAxisRange());
+				});
+			} else {
+				const timeShift = currentTime - lastReloadTime;
+				lastReloadTime = currentTime;
+				dateRange[0] += timeShift;
+				dateRange[1] += timeShift;
+
+				g.updateOptions({
+					file: coarseCsv,
+					dateWindow: dateRange
+				});
+			}
+
+			// Step 2: Now fetch fine data and merge
+			return fetch(dataUrlFine).then(r => r.text()).then(fineCsv => {
+				const mergedCsv = mergeCsv(coarseCsv, fineCsv);
+				g.updateOptions({ file: mergedCsv });
+				if (!isInitialLoad) {
+					updateUrlFromGraph();
+					updateLastReadingStats();
 				}
-			);
-
-			g.ready(() => {
-				// Apply checkbox visibilities
-				for (let i = 0; i < 5; i++) {
-					const checkbox = document.getElementById(i);
-					checkbox.checked = ((dataSeriesEnabled >> i) & 1) !== 0;
-					g.setVisibility(i, checkbox.checked);
-				}
-				console.log('Initial range:', g.xAxisRange());
 			});
-
-		} else {
-			// Update existing graph
-			const timeShift = Date.now() - lastReloadTime;
-			lastReloadTime = Date.now();
-			dateRange[0] += timeShift;
-			dateRange[1] += timeShift;
-
-			g.updateOptions({
-				file: mergedCsv,
-				dateWindow: dateRange
-			});
-
-			updateUrlFromGraph();
-			updateLastReadingStats();
-		}
-	});
+		});
 }
 
 // ===============================
