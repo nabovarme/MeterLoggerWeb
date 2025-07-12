@@ -102,7 +102,7 @@ sub login_handler {
 				-expires => '+1y'
 			);
 			# Set the new cookie early so it's only set once
-			$r->err_headers_out->add('Set-Cookie' => $cookie);
+			add_set_cookie_once($r, $cookie);
 		}
 	
 		my $quoted_passed_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
@@ -115,7 +115,7 @@ sub login_handler {
 				# Update state to 'login'
 				$dbh->do(qq[UPDATE sms_auth SET auth_state = 'login', unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 				
-				$r->err_headers_out->add('Set-Cookie' => $cookie);
+				add_set_cookie_once($r, $cookie);
 				$r->err_headers_out->add('Location' => $login_path);
 				return Apache2::Const::REDIRECT;
 			}
@@ -146,12 +146,12 @@ sub login_handler {
 					
 					sms_send($id, "SMS Code: $sms_code");
 
-					$r->err_headers_out->add('Set-Cookie' => $cookie);
+					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
 					return Apache2::Const::REDIRECT;
 				} else {
 					# Redirect to login form to re-enter phone number
-					$r->err_headers_out->add('Set-Cookie' => $cookie);
+					add_set_cookie_once($r, $cookie);
 					$r->internal_redirect($login_path);
 					return Apache2::Const::OK;
 				}
@@ -175,12 +175,12 @@ sub login_handler {
 				if ($d = $sth->fetchrow_hashref) {
 					# SMS code is valid
 					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_verified', `session` = ] . ($stay_logged_in ? 0 : 1) . qq[, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
-					$r->err_headers_out->add('Set-Cookie' => $cookie);
+					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $d->{orig_uri});
 					return Apache2::Const::REDIRECT;
 				} else {
 					# Invalid code, reload SMS form
-					$r->err_headers_out->add('Set-Cookie' => $cookie);
+					add_set_cookie_once($r, $cookie);
 					$r->internal_redirect($sms_code_path . '?' . $r->args);
 					return Apache2::Const::OK;
 				}
@@ -199,7 +199,7 @@ sub login_handler {
 				}
 				# Update last used timestamp
 				$dbh->do(qq[UPDATE sms_auth SET unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
-				$r->err_headers_out->add('Set-Cookie' => $cookie);
+				add_set_cookie_once($r, $cookie);
 				return Apache2::Const::OK;
 			}
 			elsif ($d->{auth_state} =~ /deny/i) {
@@ -221,7 +221,7 @@ sub login_handler {
 				$dbh->do(qq[INSERT INTO sms_auth (cookie_token, auth_state, orig_uri, remote_host, user_agent, unix_time) VALUES ($quoted_cookie_token, 'new', $quoted_orig_uri, $quoted_remote_host, $quoted_user_agent, ] . time() . qq[)]) or warn $!;
 			}
 	
-			$r->err_headers_out->add('Set-Cookie' => $cookie);
+			add_set_cookie_once($r, $cookie);
 			$r->err_headers_out->add('Location' => $login_path);
 			return Apache2::Const::REDIRECT;
 		}
@@ -253,7 +253,7 @@ sub logout_handler {
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token);
 		$dbh->do(qq[DELETE FROM sms_auth WHERE cookie_token = $quoted_cookie_token]) or warn $!;
 		
-		$r->err_headers_out->add('Set-Cookie' => $cookie);
+		add_set_cookie_once($r, $cookie);
 		$r->internal_redirect($logged_out_path);
 		return Apache2::Const::OK;
 	}
@@ -279,6 +279,18 @@ sub sms_send {
 	}
 
 	$smtp->quit;
+}
+
+sub add_set_cookie_once {
+	my ($r, $cookie) = @_;
+	my @cookies = $r->err_headers_out->get('Set-Cookie');
+	foreach my $c (@cookies) {
+		# Compare the cookie strings roughly (you can customize this)
+		if ($c eq $cookie->as_string) {
+			return;  # Cookie already set
+		}
+	}
+	add_set_cookie_once($r, $cookie);
 }
 
 1;
