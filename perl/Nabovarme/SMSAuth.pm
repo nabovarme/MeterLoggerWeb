@@ -81,23 +81,29 @@ sub login_handler {
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 
-		# Generate a secure auth token
-		my $cookie_token = unpack('H*', join('', map(chr(int Math::Random::Secure::rand(256)), 1..16)));
-	
+		# Parse existing cookie
 		my $cookie_header = $r->headers_in->{Cookie} || '';
 		my %cookies = CGI::Cookie->parse($cookie_header);
 		my $passed_cookie_token = $cookies{'auth_token'} ? $cookies{'auth_token'}->value : undef;
-		unless ($passed_cookie_token) {
-		    # No valid cookie, don't continue login
-		    $r->err_headers_out->add('Location' => $r->dir_config('LoginPath') || '/private/login.epl');
-		    return Apache2::Const::REDIRECT;
-		}
 
-		my $cookie = CGI::Cookie->new(
-			-name  => 'auth_token',
-			-value => $passed_cookie_token || $cookie_token,
-			-expires => '+1y'
-		);
+		my $cookie_token;
+		my $cookie;
+
+		if ($passed_cookie_token) {
+			# Use existing token/cookie
+			$cookie_token = $passed_cookie_token;
+			$cookie = $cookies{'auth_token'};
+		} else {
+			# Generate new token and cookie
+			$cookie_token = unpack('H*', join('', map(chr(int Math::Random::Secure::rand(256)), 1..16)));
+			$cookie = CGI::Cookie->new(
+				-name  => 'auth_token',
+				-value => $cookie_token,
+				-expires => '+1y'
+			);
+			# Set the new cookie early so it's only set once
+			$r->err_headers_out->add('Set-Cookie' => $cookie);
+		}
 	
 		my $quoted_passed_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
 	
