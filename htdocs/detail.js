@@ -45,7 +45,7 @@ function fetchAndUpdateGraph(isInitialLoad) {
 						delimiter: ',',
 						colors: colorSets[0],
 						strokeWidth: 1.5,
-						animatedZooms: true,
+						animatedZooms: false,
 						showLabelsOnHighlight: true,
 						labelsDivStyles: {
 							'font-family': 'Verdana, Geneva, sans-serif',
