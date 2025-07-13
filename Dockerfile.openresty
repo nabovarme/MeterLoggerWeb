@@ -47,7 +47,6 @@ COPY openresty/lua/access_control.lua /usr/local/openresty/lualib/access_control
 COPY openresty/lua/rate_limit.lua /usr/local/openresty/lualib/rate_limit.lua
 COPY openresty/lua/dnsbl_check.lua /usr/local/openresty/lualib/dnsbl_check.lua
 
-
 # Set lua path for development and debugging
 ENV LUA_PATH="/usr/local/openresty/lualib/?.lua;/usr/local/openresty/lualib/?/init.lua;;"
 ENV PATH="/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin:$PATH"
