@@ -5,10 +5,9 @@ local lfs = require "lfs"  -- LuaFileSystem required
 
 -- DNSBL providers to check
 local dnsbls = {
-	"zen.spamhaus.org",
-	"bl.spamcop.net",
-	"b.barracudacentral.org",
-	"dnsbl.sorbs.net"
+	"sbl.spamhaus.org",
+	"xbl.spamhaus.org",
+	"bl.spamcop.net"
 }
 
 -- Directory containing .txt files with whitelisted IPs
