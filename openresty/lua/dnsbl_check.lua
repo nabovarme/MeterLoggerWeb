@@ -9,6 +9,34 @@ local dnsbls = {
 	"dnsbl.sorbs.net"
 }
 
+-- Path to whitelist file (one IP per line, supports comments starting with #)
+local whitelist_path = "/usr/local/openresty/lualib/dnsbl_whitelist.txt"
+
+-- Load whitelist IPs from file, return set (table with ips as keys)
+local function load_whitelist(path)
+	local file, err = io.open(path, "r")
+	if not file then
+		ngx.log(ngx.WARN, "Whitelist file not found, continuing without whitelist: ", err)
+		return {}
+	end
+
+	local ips = {}
+	for line in file:lines() do
+		local ip = line:match("^%s*(.-)%s*$")  -- trim whitespace
+		if ip ~= "" and not ip:match("^#") then
+			ips[ip] = true
+		end
+	end
+	file:close()
+	return ips
+end
+
+local whitelist = load_whitelist(whitelist_path)
+
+local function is_ip_whitelisted(ip)
+	return whitelist[ip] == true
+end
+
 local function reverse_ip(ip)
 	local o1, o2, o3, o4 = ip:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")
 	if o1 and o2 and o3 and o4 then
@@ -55,21 +83,4 @@ local function is_ip_blacklisted(ip)
 		elseif err then
 			ngx.log(ngx.ERR, "DNSBL lookup failed for ", query, ": ", err)
 		else
-			ngx.log(ngx.INFO, "DNSBL miss: ", ip, " not listed on ", bl)
-		end
-	end
-	
-
-	cache:set(cache_key, false, 1800)
-	return false
-end
-
-function _M.run()
-	local client_ip = ngx.var.remote_addr
-	if is_ip_blacklisted(client_ip) then
-		ngx.log(ngx.ERR, "Blocked blacklisted IP: ", client_ip)
-		return ngx.exit(ngx.HTTP_FORBIDDEN)
-	end
-end
-
-return _M
+			ngx.log(ngx.INFO, "D
