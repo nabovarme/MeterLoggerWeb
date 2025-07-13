@@ -14,8 +14,10 @@ function _M.run()
 
 	local reqs, err = limit_store:get(key)
 	if not reqs then
+		ngx.log(ngx.INFO, "Rate limit: first request from ", ip, " to ", uri)
 		limit_store:set(key, 1, window)
 	elseif reqs < limit then
+		ngx.log(ngx.INFO, "Rate limit: ", reqs + 1, " requests from ", ip, " to ", uri)
 		limit_store:incr(key, 1)
 	else
 		local penalty_key = key .. "_penalty"
