@@ -201,10 +201,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
-      - ./openresty/lua/rate_limit.lua:/usr/local/openresty/lualib/rate_limit.lua:ro
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
+      - ./openresty/lua/dnsbl_whitelist:/usr/local/openresty/lualib/dnsbl_whitelist
     restart: always
     environment:
       TZ: Europe/Copenhagen
