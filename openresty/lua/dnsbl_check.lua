@@ -1,7 +1,9 @@
 local _M = {}
 local resolver = require "resty.dns.resolver"
 local cache = ngx.shared.dnsbl_cache
+local lfs = require "lfs"  -- LuaFileSystem required
 
+-- DNSBL providers to check
 local dnsbls = {
 	"zen.spamhaus.org",
 	"bl.spamcop.net",
@@ -9,34 +11,46 @@ local dnsbls = {
 	"dnsbl.sorbs.net"
 }
 
--- Path to whitelist file (one IP per line, supports comments starting with #)
-local whitelist_path = "/usr/local/openresty/lualib/dnsbl_whitelist.txt"
+-- Directory containing .txt files with whitelisted IPs
+local whitelist_dir = "/usr/local/openresty/lualib/dnsbl_whitelist"
 
--- Load whitelist IPs from file, return set (table with ips as keys)
-local function load_whitelist(path)
-	local file, err = io.open(path, "r")
-	if not file then
-		ngx.log(ngx.WARN, "Whitelist file not found, continuing without whitelist: ", err)
-		return {}
+-- Load whitelist IPs from all .txt files in the directory
+local function load_whitelist(dir)
+	local ips = {}
+	local attr, err = lfs.attributes(dir)
+	if not attr then
+		ngx.log(ngx.WARN, "Whitelist directory not found: ", err)
+		return ips
 	end
 
-	local ips = {}
-	for line in file:lines() do
-		local ip = line:match("^%s*(.-)%s*$")  -- trim whitespace
-		if ip ~= "" and not ip:match("^#") then
-			ips[ip] = true
+	for file in lfs.dir(dir) do
+		if file:match("%.txt$") then
+			local path = dir .. "/" .. file
+			local f, ferr = io.open(path, "r")
+			if f then
+				for line in f:lines() do
+					local ip = line:match("^%s*(.-)%s*$")
+					if ip ~= "" and not ip:match("^#") then
+						ips[ip] = true
+					end
+				end
+				f:close()
+				ngx.log(ngx.INFO, "Loaded whitelist file: ", path)
+			else
+				ngx.log(ngx.WARN, "Could not open whitelist file ", path, ": ", ferr)
+			end
 		end
 	end
-	file:close()
 	return ips
 end
 
-local whitelist = load_whitelist(whitelist_path)
+local whitelist = load_whitelist(whitelist_dir)
 
 local function is_ip_whitelisted(ip)
 	return whitelist[ip] == true
 end
 
+-- Helper to reverse IP
 local function reverse_ip(ip)
 	local o1, o2, o3, o4 = ip:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")
 	if o1 and o2 and o3 and o4 then
@@ -45,7 +59,13 @@ local function reverse_ip(ip)
 	return nil
 end
 
+-- DNSBL check logic
 local function is_ip_blacklisted(ip)
+	if is_ip_whitelisted(ip) then
+		ngx.log(ngx.INFO, "IP ", ip, " is whitelisted — skipping DNSBL check.")
+		return false
+	end
+
 	local reversed_ip = reverse_ip(ip)
 	if not reversed_ip then
 		ngx.log(ngx.ERR, "Invalid IP for DNSBL: ", ip)
@@ -83,4 +103,20 @@ local function is_ip_blacklisted(ip)
 		elseif err then
 			ngx.log(ngx.ERR, "DNSBL lookup failed for ", query, ": ", err)
 		else
-			ngx.log(ngx.INFO, "D
+			ngx.log(ngx.INFO, "DNSBL miss: ", ip, " not listed on ", bl)
+		end
+	end
+
+	cache:set(cache_key, false, 1800)
+	return false
+end
+
+function _M.run()
+	local client_ip = ngx.var.remote_addr
+	if is_ip_blacklisted(client_ip) then
+		ngx.log(ngx.ERR, "Blocked blacklisted IP: ", client_ip)
+		return ngx.exit(ngx.HTTP_FORBIDDEN)
+	end
+end
+
+return _M

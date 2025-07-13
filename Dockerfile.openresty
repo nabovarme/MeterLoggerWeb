@@ -40,6 +40,7 @@ RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz &&
 
 # Install lua-resty-http
 RUN luarocks install lua-resty-http
+RUN luarocks install luafilesystem
 
 # Copy nginx and lua files
 COPY openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
