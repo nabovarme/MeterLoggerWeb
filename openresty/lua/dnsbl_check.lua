@@ -27,6 +27,7 @@ local function is_ip_blacklisted(ip)
 	local cache_key = "dnsbl:" .. ip
 	local cached = cache:get(cache_key)
 	if cached ~= nil then
+		ngx.log(ngx.INFO, "DNSBL cache hit for ", ip, ": ", tostring(cached))
 		return cached == true
 	end
 
@@ -43,13 +44,21 @@ local function is_ip_blacklisted(ip)
 
 	for _, bl in ipairs(dnsbls) do
 		local query = reversed_ip .. "." .. bl
+		ngx.log(ngx.INFO, "DNSBL lookup: querying ", query)
+
 		local answers, err = r:query(query, { qtype = r.TYPE_A })
 
 		if answers and not answers.errcode then
+			ngx.log(ngx.WARN, "DNSBL HIT: ", ip, " is blacklisted on ", bl)
 			cache:set(cache_key, true, 3600)
 			return true
+		elseif err then
+			ngx.log(ngx.ERR, "DNSBL lookup failed for ", query, ": ", err)
+		else
+			ngx.log(ngx.INFO, "DNSBL miss: ", ip, " not listed on ", bl)
 		end
 	end
+	
 
 	cache:set(cache_key, false, 1800)
 	return false
