@@ -146,6 +146,20 @@ sub login_handler {
 					
 					sms_send($id, "SMS Code: $sms_code");
 
+					if ($default_stay_logged_in eq 'true') {
+						# Persistent cookie
+						$cookie = CGI::Cookie->new(
+							-name    => 'auth_token',
+							-value   => $cookie_token,
+							-expires => '+1y'
+						);
+					} else {
+						# Session cookie
+						$cookie = CGI::Cookie->new(
+							-name  => 'auth_token',
+							-value => $cookie_token
+						);
+					}
 					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
 					return Apache2::Const::REDIRECT;
@@ -196,13 +210,19 @@ sub login_handler {
 				# User is authenticated; possibly use session cookie
 				$sth = $dbh->prepare(qq[SELECT `session` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token LIMIT 1]);
 				$sth->execute;
-				if ($d = $sth->fetchrow_hashref) {
-					if ($d->{session}) {
-						$cookie = CGI::Cookie->new(
-							-name  => 'auth_token',
-							-value => $passed_cookie_token
-						);
-					}
+				if ($d->{session}) {
+					# Session cookie (no expiration)
+					$cookie = CGI::Cookie->new(
+						-name  => 'auth_token',
+						-value => $passed_cookie_token
+					);
+				} else {
+					# Persistent cookie (1 year expiration)
+					$cookie = CGI::Cookie->new(
+						-name    => 'auth_token',
+						-value   => $passed_cookie_token,
+						-expires => '+1y'
+					);
 				}
 				# Update last used timestamp
 				$dbh->do(qq[UPDATE sms_auth SET unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
