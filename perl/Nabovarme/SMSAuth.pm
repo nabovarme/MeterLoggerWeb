@@ -177,6 +177,7 @@ sub login_handler {
 				my ($stay_logged_in) = $r->args =~ /stay_logged_in=([^&]*)/i;
 
 				if ($stay_logged_in) {
+					warn "sms_code_sent persistent";
 					# Recreate persistent cookie (with expiration)
 					$cookie = CGI::Cookie->new(
 						-name	=> 'auth_token',
@@ -184,6 +185,7 @@ sub login_handler {
 						-expires => '+1y'
 					);
 				} else {
+					warn "sms_code_sent session";
 					# Create session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
@@ -210,6 +212,8 @@ sub login_handler {
 				# User is authenticated; possibly use session cookie
 				$sth = $dbh->prepare(qq[SELECT `session` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token LIMIT 1]);
 				$sth->execute;
+				$d = $sth->fetchrow_hashref;
+				
 				if ($d->{session}) {
 					# Session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
