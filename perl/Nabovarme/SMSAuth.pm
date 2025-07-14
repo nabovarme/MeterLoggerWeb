@@ -84,7 +84,7 @@ sub login_handler {
 		# Parse existing cookie
 		my $cookie_header = $r->headers_in->{Cookie} || '';
 		my %cookies = CGI::Cookie->parse($cookie_header);
-		my $passed_cookie_token = $cookies{'auth_token'} ? $cookies{'auth_token'}->value : undef;
+		my $passed_cookie_token = $cookies{'auth_token'} ? scalar $cookies{'auth_token'}->value : undef;
 
 		my $cookie_token;
 		my $cookie;
@@ -140,7 +140,7 @@ sub login_handler {
 				
 				if ($user_is_in_db) {
 					# Generate and send SMS code
-					my $sms_code = join('', map(int(Math::Random::Secure::rand(9)), 1..6));
+					my $sms_code = join('', map(int(Math::Random::Secure::rand(10)), 1..6));
 					my $quoted_sms_code = $dbh->quote($sms_code);
 					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, `phone` = $quoted_id, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 					
@@ -242,7 +242,8 @@ sub logout_handler {
 		my $passed_cookie = $r->headers_in->{Cookie} || '';
 		my $passed_cookie_token;
 		if ($passed_cookie) {
-			($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
+			my %cookies = CGI::Cookie->parse($passed_cookie);
+			$passed_cookie_token = $cookies{'auth_token'} ? scalar $cookies{'auth_token'}->value : undef;
 		}
 		my $cookie = CGI::Cookie->new(
 			-name  => 'auth_token',
