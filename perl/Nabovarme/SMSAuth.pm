@@ -177,7 +177,6 @@ sub login_handler {
 				my ($stay_logged_in) = $r->args =~ /stay_logged_in=([^&]*)/i;
 
 				if ($stay_logged_in) {
-					warn "sms_code_sent persistent";
 					# Recreate persistent cookie (with expiration)
 					$cookie = CGI::Cookie->new(
 						-name	=> 'auth_token',
@@ -185,7 +184,6 @@ sub login_handler {
 						-expires => '+1y'
 					);
 				} else {
-					warn "sms_code_sent session";
 					# Create session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
