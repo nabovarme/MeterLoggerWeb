@@ -56,14 +56,14 @@ sub cookie_is_admin {
 		$sth->execute;
 		if ($d = $sth->fetchrow_hashref) {
 			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
-				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
-					"\" allowing $username as admin for group $admin_group, serial $serial\n";
+				$r->warn($ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+					"\" allowing $username as admin for group $admin_group, serial $serial\n");
 				return 1;
 			}
 		}
 	}
-	warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
-		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!";
+	$r->warn($ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!");
 	return 0;
 }
 
@@ -78,7 +78,7 @@ sub add_payment {
 	$quoted_amount = $self->{dbh}->quote(normalize_amount($amount));
 	$quoted_price = $self->{dbh}->quote(normalize_amount($price));
 
-	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)];
+	$r->warn(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)]);
 	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
 }
 
@@ -99,7 +99,7 @@ sub default_price_for_serial {
 sub meter_change_valve_status {
 	my ($self, $serial, $status) = @_;
 
-	warn "\n\tChanged valve status for serial: " . $serial . " to " . $status . "\n\n";
+	$r->warn("\n\tChanged valve status for serial: " . $serial . " to " . $status . "\n\n)";
 
 	$self->{mqtt_rpc}->call({	serial => $serial,
 							function => $status,
