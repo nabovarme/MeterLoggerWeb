@@ -102,4 +102,8 @@ COPY ./template.tex /var/www/nabovarme/qr/
 COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
 COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
 
+# Symlink Apache logs to stdout/stderr for Docker log visibility
+RUN ln -sf /dev/stdout /var/log/apache2/access.log \
+	&& ln -sf /dev/stderr /var/log/apache2/error.log
+
 CMD /docker-entrypoint.sh
