@@ -30,21 +30,21 @@ sub handler {
 	
 	# Ignore specific URI paths
 	if ($r->uri eq SNOOZE_LOCATION) {
-		warn Dumper "snooze location, we dont handle this: " . $r->uri;
+		$r->warn("snooze location, we dont handle this: " . $r->uri);
 		return Apache2::Const::OK;
 	}
 
 	if ($public_access) {
 		foreach (split(/,\s*/, $public_access)) {
 			if ($r->uri eq $_) {
-				warn Dumper "we dont handle this: " . $r->uri;
+				$r->warn("we dont handle this: " . $r->uri);
 				return Apache2::Const::OK;
 			}
 		}
 	}
 	
 	if ($r->uri eq $logged_out_path) {
-		warn Dumper "we dont handle this: " . $r->uri;
+		$r->warn("we dont handle this: " . $r->uri);
 		return Apache2::Const::OK;
 	}
 	
