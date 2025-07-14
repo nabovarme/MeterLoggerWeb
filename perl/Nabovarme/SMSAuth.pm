@@ -162,8 +162,15 @@ sub login_handler {
 				my $quoted_sms_code = $dbh->quote($sms_code);
 				my ($stay_logged_in) = $r->args =~ /stay_logged_in=([^&]*)/i;
 
-				unless ($stay_logged_in) {
-					# Create session cookie
+				if ($stay_logged_in) {
+					# Recreate persistent cookie (with expiration)
+					$cookie = CGI::Cookie->new(
+						-name	=> 'auth_token',
+						-value   => $passed_cookie_token,
+						-expires => '+1y'
+					);
+				} else {
+					# Create session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
 						-value => $passed_cookie_token
