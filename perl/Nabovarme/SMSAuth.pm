@@ -81,6 +81,8 @@ sub login_handler {
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 
+		my $cgi = CGI->new($r);
+
 		# Parse existing cookie
 		my $cookie_header = $r->headers_in->{Cookie} || '';
 		my %cookies = CGI::Cookie->parse($cookie_header);
@@ -121,7 +123,7 @@ sub login_handler {
 			}
 			elsif ($d->{auth_state} =~ /login/i) {
 				# Attempt to match user's phone number
-				my ($id) = $r->args =~ /id=([^&]*)/i;
+				my $id = $cgi->param('id');
 				my $quoted_id = $dbh->quote($id);
 				my $quoted_wildcard_id = $dbh->quote('%' . $id . '%');
 				my $user_is_in_db = undef;
@@ -161,7 +163,8 @@ sub login_handler {
 						);
 					}
 					add_set_cookie_once($r, $cookie);
-					$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
+#					$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
+					$r->err_headers_out->add('Location' => $sms_code_path);
 					return Apache2::Const::REDIRECT;
 				} else {
 					# Redirect to login form to re-enter phone number
@@ -172,9 +175,9 @@ sub login_handler {
 			}
 			elsif ($d->{auth_state} =~ /sms_code_sent/i) {
 				# Validate submitted SMS code
-				my ($sms_code) = $r->args =~ /sms_code=([^&]*)/i;
+				my $sms_code = $cgi->param('sms_code');
 				my $quoted_sms_code = $dbh->quote($sms_code);
-				my ($stay_logged_in) = $r->args =~ /stay_logged_in=([^&]*)/i;
+				my $stay_logged_in = $cgi->param('stay_logged_in');
 
 				if ($stay_logged_in) {
 					# Recreate persistent cookie (with expiration)
@@ -202,7 +205,7 @@ sub login_handler {
 				} else {
 					# Invalid code, reload SMS form
 					add_set_cookie_once($r, $cookie);
-					$r->internal_redirect($sms_code_path . '?' . $r->args);
+					$r->internal_redirect($sms_code_path);
 					return Apache2::Const::OK;
 				}
 			}
