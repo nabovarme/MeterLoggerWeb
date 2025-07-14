@@ -76,7 +76,6 @@ sub login_handler {
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
 	my $default_path = $r->dir_config('DefaultPath') || '/';
-	my $default_stay_logged_in = $r->dir_config('DefaultStayLoggedIn') || 'true';
 
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -148,22 +147,12 @@ sub login_handler {
 					
 					sms_send($id, "SMS Code: $sms_code");
 
-					if ($default_stay_logged_in eq 'true') {
-						# Persistent cookie
-						$cookie = CGI::Cookie->new(
-							-name    => 'auth_token',
-							-value   => $cookie_token,
-							-expires => '+1y'
-						);
-					} else {
-						# Session cookie
-						$cookie = CGI::Cookie->new(
-							-name  => 'auth_token',
-							-value => $cookie_token
-						);
-					}
+					# Start with a session cookie
+					$cookie = CGI::Cookie->new(
+						-name  => 'auth_token',
+						-value => $cookie_token
+					);
 					add_set_cookie_once($r, $cookie);
-#					$r->err_headers_out->add('Location' => $sms_code_path . ($default_stay_logged_in ? '?stay_logged_in=true' : ''));
 					$r->err_headers_out->add('Location' => $sms_code_path);
 					return Apache2::Const::REDIRECT;
 				} else {
