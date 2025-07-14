@@ -166,8 +166,7 @@ sub login_handler {
 					# Create session cookie
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
-						-value => $passed_cookie_token,
-						-expires => '+1y'
+						-value => $passed_cookie_token
 					);
 				}
 
@@ -194,8 +193,7 @@ sub login_handler {
 					if ($d->{session}) {
 						$cookie = CGI::Cookie->new(
 							-name  => 'auth_token',
-							-value => $passed_cookie_token,
-							-expires => '+1y'
+							-value => $passed_cookie_token
 						);
 					}
 				}
