@@ -112,6 +112,7 @@ function fetchAndUpdateGraph(isInitialLoad) {
 		})
 		.finally(() => {
 			// ✅ Always hide spinner no matter what
+			const spinner = document.getElementById("graph_spinner");
 			if (spinner) spinner.style.display = "none";
 		});
 }
