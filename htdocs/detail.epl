@@ -26,11 +26,12 @@ if ($meter_info_sth->rows) {
 			var meter_serial = "[+ $fdat{'serial'} +]"
 		</script>
 
-		<!-- Style and JS for burger menu -->
+		<!-- style and js for burger menu -->
 		<link rel="stylesheet" href="/css/menu.css">
-		<script src="/js/menu.js" defer></script>
+		<script src="/js/menu.js" defer></script>	
 
-		<script src="dygraphs/dygraph-dev.js"></script>
+		<script src="/js/dygraph.min.js"></script>
+		<link rel="stylesheet" href="/css/dygraph.css">
 
 		<link rel="stylesheet" href="/css/detail.css">
 	</head>

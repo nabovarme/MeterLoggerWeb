@@ -21,7 +21,6 @@
 	<meta name="robots" content="noindex">
 	<meta http-equiv="refresh" content="60">
 	<TITLE>MeterLogger&lsquo;s offline</TITLE>
-	<script src="dygraphs/dygraph-dev.js"></script>
 	<style type="text/css">
 	.top {
 		position: absolute;

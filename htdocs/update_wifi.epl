@@ -36,8 +36,6 @@ if ($sth->rows) {
 		<script type="text/javascript">
 			var meter_serial = "[+ $fdat{'serial'} +]"
 		</script>
-		<script src="dygraphs/dygraph-dev.js"></script>
-		<script src="spinner/spin.js"></script>
 		<style type="text/css">
 		.dygraph-legend {
 			font-family: Verdana, Geneva, sans-serif;
