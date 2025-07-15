@@ -45,7 +45,7 @@
 		<script src="/js/dygraph.min.js"></script>
 		<link rel="stylesheet" href="/css/dygraph.css">
 
-		<link rel="stylesheet" href="/css/detail_acc.css">
+		<link rel="stylesheet" href="/css/detail.css">
 	</HEAD>
 	<BODY>
 		<div id="error_message"></div>
@@ -69,7 +69,13 @@
 				<div id="last_energy"></div>
 			</span>
 			
-			<div id="div_dygraph"></div>
+			<div id="dygraph_container" style="position: relative;">
+				<div id="div_dygraph"></div>
+				<div id="graph_spinner" class="spinner-overlay">
+					<div class="spinner"></div>
+				</div>
+			</div>
+
 			<div id="consumption_in_range"></div>
 			<div id="kwh_remaining"></div>
 

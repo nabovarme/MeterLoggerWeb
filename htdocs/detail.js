@@ -39,7 +39,7 @@ function fetchAndUpdateGraph(isInitialLoad) {
 
 			if (isInitialLoad) {
 				g = new Dygraph(
-					document.getElementById("div_nabovarme"),
+					document.getElementById("div_dygraph"),
 					coarseCsv,
 					{
 						delimiter: ',',
@@ -102,7 +102,16 @@ function fetchAndUpdateGraph(isInitialLoad) {
 					updateUrlFromGraph();
 					updateLastReadingStats();
 				}
+				// ✅ Hide spinner after fine data is applied
+				const spinner = document.getElementById("graph_spinner");
+				if (spinner) spinner.style.display = "none";
 			});
+		})
+		.catch(error => {
+			console.error("Failed to load CSV:", error);
+
+			// ✅ Ensure spinner gets hidden even on error
+			if (spinner) spinner.style.display = "none";
 		});
 }
 

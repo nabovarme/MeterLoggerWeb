@@ -32,107 +32,65 @@ if ($meter_info_sth->rows) {
 
 		<script src="dygraphs/dygraph-dev.js"></script>
 
-		<style type="text/css">
-			/* Container fills entire width with no side margins */
-			#spinner {
-				position: relative;
-				width: 100%;
-				height: 445px; /* fixed height for graph */
-				margin: 0;
-				padding: 0;
-			}
-
-			/* Graph div fills container fully */
-			#div_nabovarme {
-				width: 100%;
-				height: 100%;
-				position: relative;
-			}
-
-			/* Dygraph legend and labels font and style */
-			.dygraph-legend,
-			.dygraph-label {
-				font-family: Verdana, Geneva, sans-serif;
-				text-align: left;
-				background: none;
-			}
-
-			/* Y-axis labels aligned right to stay close to the graph */
-			.dygraph-axis-label {
-				font-family: Verdana, Geneva, sans-serif;
-				text-align: right;
-				background: none;
-			}
-
-			/* Font weight helpers */
-			.highlight {
-				font-weight: bold;
-			}
-			.default {
-				font-family: Verdana, Geneva, sans-serif;
-			}
-			.default-bold {
-				font-family: Verdana, Geneva, sans-serif;
-				font-weight: bold;
-			}
-
-			/* Checkbox scaling on small devices */
-			@media screen and (max-device-width: 600px) {
-				input[type=checkbox] {
-					margin-right: 1em;
-					transform: scale(1.5);
-					-webkit-transform: scale(1.5);
-				}
-			}
-		</style>
+		<link rel="stylesheet" href="/css/detail.css">
 	</head>
 
 	<body>
-		<span class="default-bold">
-			[+ $info +]
-		</span>
-		<span class="default">
-			<a href="detail_acc.epl?serial=[+ $fdat{'serial'} +]">Accumulated</a>
-		</span>
-		<br>
-		<span class="default">
-			serial [+ $fdat{'serial'} +]<br>
-			<div id="last_energy">
-				[$ if ($latest_sample_sth->rows) $]
-					[$ if ($d = $latest_sample_sth->fetchrow_hashref) $]
-						[+ $d->{energy} +] kWh<br>
-						[+ $d->{volume} +] m<sup>3</sup><br>
-						[+ $d->{hours} +] hours<br>
+		<div id="error_message"></div>
+		<div class="page-wrapper">
+			<!-- >
+				<div class="watermark">BETA-TEST</div>
+			< -->
+
+			<span class="default-bold">
+				[+ $info +]
+			</span>
+			<span class="default">
+				<a href="detail_acc.epl?serial=[+ $fdat{'serial'} +]">Accumulated</a>
+			</span>
+			<br>
+			<span class="default">
+				serial [+ $fdat{'serial'} +]<br>
+				<div id="last_energy">
+					[$ if ($latest_sample_sth->rows) $]
+						[$ if ($d = $latest_sample_sth->fetchrow_hashref) $]
+							[+ $d->{energy} +] kWh<br>
+							[+ $d->{volume} +] m<sup>3</sup><br>
+							[+ $d->{hours} +] hours<br>
+						[$ endif $]
 					[$ endif $]
-				[$ endif $]
+				</div>
+			</span>
+			
+			<br>
+			
+			<!-- Graph container with full width, no margins -->
+			<div id="dygraph_container" style="position: relative;">
+				<div id="div_dygraph"></div>
+				<div id="graph_spinner" class="spinner-overlay">
+					<div class="spinner"></div>
+				</div>
 			</div>
-		</span>
-
-		<br>
-
-		<!-- Graph container with full width, no margins -->
-		<div id="spinner">
-			<div id="div_nabovarme"></div>
+			
+			<br><br>
+			
+			<!-- Controls table -->
+			<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%" style="max-width: 800px;">
+				<tr align="left" valign="bottom">
+					<td align="left"><span class="default"><input type="checkbox" id="0" checked onClick="change(this)" style="vertical-align: top;">Temp.</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default"><input type="checkbox" id="1" checked onClick="change(this)" style="vertical-align: top;">Return temp.</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default"><input type="checkbox" id="2" checked onClick="change(this)" style="vertical-align: top;">Temp. diff.</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default"><input type="checkbox" id="3" checked onClick="change(this)" style="vertical-align: top;">Flow</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)"style="vertical-align: top;" >Effect</span></td>
+				</tr>
+				<tr><td colspan="9">&nbsp;</td></tr>
+			</table>
+			
+			<script src="detail.js"></script>
 		</div>
-
-		<br><br>
-
-		<!-- Controls table -->
-		<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%" style="max-width: 800px;">
-			<tr align="left" valign="bottom">
-				<td align="left"><span class="default"><input type="checkbox" id="0" checked onClick="change(this)" style="vertical-align: top;">Temp.</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="1" checked onClick="change(this)" style="vertical-align: top;">Return temp.</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="2" checked onClick="change(this)" style="vertical-align: top;">Temp. diff.</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="3" checked onClick="change(this)" style="vertical-align: top;">Flow</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)"style="vertical-align: top;" >Effect</span></td>
-			</tr>
-			<tr><td colspan="9">&nbsp;</td></tr>
-		</table>
-
-		<script src="detail.js"></script>
 	</body>
 </html>
