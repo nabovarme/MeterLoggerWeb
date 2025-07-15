@@ -507,7 +507,14 @@ function fetchAndUpdateGraph() {
 
 			return fetchAndRenderAccountInfo(g);
 		})
-		.then(() => fetch(dataUrlFine))
+		.then(() => {
+			// ✅ Hide spinner after graph + annotations + table are ready
+			const spinner = document.getElementById("graph_spinner");
+			if (spinner) spinner.style.display = "none";
+			
+			// ✅ Start fine data fetch here
+			return fetch(dataUrlFine);
+		})
 		.then(r => r.text())
 		.then(fineCsv => {
 			const fineCsvMs = convertCsvSecondsToMs(fineCsv);
