@@ -55,13 +55,28 @@ function fetchAndUpdateGraph(isInitialLoad) {
 						labelsSeparateLines: true,
 						labelsDivWidth: 700,
 						showRangeSelector: true,
+						xAxisHeight: 40,
 						interactionModel: Dygraph.defaultInteractionModel,
 						dateWindow: dateRange,
 						axes: {
 							x: {
-								valueFormatter: x => formatDate(new Date(x))
+								valueFormatter: function(x) {
+									return formatDate(new Date(x));
+								},
+								axisLabelFormatter: function(x) {
+									const d = new Date(x);
+									return d.toLocaleString('da-DA', {
+										day: '2-digit',
+										month: '2-digit',
+										year: 'numeric',
+										hour: '2-digit',
+										minute: '2-digit'
+									}).replace('T', ' ');
+								},
+								pixelsPerLabel: 80
 							}
 						},
+						maxNumberWidth: 12,
 						highlightSeriesOpts: {
 							pointSize: 6,
 							highlightCircleSize: 6,

@@ -38,7 +38,6 @@ if ($sth->rows) {
 	<HEAD>
 		<meta name="robots" content="noindex">
 		<TITLE>[+ $info +] MeterLogger</TITLE>
-		<script src="dygraphs/dygraph-dev.js"></script>
 		<style type="text/css">
 		.default {
 			font-family: Verdana, Geneva, sans-serif;
