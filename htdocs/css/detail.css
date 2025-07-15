@@ -189,22 +189,26 @@ html, body {
 }
 
 #checkbox-container {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	display: flex;
+	flex-wrap: wrap;				/* Allow wrapping */
 	gap: 12px;
-	width: 100%;
 	padding: 0 10px;
 	box-sizing: border-box;
 	margin-bottom: 20px;
+	width: 100%;
 }
 
 .checkbox-item {
-	display: flex;
-	align-items: flex-start;
+	flex: 0 1 auto;				 /* Shrink or grow as needed */
+	min-width: 150px;			 /* Give each checkbox enough minimum width */
 }
 
-.checkbox-item input {
-	vertical-align: top;
+label.default {
+	display: flex;
+	flex-direction: column;  /* stack vertically */
+	align-items: flex-start; /* left-align both checkbox and label text */
+	gap: 4px;                /* space between checkbox and label text */
+	user-select: none;
 }
 
 /* Form elements */
