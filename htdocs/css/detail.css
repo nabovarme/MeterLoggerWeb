@@ -188,6 +188,24 @@ html, body {
 	grid-column: span 7;
 }
 
+.checkbox-container {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+	gap: 12px;
+	width: 100%;
+	padding: 0 10px;
+	box-sizing: border-box;
+}
+
+.checkbox-item {
+	display: flex;
+	align-items: flex-start;
+}
+
+.checkbox-item input {
+	vertical-align: top;
+}
+
 /* Form elements */
 input {
 	width: 100%;

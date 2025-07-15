@@ -76,20 +76,42 @@ if ($meter_info_sth->rows) {
 			<br><br>
 			
 			<!-- Controls table -->
-			<table border="0" align="left" cellpadding="0" cellspacing="6" width="100%" style="max-width: 800px;">
-				<tr align="left" valign="bottom">
-					<td align="left"><span class="default"><input type="checkbox" id="0" checked onClick="change(this)" style="vertical-align: top;">Temp.</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default"><input type="checkbox" id="1" checked onClick="change(this)" style="vertical-align: top;">Return temp.</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default"><input type="checkbox" id="2" checked onClick="change(this)" style="vertical-align: top;">Temp. diff.</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default"><input type="checkbox" id="3" checked onClick="change(this)" style="vertical-align: top;">Flow</span></td>
-					<td>&nbsp;</td>
-					<td align="left"><span class="default"><input type="checkbox" id="4" checked onClick="change(this)"style="vertical-align: top;" >Effect</span></td>
-				</tr>
-				<tr><td colspan="9">&nbsp;</td></tr>
-			</table>
+			<div class="checkbox-container">
+				<div class="checkbox-item">
+					<label class="default">
+						<input type="checkbox" id="0" checked onclick="change(this)">
+						Temp.
+					</label>
+				</div>
+			
+				<div class="checkbox-item">
+					<label class="default">
+						<input type="checkbox" id="1" checked onclick="change(this)">
+						Return temp.
+					</label>
+				</div>
+			
+				<div class="checkbox-item">
+					<label class="default">
+						<input type="checkbox" id="2" checked onclick="change(this)">
+						Temp. diff.
+					</label>
+				</div>
+			
+				<div class="checkbox-item">
+					<label class="default">
+						<input type="checkbox" id="3" checked onclick="change(this)">
+						Flow
+					</label>
+				</div>
+			
+				<div class="checkbox-item">
+					<label class="default">
+						<input type="checkbox" id="4" checked onclick="change(this)">
+						Effect
+					</label>
+				</div>
+			</div>
 			
 			<script src="detail.js"></script>
 		</div>
