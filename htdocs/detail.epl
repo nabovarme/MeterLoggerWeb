@@ -76,25 +76,25 @@ if ($meter_info_sth->rows) {
 			<br><br>
 			
 			<!-- Controls table -->
-			<div class="checkbox-container">
+			<div id="checkbox-container">
 				<div class="checkbox-item">
 					<label class="default">
 						<input type="checkbox" id="0" checked onclick="change(this)">
-						Temp.
+						Temperature
 					</label>
 				</div>
 			
 				<div class="checkbox-item">
 					<label class="default">
 						<input type="checkbox" id="1" checked onclick="change(this)">
-						Return temp.
+						Return temperature
 					</label>
 				</div>
 			
 				<div class="checkbox-item">
 					<label class="default">
 						<input type="checkbox" id="2" checked onclick="change(this)">
-						Temp. diff.
+						Temperature diff.
 					</label>
 				</div>
 			

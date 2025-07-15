@@ -188,13 +188,14 @@ html, body {
 	grid-column: span 7;
 }
 
-.checkbox-container {
+#checkbox-container {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 	gap: 12px;
 	width: 100%;
 	padding: 0 10px;
 	box-sizing: border-box;
+	margin-bottom: 20px;
 }
 
 .checkbox-item {
@@ -229,9 +230,9 @@ input[type="checkbox"] {
 	#div_dygraph {
 		height: 300px;
 	}
-	input[type="checkbox"] {
-		transform: scale(2);
-	}
+//	input[type="checkbox"] {
+//		transform: scale(2);
+//	}
 }
 
 .watermark {
