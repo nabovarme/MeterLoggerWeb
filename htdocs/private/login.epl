@@ -1,8 +1,8 @@
 <html>
-    <head>
+	<head>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=600, initial-scale=2">
-        <title>Login page</title>
+	<title>Login page</title>
 		<style type="text/css">
 		.top {
 			position: absolute;

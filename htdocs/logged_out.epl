@@ -1,6 +1,7 @@
 <HTML>
 	<HEAD>
 	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=600, initial-scale=1">
 	<TITLE>MeterLogger - Logged out</TITLE>
 	<style type="text/css">
 	.top {
