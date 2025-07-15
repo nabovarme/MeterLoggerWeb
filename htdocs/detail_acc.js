@@ -522,7 +522,13 @@ function fetchAndUpdateGraph() {
 			g.updateOptions({ file: mergedCsv });
 			updateConsumptionFromGraphRange();
 		})
-		.catch(console.error);
+		.catch(error => {
+			console.error("Error during graph update:", error);
+		})
+		.finally(() => {
+			// ✅ Always hide spinner no matter what
+			if (spinner) spinner.style.display = "none";
+		});
 }
 
 // INITIAL call
