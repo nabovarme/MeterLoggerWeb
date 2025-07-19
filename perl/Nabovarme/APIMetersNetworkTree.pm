@@ -59,6 +59,7 @@ sub handler {
 				GROUP BY serial
 			) paid_kwh_table ON m.serial = paid_kwh_table.serial
 			WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
+			AND m.enabled = 1
 			ORDER BY mg.`id`, m.info
 		];
 
