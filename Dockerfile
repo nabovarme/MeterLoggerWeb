@@ -12,11 +12,9 @@
 # 4. # docker run -t -i -p 8080:80 meterloggerweb:latest
 
 
-FROM debian:buster
+FROM debian:bullseye
 
 MAINTAINER Kristoffer Ek <stoffer@skulp.net>
-
-RUN "echo" "deb http://http.us.debian.org/debian buster non-free" >> /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
