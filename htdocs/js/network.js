@@ -147,13 +147,20 @@ function filterTree(treeData, query, showOnlyOffline = false) {
 		const result = [];
 
 		for (const client of clients) {
-			const children = filterClients(client.clients || []);
 			const clientMatches = nodeMatches(client.meter);
 
-			if (clientMatches || children.length > 0) {
-				result.push({ ...client, clients: children });
+			if (clientMatches) {
+				// Include the full original subtree
+				result.push({ ...client });
+			} else {
+				// Recursively check children
+				const filteredChildren = filterClients(client.clients || []);
+				if (filteredChildren.length > 0) {
+					result.push({ ...client, clients: filteredChildren });
+				}
 			}
 		}
+
 		return result;
 	}
 
