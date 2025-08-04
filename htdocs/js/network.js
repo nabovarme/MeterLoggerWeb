@@ -137,7 +137,8 @@ function filterTree(treeData, query, showOnlyOffline = false) {
 	function nodeMatches(meter) {
 		const matchesQuery = meter?.info?.toLowerCase().includes(lowerQuery)
 			|| meter?.serial?.toLowerCase().includes(lowerQuery)
-			|| meter?.ssid?.toLowerCase().includes(lowerQuery);
+			|| meter?.ssid?.toLowerCase().includes(lowerQuery)
+			|| meter?.swVersion?.toLowerCase().includes(lowerQuery);
 		const offlineMatch = !showOnlyOffline || isOffline(meter);
 		return matchesQuery && offlineMatch;
 	}
