@@ -196,8 +196,19 @@ const renderFilteredTrees = debounce(function () {
 
 // ✅ Load everything *after* the window fully loads
 window.addEventListener('load', () => {
-	document.getElementById('networkSearch').focus();
-	document.getElementById('networkSearch').addEventListener('input', renderFilteredTrees);
+	const filterInput = document.getElementById('networkSearch');
+
+	filterInput.focus();
+
+	// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
+	document.addEventListener('keydown', (e) => {
+		if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'f') {
+			e.preventDefault();
+			filterInput.focus();
+		}
+	});
+
+	filterInput.addEventListener('input', renderFilteredTrees);
 	document.getElementById('offlineMeters').addEventListener('change', renderFilteredTrees);
 	fetchAndRenderTrees();
 });
