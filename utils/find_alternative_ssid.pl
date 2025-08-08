@@ -28,7 +28,8 @@ my $start_time	= $latest_time - (3600 * 24 * $LOOKBACK_DAYS);
 
 # --- Load meters ---
 my $meters = $dbh->selectall_hashref("
-	SELECT serial, ssid, enabled FROM meters
+	SELECT serial, ssid, enabled, ping_average_packet_loss
+	FROM meters
 ", 'serial');
 
 # --- Build parent->child mapping ---
@@ -78,39 +79,59 @@ my $avg_rssi_data = $dbh->selectall_arrayref("
 	GROUP BY ssid
 ", { Slice => {} }, $ROOT_SERIAL, $start_time, $latest_time);
 
-# --- Filter out any SSID that points to removed meters ---
+# --- Build candidate list ---
 my @candidates;
 foreach my $row (@$avg_rssi_data) {
 	my $ssid = $row->{ssid} // next;
+
+	my $avg_rssi   = $row->{avg_rssi};
+	my $seen_count = $row->{seen_count};
+	my $score	  = $avg_rssi + (2 * $seen_count); # default score
+
 	if ($ssid =~ /^mesh-(\w+)/) {
 		my $target_serial = $1;
 		next if exists $tree_members{$target_serial};  # skip self/children
+
+		# Penalize by packet loss if available
+		if (defined $meters->{$target_serial}->{ping_average_packet_loss} 
+			&& $meters->{$target_serial}->{ping_average_packet_loss} =~ /^([\d.]+)%$/) {
+			my $loss = $1;
+			$score -= $loss; # subtract %loss from score
+		}
+
 		push @candidates, {
 			type	  => "mesh",
 			target	=> $target_serial,
-			avg_rssi  => $row->{avg_rssi},
-			seen_count=> $row->{seen_count}
+			avg_rssi  => $avg_rssi,
+			seen_count=> $seen_count,
+			score	 => $score
 		};
 	} else {
-		# External AP
+		# External AP — no packet loss data
 		push @candidates, {
 			type	  => "ap",
 			target	=> $ssid,
-			avg_rssi  => $row->{avg_rssi},
-			seen_count=> $row->{seen_count}
+			avg_rssi  => $avg_rssi,
+			seen_count=> $seen_count,
+			score	 => $score
 		};
 	}
 }
 
-# --- Sort by avg_rssi descending ---
-@candidates = sort { $b->{avg_rssi} <=> $a->{avg_rssi} } @candidates;
+# --- Sort by score descending ---
+@candidates = sort { $b->{score} <=> $a->{score} } @candidates;
 
 print "\n--- Possible Connections for $ROOT_SERIAL ---\n";
 foreach my $cand (@candidates) {
+	my $loss_str = '';
+	if ($cand->{type} eq 'mesh' 
+		&& defined $meters->{$cand->{target}}->{ping_average_packet_loss}) {
+		$loss_str = "  loss=" . $meters->{$cand->{target}}->{ping_average_packet_loss};
+	}
 	if ($cand->{type} eq 'mesh') {
-		print "mesh-$cand->{target}  RSSI=$cand->{avg_rssi}  seen=$cand->{seen_count}\n";
+		print "mesh-$cand->{target}  RSSI=$cand->{avg_rssi}  seen=$cand->{seen_count}  score=$cand->{score}$loss_str\n";
 	} else {
-		print "AP:$cand->{target}   RSSI=$cand->{avg_rssi}  seen=$cand->{seen_count}\n";
+		print "AP:$cand->{target}	RSSI=$cand->{avg_rssi}  seen=$cand->{seen_count}  score=$cand->{score}\n";
 	}
 }
 
