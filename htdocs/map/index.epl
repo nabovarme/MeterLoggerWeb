@@ -292,6 +292,28 @@
 						observer.observe(dropdown, { attributes: true, attributeFilter: ['style'] });
 					}
 				}, 500);
+		
+				document.addEventListener('keydown', function (event) {
+					// Check for Alt+F or Ctrl+F
+					if ((event.altKey && event.key.toLowerCase() === 'f') ||
+							(event.ctrlKey && event.key.toLowerCase() === 'f')) {
+
+						// Stop the browser's default find-on-page
+						event.preventDefault();
+
+						// Click the search button to reveal the input
+						document.querySelector('.search-button').click();
+
+						// Wait briefly for it to appear, then focus
+						setTimeout(() => {
+							const input = document.querySelector('.search-input');
+							if (input) {
+								input.focus();
+							}
+						}, 150);
+					}
+				});
+		
 	</script>
 
 	</BODY>
