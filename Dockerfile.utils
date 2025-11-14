@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
-	default-mysql-client\
+	default-mysql-client \
 	software-properties-common \
 	texlive \
 	texlive-latex-base \
@@ -48,20 +48,32 @@ RUN apt-get update && apt-get install -y \
 	texlive-fonts-extra \
 	qrencode \
 	imagemagick \
-	pbzip2
+	pbzip2 \
+	locales
 
 USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
+# Enable en_US.UTF-8 locale
+RUN sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+	locale-gen
 
 # we need a specific version here
 #RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
+
+# Set UTF-8 locale environment variables
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+# Install specific version of Net::MQTT::Simple from git
 RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
 	cd Net-MQTT-Simple && \
 	perl Makefile.PL && \
 	make && \
 	make install
 
+# Install specific version of perl-CryptX from git
 RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 	cd perl-CryptX && \
 	git checkout 6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489 && \
@@ -72,13 +84,16 @@ RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
+# Create user
 RUN useradd -ms /bin/bash meterlogger
 
+# Copy entrypoint script
 COPY ./docker-entrypoint_utils.sh /docker-entrypoint.sh
 
 USER meterlogger
 WORKDIR /home/meterlogger
 
+# Copy application scripts
 COPY ./perl perl
 COPY ./utils/mqtt_log_all.pl mqtt_log_all.pl
 COPY ./utils/smstools_send.pl smstools_send.pl
@@ -87,4 +102,4 @@ COPY ./utils/mqtt_send.pl mqtt_send.pl
 COPY ./utils/find_alternative_ssid.pl find_alternative_ssid.pl
 COPY ./utils/mesh_topology.pl mesh_topology.pl
 
-CMD /docker-entrypoint.sh
+CMD ["/docker-entrypoint.sh"]
