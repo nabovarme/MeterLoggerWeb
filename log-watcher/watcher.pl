@@ -15,12 +15,13 @@ my $smtp_pass = $ENV{SMTP_PASSWORD}	|| 'password';
 my $to_email  = $ENV{TO_EMAIL}		|| 'alert@example.com';
 
 # Prevent multiple emails
-my $email_sent = 0;
+my $alert_sent = 0;
 
+# ---- Send single email ----
 sub send_email_once {
 	my ($msg) = @_;
 
-	return if $email_sent;   # already sent once
+	return if $alert_sent;
 
 	my $smtp = Net::SMTP::SSL->new(
 		$smtp_host,
@@ -48,7 +49,24 @@ sub send_email_once {
 	$smtp->quit();
 
 	print "Email sent: $msg\n";
-	$email_sent = 1;  # no more emails
+	$alert_sent = 1;
+}
+
+# ---- Toggle modem power with Docker stop/start ----
+sub toggle_modem_power_with_container_restart {
+	print "Stopping $container_name container...\n";
+	system("docker compose stop $container_name") == 0
+		or warn "Failed to stop $container_name\n";
+
+	print "Toggling USB power...\n";
+	system("uhubctl -l 3-1 -p 1 -a off && sleep 2 && uhubctl -l 3-1 -p 1 -a on") == 0
+		or warn "Failed to toggle modem power\n";
+
+	print "Starting $container_name container...\n";
+	system("docker compose start $container_name") == 0
+		or warn "Failed to start $container_name\n";
+
+	print "Modem reset completed.\n";
 }
 
 # -------- Watch docker logs --------
@@ -65,9 +83,14 @@ while (1) {
 	while (my $line = <$fh>) {
 		chomp $line;
 
-		if (!$email_sent && $line =~ /\Q$search_text\E/) {
+		if (!$alert_sent && $line =~ /\Q$search_text\E/) {
 			print "Detected modem error: $line\n";
+
+			# Send email once
 			send_email_once($line);
+
+			# Stop container, power cycle USB, start container
+			toggle_modem_power_with_container_restart();
 		}
 	}
 
