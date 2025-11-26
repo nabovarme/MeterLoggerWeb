@@ -133,6 +133,19 @@ services:
       SMSD_PORT: ${SMSD_PORT}
       TZ: 'Europe/Copenhagen'
 
+  log-watcher:
+    build: ./log-watcher
+    depends_on:
+      - smsd
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      TO_EMAIL: ${TO_EMAIL}
+
   meter_sms:
     build:
         context: '.'
