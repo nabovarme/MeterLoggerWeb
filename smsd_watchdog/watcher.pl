@@ -38,11 +38,15 @@ sub send_email_once {
 	my ($msg) = @_;
 	return if $alert_sent;
 
+# Connect to SMTP server
+	# Note: if connecting via IP, STARTTLS will fail certificate verification.
+	# Setting SSL_verify_mode => 0 disables verification (insecure), only use if you trust the network.
 	my $smtp = Net::SMTP->new(
 		$smtp_host,
-		Port	=> $smtp_port,
+		Port    => $smtp_port,
 		Timeout => 20,
 		Debug   => 0,
+		SSL_verify_mode => 0,  # WARNING: disables TLS certificate verification
 	) or do {
 		warn "SMTP connect failed\n";
 		return;
