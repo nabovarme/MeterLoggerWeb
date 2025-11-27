@@ -90,7 +90,7 @@ while (1) {
 			send_email_once($line);
 
 			# Stop container, power cycle USB, start container
-			toggle_modem_power_with_container_restart();
+#			toggle_modem_power_with_container_restart();
 		}
 	}
 
