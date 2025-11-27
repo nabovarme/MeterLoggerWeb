@@ -70,18 +70,18 @@ RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 
 COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
-COPY ./crontab /etc/
+COPY ./meter_cron/crontab /etc/
 
 RUN chmod 0644 /etc/crontab && \
 	touch /var/log/cron.log
 
-COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
-COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
-COPY ./clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
-COPY ./wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
-COPY ./update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
-COPY ./remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
+COPY ./meter_cron/update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
+COPY ./meter_cron/clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
+COPY ./meter_cron/clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
+COPY ./meter_cron/wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
+COPY ./meter_cron/update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
+COPY ./meter_cron/remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
 
-COPY ./docker-entrypoint_cron.sh /docker-entrypoint.sh
+COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]

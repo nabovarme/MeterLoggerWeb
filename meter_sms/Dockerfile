@@ -86,17 +86,17 @@ RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 RUN mkdir /var/www/nabovarme
 RUN chown www-data:www-data /var/www/nabovarme
 
-COPY ./smtp_send_test.pl /
+COPY ./meter_sms/smtp_send_test.pl /
 
 COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 
-COPY ./meter_notify.pl /etc/apache2/perl/Nabovarme/bin/meter_notify.pl
-COPY ./meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
-COPY ./sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
-COPY ./smstools_send.pl /etc/apache2/perl/Nabovarme/bin/smstools_send.pl
+COPY ./meter_sms/meter_notify.pl /etc/apache2/perl/Nabovarme/bin/meter_notify.pl
+COPY ./meter_sms/meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl
+COPY ./meter_sms/sms_code_queue_watcher.sh /etc/apache2/perl/Nabovarme/bin/sms_code_queue_watcher.sh
+COPY ./meter_sms/smstools_send.pl /etc/apache2/perl/Nabovarme/bin/smstools_send.pl
 
-COPY ./docker-entrypoint_meter_sms.sh /docker-entrypoint.sh
+COPY ./meter_sms/docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN mkdir /var/www/nabovarme/sms_spool
 RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
