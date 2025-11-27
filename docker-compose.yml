@@ -70,8 +70,8 @@ services:
 
   meter_grapher:
     build:
-        context: '.'
-        dockerfile: 'Dockerfile.meter_grapher'
+      context: .
+      dockerfile: ./meter_grapher/Dockerfile
     depends_on:
       - db
       - redis

@@ -69,10 +69,10 @@ RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 
-COPY ./mqtt_to_redis.pl /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl
-COPY ./meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
+COPY ./meter_grapher/mqtt_to_redis.pl /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl
+COPY ./meter_grapher/meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
 
-COPY ./docker-entrypoint_meter_grapher.sh /docker-entrypoint.sh
+COPY ./meter_grapher/docker-entrypoint.sh /docker-entrypoint.sh
 
 CMD /docker-entrypoint.sh
 
