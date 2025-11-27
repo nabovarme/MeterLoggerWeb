@@ -38,7 +38,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
 
 COPY ./smsd.conf /etc/smsd.conf
 COPY ./smtp_server.pl .
-COPY ./docker-entrypoint_smsd.sh /docker-entrypoint.sh
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN mkdir -p /var/run/smstools
 RUN chown smsd:smsd /var/run/smstools

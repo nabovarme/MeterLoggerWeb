@@ -17,6 +17,7 @@ my @error_patterns = (
 	qr/CME ERROR/i,
 	qr/Message not sent/i,
 	qr/Giving up/i,
+	qr/Killed by signal/i
 );
 
 # ---- SMTP config ----

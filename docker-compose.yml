@@ -120,9 +120,7 @@ services:
       TZ: 'Europe/Copenhagen'
 
   smsd:
-    build:
-        context: '.'
-        dockerfile: 'Dockerfile.smsd'
+    build: ./smsd
     container_name: smsd
     privileged: true
     volumes:
@@ -154,8 +152,8 @@ services:
 
   meter_sms:
     build:
-        context: '.'
-        dockerfile: 'Dockerfile.meter_sms'
+      context: .
+      dockerfile: ./meter_sms/Dockerfile
     depends_on:
       - db
       - mqtt
@@ -173,8 +171,8 @@ services:
 
   meter_cron:
     build:
-        context: '.'
-        dockerfile: 'Dockerfile.meter_cron'
+      context: .
+      dockerfile: ./meter_sms/Dockerfile
     depends_on:
       - db
       - mqtt
