@@ -133,8 +133,8 @@ services:
       SMSD_PORT: ${SMSD_PORT}
       TZ: 'Europe/Copenhagen'
 
-  log-watcher:
-    build: ./log-watcher
+  smsd_watchdog:
+    build: ./smsd_watchdog
     depends_on:
       - smsd
     volumes:
@@ -142,6 +142,7 @@ services:
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
+    restart: always
     environment:
       SMTP_SERVER: ${SMTP_SERVER}
       SMTP_PORT: ${SMTP_PORT}
