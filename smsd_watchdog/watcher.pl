@@ -5,14 +5,26 @@ use warnings;
 use Net::SMTP;
 
 my $container_name = "smsd";
-my $search_text  = "MODEM IS NOT REGISTERED";
+
+# Watch for registration errors AND SMS sending failures
+my @error_patterns = (
+	qr/MODEM IS NOT REGISTERED/i,
+	qr/Modem is not registered to the network/i,
+	qr/FAILED/i,
+	qr/REJECTED/i,
+	qr/SENDING FAILED/i,
+	qr/CMS ERROR/i,
+	qr/CME ERROR/i,
+	qr/Message not sent/i,
+	qr/Giving up/i,
+);
 
 # ---- SMTP config ----
 my $smtp_host = $ENV{SMTP_SERVER}	|| 'smtp.example.com';
-my $smtp_port = $ENV{SMTP_PORT}	  || 587;	 # STARTTLS port
-my $smtp_user = $ENV{SMTP_USER}	  || 'user@example.com';
-my $smtp_pass = $ENV{SMTP_PASSWORD}  || 'password';
-my $to_email  = $ENV{TO_EMAIL}	   || 'alert@example.com';
+my $smtp_port = $ENV{SMTP_PORT}		|| 587;   # STARTTLS port
+my $smtp_user = $ENV{SMTP_USER}		|| 'user@example.com';
+my $smtp_pass = $ENV{SMTP_PASSWORD}	|| 'password';
+my $to_email  = $ENV{TO_EMAIL}		|| 'alert@example.com';
 
 # Prevent multiple emails
 my $alert_sent = 0;
@@ -33,9 +45,7 @@ sub send_email_once {
 	};
 
 	# Try STARTTLS if supported (optional but preferred)
-	eval {
-		$smtp->starttls();
-	};
+	eval { $smtp->starttls(); };
 
 	unless ($smtp->auth($smtp_user, $smtp_pass)) {
 		warn "SMTP auth failed\n";
@@ -48,7 +58,7 @@ sub send_email_once {
 	$smtp->data();
 	$smtp->datasend("To: $to_email\n");
 	$smtp->datasend("From: $smtp_user\n");
-	$smtp->datasend("Subject: Modem alert detected\n");
+	$smtp->datasend("Subject: Modem/SMS alert detected\n");
 	$smtp->datasend("\n$msg\n");
 	$smtp->dataend();
 	$smtp->quit();
@@ -88,14 +98,17 @@ while (1) {
 	while (my $line = <$fh>) {
 		chomp $line;
 
-		if (!$alert_sent && $line =~ /\Q$search_text\E/) {
-			print "Detected modem error: $line\n";
+		foreach my $pattern (@error_patterns) {
+			if (!$alert_sent && $line =~ $pattern) {
+				print "Detected error: $line\n";
 
-			# Send email once
-			send_email_once($line);
+				# Send email once
+				send_email_once($line);
 
-			# Stop container, power cycle USB, start container
-			# toggle_modem_power_with_container_restart();
+				# Stop container, power cycle USB, start container
+				# toggle_modem_power_with_container_restart();
+				last;
+			}
 		}
 	}
 
