@@ -58,6 +58,7 @@ services:
       TZ: 'Europe/Copenhagen'
 
   certbot:
+    container_name: certbot
     image: certbot/certbot
     volumes:
       - ./certbot/etc:/etc/letsencrypt
@@ -134,6 +135,7 @@ services:
       TZ: 'Europe/Copenhagen'
 
   smsd_watchdog:
+    container_name: smsd_watchdog
     build: ./smsd_watchdog
     depends_on:
       - smsd
