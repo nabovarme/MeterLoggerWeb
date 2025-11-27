@@ -87,8 +87,8 @@ services:
 
   mysql_mqtt_command_queue_receive:
     build:
-        context: '.'
-        dockerfile: 'Dockerfile.mysql_mqtt_command_queue_receive'
+        context: .
+        dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
     depends_on:
       - db
       - mqtt
@@ -104,8 +104,8 @@ services:
 
   mysql_mqtt_command_queue_send:
     build:
-        context: '.'
-        dockerfile: 'Dockerfile.mysql_mqtt_command_queue_send'
+        context: .
+        dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
     depends_on:
       - db
       - mqtt

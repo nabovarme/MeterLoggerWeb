@@ -69,7 +69,7 @@ RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
 COPY ./perl /etc/apache2/perl
 COPY ./Nabovarme.conf /etc/
 
-COPY ./mysql_mqtt_command_queue_receive.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
+COPY ./mysql_mqtt_command_queue_send/mysql_mqtt_command_queue_send.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
 
-CMD /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
+CMD /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
 
