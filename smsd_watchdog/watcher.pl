@@ -2,17 +2,17 @@
 
 use strict;
 use warnings;
-use Net::SMTP::SSL;
+use Net::SMTP;
 
 my $container_name = "smsd";
-my $search_text	= "MODEM IS NOT REGISTERED";
+my $search_text  = "MODEM IS NOT REGISTERED";
 
 # ---- SMTP config ----
 my $smtp_host = $ENV{SMTP_SERVER}	|| 'smtp.example.com';
-my $smtp_port = $ENV{SMTP_PORT}		|| 465;
-my $smtp_user = $ENV{SMTP_USER}		|| 'user@example.com';
-my $smtp_pass = $ENV{SMTP_PASSWORD}	|| 'password';
-my $to_email  = $ENV{TO_EMAIL}		|| 'alert@example.com';
+my $smtp_port = $ENV{SMTP_PORT}	  || 587;	 # STARTTLS port
+my $smtp_user = $ENV{SMTP_USER}	  || 'user@example.com';
+my $smtp_pass = $ENV{SMTP_PASSWORD}  || 'password';
+my $to_email  = $ENV{TO_EMAIL}	   || 'alert@example.com';
 
 # Prevent multiple emails
 my $alert_sent = 0;
@@ -20,16 +20,21 @@ my $alert_sent = 0;
 # ---- Send single email ----
 sub send_email_once {
 	my ($msg) = @_;
-
 	return if $alert_sent;
 
-	my $smtp = Net::SMTP::SSL->new(
+	my $smtp = Net::SMTP->new(
 		$smtp_host,
 		Port	=> $smtp_port,
 		Timeout => 20,
+		Debug   => 0,
 	) or do {
 		warn "SMTP connect failed\n";
 		return;
+	};
+
+	# Try STARTTLS if supported (optional but preferred)
+	eval {
+		$smtp->starttls();
 	};
 
 	unless ($smtp->auth($smtp_user, $smtp_pass)) {
@@ -90,7 +95,7 @@ while (1) {
 			send_email_once($line);
 
 			# Stop container, power cycle USB, start container
-#			toggle_modem_power_with_container_restart();
+			# toggle_modem_power_with_container_restart();
 		}
 	}
 
