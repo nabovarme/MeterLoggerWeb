@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use Net::SMTP;
 
+$| = 1;  # disable STDOUT buffering
+
 my $container_name = "smsd";
 
 # Watch for registration errors AND SMS sending failures
@@ -17,7 +19,8 @@ my @error_patterns = (
 	qr/CME ERROR/i,
 	qr/Message not sent/i,
 	qr/Giving up/i,
-	qr/Killed by signal/i
+	qr/Killed by signal/i,
+	qr/Couldn't open serial port/
 );
 
 # ---- SMTP config ----

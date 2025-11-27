@@ -130,6 +130,7 @@ services:
     environment:
       SMSD_HOST: ${SMSD_HOST}
       SMSD_PORT: ${SMSD_PORT}
+      SMSD_DEVICE: ${SMSD_DEVICE}
       TZ: 'Europe/Copenhagen'
 
   smsd_watchdog:
