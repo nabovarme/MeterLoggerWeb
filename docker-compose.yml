@@ -52,9 +52,9 @@ services:
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   certbot:
@@ -80,9 +80,9 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   mysql_mqtt_command_queue_receive:
@@ -97,9 +97,9 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   mysql_mqtt_command_queue_send:
@@ -114,9 +114,9 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   smsd:
@@ -165,9 +165,9 @@ services:
 #      - ./sms/outgoing:/var/spool/sms/outgoing
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   meter_cron:
@@ -182,9 +182,9 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
-      METERLOGGER_DB_HOST: db:3306
-      METERLOGGER_DB_USER: nabovarme
-      METERLOGGER_DB_PASSWORD: seesha9eisheM1mo
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   redis:
@@ -236,6 +236,6 @@ services:
       - ./my.cnf:/etc/mysql/my.cnf
       - ./backup:/home/meterlogger/backup
     environment:
-      METERLOGGER_DB_HOST: db
-      MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
