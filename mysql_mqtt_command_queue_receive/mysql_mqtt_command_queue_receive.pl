@@ -133,8 +133,9 @@ sub mqtt_handler {
 					warn "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue\n";
 					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue");
 					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
-						AND `function` LIKE ] . $dbh->quote($function) . qq[\ 
-						AND `param` <= ] . ($cleartext + 1)) or warn $!;
+						AND `function` LIKE ] . $dbh->quote($function) . qq[ \ 
+						AND `param` > ] . ($cleartext - 1) . qq[ \
+						AND `param` < ] . ($cleartext + 1)) or warn $!;
 				}
 				else {
 					warn "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value\n";
@@ -148,8 +149,6 @@ sub mqtt_handler {
 				# do mysql stuff here
 				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
 					AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
-				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
-					AND `function` LIKE ] . $dbh->quote($cleartext)) or warn $!;
 				return;
 			}
 
