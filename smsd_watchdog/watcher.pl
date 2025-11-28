@@ -17,7 +17,6 @@ my $last_reset_time = 0;
 
 # Watch for registration errors AND SMS sending failures (partial match)
 my @error_patterns = (
-	qr/REGISTERED/i,
 	qr/FAILED/i,
 	qr/REJECTED/i,
 	qr/CMS ERROR/i,
