@@ -93,6 +93,12 @@ COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
 USER meterlogger
 WORKDIR /home/meterlogger
 
+RUN echo 'shopt -s histappend' >> /home/meterlogger/.bashrc && \
+	echo 'PROMPT_COMMAND="history -a; history -n; $PROMPT_COMMAND"' >> /home/meterlogger/.bashrc && \
+	echo 'export HISTFILE=/home/meterlogger/.bash_history' >> /home/meterlogger/.bashrc && \
+	echo 'export HISTSIZE=1000000' >> /home/meterlogger/.bashrc && \
+	echo 'export HISTFILESIZE=1000000' >> /home/meterlogger/.bashrc
+
 # Copy application scripts
 COPY ./perl perl
 COPY ./utils/mqtt_log_all.pl mqtt_log_all.pl
