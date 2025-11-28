@@ -88,7 +88,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 RUN useradd -ms /bin/bash meterlogger
 
 # Copy entrypoint script
-COPY ./docker-entrypoint_utils.sh /docker-entrypoint.sh
+COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
 
 USER meterlogger
 WORKDIR /home/meterlogger
