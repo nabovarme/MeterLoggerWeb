@@ -20,10 +20,10 @@ services:
       timeout: 20s
       retries: 10
     environment:
-      MYSQL_ROOT_PASSWORD: beu2pho4Ahkaeshu
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: nabovarme
-      MYSQL_USER: nabovarme
-      MYSQL_PASSWORD: seesha9eisheM1mo
+      MYSQL_USER: ${METERLOGGER_DB_USER}
+      MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
   mqtt:
