@@ -209,9 +209,7 @@ services:
       TZ: 'Europe/Copenhagen'
 
   openresty:
-    build:
-      context: .
-      dockerfile: Dockerfile.openresty
+    build: ./openresty
     container_name: openresty
     depends_on:
       - web
