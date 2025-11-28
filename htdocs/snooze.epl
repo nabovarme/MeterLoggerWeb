@@ -12,19 +12,33 @@ sub human_duration {
     my $seconds = shift;
     return '' unless defined $seconds;
 
+    my $value;
+    my $unit;
+
     if ($seconds < 60) {
-        return "$seconds seconds";
+        $value = $seconds;
+        $unit  = 'second';
     } elsif ($seconds < 3600) {
-        return int($seconds/60) . " minutes";
+        $value = int($seconds / 60);
+        $unit  = 'minute';
     } elsif ($seconds < 86400) {
-        return int($seconds/3600) . " hours";
+        $value = int($seconds / 3600);
+        $unit  = 'hour';
     } elsif ($seconds < 604800) {
-        return int($seconds/86400) . " days";
+        $value = int($seconds / 86400);
+        $unit  = 'day';
     } elsif ($seconds < 2678400) {
-        return int($seconds/604800) . " weeks";
+        $value = int($seconds / 604800);
+        $unit  = 'week';
     } else {
-        return int($seconds/2678400) . " months";
+        $value = int($seconds / 2678400);
+        $unit  = 'month';
     }
+
+    # add 's' if value is not 1
+    $unit .= 's' if $value != 1;
+
+    return "$value $unit";
 }
 
 if ($fdat{'auth'}) {
