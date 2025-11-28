@@ -22,6 +22,29 @@ docker exec -it db /nabovarme_import.sh
 docker exec -it db /nabovarme_triggers.sh
 ```
 
+
+---
+
+## ⚙️ Environment Configuration (`.env`)
+
+MeterLoggerWeb uses environment variables for configuration. You can create a `.env` file in the project root based on `.env.example`. This file contains settings for SMTP, SMS device, and database credentials.
+
+Example `.env`:
+
+```env
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=yourmail@gmail.com
+SMTP_PASSWORD=yourpassword
+TO_EMAIL=alert@example.com
+
+SMSD_DEVICE=@10.8.0.66:2001
+
+METERLOGGER_DB_HOST=db:3306
+METERLOGGER_DB_USER=nabovarme
+METERLOGGER_DB_PASSWORD=secret
+MYSQL_ROOT_PASSWORD=secret
+
 ---
 
 ## 📌 Built-in / Static Variables
