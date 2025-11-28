@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e
 
 # Use SMSD_DEVICE env variable or default if not set
