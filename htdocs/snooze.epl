@@ -7,6 +7,26 @@ use Nabovarme::Db;
 
 $is_authorized = 0;
 
+# Function to convert seconds into human-readable string
+sub human_duration {
+    my $seconds = shift;
+    return '' unless defined $seconds;
+
+    if ($seconds < 60) {
+        return "$seconds seconds";
+    } elsif ($seconds < 3600) {
+        return int($seconds/60) . " minutes";
+    } elsif ($seconds < 86400) {
+        return int($seconds/3600) . " hours";
+    } elsif ($seconds < 604800) {
+        return int($seconds/86400) . " days";
+    } elsif ($seconds < 2678400) {
+        return int($seconds/604800) . " weeks";
+    } else {
+        return int($seconds/2678400) . " months";
+    }
+}
+
 if ($fdat{'auth'}) {
 	if ($dbh = Nabovarme::Db->my_connect) {
 		my $quoted_serial = $dbh->quote($fdat{'serial'});
@@ -16,62 +36,63 @@ if ($fdat{'auth'}) {
 		$sth = $dbh->prepare(qq[SELECT * FROM alarms \
 			WHERE `serial` LIKE $quoted_serial AND `snooze_auth_key` LIKE $quoted_snooze_auth_key]);
 		$sth->execute;
-	
 	}
 	
 	if ($sth->rows) {
 		if ($d = $sth->fetchrow_hashref) {
 			$is_authorized = 1;
 			$dbh->do(qq[UPDATE alarms SET snooze = ] . $dbh->quote($fdat{'snooze'}) . qq[ WHERE `id` = ] . $d->{id}) || warn $!;
+			$human_delay = human_duration($fdat{'snooze'});
 			warn Dumper $d;
 		}
 	}
 }
 -] 
-	<HEAD>
-		<meta name="robots" content="noindex">
-		<meta name="viewport" content="width=600, initial-scale=2">
-		<TITLE>MeterLogger Snoozed</TITLE>
-		<style type="text/css">
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-		.default-small {
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 50%;
-		}
-		.default-bold {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-		}
-		.default-highlight {
-			font-family: Verdana, Geneva, sans-serif;
-			background-color:#FFFF00;
-		}
-		</style>
-	</HEAD>
-	<BODY>
-		[$ if ($is_authorized) $]
-			<span class="default">Snoozed</span><br>
-			  <form method="GET" action="">
-					<select name="snooze">
-						<option value="300">5 min</option>
-						<option value="1800">30 min</option>
-						<option value="3600">1 hour</option>
-						<option value="86400">1 day</option>
-						<option value="604800">1 week</option>
-						<option value="2678400">1 month</option>	# 31 days
-					</select>
+<HEAD>
+	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=600, initial-scale=2">
+	<TITLE>MeterLogger Alarm Deferred</TITLE>
+	<style type="text/css">
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-small {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 50%;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-highlight {
+		font-family: Verdana, Geneva, sans-serif;
+		background-color:#FFFF00;
+	}
+	</style>
+</HEAD>
+<BODY>
+	[$ if ($is_authorized && $fdat{'update'}) $]
+		<span class="default">Alarm has been deferred for [+ $human_delay +].</span><br>
 
-					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-					<input type="hidden" name="auth" value="[+ $fdat{auth} +]">
-					<input type="submit" name="update" value="Snooze" style="width: 100px;">
-			  </form>
-		[$ else $]
-			<span class="default">Not found</span>
-		[$ endif $]
-		<br>
-		<br>
-	</BODY>
+	[$ elsif ($is_authorized) $]
+		<span class="default">Alarm ready to defer</span><br>
+		<form method="GET" action="">
+			<select name="snooze">
+				<option value="300">5 min</option>
+				<option value="1800">30 min</option>
+				<option value="3600">1 hour</option>
+				<option value="86400">1 day</option>
+				<option value="604800">1 week</option>
+				<option value="2678400">1 month</option>
+			</select>
+
+			<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+			<input type="hidden" name="auth" value="[+ $fdat{auth} +]">
+			<input type="submit" name="update" value="Defer" style="width: 100px;">
+		</form>
+	[$ else $]
+		<span class="default">Not found</span>
+	[$ endif $]
+	<br><br>
+</BODY>
 </HTML>
-
