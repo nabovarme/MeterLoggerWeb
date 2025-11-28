@@ -51,7 +51,7 @@ if ($fdat{'auth'}) {
 <HEAD>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=600, initial-scale=2">
-	<TITLE>MeterLogger Alarm Delayed</TITLE>
+	<TITLE>MeterLogger Snoozed</TITLE>
 	<style type="text/css">
 	.default {
 		font-family: Verdana, Geneva, sans-serif;
@@ -72,10 +72,10 @@ if ($fdat{'auth'}) {
 </HEAD>
 <BODY>
 	[$ if ($is_authorized && $fdat{'update'}) $]
-		<span class="default">Alarm delayed for [+ $human_delay +].</span><br>
+		<span class="default">Alarm snoozed for [+ $human_delay +].</span><br>
 
 	[$ elsif ($is_authorized) $]
-		<span class="default">Delay alarm</span><br>
+		<span class="default">Snooze alarm</span><br>
 		<form method="GET" action="">
 			<select name="snooze">
 				<option value="300">5 min</option>
@@ -88,7 +88,7 @@ if ($fdat{'auth'}) {
 
 			<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 			<input type="hidden" name="auth" value="[+ $fdat{auth} +]">
-			<input type="submit" name="update" value="Delay" style="width: 100px;">
+			<input type="submit" name="update" value="Snooze" style="width: 100px;">
 		</form>
 	[$ else $]
 		<span class="default">Not found</span>
