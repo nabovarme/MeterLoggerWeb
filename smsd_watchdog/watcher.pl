@@ -87,6 +87,9 @@ sub reset_modem_and_restart_container {
 		or warn "Failed to restart container $container_name\n";
 
 	print "Modem reset and container restart completed.\n";
+	
+	# Reset alert flag to allow new errors to trigger
+	$alert_sent = 0;
 }
 
 # -------- Watch docker logs --------
