@@ -227,7 +227,7 @@ services:
   utils:
     build:
         context: '.'
-        dockerfile: 'Dockerfile.utils'
+        dockerfile: ./utils/Dockerfile
     container_name: utils
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
