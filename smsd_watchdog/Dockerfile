@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
 	libnet-smtp-ssl-perl \
 	ca-certificates \
 	uhubctl \
+	usb-modeswitch \
 	libusb-1.0-0 \
 	curl
 
