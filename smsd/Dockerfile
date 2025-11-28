@@ -42,11 +42,7 @@ COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN mkdir -p /var/run/smstools
 RUN chown smsd:smsd /var/run/smstools
-RUN mkdir -p checked
-RUN mkdir -p failed
-RUN mkdir -p incoming
-RUN mkdir -p outgoing
-RUN mkdir -p sent
+RUN mkdir -p /var/spool/sms/{outgoing,failed,incoming,checked,sent}
 RUN chown -R smsd:smsd /var/spool/sms
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]
