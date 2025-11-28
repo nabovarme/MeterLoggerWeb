@@ -42,158 +42,177 @@ sub sig_int_handler {
 	die $!;
 }
 
+# --------------------
+# MQTT message handler
+# --------------------
 sub mqtt_handler {
 	my ($topic, $message) = @_;
-	
 	my $t0 = [gettimeofday()];
-	my $sw_version;
+
+	# Extract meter_serial and unix_time
 	unless ($topic =~ m!/[^/]+/v2/([^/]+)/(\d+)!) {
 		return;
 	}
-	
 	my $meter_serial = $1;
 	my $unix_time = $2;
 
-	# only react to meters we have sent a mqtt function to
-	$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	# Only react to meters with commands in queue
+	$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
+		WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+		LIMIT 1 \
+	]);
 	$sth->execute;
-	unless ($sth->rows) {
-		return;
-	}
-#	print Dumper tv_interval($t0);
-	
-	$message =~ /(.{32})(.{16})(.+)/s;
+	return unless $sth->rows;
 
-	my $key = '';
+	# Extract mac, iv, ciphertext
+	$message =~ /(.{32})(.{16})(.+)/s;
 	my $mac = $1;
 	my $iv = $2;
 	my $ciphertext = $3;
 
+	# Extract function from topic
 	my ($function) = $topic =~ m!/([^/]+)!;
-	if ($function =~ /^config$/i) {
-		return;
-	}
+	return if $function =~ /^config$/i;
 
+	# Get AES key from cache or DB
+	my $key = '';
 	if (exists($key_cache->{$meter_serial}) && ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
 		$key = $key_cache->{$meter_serial}->{key};
-	}
-	else {
-		$sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
+	} else {
+		$sth = $dbh->prepare(qq[SELECT `key` FROM meters \
+			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+			LIMIT 1 \
+		]);
 		$sth->execute;
 		if ($sth->rows) {
 			$d = $sth->fetchrow_hashref;
 			$key_cache->{$meter_serial}->{key} = $d->{key};
 			$key_cache->{$meter_serial}->{cached_time} = time();
-
-			$key = $d->{key} || warn "no aes key found\n";
+			$key = $d->{key} || warn "No AES key found\n";
 		}
 	}
 
-	if ($key) {
-		# handle special case
-		if ($function =~ /^scan_result$/i) {
-			warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-			syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-			# do mysql stuff here
-			$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE 'scan']) or warn $!;
+	return unless $key;
+
+	# --------------------
+	# scan_result special case
+	# --------------------
+	if ($function =~ /^scan_result$/i) {
+		warn "Received MQTT reply from $meter_serial: $function, deleting from MySQL queue\n";
+		syslog('info', "Received MQTT reply from $meter_serial: $function, deleting from MySQL queue");
+		$dbh->do(qq[DELETE FROM command_queue \
+			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+			AND function = 'scan' \
+		]) or warn $!;
+		return;
+	}
+
+	# Decrypt message
+	my $sha256 = sha256(pack('H*', $key));
+	my $aes_key = substr($sha256, 0, 16);
+	my $hmac_sha256_key = substr($sha256, 16, 16);
+
+	if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
+		my $m = Crypt::Mode::CBC->new('AES');
+		my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
+		$cleartext =~ s/[\x00\s]+$//; # remove trailing nulls
+
+		# Only react to functions we have sent commands for
+		$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
+			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+			AND function = ] . $dbh->quote($function) . qq[ \
+			LIMIT 1 \
+		]);
+		$sth->execute;
+		return unless $sth->rows;
+
+		# --------------------
+		# open_until special case
+		# --------------------
+		if ($function =~ /^open_until/i) {
+			my $tolerance = 1;
+			$sth = $dbh->prepare(qq[SELECT id FROM command_queue \
+				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				AND function = ] . $dbh->quote($function) . qq[ \
+				AND param > ] . ($cleartext - $tolerance) . qq[ \
+				AND param < ] . ($cleartext + $tolerance) . qq[ \
+				LIMIT 1 \
+			]);
+			$sth->execute;
+
+			if ($sth->rows) {
+				my $row = $sth->fetchrow_hashref;
+				$dbh->do(qq[DELETE FROM command_queue \
+					WHERE id = ] . $row->{id} . qq[ \
+				]) or warn $!;
+				warn "Deleted open_until command for $meter_serial, param: $cleartext";
+				syslog('info', "Deleted open_until command for $meter_serial, param: $cleartext");
+			} else {
+				warn "No matching open_until command found for $meter_serial, param: $cleartext";
+				syslog('info', "No matching open_until command found for $meter_serial, param: $cleartext");
+			}
 			return;
 		}
-		
-		my $sha256 = sha256(pack('H*', $key));
-		my $aes_key = substr($sha256, 0, 16);
-		my $hmac_sha256_key = substr($sha256, 16, 16);
-		
-		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-			# hmac sha256 ok
-			my $m = Crypt::Mode::CBC->new('AES');
-			my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
-			# remove trailing nulls
-			$cleartext =~ s/[\x00\s]+$//;
-			$cleartext .= '';
 
-			# only react to functions we have sent a mqtt function for
-			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
-			$sth->execute;
-			unless ($sth->rows) {
-				return;
-			}
-			
-			# handle special case
-			if ($function =~ /^open_until/i) {
-				# do mysql stuff here
-				# if open_until parameter matches the one sent to meter
-				$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue \
-					WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-					AND `function` LIKE ] . $dbh->quote($function) . qq[ \
-					AND `param` > ] . ($cleartext - 1) . qq[ \
-					AND `param` < ] . ($cleartext + 1) . qq[ \
-					LIMIT 1]);
-				$sth->execute;
-				if ($sth->rows) {
-					warn "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue\n";
-					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext, deleting from mysql queue");
-					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
-						AND `function` LIKE ] . $dbh->quote($function) . qq[ \ 
-						AND `param` > ] . ($cleartext - 1) . qq[ \
-						AND `param` < ] . ($cleartext + 1)) or warn $!;
-				}
-				else {
-					warn "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value\n";
-					syslog('info', "received mqtt reply from $meter_serial: $function, param: $cleartext not matching queue value");
-				}
-				return;
-			}
-			if ($function =~ /^status$/i) {
-				warn "received mqtt reply from $meter_serial: $function, deleting from mysql queue\n";
-				syslog('info', "received mqtt reply from $meter_serial: $function, deleting from mysql queue");
-				# do mysql stuff here
-				$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ \
-					AND `function` LIKE ] . $dbh->quote($function)) or warn $!;
-				return;
-			}
+		# --------------------
+		# status special case
+		# --------------------
+		if ($function =~ /^status$/i) {
+			$dbh->do(qq[DELETE FROM command_queue \
+				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				AND function = ] . $dbh->quote($function) . qq[ \
+			]) or warn $!;
+			warn "Deleted status command for $meter_serial";
+			syslog('info', "Deleted status command for $meter_serial");
+			return;
+		}
 
-			# handle general case
-#			$sth = $dbh->prepare(qq[SELECT `serial` FROM command_queue WHERE serial = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ LIMIT 1]);
+		# --------------------
+		# General case
+		# --------------------
+		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
+			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+			AND function = ] . $dbh->quote($function) . qq[ \
+			AND state = 'sent' \
+		]);
+		$sth->execute;
 
-			# mark it for deletion
-			$sth = $dbh->prepare(qq[SELECT `id`, `has_callback` FROM command_queue \
-				WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ AND `state` = 'sent']);
-			$sth->execute;
-			if ($d = $sth->fetchrow_hashref) {
-				if ($d->{has_callback}) {
-					warn "mark serial $meter_serial, command $function for deletion\n";
-					syslog('info', "mark serial $meter_serial, command $function for deletion");
-					$dbh->do(qq[UPDATE command_queue SET \
-						`state` = 'received', \
-					    `param` = ] . $dbh->quote($cleartext) . qq[ \
-						WHERE `id` = ] . $d->{id}) or warn $!;
-				}
-				else {
-					# delete if has_callback not set
-					warn "deleting serial $meter_serial, command $function from mysql queue\n";
-					syslog('info', "deleting serial $meter_serial, command $function from mysql queue");
-#					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
-					$dbh->do(qq[DELETE FROM command_queue WHERE `serial` = ] . $dbh->quote($meter_serial) . qq[ AND `function` LIKE ] . $dbh->quote($function) . qq[ AND `state` = 'sent']);
-				}
+		if ($d = $sth->fetchrow_hashref) {
+			if ($d->{has_callback}) {
+				warn "Marking serial $meter_serial, command $function for deletion\n";
+				syslog('info', "Marking serial $meter_serial, command $function for deletion");
+				$dbh->do(qq[UPDATE command_queue SET \
+					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
+					WHERE id = ] . $d->{id} . qq[ \
+				]) or warn $!;
+			} else {
+				warn "Deleting serial $meter_serial, command $function from MySQL queue\n";
+				syslog('info', "Deleting serial $meter_serial, command $function from MySQL queue");
+				$dbh->do(qq[DELETE FROM command_queue \
+					WHERE id = ] . $d->{id} . qq[ \
+				]) or warn $!;
 			}
 		}
-		else {
-			# hmac sha256 not ok
-			warn "serial $meter_serial checksum error\n";  
-			syslog('info', "serial $meter_serial checksum error");     
-		}
+
+	} else {
+		warn "Serial $meter_serial checksum error\n";  
+		syslog('info', "Serial $meter_serial checksum error");	 
 	}
 }
 
-# connect to db
+# --------------------
+# Connect to DB
+# --------------------
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-}
-else {
-	syslog('info', "cant't connect to db $!");
+} else {
+	syslog('info', "Can't connect to DB: $!");
 	die $!;
 }
 
+# --------------------
+# Subscribe to topics
+# --------------------
 $subscribe_mqtt->subscribe(q[/cron/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ping/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/version/#], \&mqtt_handler);
