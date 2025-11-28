@@ -173,7 +173,7 @@ services:
   meter_cron:
     build:
       context: .
-      dockerfile: ./meter_sms/Dockerfile
+      dockerfile: ./meter_cron/Dockerfile
     depends_on:
       - db
       - mqtt
