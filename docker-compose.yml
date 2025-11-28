@@ -233,6 +233,7 @@ services:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./my.cnf:/etc/mysql/my.cnf
       - ./backup:/home/meterlogger/backup
+      - ./utils/bash_history:/home/meterlogger/.bash_history
     environment:
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
