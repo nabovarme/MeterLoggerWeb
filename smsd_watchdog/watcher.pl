@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use Net::SMTP;
+use Time::HiRes qw(time);
 
 $| = 1;  # disable STDOUT buffering
 
@@ -10,19 +11,23 @@ my $container_name = "smsd";
 my $usb_vendor = "0x12d1";
 my $usb_product = "0x1001";
 
-# Watch for registration errors AND SMS sending failures
+# Cooldown between resets (seconds)
+my $reset_cooldown = 60;
+my $last_reset_time = 0;
+
+# Watch for registration errors AND SMS sending failures (partial match)
 my @error_patterns = (
-	qr/MODEM IS NOT REGISTERED/i,
-	qr/Modem is not registered to the network/i,
+	qr/REGISTERED/i,
 	qr/FAILED/i,
 	qr/REJECTED/i,
-	qr/SENDING FAILED/i,
 	qr/CMS ERROR/i,
 	qr/CME ERROR/i,
 	qr/Message not sent/i,
 	qr/Giving up/i,
 	qr/Killed by signal/i,
-	qr/Couldn't open serial port/
+	qr/Modem handler/i,
+	qr/serial port/i,
+	qr/No answer/i,
 );
 
 # ---- SMTP config ----
@@ -32,7 +37,7 @@ my $smtp_user = $ENV{SMTP_USER}     || 'user@example.com';
 my $smtp_pass = $ENV{SMTP_PASSWORD} || 'password';
 my $to_email  = $ENV{TO_EMAIL}      || 'alert@example.com';
 
-# Prevent multiple emails
+# Prevent multiple emails for the same error line
 my $alert_sent = 0;
 
 # ---- Send single email ----
@@ -73,13 +78,19 @@ sub send_email_once {
 	$alert_sent = 1;
 }
 
-# ---- Software reset of Huawei modem + Docker restart ----
+# ---- Software reset of Huawei modem + Docker restart with cooldown ----
 sub reset_modem_and_restart_container {
+	my $now = time();
+	if ($now - $last_reset_time < $reset_cooldown) {
+		print "Cooldown active, skipping reset.\n";
+		return;
+	}
+
 	print "Power-cycling Huawei modem via usb_modeswitch...\n";
 	system("usb_modeswitch -v $usb_vendor -p $usb_product -R") == 0
 		or warn "Failed to reset modem via usb_modeswitch\n";
 
-	# Optional wait for modem to reinitialize
+	# wait for modem to reinitialize
 	sleep 5;
 
 	print "Restarting Docker container '$container_name'...\n";
@@ -87,16 +98,19 @@ sub reset_modem_and_restart_container {
 		or warn "Failed to restart container $container_name\n";
 
 	print "Modem reset and container restart completed.\n";
-	
-	# Reset alert flag to allow new errors to trigger
-	$alert_sent = 0;
+
+	$last_reset_time = $now;  # mark last reset
+	$alert_sent = 0;		   # allow future alerts
 }
 
-# -------- Watch docker logs --------
+# -------- Watch docker logs, only new logs --------
 while (1) {
-	print "Watching logs from container: $container_name\n";
+	my $since_time = `date -u +%Y-%m-%dT%H:%M:%S`;
+	chomp $since_time;
 
-	open(my $fh, "-|", "docker logs -f $container_name 2>&1")
+	print "Watching logs from container: $container_name since $since_time\n";
+
+	open(my $fh, "-|", "docker logs -f --since $since_time $container_name 2>&1")
 		or do {
 			warn "Cannot run docker logs: $!\n";
 			sleep 5;
@@ -105,15 +119,16 @@ while (1) {
 
 	while (my $line = <$fh>) {
 		chomp $line;
+		$line =~ s/^\s+|\s+$//g;  # trim whitespace
 
 		foreach my $pattern (@error_patterns) {
-			if (!$alert_sent && $line =~ $pattern) {
+			if ($line =~ $pattern) {
 				print "Detected error: $line\n";
 
-				# Send email once
+				# Send email once per session
 				send_email_once($line);
 
-				# Reset modem and restart container
+				# Reset modem and restart container with cooldown
 				reset_modem_and_restart_container();
 
 				last;
