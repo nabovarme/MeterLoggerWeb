@@ -21,6 +21,7 @@ my @error_patterns = (
 	qr/REJECTED/i,
 	qr/CMS ERROR/i,
 	qr/CME ERROR/i,
+	qr/MODEM IS NOT REGISTERED/i,
 	qr/Message not sent/i,
 	qr/Giving up/i,
 	qr/Killed by signal/i,
