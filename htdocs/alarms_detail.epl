@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		<!-- Alarm form, optionally styled if alarm is active -->
 		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
 			<div class="default-headline"><a href="detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a> [+ $d->{info} +]</div>
-			[$ if ($is_admin) $]<form method="POST">[$ endif $]
+			[$ if ($is_admin) $]<form method="GET">[$ endif $]
 				<input type="hidden" name="id" value="[+ $id +]">
 
 				<!-- Enable/disable alarm checkbox -->
