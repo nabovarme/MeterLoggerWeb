@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+use utf8;
+use open qw(:std :utf8);
+
 use Carp;
 use Encode qw(encode decode is_utf8);
 use Email::Simple;
