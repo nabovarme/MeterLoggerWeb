@@ -98,7 +98,17 @@ sub send_sms {
 	die "SMS HTTP failed: " . $sms->code unless $sms->is_success;
 	my $resp = $sms->decoded_content;
 
-	# Check for success
+	# --- LOGOUT always, regardless of success ---
+	my $logout_json = qq({"logout":"$qsess"});
+	$ua->post(
+		"http://$router/login.cgi",
+		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
+		Content      => $logout_json,
+		Referer      => "http://$router/controlPanel.html",
+		Origin       => "http://$router"
+	);
+
+	# --- Check for success ---
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		return 1;
 	} else {
