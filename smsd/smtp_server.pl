@@ -25,6 +25,10 @@ use constant GROUP => 'smsd';
 
 $| = 1;  # Autoflush STDOUT
 
+$Data::Dumper::Useqq = 0;       # don’t escape non-ASCII
+$Data::Dumper::Terse = 1;       # avoid $VAR1 = ...
+$Data::Dumper::Quotekeys = 0;   # don’t quote hash keys unnecessarily
+
 # --- Read configuration from environment ---
 my $router   = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
 my $username = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
@@ -108,7 +112,7 @@ sub send_sms {
 		phone_list => $phone,
 		authID	  => $authID
 	};
-	print "DEBUG: SMS payload: $payload\n";
+	print "DEBUG: SMS payload: " . Dumper($payload) . "\n";
 	my $json = encode_json($payload);
 
 	my $sms = $ua->post(
