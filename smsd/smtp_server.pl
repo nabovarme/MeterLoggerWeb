@@ -18,6 +18,8 @@ use JSON;
 use constant USER  => 'smsd';
 use constant GROUP => 'smsd';
 
+$| = 1;  # Autoflush STDOUT
+
 # --- Read configuration from environment ---
 my $router   = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
 my $username = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
