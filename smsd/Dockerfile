@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install -y \
 	libnet-smtp-server-perl \
 	libemail-simple-perl \
 	libwww-perl \
-	libjson-perl
+	libjson-perl \
+	libnet-server-mail-perl
 
 USER root
 
