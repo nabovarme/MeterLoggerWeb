@@ -126,4 +126,3 @@ if ($sms->decoded_content =~ /Done|1/) {
     print "❌ SMS failed\n";
 }
 __END__
-my $password  = "DLINK!skuff";  # your admin password
