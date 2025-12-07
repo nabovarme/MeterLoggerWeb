@@ -44,7 +44,10 @@ sub send_sms {
 
 	# --- STEP 1: INIT SESSION ---
 	my $init = $ua->get("http://$router/index.html");
-	die "Failed to init session\n" unless $init->is_success;
+	unless ($init->is_success) {
+		warn "HTTP GET failed: " . $init->status_line;
+		die "Failed to init session\n";
+	}
 
 	# --- STEP 2: LOGIN ---
 	my $md5pass = md5_hex($password);
@@ -131,7 +134,7 @@ while (my $conn = $server->accept()) {
 			print "✔ SMS to $destination sent successfully\n";
 		} else {
 			warn "❌ SMS to $destination failed: $@\n";
-			$client->reject(421 => "SMS gateway temporarily down. Please try again later.");
+			$client->message("421 SMS gateway temporarily down. Please try again later.");
 		}
 	}
 }
