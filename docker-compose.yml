@@ -128,28 +128,28 @@ services:
       - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
     environment:
-      SMSD_HOST: ${SMSD_HOST}
-      SMSD_PORT: ${SMSD_PORT}
-      SMSD_DEVICE: ${SMSD_DEVICE}
+      DLINK_ROUTER_IP: ${DLINK_ROUTER_IP}
+      DLINK_ROUTER_USER: ${DLINK_ROUTER_USER}
+      DLINK_ROUTER_PASS: ${DLINK_ROUTER_PASS}
       TZ: 'Europe/Copenhagen'
 
-  smsd_watchdog:
-    container_name: smsd_watchdog
-    build: ./smsd_watchdog
-    depends_on:
-      - smsd
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    privileged: true
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
-    restart: always
-    environment:
-      SMTP_SERVER: ${SMTP_SERVER}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      TO_EMAIL: ${TO_EMAIL}
+#  smsd_watchdog:
+#    container_name: smsd_watchdog
+#    build: ./smsd_watchdog
+#    depends_on:
+#      - smsd
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    privileged: true
+#    devices:
+#      - /dev/bus/usb:/dev/bus/usb
+#    restart: always
+#    environment:
+#      SMTP_SERVER: ${SMTP_SERVER}
+#      SMTP_PORT: ${SMTP_PORT}
+#      SMTP_USER: ${SMTP_USER}
+#      SMTP_PASSWORD: ${SMTP_PASSWORD}
+#      TO_EMAIL: ${TO_EMAIL}
 
   meter_sms:
     build:
