@@ -25,7 +25,7 @@ my $router   = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env varia
 my $username = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
 my $password = $ENV{DLINK_ROUTER_PASS} // "";
 
-# --- Initialize HTTP client for SMS ---
+# --- Initialize HTTP client for SMS with cookies and headers ---
 my $cookie_jar = HTTP::Cookies->new;
 my $ua = LWP::UserAgent->new(
 	agent	   => "Mozilla/5.0",
@@ -37,19 +37,22 @@ $ua->default_header("Accept-Language"  => "en-GB,en;q=0.9");
 $ua->default_header("Connection"	   => "keep-alive");
 $ua->default_header("X-Requested-With" => "XMLHttpRequest");
 
-# --- Define SMS sending function ---
+# --- Function to send SMS via the router ---
 sub send_sms {
 	my ($phone, $message) = @_;
 	die "Missing phone or message\n" unless $phone && $message;
 
-	# --- STEP 1: INIT SESSION ---
+	# --- STEP 1: Initialize session ---
+	print "DEBUG: Initializing session with router $router\n";
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
 		warn "HTTP GET failed: " . $init->status_line;
 		die "Failed to init session\n";
 	}
+	print "DEBUG: Session initialized successfully\n";
 
-	# --- STEP 2: LOGIN ---
+	# --- STEP 2: Login to router ---
+	print "DEBUG: Logging in as $username\n";
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
 		"http://$router/login.cgi",
@@ -59,22 +62,28 @@ sub send_sms {
 		Origin	   => "http://$router"
 	);
 	die "Login failed\n" unless $login->is_success;
+	print "DEBUG: Login HTTP response code: " . $login->code . "\n";
+	print "DEBUG: Login Set-Cookie: " . ($login->header("Set-Cookie") // '') . "\n";
 
-	# Extract qSessId
+	# --- Extract session ID from login response ---
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
 	die "qSessId not found\n" unless $qsess;
+	print "DEBUG: qSessId obtained: $qsess\n";
 	$cookie_jar->set_cookie(0, "qSessId",	 $qsess, "/", $router);
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
-	# --- STEP 3: GET AUTHID ---
+	# --- STEP 3: Retrieve authorization ID (authID) ---
+	print "DEBUG: Fetching authID\n";
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1",
 		Referer => "http://$router/controlPanel.html");
 	die "Failed to get authID\n" unless $auth_resp->is_success;
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
 	die "Empty authID\n" unless $authID;
+	print "DEBUG: authID obtained: $authID\n";
 
-	# --- STEP 4: SEND SMS ---
+	# --- STEP 4: Send SMS ---
+	print "DEBUG: Sending SMS payload\n";
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
@@ -86,6 +95,7 @@ sub send_sms {
 		authID	  => $authID
 	};
 	my $json = encode_json($payload);
+	print "DEBUG: SMS payload: $json\n";
 
 	my $sms = $ua->post(
 		"http://$router/webpost.cgi",
@@ -95,20 +105,31 @@ sub send_sms {
 		Origin	   => "http://$router"
 	);
 
-	die "SMS HTTP failed: " . $sms->code unless $sms->is_success;
+	# --- Handle HTTP errors for SMS POST ---
+	unless ($sms->is_success) {
+		print "DEBUG: SMS POST failed: " . $sms->status_line . "\n";
+		print "DEBUG: Response content: " . $sms->decoded_content . "\n";
+		die "SMS HTTP failed: " . $sms->code;
+	}
 	my $resp = $sms->decoded_content;
 
-	# --- LOGOUT always, regardless of success ---
+	# --- STEP 5: Logout from router session ---
+	print "DEBUG: Logging out session $qsess\n";
 	my $logout_json = qq({"logout":"$qsess"});
-	$ua->post(
+	my $logout = $ua->post(
 		"http://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 		Content      => $logout_json,
 		Referer      => "http://$router/controlPanel.html",
 		Origin       => "http://$router"
 	);
+	if ($logout->is_success) {
+		print "DEBUG: Logout successful\n";
+	} else {
+		print "DEBUG: Logout failed: " . $logout->status_line . "\n";
+	}
 
-	# --- Check for success ---
+	# --- STEP 6: Verify SMS sent successfully ---
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		return 1;
 	} else {
@@ -126,16 +147,19 @@ my $socket = IO::Socket::INET->new(
 
 print "SMTP SMS Gateway running on port 25...\n";
 
+# --- Main loop: accept SMTP clients and process messages ---
 while (my $client = $socket->accept()) {
 	my $smtp = Net::Server::Mail::SMTP->new(socket => $client);
 
+	# --- Capture RCPT TO addresses (phone numbers) ---
 	$smtp->set_callback(RCPT => sub {
 		my ($session, $rcpt) = @_;
-		$rcpt =~ s/\D//g;
+		$rcpt =~ s/\D//g;  # remove non-digits
 		$session->{_sms_to} = $rcpt;
 		return 1;
 	});
 
+	# --- Capture message DATA and send SMS ---
 	$smtp->set_callback(DATA => sub {
 		my ($session, $data) = @_;
 
