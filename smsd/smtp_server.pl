@@ -67,7 +67,8 @@ sub send_sms {
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 	# --- STEP 3: GET AUTHID ---
-	my $auth_resp = $ua->get("http://$router/data.ria?token=1");
+	my $auth_resp = $ua->get("http://$router/data.ria?token=1",
+		Referer => "http://$router/controlPanel.html");
 	die "Failed to get authID\n" unless $auth_resp->is_success;
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
@@ -89,12 +90,15 @@ sub send_sms {
 	my $sms = $ua->post(
 		"http://$router/webpost.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
-		Content	  => $json
+		Content	  => $json,
+		Referer	  => "http://$router/controlPanel.html",
+		Origin	   => "http://$router"
 	);
 
 	die "SMS HTTP failed: " . $sms->code unless $sms->is_success;
 	my $resp = $sms->decoded_content;
 
+	# Check for success
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		return 1;
 	} else {
