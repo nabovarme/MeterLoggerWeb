@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 use Carp;
-use Encode qw(encode decode);
+use Encode qw(encode decode is_utf8);
 use Email::Simple;
 use Data::Dumper;
 
@@ -41,6 +41,16 @@ $ua->default_header("X-Requested-With" => "XMLHttpRequest");
 sub send_sms {
 	my ($phone, $message) = @_;
 	die "Missing phone or message\n" unless $phone && $message;
+
+	# --- STEP 0: Ensure message is flagged as UTF-8 internally ---
+	unless (is_utf8($message)) {
+		print "DEBUG: Message is NOT flagged as UTF-8 internally, decoding...\n";
+		$message = decode('UTF-8', $message);
+	} else {
+		print "DEBUG: Message is already flagged as UTF-8 internally\n";
+	}
+
+	print "DEBUG: Message hex (first 50 chars): " . join(" ", unpack("H2" x length($message), $message)) . "\n";
 
 	# --- STEP 1: Initialize session ---
 	print "DEBUG: Initializing session with router $router\n";
@@ -89,7 +99,7 @@ sub send_sms {
 
 	my $payload = {
 		CfgType	 => "sms_action",
-		type		=> "sms_send",
+		type	 => "sms_send",
 		msg		 => $message,
 		phone_list  => $phone,
 		authID	  => $authID
