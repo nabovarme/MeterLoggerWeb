@@ -142,7 +142,8 @@ sub send_sms {
 		# --- STEP 7: Save sent SMS to /var/spool/sms/sent/ ---
 		my $dir = "/var/spool/sms/sent";
 		make_path($dir) unless -d $dir;
-		my $rand_str = substr(md5_hex(time().$phone.$message),0,10);
+		my $message_bytes = encode('UTF-8', $message);
+		my $rand_str = substr(md5_hex(time().$phone.$message_bytes),0,10);
 		my $filename = File::Spec->catfile($dir, "${phone}_$rand_str");
 
 		# Write as UTF-8 bytes to avoid wide-character errors
