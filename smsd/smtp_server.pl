@@ -144,7 +144,9 @@ sub send_sms {
 		make_path($dir) unless -d $dir;
 		my $rand_str = substr(md5_hex(time().$phone.$message),0,10);
 		my $filename = File::Spec->catfile($dir, "${phone}_$rand_str");
-		open my $fh, '>', $filename or warn "Failed to write SMS file $filename: $!\n";
+
+		# Write as UTF-8 bytes to avoid wide-character errors
+		open my $fh, '>:encoding(UTF-8)', $filename or warn "Failed to write SMS file $filename: $!\n";
 		print $fh $message;
 		close $fh;
 		print "DEBUG: SMS saved to $filename\n";
