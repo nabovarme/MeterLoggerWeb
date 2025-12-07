@@ -14,6 +14,8 @@ use LWP::UserAgent;
 use HTTP::Cookies;
 use Digest::MD5 qw(md5_hex);
 use JSON;
+use File::Path qw(make_path);
+use File::Spec;
 
 use constant USER  => 'smsd';
 use constant GROUP => 'smsd';
@@ -29,11 +31,11 @@ my $password = $ENV{DLINK_ROUTER_PASS} // "";
 my $cookie_jar = HTTP::Cookies->new;
 my $ua = LWP::UserAgent->new(
 	agent	   => "Mozilla/5.0",
-	cookie_jar  => $cookie_jar,
-	timeout	 => 10,
+	cookie_jar => $cookie_jar,
+	timeout	   => 10,
 );
 $ua->default_header("Accept"		   => "application/json, text/javascript, */*; q=0.01");
-$ua->default_header("Accept-Language"  => "en-GB,en;q=0.9");
+$ua->default_header("Accept-Language" => "en-GB,en;q=0.9");
 $ua->default_header("Connection"	   => "keep-alive");
 $ua->default_header("X-Requested-With" => "XMLHttpRequest");
 
@@ -49,7 +51,6 @@ sub send_sms {
 	} else {
 		print "DEBUG: Message is already flagged as UTF-8 internally\n";
 	}
-
 	print "DEBUG: Message hex (first 50 chars): " . join(" ", unpack("H2" x length($message), $message)) . "\n";
 
 	# --- STEP 1: Initialize session ---
@@ -67,8 +68,8 @@ sub send_sms {
 	my $login = $ua->post(
 		"http://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
-		Content	  => "uname=$username&passwd=$md5pass",
-		Referer	  => "http://$router/index.html",
+		Content	   => "uname=$username&passwd=$md5pass",
+		Referer	   => "http://$router/index.html",
 		Origin	   => "http://$router"
 	);
 	die "Login failed\n" unless $login->is_success;
@@ -98,10 +99,10 @@ sub send_sms {
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
 	my $payload = {
-		CfgType	 => "sms_action",
-		type	 => "sms_send",
-		msg		 => $message,
-		phone_list  => $phone,
+		CfgType	  => "sms_action",
+		type	  => "sms_send",
+		msg		  => $message,
+		phone_list => $phone,
 		authID	  => $authID
 	};
 	my $json = encode_json($payload);
@@ -129,18 +130,25 @@ sub send_sms {
 	my $logout = $ua->post(
 		"http://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
-		Content      => $logout_json,
-		Referer      => "http://$router/controlPanel.html",
-		Origin       => "http://$router"
+		Content	   => $logout_json,
+		Referer	   => "http://$router/controlPanel.html",
+		Origin	   => "http://$router"
 	);
-	if ($logout->is_success) {
-		print "DEBUG: Logout successful\n";
-	} else {
-		print "DEBUG: Logout failed: " . $logout->status_line . "\n";
-	}
+	print $logout->is_success ? "DEBUG: Logout successful\n" : "DEBUG: Logout failed: " . $logout->status_line . "\n";
 
 	# --- STEP 6: Verify SMS sent successfully ---
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
+
+		# --- STEP 7: Save sent SMS to /var/spool/sms/sent/ ---
+		my $dir = "/var/spool/sms/sent";
+		make_path($dir) unless -d $dir;
+		my $rand_str = substr(md5_hex(time().$phone.$message),0,10);
+		my $filename = File::Spec->catfile($dir, "${phone}_$rand_str");
+		open my $fh, '>', $filename or warn "Failed to write SMS file $filename: $!\n";
+		print $fh $message;
+		close $fh;
+		print "DEBUG: SMS saved to $filename\n";
+
 		return 1;
 	} else {
 		die "SMS gateway error: $resp";
@@ -150,9 +158,9 @@ sub send_sms {
 # --- SMTP server using Net::Server::Mail::SMTP ---
 my $socket = IO::Socket::INET->new(
 	LocalPort => 25,
-	Listen	=> 5,
-	Proto	 => 'tcp',
-	Reuse	 => 1,
+	Listen	   => 5,
+	Proto	   => 'tcp',
+	Reuse	   => 1,
 ) or die "Unable to bind SMTP server port 25: $!";
 
 print "SMTP SMS Gateway running on port 25...\n";
@@ -175,9 +183,9 @@ while (my $client = $socket->accept()) {
 
 		my $email = Email::Simple->new($data);
 		my $subject = $email->header('Subject') || '';
-		my $body	= $email->body || '';
+		my $body	  = $email->body || '';
 		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
-		my $dest	= $session->{_sms_to};
+		my $dest	  = $session->{_sms_to};
 
 		print "Sending SMS to $dest ...\n";
 		my $ok = eval { send_sms($dest, $message) };
