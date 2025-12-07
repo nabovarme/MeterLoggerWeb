@@ -134,7 +134,7 @@ while (my $conn = $server->accept()) {
 			print "✔ SMS to $destination sent successfully\n";
 		} else {
 			warn "❌ SMS to $destination failed: $@\n";
-			$client->message("421 SMS gateway temporarily down. Please try again later.");
+			$client->error("421 SMS gateway temporarily down. Please try again later.");
 		}
 	}
 }
