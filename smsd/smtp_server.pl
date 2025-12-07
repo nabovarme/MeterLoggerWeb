@@ -108,8 +108,8 @@ sub send_sms {
 		phone_list => $phone,
 		authID	  => $authID
 	};
+	print "DEBUG: SMS payload: $payload\n";
 	my $json = encode_json($payload);
-	print "DEBUG: SMS payload: $json\n";
 
 	my $sms = $ua->post(
 		"http://$router/webpost.cgi",
