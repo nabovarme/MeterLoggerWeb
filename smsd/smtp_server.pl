@@ -160,6 +160,15 @@ sub send_sms {
 
 		return 1;
 	} else {
+		print "SMS gateway returned unexpected response:\n";
+		print $resp . "\n";
+
+		print "JSON decode, if valid):\n";
+		eval {
+			my $decoded = JSON->new->utf8->pretty->canonical->decode($resp);
+			print JSON->new->utf8->pretty->canonical->encode($decoded) . "\n";
+		} or print "Response was not valid JSON\n";
+
 		die "SMS gateway error: $resp";
 	}
 }
