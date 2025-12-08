@@ -16,7 +16,7 @@ use IO::Socket::INET;
 use LWP::UserAgent;
 use HTTP::Cookies;
 use Digest::MD5 qw(md5_hex);
-use JSON;
+use JSON qw(encode_json to_json);
 use File::Path qw(make_path);
 use File::Spec;
 
@@ -53,24 +53,23 @@ sub send_sms {
 
 	# --- STEP 0: Ensure message is flagged as UTF-8 internally ---
 	unless (is_utf8($message)) {
-		print "DEBUG: Message is NOT flagged as UTF-8 internally, decoding...\n";
+		print "Message is NOT flagged as UTF-8 internally, decoding...\n";
 		$message = decode('UTF-8', $message);
 	} else {
-		print "DEBUG: Message is already flagged as UTF-8 internally\n";
+		print "Message is already flagged as UTF-8 internally\n";
 	}
-	print "DEBUG: Message hex (first 50 chars): " . join(" ", unpack("H2" x length($message), $message)) . "\n";
 
 	# --- STEP 1: Initialize session ---
-	print "DEBUG: Initializing session with router $router\n";
+	print "Initializing session with router $router\n";
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
 		warn "HTTP GET failed: " . $init->status_line;
 		die "Failed to init session\n";
 	}
-	print "DEBUG: Session initialized successfully\n";
+	print "Session initialized successfully\n";
 
 	# --- STEP 2: Login to router ---
-	print "DEBUG: Logging in as $username\n";
+	print "Logging in as $username\n";
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
 		"http://$router/login.cgi",
@@ -80,28 +79,28 @@ sub send_sms {
 		Origin	   => "http://$router"
 	);
 	die "Login failed\n" unless $login->is_success;
-	print "DEBUG: Login HTTP response code: " . $login->code . "\n";
-	print "DEBUG: Login Set-Cookie: " . ($login->header("Set-Cookie") // '') . "\n";
+	print "Login HTTP response code: " . $login->code . "\n";
+	print "Login Set-Cookie: " . ($login->header("Set-Cookie") // '') . "\n";
 
 	# --- Extract session ID from login response ---
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
 	die "qSessId not found\n" unless $qsess;
-	print "DEBUG: qSessId obtained: $qsess\n";
+	print "qSessId obtained: $qsess\n";
 	$cookie_jar->set_cookie(0, "qSessId",	 $qsess, "/", $router);
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 	# --- STEP 3: Retrieve authorization ID (authID) ---
-	print "DEBUG: Fetching authID\n";
+	print "Fetching authID\n";
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1",
 		Referer => "http://$router/controlPanel.html");
 	die "Failed to get authID\n" unless $auth_resp->is_success;
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
 	die "Empty authID\n" unless $authID;
-	print "DEBUG: authID obtained: $authID\n";
+	print "authID obtained: $authID\n";
 
 	# --- STEP 4: Send SMS ---
-	print "DEBUG: Sending SMS payload\n";
+	print "Sending SMS payload\n";
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
@@ -112,7 +111,7 @@ sub send_sms {
 		phone_list => $phone,
 		authID	  => $authID
 	};
-	print "DEBUG: SMS payload: " . Dumper($payload) . "\n";
+	print "SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
 	my $json = encode_json($payload);
 
 	my $sms = $ua->post(
@@ -125,14 +124,14 @@ sub send_sms {
 
 	# --- Handle HTTP errors for SMS POST ---
 	unless ($sms->is_success) {
-		print "DEBUG: SMS POST failed: " . $sms->status_line . "\n";
-		print "DEBUG: Response content: " . $sms->decoded_content . "\n";
+		print "SMS POST failed: " . $sms->status_line . "\n";
+		print "Response content: " . $sms->decoded_content . "\n";
 		die "SMS HTTP failed: " . $sms->code;
 	}
 	my $resp = $sms->decoded_content;
 
 	# --- STEP 5: Logout from router session ---
-	print "DEBUG: Logging out session $qsess\n";
+	print "Logging out session $qsess\n";
 	my $logout_json = qq({"logout":"$qsess"});
 	my $logout = $ua->post(
 		"http://$router/login.cgi",
@@ -141,7 +140,7 @@ sub send_sms {
 		Referer	   => "http://$router/controlPanel.html",
 		Origin	   => "http://$router"
 	);
-	print $logout->is_success ? "DEBUG: Logout successful\n" : "DEBUG: Logout failed: " . $logout->status_line . "\n";
+	print $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
 
 	# --- STEP 6: Verify SMS sent successfully ---
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
@@ -157,7 +156,7 @@ sub send_sms {
 		open my $fh, '>:encoding(UTF-8)', $filename or warn "Failed to write SMS file $filename: $!\n";
 		print $fh $message;
 		close $fh;
-		print "DEBUG: SMS saved to $filename\n";
+		print "SMS saved to $filename\n";
 
 		return 1;
 	} else {
