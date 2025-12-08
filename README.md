@@ -29,7 +29,7 @@ docker exec -it db /nabovarme_triggers.sh
 
 MeterLoggerWeb uses environment variables for configuration. You can create a `.env` file in the project root based on `.env.example`. This file contains settings for SMTP, SMS device, and database credentials.
 
-Note: SMS sending is now handled by the smsd container, which communicates with the D-Link DWR-932 web interface to send messages. For this to work, the host running the container must have a wireless network card connected to the router so that smsd can reach the D-Link device over Wi-Fi. You no longer need to configure the SMS device directly in MeterLoggerWeb.
+**Note:** SMS sending is now handled by the smsd container, which communicates with the D-Link DWR-932 web interface to send messages. For this to work, the host running the container must have a wireless network card connected to the router so that smsd can reach the D-Link device over Wi-Fi. You no longer need to configure the SMS device directly in MeterLoggerWeb.
 
 Example `.env`:
 
