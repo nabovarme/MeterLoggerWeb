@@ -28,7 +28,6 @@ RUN apt-get update && apt-get install -y \
 	sudo \
 	screen \
 	rsync \
-	smstools \
 	libnet-smtp-server-perl \
 	libemail-simple-perl \
 	libwww-perl \
@@ -39,12 +38,9 @@ USER root
 
 RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
 
-COPY ./smsd.conf /etc/smsd.conf
 COPY ./smtp_server.pl .
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
-RUN mkdir -p /var/run/smstools
-RUN chown smsd:smsd /var/run/smstools
 RUN mkdir -p /var/spool/sms/{outgoing,failed,incoming,checked,sent}
 RUN chown -R smsd:smsd /var/spool/sms
 
