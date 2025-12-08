@@ -152,9 +152,13 @@ sub send_sms {
 		my $rand_str = substr(md5_hex(time().$phone.$message_bytes),0,10);
 		my $filename = File::Spec->catfile($dir, "${phone}_$rand_str");
 
+		# Prepare header
+		my $timestamp = localtime();
+		my $file_content = "To: $phone\nSent: $timestamp\n\n$message";
+
 		# Write as UTF-8 bytes to avoid wide-character errors
 		open my $fh, '>:encoding(UTF-8)', $filename or warn "Failed to write SMS file $filename: $!\n";
-		print $fh $message;
+		print $fh $file_content;
 		close $fh;
 		print "SMS saved to $filename\n";
 
