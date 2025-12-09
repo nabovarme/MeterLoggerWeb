@@ -200,13 +200,21 @@ services:
     ports:
       - "0.0.0.0:25:25"
     volumes:
-      - ./postfix_custom_config:/docker-init.db/
+      - ./postfix/postfix_custom_config:/docker-init.db/
+      - ./postfix/postfix_spool:/var/spool/postfix   # persist queued mail
+      - ./postfix/postfix_mail:/var/mail             # persist delivered mail (optional)
     restart: always
     environment:
       HOSTNAME: meterlogger
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
+    # Ensure directories have correct permissions on start
+    entrypoint: >
+      sh -c "
+      chown -R postfix:postfix /var/spool/postfix /var/mail &&
+      exec docker-entrypoint.sh
+      "
 
   openresty:
     build: ./openresty
