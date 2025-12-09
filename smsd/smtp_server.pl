@@ -39,7 +39,7 @@ my $cookie_jar = HTTP::Cookies->new;
 my $ua = LWP::UserAgent->new(
 	agent	   => "Mozilla/5.0",
 	cookie_jar => $cookie_jar,
-	timeout	   => 10,
+	timeout	   => 30,
 );
 $ua->default_header("Accept"		   => "application/json, text/javascript, */*; q=0.01");
 $ua->default_header("Accept-Language" => "en-GB,en;q=0.9");
