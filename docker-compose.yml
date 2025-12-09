@@ -212,8 +212,13 @@ services:
     # Ensure directories have correct permissions on start
     entrypoint: >
       sh -c "
-      chown -R postfix:postfix /var/spool/postfix /var/mail &&
-      exec docker-entrypoint.sh
+        # Ensure correct ownership for Postfix
+        chown root:root /var/spool/postfix || true
+        find /var/spool/postfix -mindepth 1 -exec chown postfix:postfix {} +
+        chown -R postfix:postfix /var/mail || true
+
+        # Start Postfix using original entrypoint
+        exec /scripts/run.sh
       "
 
   openresty:
