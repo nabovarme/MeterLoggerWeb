@@ -200,26 +200,15 @@ services:
     ports:
       - "0.0.0.0:25:25"
     volumes:
-      - ./postfix/postfix_custom_config:/docker-init.db/
-      - ./postfix/postfix_spool:/var/spool/postfix   # persist queued mail
-      - ./postfix/postfix_mail:/var/mail             # persist delivered mail (optional)
+      - ./postfix/postfix_custom_config:/docker-init.db/   # keep your custom config
+      - postfix_spool:/var/spool/postfix                  # Docker volume for spool
+      - postfix_mail:/var/mail                             # Docker volume for delivered mail
     restart: always
     environment:
       HOSTNAME: meterlogger
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
-    # Ensure directories have correct permissions on start
-    entrypoint: >
-      sh -c "
-        # Ensure correct ownership for Postfix
-        chown root:root /var/spool/postfix || true
-        find /var/spool/postfix -mindepth 1 -exec chown postfix:postfix {} +
-        chown -R postfix:postfix /var/mail || true
-
-        # Start Postfix using original entrypoint
-        exec /scripts/run.sh
-      "
 
   openresty:
     build: ./openresty
@@ -251,3 +240,8 @@ services:
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
+
+volumes:
+  postfix_spool:
+  postfix_mail:
+
