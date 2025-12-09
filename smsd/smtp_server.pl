@@ -191,6 +191,7 @@ sub send_sms {
 }
 
 # --- Function to read SMS from router ---
+# --- Function to read SMS from router ---
 sub read_sms {
 	return if $sms_busy;
 
@@ -235,7 +236,7 @@ sub read_sms {
 		);
 		die "SMS read request failed: " . $resp->status_line unless $resp->is_success;
 
-		# --- STEP 5: Retrieve authorization ID (authID) for future delete ---
+		# --- STEP 5: Retrieve authorization ID (authID) ---
 		my $auth_resp = $ua->get(
 			"http://$router/data.ria?token=1",
 			Referer => "http://$router/controlPanel.html"
@@ -256,7 +257,69 @@ sub read_sms {
 		}
 		print "Received " . ($sms_list->{total} // 0) . " messages\n";
 
-		# --- STEP 7: Logout from router ---
+		# --- Prepare incoming spool directory ---
+		my $incoming_dir = "/var/spool/sms/incoming";
+		make_path($incoming_dir) unless -d $incoming_dir;
+
+		# --- STEP 7: Process messages ---
+		for my $key (grep { /^M\d+$/ } keys %$sms_list) {
+			my $msg  = $sms_list->{$key};
+			my $phone = $msg->{phone} // '';
+			my $date  = $msg->{date}  // '';
+			my $tag   = $msg->{tag}   // '';
+			my $text  = $msg->{msg}   // '';
+			my $read  = $msg->{read}  // 0;
+
+			print "Message $key:\n";
+			print "\tFrom: $phone\n";
+			print "\tDate: $date\n";
+			print "\tTag:  $tag\n";
+			print "\tRead: $read\n";
+			print "\tMessage: $text\n\n";
+
+			# --- STEP 8: Save to spool/incoming ---
+			my $safe_phone = $phone; $safe_phone =~ s/\D//g;
+			my $epoch = time();
+			my $file = File::Spec->catfile($incoming_dir, "${safe_phone}_${epoch}.txt");
+
+			my $write_ok = 1;
+			eval {
+				open my $fh, '>:encoding(UTF-8)', $file or die $!;
+				print $fh "From: $phone\nDate: $date\nTag: $tag\n\n$text\n";
+				close $fh;
+			};
+			if ($@) {
+				warn "Failed to write file $file: $@\n";
+				$write_ok = 0;
+			} else {
+				print "Saved to $file\n";
+			}
+
+			# --- STEP 9: Delete ONLY IF saved successfully ---
+			if ($write_ok) {
+				my $del_payload = qq({"CfgType":"sms_action","type":"inbox","cmd":"del","tag":"$tag","authID":"$authID"});
+
+				my $del = $ua->post(
+					"http://$router/webpost.cgi",
+					Content_Type     => "application/x-www-form-urlencoded; charset=UTF-8",
+					Content          => $del_payload,
+					Referer          => "http://$router/controlPanel.html",
+					Origin           => "http://$router",
+					'X-Csrf-Token'   => $csrf,
+					'X-Requested-With' => 'XMLHttpRequest'
+				);
+
+				if ($del->is_success) {
+					print "Deleted from router: $tag\n";
+				} else {
+					warn "Failed delete for $tag: " . $del->status_line . "\n";
+				}
+			} else {
+				warn "NOT deleting $tag since write was not successful\n";
+			}
+		}
+
+		# --- STEP 10: Logout ---
 		my $logout_json = qq({"logout":"$qsess"});
 		$ua->post(
 			"http://$router/login.cgi",
