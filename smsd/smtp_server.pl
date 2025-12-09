@@ -104,6 +104,9 @@ sub send_sms {
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
+	# Ensure phone number has '+' prefix
+	$phone = '+' . $phone unless $phone =~ /^\+/;
+
 	my $payload = {
 		CfgType	  => "sms_action",
 		type	  => "sms_send",
