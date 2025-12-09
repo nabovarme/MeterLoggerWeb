@@ -104,14 +104,14 @@ sub send_sms {
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
-	# Ensure phone number has '+' prefix
-	$phone = '+' . $phone unless $phone =~ /^\+/;
+	# Prepare phone number for sending (prepend '+' only for payload)
+	my $payload_phone = $phone =~ /^\+/ ? $phone : '+' . $phone;
 
 	my $payload = {
 		CfgType	  => "sms_action",
 		type	  => "sms_send",
 		msg		  => $message,
-		phone_list => $phone,
+		phone_list => $payload_phone,
 		authID	  => $authID
 	};
 	print "SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
