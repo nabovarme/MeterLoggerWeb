@@ -19,15 +19,17 @@ use Digest::MD5 qw(md5_hex);
 use JSON qw(encode_json to_json);
 use File::Path qw(make_path);
 use File::Spec;
+use Time::HiRes qw(sleep);
+use threads;
 
 use constant USER  => 'smsd';
 use constant GROUP => 'smsd';
 
 $| = 1;  # Autoflush STDOUT
 
-$Data::Dumper::Useqq = 0;       # don’t escape non-ASCII
-$Data::Dumper::Terse = 1;       # avoid $VAR1 = ...
-$Data::Dumper::Quotekeys = 0;   # don’t quote hash keys unnecessarily
+$Data::Dumper::Useqq = 0;
+$Data::Dumper::Terse = 1;
+$Data::Dumper::Quotekeys = 0;
 
 # --- Read configuration from environment ---
 my $router   = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
@@ -46,10 +48,15 @@ $ua->default_header("Accept-Language" => "en-GB,en;q=0.9");
 $ua->default_header("Connection"	   => "keep-alive");
 $ua->default_header("X-Requested-With" => "XMLHttpRequest");
 
+# --- Global flag to prevent concurrent send_sms/read_sms ---
+my $sms_busy = 0;
+
 # --- Function to send SMS via the router ---
 sub send_sms {
 	my ($phone, $message) = @_;
 	die "Missing phone or message\n" unless $phone && $message;
+
+	$sms_busy = 1;  # Lock other SMS actions
 
 	# --- STEP 0: Ensure message is flagged as UTF-8 internally ---
 	unless (is_utf8($message)) {
@@ -64,6 +71,7 @@ sub send_sms {
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
 		warn "HTTP GET failed: " . $init->status_line;
+		$sms_busy = 0;
 		die "Failed to init session\n";
 	}
 	print "Session initialized successfully\n";
@@ -106,7 +114,6 @@ sub send_sms {
 
 	# Prepare phone number for sending (prepend '+' only for payload)
 	my $payload_phone = $phone =~ /^\+/ ? $phone : '+' . $phone;
-
 	my $payload = {
 		CfgType	  => "sms_action",
 		type	  => "sms_send",
@@ -129,6 +136,7 @@ sub send_sms {
 	unless ($sms->is_success) {
 		print "SMS POST failed: " . $sms->status_line . "\n";
 		print "Response content: " . $sms->decoded_content . "\n";
+		$sms_busy = 0;
 		die "SMS HTTP failed: " . $sms->code;
 	}
 	my $resp = $sms->decoded_content;
@@ -165,6 +173,7 @@ sub send_sms {
 		close $fh;
 		print "SMS saved to $filename\n";
 
+		$sms_busy = 0;
 		return 1;
 	} else {
 		print "SMS gateway returned unexpected response:\n";
@@ -176,9 +185,103 @@ sub send_sms {
 			print JSON->new->utf8->pretty->canonical->encode($decoded) . "\n";
 		} or print "Response was not valid JSON\n";
 
+		$sms_busy = 0;
 		die "SMS gateway error: $resp";
 	}
 }
+
+# --- Function to read SMS from router ---
+sub read_sms {
+	return if $sms_busy;
+
+	eval {
+		$sms_busy = 1;
+
+		# --- STEP 1: Initialize session ---
+		print "Initializing session with router $router\n";
+		my $init = $ua->get("http://$router/index.html");
+		die "Failed to init session" unless $init->is_success;
+		print "Session initialized successfully\n";
+
+		# --- STEP 2: Login to router ---
+		print "Logging in as $username\n";
+		my $md5pass = md5_hex($password);
+		my $login = $ua->post(
+			"http://$router/login.cgi",
+			Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
+			Content	   => "uname=$username&passwd=$md5pass",
+			Referer	   => "http://$router/index.html",
+			Origin	   => "http://$router"
+		);
+		die "Login failed" unless $login->is_success;
+
+		my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
+		die "qSessId not found" unless $qsess;
+		$cookie_jar->set_cookie(0, "qSessId",	 $qsess, "/", $router);
+		$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
+
+		# --- STEP 3: Generate CSRF token ---
+		my $csrf = sprintf("%06d", int(rand(999_999)));
+		$ua->default_header("X-Csrf-Token" => $csrf);
+
+		# --- STEP 4: Get SMS from inbox ---
+		my $timestamp = int(time() * 1000);
+		my $url = "http://$router/data.ria?CfgType=sms_action&cont=inbox&index=0&_=$timestamp";
+
+		my $resp = $ua->get(
+			$url,
+			Referer             => "http://$router/controlPanel.html",
+			'X-Requested-With'  => 'XMLHttpRequest'
+		);
+		die "SMS read request failed: " . $resp->status_line unless $resp->is_success;
+
+		# --- STEP 5: Retrieve authorization ID (authID) for future delete ---
+		my $auth_resp = $ua->get(
+			"http://$router/data.ria?token=1",
+			Referer => "http://$router/controlPanel.html"
+		);
+		die "Failed to get authID" unless $auth_resp->is_success;
+		my $authID = $auth_resp->decoded_content;
+		$authID =~ s/\s+//g;
+		die "Empty authID" unless $authID;
+
+		# --- STEP 6: Parse JSON response ---
+		my $content = $resp->decoded_content;
+		my $sms_list;
+		eval { $sms_list = JSON->new->utf8->decode($content) };
+		if ($@) {
+			warn "Failed to decode SMS JSON: $@\n$content\n";
+			$sms_busy = 0;
+			return;
+		}
+		print "Received " . ($sms_list->{total} // 0) . " messages\n";
+
+		# --- STEP 7: Logout from router ---
+		my $logout_json = qq({"logout":"$qsess"});
+		$ua->post(
+			"http://$router/login.cgi",
+			Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
+			Content      => $logout_json,
+			Referer      => "http://$router/controlPanel.html",
+			Origin       => "http://$router"
+		);
+
+		$sms_busy = 0;
+		return $sms_list;
+	};
+	if ($@) {
+		warn "Error in read_sms: $@\n";
+		$sms_busy = 0;
+	}
+}
+
+# --- Start background thread to read SMS every 10 seconds ---
+threads->create(sub {
+	while (1) {
+		read_sms();
+		sleep(10);
+	}
+})->detach();
 
 # --- SMTP server using Net::Server::Mail::SMTP ---
 my $socket = IO::Socket::INET->new(
