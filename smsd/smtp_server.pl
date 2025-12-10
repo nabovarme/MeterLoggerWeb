@@ -8,6 +8,7 @@ use open qw(:std :utf8);
 use Carp;
 use Encode qw(encode decode is_utf8);
 use Email::Simple;
+use Email::MIME;
 use Email::MIME::Encode qw(encode_mimeword);
 use Data::Dumper;
 
@@ -361,13 +362,15 @@ sub forward_sms_email {
 		my $utf8_text = encode('UTF-8', $text);
 		my $encoded_subject = encode_mimeword("SMS from $phone", 'B', 'UTF-8');
 
-		# Create email object
-		my $email_obj = Email::Simple->create(
-			header => [
+		# Create proper Email::MIME object
+		my $email = Email::MIME->create(
+			header_str => [
 				From    => $smtp_user || $from_email,
+				To      => join(", ", @to_list),
 				Subject => $encoded_subject,
 			],
-			body => $utf8_text,
+			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
+			body       => $utf8_text,
 		);
 
 		# Loop over each recipient and send individually
@@ -376,9 +379,9 @@ sub forward_sms_email {
 			# Connect to SMTP server
 			my $smtp = Net::SMTP->new(
 				$smtp_host,
-				Port    => $smtp_port,
-				Timeout => 20,
-				Debug   => 0,
+				Port            => $smtp_port,
+				Timeout         => 20,
+				Debug           => 0,
 				SSL_verify_mode => 0,
 			) or do { warn ts() . "SMTP connect failed\n"; next; };
 
@@ -401,12 +404,9 @@ sub forward_sms_email {
 			$smtp->mail($smtp_user || $from_email);
 			$smtp->to($recipient);
 
-			# Send email
+			# Send the full Email::MIME message
 			$smtp->data();
-			$smtp->datasend("To: $recipient\n");
-			$smtp->datasend("From: " . ($smtp_user || $from_email) . "\n");
-			$smtp->datasend("Subject: $encoded_subject\n");
-			$smtp->datasend("\n$text\n");
+			$smtp->datasend($email->as_string);
 			$smtp->dataend();
 
 			# Close SMTP session
