@@ -131,7 +131,7 @@ services:
       DLINK_ROUTER_IP: ${DLINK_ROUTER_IP}
       DLINK_ROUTER_USER: ${DLINK_ROUTER_USER}
       DLINK_ROUTER_PASS: ${DLINK_ROUTER_PASS}
-      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
@@ -151,7 +151,7 @@ services:
       - /dev/bus/usb:/dev/bus/usb
     restart: always
     environment:
-      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}

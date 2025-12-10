@@ -21,7 +21,7 @@ my @error_patterns = (
 );
 
 # ---- SMTP config ----
-my $smtp_host = $ENV{SMTP_SERVER}   || 'smtp.example.com';
+my $smtp_host = $ENV{SMTP_HOST}   || 'smtp.example.com';
 my $smtp_port = $ENV{SMTP_PORT}     || 587;
 my $smtp_user = $ENV{SMTP_USER}     || 'user@example.com';
 my $smtp_pass = $ENV{SMTP_PASSWORD} || 'password';

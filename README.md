@@ -34,7 +34,7 @@ MeterLoggerWeb uses environment variables for configuration. You can create a `.
 Example `.env`:
 
 ```env
-SMTP_SERVER=smtp.gmail.com
+SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=yourmail@gmail.com
 SMTP_PASSWORD=yourpassword
