@@ -200,50 +200,6 @@ sub send_sms {
 	}
 }
 
-# --- Function to forward sms via email ---
-sub forward_sms_email {
-	my ($phone, $text) = @_;
-	return if $sent_sms{$text};
-
-	eval {
-		my $smtp = Net::SMTP->new(
-			$smtp_host,
-			Port            => $smtp_port,
-			Timeout         => 20,
-			Debug           => 0,
-			SSL_verify_mode => 0,
-		) or do { warn ts() . "SMTP connect failed\n"; return; };
-
-		# 1: Start TLS if using port 587
-		eval { $smtp->starttls() } if $smtp_port == 587;
-
-		# 2: Authenticate if credentials provided
-		if ($smtp_user && $smtp_pass) {
-			unless ($smtp->auth($smtp_user, $smtp_pass)) {
-				warn ts() . "SMTP auth failed\n";
-				$smtp->quit;
-				return;
-			}
-		}
-
-		# 3: Send email
-		$smtp->mail($smtp_user || $from_email);
-		$smtp->to(@to_list);
-
-		$smtp->data();
-		$smtp->datasend("From: " . ($smtp_user || $from_email) . "\n");
-		$smtp->datasend("To: " . join(",", @to_list) . "\n");
-		$smtp->datasend("Subject: SMS from $phone\n\n");
-		$smtp->datasend($text . "\n");
-		$smtp->dataend();
-		$smtp->quit();
-
-		print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";
-		$sent_sms{$text} = 1;
-	};
-	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
-}
-
 sub read_sms {
 	return if $sms_busy;
 
@@ -388,6 +344,50 @@ sub read_sms {
 		warn ts() . "Error in read_sms: $@\n";
 		$sms_busy = 0;
 	}
+}
+
+# --- Function to forward sms via email ---
+sub forward_sms_email {
+	my ($phone, $text) = @_;
+	return if $sent_sms{$text};
+
+	eval {
+		my $smtp = Net::SMTP->new(
+			$smtp_host,
+			Port            => $smtp_port,
+			Timeout         => 20,
+			Debug           => 0,
+			SSL_verify_mode => 0,
+		) or do { warn ts() . "SMTP connect failed\n"; return; };
+
+		# 1: Start TLS if using port 587
+		eval { $smtp->starttls() } if $smtp_port == 587;
+
+		# 2: Authenticate if credentials provided
+		if ($smtp_user && $smtp_pass) {
+			unless ($smtp->auth($smtp_user, $smtp_pass)) {
+				warn ts() . "SMTP auth failed\n";
+				$smtp->quit;
+				return;
+			}
+		}
+
+		# 3: Send email
+		$smtp->mail($smtp_user || $from_email);
+		$smtp->to(@to_list);
+
+		$smtp->data();
+		$smtp->datasend("From: " . ($smtp_user || $from_email) . "\n");
+		$smtp->datasend("To: " . join(",", @to_list) . "\n");
+		$smtp->datasend("Subject: SMS from $phone\n\n");
+		$smtp->datasend($text . "\n");
+		$smtp->dataend();
+		$smtp->quit();
+
+		print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";
+		$sent_sms{$text} = 1;
+	};
+	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
 # Background thread to read SMS
