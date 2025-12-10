@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y \
 	libwww-perl \
 	libjson-perl \
 	libnet-server-mail-perl \
-	libemail-mime-perl
+	libemail-mime-perl \
+	libemail-mime-encodings-perl
 
 # Ensure root user for setup
 USER root
