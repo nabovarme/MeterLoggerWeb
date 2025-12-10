@@ -41,38 +41,55 @@ my $from_email = $ENV{FROM_EMAIL} || $smtp_user;
 my $to_email   = $ENV{TO_EMAIL}   or die "Missing TO_EMAIL env variable\n";
 my @to_list    = split /[\s,]+/, $to_email;
 
-# Shared dedupe storage and history
+# Shared dedupe storage and history using flat keys
 my %sent_alerts :shared;
 my %error_history :shared;
 my %service_up :shared;       # Track if container is currently up
 my %has_error :shared;        # Track if container has ever reported error
+my %boot_done :shared;        # Track if first boot completed
 
 # ---- Clear dedupe on recovery ----
 sub clear_dedupe {
 	my ($container) = @_;
 	lock(%sent_alerts);
-	delete $sent_alerts{$container};
-	delete $error_history{$container};
+	foreach my $key (keys %sent_alerts) {
+		delete $sent_alerts{$key} if $key =~ /^\Q$container\E:/;
+	}
+	foreach my $key (keys %error_history) {
+		delete $error_history{$key} if $key =~ /^\Q$container\E:/;
+	}
 	print "Dedup reset for $container\n";
 }
 
 # ---- Send recovery summary email ----
 sub send_recovery_email {
-	my ($container, $line) = @_;
+	my ($container) = @_;
 
 	# Only send recovery if container previously had errors
 	lock(%has_error);
 	return unless $has_error{$container};
-
+	
 	my $summary = "";
-	if (exists $error_history{$container} && keys %{ $error_history{$container} }) {
+	my @errors;
+	lock(%error_history);
+	foreach my $key (keys %error_history) {
+		if ($key =~ /^\Q$container\E:/) {
+			push @errors, $key;
+		}
+	}
+	if (@errors) {
 		$summary .= "The following unique errors occurred before recovery:\n\n";
-		foreach my $err (keys %{ $error_history{$container} }) {
+		foreach my $err (@errors) {
+			$err =~ s/^\Q$container\E://; # strip container prefix
 			$summary .= "- $err\n";
 		}
 	} else {
 		$summary = "Service restored with no recorded error backlog.\n";
 	}
+
+	# Skip recovery emails on first boot
+	lock(%boot_done);
+	return unless $boot_done{$container};
 
 	# Send one recovery email per recipient
 	foreach my $recipient (@to_list) {
@@ -120,18 +137,15 @@ sub send_email {
 	my ($msg, $container, $pattern) = @_;
 
 	my $core = "$pattern";
+	my $flat_key = "$container:$core";
 
 	# Store unique error pattern for later summary
-	{
-		lock(%error_history);
-		$error_history{$container}{$core} = 1;
-	}
+	lock(%error_history);
+	$error_history{$flat_key} = 1;
 
-	{
-		lock(%sent_alerts);
-		return if $sent_alerts{$container}{$core};
-		$sent_alerts{$container}{$core} = 1;
-	}
+	lock(%sent_alerts);
+	return if $sent_alerts{$flat_key};
+	$sent_alerts{$flat_key} = 1;
 
 	# Mark service as down and set error flag
 	lock(%service_up);
@@ -139,6 +153,11 @@ sub send_email {
 	lock(%has_error);
 	$has_error{$container} = 1;
 
+	# Mark boot done
+	lock(%boot_done);
+	$boot_done{$container} = 1;
+
+	# Send one email per recipient
 	foreach my $recipient (@to_list) {
 
 		my $smtp = Net::SMTP->new(
@@ -206,7 +225,7 @@ sub watch_container {
 					lock(%service_up);
 					unless ($service_up{$container}) {
 						clear_dedupe($container);
-						send_recovery_email($container, $line);
+						send_recovery_email($container);
 						$service_up{$container} = 1;
 					}
 					last;
