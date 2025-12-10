@@ -6,6 +6,9 @@ use Net::SMTP;
 use threads;
 use threads::shared;
 use Time::HiRes qw(time);
+use Email::MIME;
+use Email::MIME::Encode qw(encode_mimeword);
+use Encode qw(encode);
 
 $| = 1;  # disable STDOUT buffering
 
@@ -91,8 +94,21 @@ sub send_recovery_email {
 	lock(%boot_done);
 	return unless $boot_done{$container};
 
+	my $encoded_subject = encode_mimeword("$container service restored", 'B', 'UTF-8');
+	my $utf8_body = encode("UTF-8", "$container is now operational.\n\n$summary\n");
+
 	# Send one recovery email per recipient
 	foreach my $recipient (@to_list) {
+
+		my $email = Email::MIME->create(
+			header_str => [
+				From    => $from_email,
+				To      => $recipient,
+				Subject => $encoded_subject,
+			],
+			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
+			body => $utf8_body,
+		);
 
 		my $smtp = Net::SMTP->new(
 			$smtp_host,
@@ -116,10 +132,7 @@ sub send_recovery_email {
 		$smtp->to($recipient);
 
 		$smtp->data();
-		$smtp->datasend("To: $recipient\n");
-		$smtp->datasend("From: $from_email\n");
-		$smtp->datasend("Subject: $container service restored\n");
-		$smtp->datasend("\n$container is now operational.\n\n$summary\n");
+		$smtp->datasend($email->as_string);
 		$smtp->dataend();
 
 		$smtp->quit();
@@ -157,8 +170,21 @@ sub send_email {
 	lock(%boot_done);
 	$boot_done{$container} = 1;
 
+	my $encoded_subject = encode_mimeword("$container alert detected", 'B', 'UTF-8');
+	my $utf8_body = encode("UTF-8", $msg);
+
 	# Send one email per recipient
 	foreach my $recipient (@to_list) {
+
+		my $email = Email::MIME->create(
+			header_str => [
+				From    => $from_email,
+				To      => $recipient,
+				Subject => $encoded_subject,
+			],
+			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
+			body => $utf8_body,
+		);
 
 		my $smtp = Net::SMTP->new(
 			$smtp_host,
@@ -182,10 +208,7 @@ sub send_email {
 		$smtp->to($recipient);
 
 		$smtp->data();
-		$smtp->datasend("To: $recipient\n");
-		$smtp->datasend("From: $from_email\n");
-		$smtp->datasend("Subject: $container alert detected\n");
-		$smtp->datasend("\n$msg\n");
+		$smtp->datasend($email->as_string);
 		$smtp->dataend();
 
 		$smtp->quit();
