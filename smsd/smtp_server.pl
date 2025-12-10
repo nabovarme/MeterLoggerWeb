@@ -79,10 +79,14 @@ sub save_sms_to_file {
 
 	make_path($dir) unless -d $dir;
 
+	# Sanitize phone number for filename (remove non-digits, including +)
+	my $safe_phone = $phone;
+	$safe_phone =~ s/\D//g;
+
 	# Generate a random string like in send_sms()
 	my $message_bytes = encode('UTF-8', $message);
 	my $rand_str      = substr(md5_hex(time() . $phone . $message_bytes), 0, 10);
-	my $filename      = File::Spec->catfile($dir, "${phone}_$rand_str");
+	my $filename      = File::Spec->catfile($dir, "${safe_phone}_$rand_str");
 
 	eval {
 		open my $fh, '>:encoding(UTF-8)', $filename or die $!;
