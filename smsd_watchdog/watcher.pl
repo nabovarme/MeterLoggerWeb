@@ -32,14 +32,16 @@ my $from_email = $ENV{FROM_EMAIL} || $smtp_user;
 my $to_email   = $ENV{TO_EMAIL} or die "Missing TO_EMAIL env variable\n";
 my @to_list    = split /[\s,]+/, $to_email;
 
-# Shared hash to prevent multiple emails
+# Shared hash to prevent multiple emails for the same message
 my %sent_alerts :shared;
 
 # ---- Send email ----
 sub send_email {
 	my ($msg) = @_;
+
 	{
 		lock(%sent_alerts);
+		# Skip if this message was already sent
 		return if $sent_alerts{$msg};
 		$sent_alerts{$msg} = 1;
 	}
@@ -72,7 +74,7 @@ sub send_email {
 		$smtp->mail($from_email);
 		$smtp->to($recipient);
 
-		# Send email with
+		# Send email
 		$smtp->data();
 		$smtp->datasend("To: $recipient\n");
 		$smtp->datasend("From: $from_email\n");
