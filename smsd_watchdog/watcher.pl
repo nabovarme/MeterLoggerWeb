@@ -21,11 +21,14 @@ my @error_patterns = (
 );
 
 # ---- SMTP config ----
-my $smtp_host = $ENV{SMTP_HOST}   || 'smtp.example.com';
-my $smtp_port = $ENV{SMTP_PORT}     || 587;
-my $smtp_user = $ENV{SMTP_USER}     || 'user@example.com';
-my $smtp_pass = $ENV{SMTP_PASSWORD} || 'password';
-my $to_email  = $ENV{TO_EMAIL}      || 'alert@example.com';
+my $smtp_host = $ENV{SMTP_HOST}   or die "Missing SMTP_HOST env variable\n";
+my $smtp_port = $ENV{SMTP_PORT}   || 587;
+my $smtp_user = $ENV{SMTP_USER}   || '';
+my $smtp_pass = $ENV{SMTP_PASSWORD} || '';
+my $from_email = $ENV{FROM_EMAIL} || $smtp_user;
+
+my $to_email   = $ENV{TO_EMAIL} or die "Missing TO_EMAIL env variable\n";
+my @to_list    = split /[\s,]+/, $to_email;
 
 # Prevent multiple emails for the same error line in a session
 my %sent_alerts;
@@ -50,12 +53,12 @@ sub send_email {
 		return;
 	}
 
-	$smtp->mail($smtp_user);
-	$smtp->to($to_email);
+	$smtp->mail($from_email);
+	$smtp->to(@to_list);
 
 	$smtp->data();
-	$smtp->datasend("To: $to_email\n");
-	$smtp->datasend("From: $smtp_user\n");
+	$smtp->datasend("To: " . join(",", @to_list) . "\n");
+	$smtp->datasend("From: $from_email\n");
 	$smtp->datasend("Subject: Postfix alert detected\n");
 	$smtp->datasend("\n$msg\n");
 	$smtp->dataend();
