@@ -429,13 +429,7 @@ sub forward_sms_email {
 			print ts(), "Forwarded SMS from $phone to: $recipient\n";
 		}
 
-		# Save forwarded SMS with same filename format
-		save_sms_to_file(
-			phone   => $phone,
-			message => $text,
-			dir     => "/var/spool/sms/sent"
-		);
-
+		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$text} = 1;
 	};
 	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
