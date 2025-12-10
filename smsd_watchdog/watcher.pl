@@ -32,22 +32,25 @@ my $from_email = $ENV{FROM_EMAIL} || $smtp_user;
 my $to_email   = $ENV{TO_EMAIL} or die "Missing TO_EMAIL env variable\n";
 my @to_list    = split /[\s,]+/, $to_email;
 
-# Shared hash to prevent multiple emails for the same message
+# Shared hash to prevent multiple emails for the same core error
 my %sent_alerts :shared;
 
 # ---- Send email ----
 sub send_email {
-	my ($msg) = @_;
+	my ($msg, $matched_pattern) = @_;
+
+	# Use matched pattern as core deduplication key
+	my $core_msg = $matched_pattern;
 
 	{
 		lock(%sent_alerts);
-		# Skip if this message was already sent
-		return if $sent_alerts{$msg};
-		$sent_alerts{$msg} = 1;
+		return if $sent_alerts{$core_msg};
+		$sent_alerts{$core_msg} = 1;
 	}
 
 	# Send one email per recipient
 	foreach my $recipient (@to_list) {
+		# Connect to SMTP server
 		my $smtp = Net::SMTP->new(
 			$smtp_host,
 			Port            => $smtp_port,
@@ -56,6 +59,7 @@ sub send_email {
 			SSL_verify_mode => 0,
 		) or do { warn "SMTP connect failed\n"; next; };
 
+		# Start TLS if using port 587
 		eval { $smtp->starttls(); };
 
 		# Authenticate if credentials provided
@@ -94,10 +98,12 @@ sub watch_container {
 	my ($container) = @_;
 
 	while (1) {
+		# Get timestamp to fetch logs since
 		my $since_time = `date -u +%Y-%m-%dT%H:%M:%S`;
 		chomp $since_time;
 		print "Watching logs from container: $container since $since_time\n";
 
+		# Open docker logs stream
 		open(my $fh, "-|", "docker logs -f --since $since_time $container 2>&1")
 			or do { warn "Cannot run docker logs: $!\n"; sleep 5; next; };
 
@@ -105,10 +111,12 @@ sub watch_container {
 			chomp $line;
 			$line =~ s/^\s+|\s+$//g;
 
+			# Check line against all error patterns
 			foreach my $pattern (@error_patterns) {
 				if ($line =~ $pattern) {
 					print "Detected error in $container: $line\n";
-					send_email("$container: $line");
+					# Send email with full line but deduplicate by matched pattern
+					send_email("$container: $line", $pattern);
 					last;
 				}
 			}
