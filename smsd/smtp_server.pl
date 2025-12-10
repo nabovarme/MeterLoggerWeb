@@ -41,13 +41,13 @@ sub ts {
 # --- Read configuration from environment ---
 my $router    = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
 my $username  = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
-my $password  = $ENV{DLINK_ROUTER_PASS} // "";
+my $password  = $ENV{DLINK_ROUTER_PASS} || "";
 
 # --- SMTP configuration from environment ---
 my $smtp_host  = $ENV{SMTP_HOST}     or die "Missing SMTP_HOST env variable\n";
 my $smtp_port  = $ENV{SMTP_PORT}     || 587;
-my $smtp_user  = $ENV{SMTP_USER}     // '';
-my $smtp_pass  = $ENV{SMTP_PASSWORD} // '';
+my $smtp_user  = $ENV{SMTP_USER}     || '';
+my $smtp_pass  = $ENV{SMTP_PASSWORD} || '';
 my $from_email = $ENV{FROM_EMAIL}    or die "Missing FROM_EMAIL env variable\n";
 my $to_email   = $ENV{TO_EMAIL}      or die "Missing TO_EMAIL env variable\n";
 
@@ -106,7 +106,7 @@ sub send_sms {
 	);
 	die ts() . "Login failed\n" unless $login->is_success;
 	print ts(), "Login HTTP response code: " . $login->code . "\n";
-	print ts(), "Login Set-Cookie: " . ($login->header("Set-Cookie") // '') . "\n";
+	print ts(), "Login Set-Cookie: " . ($login->header("Set-Cookie") || '') . "\n";
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
@@ -251,7 +251,7 @@ sub read_sms {
 			$sms_busy = 0;
 			return;
 		}
-		print ts(), "Received " . ($sms_list->{total} // 0) . " messages\n";
+		print ts(), "Received " . ($sms_list->{total} || 0) . " messages\n";
 
 		my $incoming_dir = "/var/spool/sms/incoming";
 		make_path($incoming_dir) unless -d $incoming_dir;
@@ -259,11 +259,11 @@ sub read_sms {
 		# 5: Process messages
 		for my $key (grep { /^M\d+$/ } keys %$sms_list) {
 			my $msg   = $sms_list->{$key};
-			my $phone = $msg->{phone} // '';
-			my $date  = $msg->{date}  // '';
-			my $tag   = $msg->{tag}   // '';
-			my $text  = $msg->{msg}   // '';
-			my $read  = $msg->{read}  // 0;
+			my $phone = $msg->{phone} || '';
+			my $date  = $msg->{date}  || '';
+			my $tag   = $msg->{tag}   || '';
+			my $text  = $msg->{msg}   || '';
+			my $read  = $msg->{read}  || 0;
 
 			print ts(), "Processing message $key\n";
 			print ts(), "\tFrom: $phone\n";
@@ -352,18 +352,35 @@ sub forward_sms_email {
 	return if $sent_sms{$text};
 
 	eval {
+		# Normalize line endings to CRLF for SMTP compliance
+		$text =~ s/\r?\n/\r\n/g;
+
+		# Encode UTF-8 flagged string to bytes
+		my $utf8_text = encode('UTF-8', $text);
+
+		# Create email object
+		my $email_obj = Email::Simple->create(
+			header => [
+				From    => $smtp_user || $from_email,
+				To      => join(",", @to_list),
+				Subject => "SMS from $phone",
+			],
+			body => $utf8_text,
+		);
+
+		# Connect to SMTP server with timeout
 		my $smtp = Net::SMTP->new(
 			$smtp_host,
-			Port            => $smtp_port,
-			Timeout         => 20,
-			Debug           => 0,
+			Port    => $smtp_port,
+			Timeout => 20,
+			Debug   => 0,
 			SSL_verify_mode => 0,
 		) or do { warn ts() . "SMTP connect failed\n"; return; };
 
-		# 1: Start TLS if using port 587
+		# Start TLS if using port 587
 		eval { $smtp->starttls() } if $smtp_port == 587;
 
-		# 2: Authenticate if credentials provided
+		# Authenticate if credentials provided
 		if ($smtp_user && $smtp_pass) {
 			unless ($smtp->auth($smtp_user, $smtp_pass)) {
 				warn ts() . "SMTP auth failed\n";
@@ -372,21 +389,20 @@ sub forward_sms_email {
 			}
 		}
 
-		# 3: Send email
+		# Send email in one go via as_string (handles long messages safely)
 		$smtp->mail($smtp_user || $from_email);
 		$smtp->to(@to_list);
 
 		$smtp->data();
-		$smtp->datasend("From: " . ($smtp_user || $from_email) . "\n");
-		$smtp->datasend("To: " . join(",", @to_list) . "\n");
-		$smtp->datasend("Subject: SMS from $phone\n\n");
-		$smtp->datasend($text . "\n");
+		$smtp->datasend($email_obj->as_string);
 		$smtp->dataend();
+
 		$smtp->quit();
 
 		print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";
 		$sent_sms{$text} = 1;
 	};
+
 	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
