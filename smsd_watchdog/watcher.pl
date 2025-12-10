@@ -18,6 +18,7 @@ my @error_patterns = (
 	qr/ERROR/i,
 	qr/failed to connect/i,
 	qr/connection refused/i,
+	qr/Failed to init session/i
 );
 
 # ---- SMTP config ----
