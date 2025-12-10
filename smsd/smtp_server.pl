@@ -70,6 +70,32 @@ $ua->default_header("X-Requested-With"  => "XMLHttpRequest");
 my $sms_busy = 0;
 my %sent_sms;
 
+# --- Function to save a message to disk ---
+sub save_sms_to_file {
+	my (%args) = @_;
+	my $phone   = $args{phone}   or die "Missing phone";
+	my $message = $args{message} or die "Missing message";
+	my $dir     = $args{dir}     or die "Missing directory";
+
+	make_path($dir) unless -d $dir;
+
+	# Generate a random string like in send_sms()
+	my $message_bytes = encode('UTF-8', $message);
+	my $rand_str      = substr(md5_hex(time() . $phone . $message_bytes), 0, 10);
+	my $filename      = File::Spec->catfile($dir, "${phone}_$rand_str");
+
+	eval {
+		open my $fh, '>:encoding(UTF-8)', $filename or die $!;
+		my $timestamp = localtime();
+		print $fh "To: $phone\nSent: $timestamp\n\n$message";
+		close $fh;
+		print ts(), "Saved message to $filename\n";
+	};
+	warn ts() . "Failed to save SMS to $filename: $@\n" if $@;
+
+	return $filename;
+}
+
 # --- Function to send SMS via the router ---
 sub send_sms {
 	my ($phone, $message) = @_;
@@ -172,19 +198,11 @@ sub send_sms {
 
 	# 8: Verify SMS sent successfully
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
-		my $dir = "/var/spool/sms/sent";
-		make_path($dir) unless -d $dir;
-		my $message_bytes = encode('UTF-8', $message);
-		my $rand_str = substr(md5_hex(time().$phone.$message_bytes),0,10);
-		my $filename = File::Spec->catfile($dir, "${phone}_$rand_str");
-
-		my $timestamp = localtime();
-		my $file_content = "To: $phone\nSent: $timestamp\n\n$message";
-
-		open my $fh, '>:encoding(UTF-8)', $filename or warn ts() . "Failed to write SMS file $filename: $!\n";
-		print $fh $file_content;
-		close $fh;
-		print ts(), "SMS saved to $filename\n";
+		save_sms_to_file(
+			phone   => $phone,
+			message => $message,
+			dir     => "/var/spool/sms/sent"
+		);
 
 		$sms_busy = 0;
 		return 1;
@@ -311,17 +329,11 @@ sub read_sms {
 			print ts(), "Deleted message tag=$tag successfully\n";
 
 			# 5d: Save to spool
-			my $safe_phone = $phone; $safe_phone =~ s/\D//g;
-			my $epoch = time();
-			my $file = File::Spec->catfile($incoming_dir, "${safe_phone}_${epoch}.txt");
-
-			eval {
-				open my $fh, '>:encoding(UTF-8)', $file or die $!;
-				print $fh "From: $phone\nDate: $date\nTag: $tag\n\n$text\n";
-				close $fh;
-				print ts(), "Saved message to $file\n";
-			};
-			warn ts() . "Could not write message to $file: $@\n" if $@;
+			save_sms_to_file(
+				phone   => $phone,
+				message => $text,
+				dir     => $incoming_dir
+			);
 
 			# 5e: Forward SMS via email
 			forward_sms_email($phone, $text);
@@ -413,12 +425,19 @@ sub forward_sms_email {
 			print ts(), "Forwarded SMS from $phone to: $recipient\n";
 		}
 
+		# Save forwarded SMS with same filename format
+		save_sms_to_file(
+			phone   => $phone,
+			message => $text,
+			dir     => "/var/spool/sms/sent"
+		);
+
 		$sent_sms{$text} = 1;
 	};
 	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
-# Background thread to read SMS
+# --- Background thread to read SMS periodically ---
 threads->create(sub {
 	while (1) {
 		read_sms();
@@ -426,6 +445,7 @@ threads->create(sub {
 	}
 })->detach();
 
+# --- SMTP server to accept incoming emails and forward as SMS ---
 my $socket = IO::Socket::INET->new(
 	LocalPort => 25,
 	Listen    => 5,
