@@ -370,9 +370,6 @@ sub forward_sms_email {
 		# Loop over each recipient and send individually
 		foreach my $recipient (@to_list) {
 
-			# Add To header for this recipient
-			$email_obj->header_set('To', $recipient);
-
 			# Connect to SMTP server
 			my $smtp = Net::SMTP->new(
 				$smtp_host,
@@ -403,7 +400,10 @@ sub forward_sms_email {
 
 			# Send email
 			$smtp->data();
-			$smtp->datasend($email_obj->as_string);
+			$smtp->datasend("To: $recipient\n");
+			$smtp->datasend("From: " . ($smtp_user || $from_email) . "\n");
+			$smtp->datasend("Subject: SMS from $phone\n");
+			$smtp->datasend("\n$text\n");
 			$smtp->dataend();
 
 			# Close SMTP session

@@ -72,7 +72,7 @@ sub send_email {
 		$smtp->mail($from_email);
 		$smtp->to($recipient);
 
-		# Send email
+		# Send email with
 		$smtp->data();
 		$smtp->datasend("To: $recipient\n");
 		$smtp->datasend("From: $from_email\n");
