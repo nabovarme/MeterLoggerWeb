@@ -12,6 +12,7 @@ use Data::Dumper;
 
 use Net::Server::Mail::SMTP;
 use IO::Socket::INET;
+use Net::SMTP;
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -38,21 +39,31 @@ sub ts {
 }
 
 # --- Read configuration from environment ---
-my $router   = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
-my $username = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
-my $password = $ENV{DLINK_ROUTER_PASS} // "";
+my $router    = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
+my $username  = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
+my $password  = $ENV{DLINK_ROUTER_PASS} // "";
+
+# --- SMTP configuration from environment ---
+my $smtp_host  = $ENV{SMTP_HOST}     or die "Missing SMTP_HOST env variable\n";
+my $smtp_port  = $ENV{SMTP_PORT}     || 25;
+my $smtp_user  = $ENV{SMTP_USER}     // '';
+my $smtp_pass  = $ENV{SMTP_PASSWORD} // '';
+my $from_email = $ENV{FROM_EMAIL}    or die "Missing FROM_EMAIL env variable\n";
+my $to_email   = $ENV{TO_EMAIL}      or die "Missing TO_EMAIL env variable\n";
+
+my @to_list = split /[\s,]+/, $to_email;
 
 # --- Initialize HTTP client for SMS with cookies and headers ---
 my $cookie_jar = HTTP::Cookies->new;
 my $ua = LWP::UserAgent->new(
-	agent	   => "Mozilla/5.0",
+	agent      => "Mozilla/5.0",
 	cookie_jar => $cookie_jar,
-	timeout	   => 30,
+	timeout    => 30,
 );
-$ua->default_header("Accept"		   => "application/json, text/javascript, */*; q=0.01");
-$ua->default_header("Accept-Language" => "en-GB,en;q=0.9");
-$ua->default_header("Connection"	   => "keep-alive");
-$ua->default_header("X-Requested-With" => "XMLHttpRequest");
+$ua->default_header("Accept"            => "application/json, text/javascript, */*; q=0.01");
+$ua->default_header("Accept-Language"   => "en-GB,en;q=0.9");
+$ua->default_header("Connection"        => "keep-alive");
+$ua->default_header("X-Requested-With"  => "XMLHttpRequest");
 
 # --- Global flag to prevent concurrent send_sms/read_sms ---
 my $sms_busy = 0;
@@ -178,7 +189,7 @@ sub send_sms {
 		return 1;
 	} else {
 		print ts(), "SMS gateway returned unexpected response:\n$resp\n";
-		print ts(), "JSON decode, if valid:\n";
+		print ts(), "JSON decode, if valid):\n";
 		eval {
 			my $decoded = JSON->new->utf8->pretty->canonical->decode($resp);
 			print ts() . JSON->new->utf8->pretty->canonical->encode($decoded) . "\n";
@@ -189,7 +200,7 @@ sub send_sms {
 	}
 }
 
-# --- Function to read SMS from router ---
+# --- Function to read SMS from router and forward via email ---
 sub read_sms {
 	return if $sms_busy;
 
@@ -315,9 +326,34 @@ sub read_sms {
 			if ($@) {
 				warn ts() . "Could not write message to $file: $@\n";
 			}
+
+			# --- STEP 8: Forward SMS to email ---
+			eval {
+				my $smtp = Net::SMTP->new(
+					$smtp_host,
+					Port            => $smtp_port,
+					Timeout         => 20,
+					Debug           => 0,
+					SSL_verify_mode => 0,
+				) or do { warn "SMTP connect failed\n"; return; };
+
+				$smtp->auth($smtp_user, $smtp_pass) if $smtp_user && $smtp_pass;
+				$smtp->mail($from_email);
+				$smtp->to(@to_list);
+				$smtp->data();
+				$smtp->datasend("From: $from_email\n");
+				$smtp->datasend("To: " . join(",", @to_list) . "\n");
+				$smtp->datasend("Subject: SMS from $phone\n\n");
+				$smtp->datasend($text . "\n");
+				$smtp->dataend();
+				$smtp->quit;
+
+				print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";
+			};
+			warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
 		}
 
-		# --- STEP 8: Logout ---
+		# --- STEP 9: Logout ---
 		print ts(), "Logging out session $qsess\n";
 		my $logout_json = qq({"logout":"$qsess"});
 		$ua->post(
