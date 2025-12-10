@@ -160,14 +160,14 @@ sub send_sms {
 	# 7: Logout
 	print ts(), "Logging out session $qsess\n";
 	my $logout_json = qq({"logout":"$qsess"});
-	$ua->post(
+	my $logout = $ua->post(
 		"http://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 		Content      => $logout_json,
 		Referer      => "http://$router/controlPanel.html",
 		Origin       => "http://$router"
 	);
-	print ts(), $ua->is_success ? "Logout successful\n" : "Logout failed: " . $ua->status_line . "\n";
+	print ts(), $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
 
 	# 8: Verify SMS sent successfully
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
@@ -329,13 +329,14 @@ sub read_sms {
 		# 6: Logout
 		print ts(), "Logging out session $qsess\n";
 		my $logout_json = qq({"logout":"$qsess"});
-		$ua->post(
+		my $logout = $ua->post(
 			"http://$router/login.cgi",
 			Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 			Content      => $logout_json,
 			Referer      => "http://$router/controlPanel.html",
 			Origin       => "http://$router"
 		);
+		print ts(), $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
 
 		$sms_busy = 0;
 		return $sms_list;
