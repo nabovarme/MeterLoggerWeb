@@ -44,43 +44,47 @@ sub send_email {
 		$sent_alerts{$msg} = 1;
 	}
 
-	my $smtp = Net::SMTP->new(
-		$smtp_host,
-		Port            => $smtp_port,
-		Timeout         => 20,
-		Debug           => 0,
-		SSL_verify_mode => 0,
-	) or do { warn "SMTP connect failed\n"; return; };
+	# Send one email per recipient
+	foreach my $recipient (@to_list) {
+		my $smtp = Net::SMTP->new(
+			$smtp_host,
+			Port            => $smtp_port,
+			Timeout         => 20,
+			Debug           => 0,
+			SSL_verify_mode => 0,
+		) or do { warn "SMTP connect failed\n"; next; };
 
-	eval { $smtp->starttls(); };
+		eval { $smtp->starttls(); };
 
-	if ($smtp_user && $smtp_pass) {
-		unless ($smtp->auth($smtp_user, $smtp_pass)) {
-			warn "SMTP auth failed\n";
-			$smtp->quit;
-			return;
+		# Authenticate if credentials provided
+		if ($smtp_user && $smtp_pass) {
+			unless ($smtp->auth($smtp_user, $smtp_pass)) {
+				warn "SMTP auth failed\n";
+				$smtp->quit;
+				next;
+			}
+		} else {
+			# Warn if credentials are missing and you expected them
+			warn "SMTP credentials not provided, skipping auth\n";
 		}
-	} else {
-		# Warn if credentials are missing and you expected them
-		warn "SMTP credentials not provided, skipping auth\n";
-	}
 
-	$smtp->mail($from_email);
-
-	# Explicitly add all recipients
-	for my $recipient (@to_list) {
+		# Set sender and recipient
+		$smtp->mail($from_email);
 		$smtp->to($recipient);
+
+		# Send email
+		$smtp->data();
+		$smtp->datasend("To: $recipient\n");
+		$smtp->datasend("From: $from_email\n");
+		$smtp->datasend("Subject: Container alert detected\n");
+		$smtp->datasend("\n$msg\n");
+		$smtp->dataend();
+
+		# Close SMTP session
+		$smtp->quit();
+
+		print "Email sent to $recipient: $msg\n";
 	}
-
-	$smtp->data();
-	$smtp->datasend("To: " . join(",", @to_list) . "\n");
-	$smtp->datasend("From: $from_email\n");
-	$smtp->datasend("Subject: Container alert detected\n");
-	$smtp->datasend("\n$msg\n");
-	$smtp->dataend();
-	$smtp->quit();
-
-	print "Email sent: $msg\n";
 }
 
 # ---- Watch docker logs in threads ----

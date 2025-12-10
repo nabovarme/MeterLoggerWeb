@@ -362,56 +362,58 @@ sub forward_sms_email {
 		my $email_obj = Email::Simple->create(
 			header => [
 				From    => $smtp_user || $from_email,
-				To      => join(",", @to_list),
 				Subject => "SMS from $phone",
 			],
 			body => $utf8_text,
 		);
 
-		# Connect to SMTP server with timeout
-		my $smtp = Net::SMTP->new(
-			$smtp_host,
-			Port    => $smtp_port,
-			Timeout => 20,
-			Debug   => 0,
-			SSL_verify_mode => 0,
-		) or do { warn ts() . "SMTP connect failed\n"; return; };
+		# Loop over each recipient and send individually
+		foreach my $recipient (@to_list) {
 
-		# Start TLS if using port 587
-		eval { $smtp->starttls() } if $smtp_port == 587;
+			# Add To header for this recipient
+			$email_obj->header_set('To', $recipient);
 
-		# Authenticate if credentials provided
-		if ($smtp_user && $smtp_pass) {
-			unless ($smtp->auth($smtp_user, $smtp_pass)) {
-				warn ts() . "SMTP auth failed\n";
-				$smtp->quit;
-				return;
+			# Connect to SMTP server
+			my $smtp = Net::SMTP->new(
+				$smtp_host,
+				Port    => $smtp_port,
+				Timeout => 20,
+				Debug   => 0,
+				SSL_verify_mode => 0,
+			) or do { warn ts() . "SMTP connect failed\n"; next; };
+
+			# Start TLS if using port 587
+			eval { $smtp->starttls() } if $smtp_port == 587;
+
+			# Authenticate if credentials provided
+			if ($smtp_user && $smtp_pass) {
+				unless ($smtp->auth($smtp_user, $smtp_pass)) {
+					warn ts() . "SMTP auth failed\n";
+					$smtp->quit;
+					next;
+				}
+			} else {
+				# Warn if credentials are missing and you expected them
+				warn ts() . "SMTP credentials not provided, skipping auth\n";
 			}
-		} else {
-			# Warn if credentials are missing and you expected them
-			warn ts() . "SMTP credentials not provided, skipping auth\n";
-		}
 
-		# Set sender
-		$smtp->mail($smtp_user || $from_email);
-
-		# Explicitly add all recipients
-		for my $recipient (@to_list) {
+			# Set sender and recipient
+			$smtp->mail($smtp_user || $from_email);
 			$smtp->to($recipient);
+
+			# Send email
+			$smtp->data();
+			$smtp->datasend($email_obj->as_string);
+			$smtp->dataend();
+
+			# Close SMTP session
+			$smtp->quit();
+
+			print ts(), "Forwarded SMS from $phone to: $recipient\n";
 		}
 
-		# Send email in one go via as_string (handles long messages safely)
-		$smtp->data();
-		$smtp->datasend($email_obj->as_string);
-		$smtp->dataend();
-
-		# Close SMTP session
-		$smtp->quit();
-
-		print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";
 		$sent_sms{$text} = 1;
 	};
-
 	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
