@@ -4,6 +4,8 @@ FROM debian:stable
 RUN apt-get update && apt-get install -y \
 	perl \
 	libnet-smtp-ssl-perl \
+	libemail-mime-perl \
+	libemail-mime-encodings-perl
 	ca-certificates \
 	uhubctl \
 	usb-modeswitch \
