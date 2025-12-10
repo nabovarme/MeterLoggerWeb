@@ -387,16 +387,25 @@ sub forward_sms_email {
 				$smtp->quit;
 				return;
 			}
+		} else {
+			# Warn if credentials are missing and you expected them
+			warn ts() . "SMTP credentials not provided, skipping auth\n";
+		}
+
+		# Set sender
+		$smtp->mail($smtp_user || $from_email);
+
+		# Explicitly add all recipients
+		for my $recipient (@to_list) {
+			$smtp->to($recipient);
 		}
 
 		# Send email in one go via as_string (handles long messages safely)
-		$smtp->mail($smtp_user || $from_email);
-		$smtp->to(@to_list);
-
 		$smtp->data();
 		$smtp->datasend($email_obj->as_string);
 		$smtp->dataend();
 
+		# Close SMTP session
 		$smtp->quit();
 
 		print ts(), "Forwarded SMS from $phone to: " . join(", ", @to_list) . "\n";

@@ -54,13 +54,23 @@ sub send_email {
 
 	eval { $smtp->starttls(); };
 
-	unless ($smtp->auth($smtp_user, $smtp_pass)) {
-		warn "SMTP auth failed\n";
-		return;
+	if ($smtp_user && $smtp_pass) {
+		unless ($smtp->auth($smtp_user, $smtp_pass)) {
+			warn "SMTP auth failed\n";
+			$smtp->quit;
+			return;
+		}
+	} else {
+		# Warn if credentials are missing and you expected them
+		warn "SMTP credentials not provided, skipping auth\n";
 	}
 
 	$smtp->mail($from_email);
-	$smtp->to(@to_list);
+
+	# Explicitly add all recipients
+	for my $recipient (@to_list) {
+		$smtp->to($recipient);
+	}
 
 	$smtp->data();
 	$smtp->datasend("To: " . join(",", @to_list) . "\n");
