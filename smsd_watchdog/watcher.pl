@@ -7,7 +7,6 @@ use threads;
 use threads::shared;
 use Time::HiRes qw(time);
 use Email::MIME;
-use Email::MIME::Encode qw(encode_mimewords);
 use Encode qw(encode);
 
 $| = 1;  # disable STDOUT buffering
@@ -94,7 +93,6 @@ sub send_recovery_email {
 	lock(%boot_done);
 	return unless $boot_done{$container};
 
-	my $encoded_subject = encode_mimewords("$container service restored", 'B', 'UTF-8');
 	my $utf8_body = encode("UTF-8", "$container is now operational.\n\n$summary\n");
 
 	# Send one recovery email per recipient
@@ -104,7 +102,7 @@ sub send_recovery_email {
 			header_str => [
 				From    => $from_email,
 				To      => $recipient,
-				Subject => $encoded_subject,
+				Subject => "$container service restored",
 			],
 			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
 			body => $utf8_body,
@@ -170,7 +168,6 @@ sub send_email {
 	lock(%boot_done);
 	$boot_done{$container} = 1;
 
-	my $encoded_subject = encode_mimewords("$container alert detected", 'B', 'UTF-8');
 	my $utf8_body = encode("UTF-8", $msg);
 
 	# Send one email per recipient
@@ -180,7 +177,7 @@ sub send_email {
 			header_str => [
 				From    => $from_email,
 				To      => $recipient,
-				Subject => $encoded_subject,
+				Subject => "$container alert detected",
 			],
 			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
 			body => $utf8_body,
