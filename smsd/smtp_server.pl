@@ -9,7 +9,7 @@ use Carp;
 use Encode qw(encode decode is_utf8);
 use Email::Simple;
 use Email::MIME;
-use Email::MIME::Encode qw(encode_mimeword);
+use Email::MIME::Encode qw(encode_mimewords);
 use Data::Dumper;
 
 use Net::Server::Mail::SMTP;
@@ -360,7 +360,7 @@ sub forward_sms_email {
 
 		# Encode UTF-8 flagged string to bytes
 		my $utf8_text = encode('UTF-8', $text);
-		my $encoded_subject = encode_mimeword("SMS from $phone", 'B', 'UTF-8');
+		my $encoded_subject = encode_mimewords("SMS from $phone", 'B', 'UTF-8');
 
 		# Create proper Email::MIME object
 		my $email = Email::MIME->create(
