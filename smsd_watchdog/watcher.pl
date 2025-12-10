@@ -3,14 +3,16 @@
 use strict;
 use warnings;
 use Net::SMTP;
+use threads;
+use threads::shared;
 use Time::HiRes qw(time);
 
 $| = 1;  # disable STDOUT buffering
 
-# Watch only postfix container
-my $container = "postfix";
+# Watch containers
+my @containers = ("postfix", "smsd");
 
-# ---- Postfix error patterns ----
+# ---- Error patterns ----
 my @error_patterns = (
 	qr/dsn=4\.\d\.\d/i,
 	qr/status=deferred/i,
@@ -27,17 +29,20 @@ my $smtp_port = $ENV{SMTP_PORT}   || 587;
 my $smtp_user = $ENV{SMTP_USER}   || '';
 my $smtp_pass = $ENV{SMTP_PASSWORD} || '';
 my $from_email = $ENV{FROM_EMAIL} || $smtp_user;
-
 my $to_email   = $ENV{TO_EMAIL} or die "Missing TO_EMAIL env variable\n";
 my @to_list    = split /[\s,]+/, $to_email;
 
-# Prevent multiple emails for the same error line in a session
-my %sent_alerts;
+# Shared hash to prevent multiple emails
+my %sent_alerts :shared;
 
 # ---- Send email ----
 sub send_email {
 	my ($msg) = @_;
-	return if $sent_alerts{$msg};
+	{
+		lock(%sent_alerts);
+		return if $sent_alerts{$msg};
+		$sent_alerts{$msg} = 1;
+	}
 
 	my $smtp = Net::SMTP->new(
 		$smtp_host,
@@ -60,37 +65,49 @@ sub send_email {
 	$smtp->data();
 	$smtp->datasend("To: " . join(",", @to_list) . "\n");
 	$smtp->datasend("From: $from_email\n");
-	$smtp->datasend("Subject: Postfix alert detected\n");
+	$smtp->datasend("Subject: Container alert detected\n");
 	$smtp->datasend("\n$msg\n");
 	$smtp->dataend();
 	$smtp->quit();
 
 	print "Email sent: $msg\n";
-	$sent_alerts{$msg} = 1;
 }
 
-# -------- Watch postfix docker logs --------
-while (1) {
-	my $since_time = `date -u +%Y-%m-%dT%H:%M:%S`;
-	chomp $since_time;
-	print "Watching logs from container: $container since $since_time\n";
+# ---- Watch docker logs in threads ----
+sub watch_container {
+	my ($container) = @_;
 
-	open(my $fh, "-|", "docker logs -f --since $since_time $container 2>&1")
-		or do { warn "Cannot run docker logs: $!\n"; sleep 5; next; };
+	while (1) {
+		my $since_time = `date -u +%Y-%m-%dT%H:%M:%S`;
+		chomp $since_time;
+		print "Watching logs from container: $container since $since_time\n";
 
-	while (my $line = <$fh>) {
-		chomp $line;
-		$line =~ s/^\s+|\s+$//g;  # trim whitespace
+		open(my $fh, "-|", "docker logs -f --since $since_time $container 2>&1")
+			or do { warn "Cannot run docker logs: $!\n"; sleep 5; next; };
 
-		foreach my $pattern (@error_patterns) {
-			if ($line =~ $pattern) {
-				print "Detected error in $container: $line\n";
-				send_email("$container: $line");
-				last;
+		while (my $line = <$fh>) {
+			chomp $line;
+			$line =~ s/^\s+|\s+$//g;
+
+			foreach my $pattern (@error_patterns) {
+				if ($line =~ $pattern) {
+					print "Detected error in $container: $line\n";
+					send_email("$container: $line");
+					last;
+				}
 			}
 		}
-	}
 
-	warn "docker logs stream ended — reconnecting in 5 sec...\n";
-	sleep 5;
+		warn "docker logs stream ended for $container — reconnecting in 5 sec...\n";
+		sleep 5;
+	}
 }
+
+# Start a thread for each container
+my @threads;
+foreach my $container (@containers) {
+	push @threads, threads->create(\&watch_container, $container);
+}
+
+# Wait for all threads (runs indefinitely)
+$_->join for @threads;
