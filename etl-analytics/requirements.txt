@@ -1,7 +1,8 @@
+sqlalchemy
 mysql-connector-python
 pandas
 numpy
 matplotlib
+requests
 plotly
 darts[all]
-requests
