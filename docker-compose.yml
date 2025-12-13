@@ -260,7 +260,7 @@ services:
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       MYSQL_DB: nabovarme
-      HUGGINGFACE_API_KEY: your_api_key_here
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY}
       TZ: 'Europe/Copenhagen'
     restart: always
     command: python run_daily_report.py

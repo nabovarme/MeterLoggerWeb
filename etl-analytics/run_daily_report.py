@@ -1,10 +1,10 @@
 import os
-import mysql.connector
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
-import requests
 from datetime import datetime, timedelta
+from sqlalchemy import create_engine
+from huggingface_hub import InferenceClient
 
 # --- Environment variables ---
 MYSQL_HOST = os.environ['MYSQL_HOST']
@@ -14,75 +14,140 @@ MYSQL_DB = os.environ['MYSQL_DB']
 HUGGINGFACE_API_KEY = os.environ['HUGGINGFACE_API_KEY']
 REPORTS_DIR = '/reports'
 
-# --- Connect to MySQL ---
-conn = mysql.connector.connect(
-	host=MYSQL_HOST,
-	user=MYSQL_USER,
-	password=MYSQL_PASSWORD,
-	database=MYSQL_DB
+BASELINE_YEARS = 1
+
+# --- Time windows ---
+today = datetime.now()
+yesterday = today - timedelta(days=1)
+
+y_start = int(yesterday.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+y_end = int(yesterday.replace(hour=23, minute=59, second=59, microsecond=0).timestamp())
+
+baseline_start = int((yesterday - timedelta(days=365 * BASELINE_YEARS)).timestamp())
+baseline_end = y_end
+
+print(f"[INFO] Yesterday window: {y_start} → {y_end}")
+print(f"[INFO] Baseline window: {baseline_start} → {baseline_end}")
+
+# --- Connect to MySQL via SQLAlchemy ---
+engine = create_engine(
+	f"mysql+mysqlconnector://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}"
 )
 
-# --- Fetch data for the previous day ---
-yesterday = datetime.now() - timedelta(days=1)
-yesterday_unix = int(yesterday.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
-
-query = f"""
-SELECT s.serial, s.unix_time, s.energy, s.effect, s.is_spike, m.type, m.group as group_id, mg.group as group_name
+# --- Fetch yesterday data ---
+query_yesterday = f"""
+SELECT s.serial, s.unix_time, s.energy, s.effect, s.is_spike,
+	   m.type, mg.group AS group_name
 FROM samples s
 JOIN meters m ON s.serial = m.serial
-JOIN meter_groups mg ON m.group = mg.id
-WHERE s.unix_time >= {yesterday_unix} AND m.enabled=1
+LEFT JOIN meter_groups mg ON m.group = mg.id
+WHERE s.unix_time BETWEEN {y_start} AND {y_end}
+AND m.enabled = 1
 """
-df = pd.read_sql(query, conn)
+df_yesterday = pd.read_sql(query_yesterday, engine)
+print(f"[INFO] Yesterday rows: {len(df_yesterday)}")
 
-# --- Aggregate by type and group ---
-agg_system = df.groupby('type').agg(
-	total_energy=('energy','sum'),
-	peak_effect=('effect','max')
+# --- Fetch baseline data ---
+query_baseline = f"""
+SELECT s.serial, s.unix_time, s.energy, s.effect,
+	   m.type
+FROM samples s
+JOIN meters m ON s.serial = m.serial
+WHERE s.unix_time BETWEEN {baseline_start} AND {baseline_end}
+AND m.enabled = 1
+"""
+df_baseline = pd.read_sql(query_baseline, engine)
+print(f"[INFO] Baseline rows: {len(df_baseline)}")
+
+# --- Aggregations ---
+agg_yesterday = df_yesterday.groupby('type').agg(
+	total_energy=('energy', 'sum'),
+	peak_effect=('effect', 'max')
 ).reset_index()
 
-agg_groups = df.groupby(['group_name','type']).agg(
-	total_energy=('energy','sum'),
-	peak_effect=('effect','max')
+agg_baseline = df_baseline.groupby('type').agg(
+	total_energy=('energy', 'mean'),
+	peak_effect=('effect', 'max')
 ).reset_index()
 
-# --- Plot total system consumption ---
-plt.figure(figsize=(10,5))
-for t in df['type'].unique():
-	subset = df[df['type']==t]
-	subset.groupby('unix_time')['energy'].sum().plot(label=t)
+comparison = agg_yesterday.merge(
+	agg_baseline,
+	on='type',
+	suffixes=('_yesterday', '_baseline'),
+	how='left'
+)
+
+comparison['energy_change_pct'] = (
+	(comparison['total_energy_yesterday'] - comparison['total_energy_baseline'])
+	/ comparison['total_energy_baseline'] * 100
+)
+
+# --- Spikes ---
+spikes = (
+	df_yesterday[df_yesterday['is_spike'] == 1]
+	.groupby('serial')
+	.size()
+	.reset_index(name='spike_count')
+)
+
+# --- Plot ---
+plt.figure(figsize=(10, 5))
+for t in df_yesterday['type'].unique():
+	sub = df_yesterday[df_yesterday['type'] == t]
+	sub.groupby('unix_time')['energy'].sum().plot(label=t)
+
+plt.title('System Consumption (Yesterday)')
 plt.xlabel('Time')
-plt.ylabel('Energy (kWh)')
-plt.title('System Consumption Previous Day')
+plt.ylabel('Energy')
 plt.legend()
 plt.tight_layout()
-plot_file = os.path.join(REPORTS_DIR, f'system_consumption_{datetime.now().date()}.png')
+
+plot_file = os.path.join(REPORTS_DIR, f"system_{yesterday.date()}.png")
 plt.savefig(plot_file)
 plt.close()
 
-# --- Find spikes / anomalies ---
-spikes = df[df['is_spike']==1].groupby('serial').size().reset_index(name='spike_count')
-
-# --- Prepare data for LLM ---
+# --- Prepare LLM input ---
 summary_data = {
-	"date": str(datetime.now().date()),
-	"system_totals": agg_system.to_dict(orient='records'),
-	"group_totals": agg_groups.to_dict(orient='records'),
+	"date": str(yesterday.date()),
+	"comparison": comparison.to_dict(orient='records'),
 	"spikes": spikes.to_dict(orient='records')
 }
 
-# --- Hugging Face LLM summary ---
-hf_url = "https://api-inference.huggingface.co/models/gpt-4"  # replace with chosen model
-headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-prompt = f"Summarize energy data for {summary_data['date']} in plain English:\n{json.dumps(summary_data)}"
+prompt = f"""
+You are an energy system analyst.
 
-response = requests.post(hf_url, headers=headers, json={"inputs": prompt})
-hf_output = response.json()
-summary_data['llm_summary'] = hf_output[0]['generated_text'] if isinstance(hf_output, list) else "No output"
+Compare yesterday's energy usage to the historical baseline.
+Highlight:
+- Major increases or decreases
+- Possible operational issues
+- Notable spikes or anomalies
+- Actionable recommendations
 
-# --- Save JSON for mailer ---
-report_file = os.path.join(REPORTS_DIR, f'report_{datetime.now().date()}.json')
+Data:
+{json.dumps(summary_data, indent=2)}
+"""
+
+# --- Hugging Face Hub ---
+print("[INFO] Initializing Hugging Face InferenceClient...")
+client = InferenceClient(token=HUGGINGFACE_API_KEY)
+
+print("[INFO] Sending request to Hugging Face model...")
+try:
+	completion = client.chat.completions.create(
+		model="openai/gpt-oss-120b",
+		messages=[{"role": "user", "content": prompt}],
+	)
+	llm_summary = completion.choices[0].message['content']
+	print("[HF] LLM summary received successfully")
+except Exception as e:
+	print("[HF] Request failed:", e)
+	llm_summary = "LLM request failed"
+
+summary_data['llm_summary'] = llm_summary
+
+# --- Save report ---
+report_file = os.path.join(REPORTS_DIR, f"report_{yesterday.date()}.json")
 with open(report_file, 'w') as f:
 	json.dump(summary_data, f, indent=2)
 
-print(f"Report saved: {report_file}")
+print(f"[INFO] Report saved: {report_file}")
