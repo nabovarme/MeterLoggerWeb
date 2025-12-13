@@ -247,6 +247,41 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
+  # analysis
+  etl_analytics:
+    build: ./etl-analytics
+    container_name: etl_analytics
+    depends_on:
+      - db
+    volumes:
+      - ./reports:/reports
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: ${METERLOGGER_DB_USER}
+      MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      MYSQL_DB: nabovarme
+      HUGGINGFACE_API_KEY: your_api_key_here
+      TZ: 'Europe/Copenhagen'
+    restart: always
+    command: python run_daily_report.py
+
+  report_mailer:
+    build: ./report-mailer
+    container_name: report_mailer
+    depends_on:
+      - etl_analytics
+    volumes:
+      - ./reports:/reports
+    environment:
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      RECIPIENTS: ${TO_EMAIL}
+      TZ: 'Europe/Copenhagen'
+    restart: always
+    command: python send_reports.py
+
 volumes:
   postfix_spool:
   postfix_mail:
