@@ -7,4 +7,3 @@ certbot/
 htdocs/cache/
 .env
 utils/bash_history
-reports/
