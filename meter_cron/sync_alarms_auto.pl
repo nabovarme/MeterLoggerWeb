@@ -54,17 +54,18 @@ sub sync_auto_alarms {
 			# Insert new alarm
 			$dbh->do(q[
 				INSERT INTO alarms
-					(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`)
-				VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+					(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`)
+				VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
 			], undef,
 				$m->{serial},
 				$aa->{condition},
-				$aa->{down_message} || 'alarm',
-				$aa->{up_message}   || 'normal',
-				$aa->{repeat}       || 0,
-				$aa->{default_snooze} || 1800,
+				$aa->{down_message}     || 'alarm',
+				$aa->{up_message}       || 'normal',
+				$aa->{repeat}           || 0,
+				$aa->{default_snooze}   || 1800,
 				$aa->{id},
-				$aa->{sms_notification} || ''
+				$aa->{sms_notification} || '',
+				$aa->{description}      || ''
 			);
 
 			print "[".localtime()."] Created auto-alarm for serial $m->{serial} from template $aa->{id}\n";
