@@ -52,6 +52,44 @@ DLINK_ROUTER_PASS=pass
 
 ---
 
+## ⚡ Auto-Alarms
+
+MeterLoggerWeb now supports **auto-alarm templates** stored in the `alarms_auto` table. These templates are automatically synced to the `alarms` table for all meters that are enabled and have valves installed.
+
+### Key Features
+
+- Define reusable alarm templates in `alarms_auto`.
+- Templates are automatically synced to all active meters with valves installed.
+- Existing alarms are preserved; only missing alarms are created.
+- Orphan alarms (alarms for serials that no longer exist) are automatically deleted.
+- The template's `description` field is used as the `comment` in the generated alarm.
+- SMS notifications are supported per template via `sms_notification` field.
+
+### How it Works
+
+- The `sync_alarms_auto.pl` script runs periodically (cron) to sync templates to alarms.
+- It loops over all enabled meters and all enabled templates.
+- For each template/meter combination, if an alarm does not exist, it is created.
+- Orphan alarms for missing meters are deleted safely.
+- Transactions are used to ensure database integrity.
+
+### Example
+
+If you have a template in `alarms_auto`:
+
+| Field             | Value                       |
+|------------------|-----------------------------|
+| description       | "Valve closed too long"     |
+| down_message      | "Check valve!"              |
+| up_message        | "Valve back to normal"      |
+| repeat            | 0                           |
+| default_snooze    | 1800                        |
+| sms_notification  | "+4512345678"               |
+
+When `sync_alarms_auto.pl` runs, an alarm is created for each enabled meter that doesn't already have this alarm, with the `description` used for the `comment` field.
+
+---
+
 ## 📌 Built-in / Static Variables
 
 These are predefined variables available in alarm conditions and messages. They are fetched directly from the `meters` and `alarms` tables.
