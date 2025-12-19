@@ -43,7 +43,7 @@ sub sync_auto_alarms {
 	# Delete alarms for serials that no longer exist
 	my $deleted = $dbh->do(q{
 		DELETE FROM alarms
-		WHERE serial NOT IN (SELECT serial FROM meters WHERE enabled=1 AND valve_installed=1)
+		WHERE serial NOT IN (SELECT `serial` FROM meters)
 	});
 	# Normalize DBI 0E0 value to 0 for printing
 	my $num_deleted = ($deleted && $deleted eq '0E0') ? 0 : $deleted;
