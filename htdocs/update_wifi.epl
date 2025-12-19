@@ -21,8 +21,6 @@ if ($dbh = Nabovarme::Db->my_connect) {
 					VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
 				$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
 					VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
-				$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-					VALUES ($quoted_serial, 'reconnect', 1, UNIX_TIMESTAMP(NOW()) + 2, 'sent', 0, 0)]);
 	}
 }
 
