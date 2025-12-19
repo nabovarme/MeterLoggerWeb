@@ -81,6 +81,7 @@ COPY ./meter_cron/clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_au
 COPY ./meter_cron/wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
 COPY ./meter_cron/update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
 COPY ./meter_cron/remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
+COPY ./meter_cron/sync_alarms_auto.pl /etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 

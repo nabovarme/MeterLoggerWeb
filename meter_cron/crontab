@@ -10,6 +10,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */10 *	* * *	root	killall -HUP update_meters.pl
 57 *	* * *	root	killall -USR1 update_meters.pl
 0 *	* * *	root	killall -USR1 clean_samples_cache.pl
-5 *	* * *	root	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl >> /var/log/cron.log 2>&1 
-0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1 
+5 *	* * *	root	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl >> /var/log/cron.log 2>&1
+0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1
 0 5	* * *	root	/etc/apache2/perl/Nabovarme/bin/remove_spikes.pl >> /var/log/cron.log 2>&1 ; /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl >> /var/log/cron.log 2>&1
+* * * * *	root	/etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1

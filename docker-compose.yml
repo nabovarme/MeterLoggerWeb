@@ -25,6 +25,10 @@ services:
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
+    # Apply optional innodb_buffer_pool_size only if set
+    command: >
+      bash -c "exec mysqld
+      ${INNODB_BUFFER_POOL_SIZE:+--innodb-buffer-pool-size=$INNODB_BUFFER_POOL_SIZE}"
 
   mqtt:
     image: eclipse-mosquitto:latest
