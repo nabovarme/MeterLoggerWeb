@@ -45,7 +45,9 @@ sub sync_auto_alarms {
 		DELETE FROM alarms
 		WHERE serial NOT IN (SELECT serial FROM meters WHERE enabled=1 AND valve_installed=1)
 	});
-	print "[".localtime()."] Deleted $deleted alarms with missing meters\n" if defined $deleted;
+	# Normalize DBI 0E0 value to 0 for printing
+	my $num_deleted = ($deleted && $deleted eq '0E0') ? 0 : $deleted;
+	print "[".localtime()."] Deleted $num_deleted alarms with missing meters\n";
 
 	# Fetch all enabled auto alarms
 	my $sth_aa = $dbh->prepare("SELECT * FROM alarms_auto WHERE enabled=1");
