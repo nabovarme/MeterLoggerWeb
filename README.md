@@ -84,7 +84,7 @@ If you have a template in `alarms_auto`:
 | up_message        | "Valve back to normal"      |
 | repeat            | 0                           |
 | default_snooze    | 1800                        |
-| sms_notification  | "+4512345678"               |
+| sms_notification  | "12345678"               |
 
 When `sync_alarms_auto.pl` runs, an alarm is created for each enabled meter that doesn't already have this alarm, with the `description` used for the `comment` field.
 
