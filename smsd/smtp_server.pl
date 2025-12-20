@@ -33,12 +33,6 @@ $Data::Dumper::Useqq = 0;
 $Data::Dumper::Terse = 1;
 $Data::Dumper::Quotekeys = 0;
 
-# --- Helper to prepend timestamp ---
-sub ts {
-	my $t = localtime();
-	return "[$t] ";
-}
-
 # --- Read configuration from environment ---
 my $router    = $ENV{DLINK_ROUTER_IP}   or die "Missing DLINK_ROUTER_IP env variable\n";
 my $username  = $ENV{DLINK_ROUTER_USER} or die "Missing DLINK_ROUTER_USER env variable\n";
@@ -93,9 +87,9 @@ sub save_sms_to_file {
 		my $timestamp = localtime();
 		print $fh "To: $phone\nSent: $timestamp\n\n$message";
 		close $fh;
-		print ts(), "Saved message to $filename\n";
+		print "Saved message to $filename\n";
 	};
-	warn ts() . "Failed to save SMS to $filename: $@\n" if $@;
+	warn "Failed to save SMS to $filename: $@\n" if $@;
 
 	return $filename;
 }
@@ -109,24 +103,24 @@ sub send_sms {
 
 	# 1: Ensure message is flagged as UTF-8 internally
 	unless (is_utf8($message)) {
-		print ts(), "Message is NOT flagged as UTF-8 internally, decoding...\n";
+		print "Message is NOT flagged as UTF-8 internally, decoding...\n";
 		$message = decode('UTF-8', $message);
 	} else {
-		print ts(), "Message is already flagged as UTF-8 internally\n";
+		print "Message is already flagged as UTF-8 internally\n";
 	}
 
 	# 2: Initialize session
-	print ts(), "Initializing session with router $router\n";
+	print "Initializing session with router $router\n";
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
-		warn ts() . "HTTP GET failed: " . $init->status_line;
+		warn "HTTP GET failed: " . $init->status_line;
 		$sms_busy = 0;
-		die ts() . "Failed to init session\n";
+		die "Failed to init session\n";
 	}
-	print ts(), "Session initialized successfully\n";
+	print "Session initialized successfully\n";
 
 	# 3: Login to router
-	print ts(), "Logging in as $username\n";
+	print "Logging in as $username\n";
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
 		"http://$router/login.cgi",
@@ -135,29 +129,29 @@ sub send_sms {
 		Referer      => "http://$router/index.html",
 		Origin       => "http://$router"
 	);
-	die ts() . "Login failed\n" unless $login->is_success;
-	print ts(), "Login HTTP response code: " . $login->code . "\n";
-	print ts(), "Login Set-Cookie: " . ($login->header("Set-Cookie") || '') . "\n";
+	die "Login failed\n" unless $login->is_success;
+	print "Login HTTP response code: " . $login->code . "\n";
+	print "Login Set-Cookie: " . ($login->header("Set-Cookie") || '') . "\n";
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-	die ts() . "qSessId not found\n" unless $qsess;
-	print ts(), "qSessId obtained: $qsess\n";
+	die "qSessId not found\n" unless $qsess;
+	print "qSessId obtained: $qsess\n";
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 	# 5: Retrieve authorization ID (authID)
-	print ts(), "Fetching authID\n";
+	print "Fetching authID\n";
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1",
 		Referer => "http://$router/controlPanel.html");
-	die ts() . "Failed to get authID\n" unless $auth_resp->is_success;
+	die "Failed to get authID\n" unless $auth_resp->is_success;
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
-	die ts() . "Empty authID\n" unless $authID;
-	print ts(), "authID obtained: $authID\n";
+	die "Empty authID\n" unless $authID;
+	print "authID obtained: $authID\n";
 
 	# 6: Send SMS
-	print ts(), "Sending SMS payload\n";
+	print "Sending SMS payload\n";
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
@@ -169,7 +163,7 @@ sub send_sms {
 		phone_list => $payload_phone,
 		authID     => $authID
 	};
-	print ts(), "SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
+	print "SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
 	my $json = encode_json($payload);
 
 	my $sms = $ua->post(
@@ -181,15 +175,15 @@ sub send_sms {
 	);
 
 	unless ($sms->is_success) {
-		print ts() . "SMS POST failed: " . $sms->status_line . "\n";
-		print ts() . "Response content: " . $sms->decoded_content . "\n";
+		print "SMS POST failed: " . $sms->status_line . "\n";
+		print "Response content: " . $sms->decoded_content . "\n";
 		$sms_busy = 0;
-		die ts() . "SMS HTTP failed: " . $sms->code;
+		die "SMS HTTP failed: " . $sms->code;
 	}
 	my $resp = $sms->decoded_content;
 
 	# 7: Logout
-	print ts(), "Logging out session $qsess\n";
+	print "Logging out session $qsess\n";
 	my $logout_json = qq({"logout":"$qsess"});
 	my $logout = $ua->post(
 		"http://$router/login.cgi",
@@ -198,7 +192,7 @@ sub send_sms {
 		Referer      => "http://$router/controlPanel.html",
 		Origin       => "http://$router"
 	);
-	print ts(), $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
+	print $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
 
 	# 8: Verify SMS sent successfully
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
@@ -211,15 +205,15 @@ sub send_sms {
 		$sms_busy = 0;
 		return 1;
 	} else {
-		print ts(), "SMS gateway returned unexpected response:\n$resp\n";
-		print ts(), "JSON decode, if valid):\n";
+		print "SMS gateway returned unexpected response:\n$resp\n";
+		print "JSON decode, if valid):\n";
 		eval {
 			my $decoded = JSON->new->utf8->pretty->canonical->decode($resp);
-			print ts() . JSON->new->utf8->pretty->canonical->encode($decoded) . "\n";
-		} or print ts() . "Response was not valid JSON\n";
+			print JSON->new->utf8->pretty->canonical->encode($decoded) . "\n";
+		} or print "Response was not valid JSON\n";
 
 		$sms_busy = 0;
-		die ts() . "SMS gateway error: $resp";
+		die "SMS gateway error: $resp";
 	}
 }
 
@@ -230,13 +224,13 @@ sub read_sms {
 		$sms_busy = 1;
 
 		# 1: Initialize session
-		print ts(), "Initializing session with router $router\n";
+		print "Initializing session with router $router\n";
 		my $init = $ua->get("http://$router/index.html");
-		die ts() . "Failed to init session\n" unless $init->is_success;
-		print ts(), "Session initialized successfully\n";
+		die "Failed to init session\n" unless $init->is_success;
+		print "Session initialized successfully\n";
 
 		# 2: Login to router
-		print ts(), "Logging in as $username\n";
+		print "Logging in as $username\n";
 		my $md5pass = md5_hex($password);
 		my $login = $ua->post(
 			"http://$router/login.cgi",
@@ -245,16 +239,16 @@ sub read_sms {
 			Referer      => "http://$router/index.html",
 			Origin       => "http://$router"
 		);
-		die ts() . "Login failed\n" unless $login->is_success;
+		die "Login failed\n" unless $login->is_success;
 
 		my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-		die ts() . "qSessId not found\n" unless $qsess;
-		print ts(), "qSessId obtained: $qsess\n";
+		die "qSessId not found\n" unless $qsess;
+		print "qSessId obtained: $qsess\n";
 		$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 		$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 		# 3: Get SMS from inbox
-		print ts(), "Fetching inbox messages\n";
+		print "Fetching inbox messages\n";
 		my $timestamp = int(time() * 1000);
 		my $url = "http://$router/data.ria?CfgType=sms_action&cont=inbox&index=0&_=$timestamp";
 
@@ -263,18 +257,18 @@ sub read_sms {
 			Referer            => "http://$router/controlPanel.html",
 			'X-Requested-With' => 'XMLHttpRequest'
 		);
-		die ts() . "SMS read request failed: " . $resp->status_line unless $resp->is_success;
+		die "SMS read request failed: " . $resp->status_line unless $resp->is_success;
 
 		# 4: Parse JSON response
 		my $content = $resp->decoded_content;
 		my $sms_list;
 		eval { $sms_list = JSON->new->utf8->decode($content) };
 		if ($@) {
-			warn ts() . "Failed to decode SMS JSON: $@\n$content\n";
+			warn "Failed to decode SMS JSON: $@\n$content\n";
 			$sms_busy = 0;
 			return;
 		}
-		print ts(), "Received " . ($sms_list->{total} || 0) . " messages\n";
+		print "Received " . ($sms_list->{total} || 0) . " messages\n";
 
 		my $incoming_dir = "/var/spool/sms/incoming";
 		make_path($incoming_dir) unless -d $incoming_dir;
@@ -288,12 +282,12 @@ sub read_sms {
 			my $text  = $msg->{msg}   || '';
 			my $read  = $msg->{read}  || 0;
 
-			print ts(), "Processing message $key\n";
-			print ts(), "\tFrom: $phone\n";
-			print ts(), "\tDate: $date\n";
-			print ts(), "\tTag:  $tag\n";
-			print ts(), "\tRead: $read\n";
-			print ts(), "\tMessage: $text\n";
+			print "Processing message $key\n";
+			print "\tFrom: $phone\n";
+			print "\tDate: $date\n";
+			print "\tTag:  $tag\n";
+			print "\tRead: $read\n";
+			print "\tMessage: $text\n";
 
 			# 5a: Fetch new authID
 			my $auth_resp = $ua->get(
@@ -301,16 +295,16 @@ sub read_sms {
 				Referer => "http://$router/controlPanel.html"
 			);
 			unless ($auth_resp->is_success) {
-				warn ts() . "Failed to get authID for tag=$tag\n";
+				warn "Failed to get authID for tag=$tag\n";
 				next;
 			}
 			my $authID = $auth_resp->decoded_content;
 			$authID =~ s/\s+//g;
 			unless ($authID) {
-				warn ts() . "Empty authID for tag=$tag\n";
+				warn "Empty authID for tag=$tag\n";
 				next;
 			}
-			print ts(), "authID obtained for tag=$tag: $authID\n";
+			print "authID obtained for tag=$tag: $authID\n";
 
 			# 5b: Generate CSRF token
 			my $csrf = sprintf("%06d", int(rand(999_999)));
@@ -327,10 +321,10 @@ sub read_sms {
 				'X-Requested-With'=> 'XMLHttpRequest'
 			);
 			unless ($del->is_success) {
-				warn ts() . "DELETE FAILED for tag=$tag, status=" . $del->status_line . "\n";
+				warn "DELETE FAILED for tag=$tag, status=" . $del->status_line . "\n";
 				next;
 			}
-			print ts(), "Deleted message tag=$tag successfully\n";
+			print "Deleted message tag=$tag successfully\n";
 
 			# 5d: Save to spool
 			save_sms_to_file(
@@ -344,7 +338,7 @@ sub read_sms {
 		}
 
 		# 6: Logout
-		print ts(), "Logging out session $qsess\n";
+		print "Logging out session $qsess\n";
 		my $logout_json = qq({"logout":"$qsess"});
 		my $logout = $ua->post(
 			"http://$router/login.cgi",
@@ -353,13 +347,13 @@ sub read_sms {
 			Referer      => "http://$router/controlPanel.html",
 			Origin       => "http://$router"
 		);
-		print ts(), $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
+		print $logout->is_success ? "Logout successful\n" : "Logout failed: " . $logout->status_line . "\n";
 
 		$sms_busy = 0;
 		return $sms_list;
 	};
 	if ($@) {
-		warn ts() . "Error in read_sms: $@\n";
+		warn "Error in read_sms: $@\n";
 		$sms_busy = 0;
 	}
 }
@@ -397,7 +391,7 @@ sub forward_sms_email {
 				Timeout         => 20,
 				Debug           => 0,
 				SSL_verify_mode => 0,
-			) or do { warn ts() . "SMTP connect failed\n"; next; };
+			) or do { warn "SMTP connect failed\n"; next; };
 
 			# Start TLS if using port 587
 			eval { $smtp->starttls() } if $smtp_port == 587;
@@ -405,13 +399,13 @@ sub forward_sms_email {
 			# Authenticate if credentials provided
 			if ($smtp_user && $smtp_pass) {
 				unless ($smtp->auth($smtp_user, $smtp_pass)) {
-					warn ts() . "SMTP auth failed\n";
+					warn "SMTP auth failed\n";
 					$smtp->quit;
 					next;
 				}
 			} else {
 				# Warn if credentials are missing and you expected them
-				warn ts() . "SMTP credentials not provided, skipping auth\n";
+				warn "SMTP credentials not provided, skipping auth\n";
 			}
 
 			# Set sender and recipient
@@ -426,13 +420,13 @@ sub forward_sms_email {
 			# Close SMTP session
 			$smtp->quit();
 
-			print ts(), "Forwarded SMS from $phone to: $recipient\n";
+			print "Forwarded SMS from $phone to: $recipient\n";
 		}
 
 		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$text} = 1;
 	};
-	warn ts() . "Failed to send email for SMS from $phone: $@\n" if $@;
+	warn "Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
 # --- Background thread to read SMS periodically ---
@@ -451,7 +445,7 @@ my $socket = IO::Socket::INET->new(
 	Reuse     => 1,
 ) or die "Unable to bind SMTP server port 25: $!";
 
-print ts(), "SMTP SMS Gateway running on port 25...\n";
+print "SMTP SMS Gateway running on port 25...\n";
 
 # Main loop: accept SMTP clients
 while (my $client = $socket->accept()) {
@@ -473,14 +467,14 @@ while (my $client = $socket->accept()) {
 		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
 		my $dest    = $session->{_sms_to};
 
-		print ts(), "Sending SMS to $dest ...\n";
+		print "Sending SMS to $dest ...\n";
 		my $ok = eval { send_sms($dest, $message) };
 
 		if ($ok) {
-			print ts(), "✔ SMS to $dest sent successfully\n";
+			print "✔ SMS to $dest sent successfully\n";
 			return 1;
 		} else {
-			warn ts() . "❌ SMS to $dest failed: $@\n";
+			warn "❌ SMS to $dest failed: $@\n";
 			$smtp->reply(421, "SMS gateway temporarily down");
 			return 0;
 		}
