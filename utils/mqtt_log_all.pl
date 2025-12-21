@@ -40,6 +40,7 @@ use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
 use Getopt::Long;
+use Curses;
 
 use lib qw( /home/meterlogger/perl );
 use Nabovarme::Db;
@@ -49,31 +50,21 @@ STDOUT->autoflush(1);
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
-my $protocol_version;
-my $unix_time;
-my $meter_serial;
-my $sw_version;
-my $valve_status;
-my $uptime;
-my $ssid;
-my $rssi;
-my $wifi_status;
-my $ap_status;
-
 # Command-line options
-my $topic_only   = 0;
-my $help         = 0;
-my $client_count = 0;
+my $topic_only		= 0;
+my $help			= 0;
+my $client_count	= 0;
+my $graphics_mode	= 0;
 
 GetOptions(
-	'topic-only|t'   => \$topic_only,
-	'help|h'         => \$help,
-	'client-count|c' => \$client_count,
+	'topic-only|t'	=> \$topic_only,
+	'help|h'		=> \$help,
+	'client-count|c'=> \$client_count,
+	'graphics|g'	=> \$graphics_mode,
 ) or usage();
 
 usage() if $help;
 
-# Inform user how to exit
 print "Press Ctrl+C to exit.\n";
 
 # Connect to DB
@@ -87,12 +78,37 @@ if ($dbh = Nabovarme::Db->my_connect) {
 }
 
 # Mode selection
-if ($client_count) {
+if ($client_count && !$graphics_mode) {
 	print_client_count();
 	exit;
 }
 
-run_mqtt_loop();   # normal MQTT mode
+# Graphics mode initialization
+my ($top_win, $bottom_win, @mqtt_messages, $client_count_current);
+if ($graphics_mode) {
+	initscr();
+	noecho();
+	curs_set(0);
+	cbreak();
+
+	my $main = stdscr();
+	my ($rows, $cols);
+	getmaxyx($main, $rows, $cols);   # ✅ this works in Perl Curses
+
+	$top_win    = newwin(3, $cols, 0, 0);
+	$bottom_win = newwin($rows-3, $cols, 3, 0);
+
+	$top_win->clear();
+	$top_win->addstr(0,0,"Clients: 0");
+	$top_win->refresh();
+	$bottom_win->clear();
+	$bottom_win->refresh();
+
+	$SIG{INT} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode.\n"; exit; };
+	$SIG{HUP} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode due to HUP.\n"; exit; };
+}
+
+run_mqtt_loop();
 
 # =============================================================================
 # Subroutines
@@ -104,6 +120,7 @@ sub usage {
 	print "Options:\n";
 	print "\t-t, --topic-only   Print only the MQTT topic, skip decoded data\n";
 	print "\t-c, --client-count Continuously print number of connected MQTT clients\n";
+	print "\t-g, --graphics     Show clients on top and MQTT messages below (Curses mode)\n";
 	print "\t-h, --help         Show this help message\n";
 	print "\n";
 	print "If no serial is specified, all serials are processed.\n";
@@ -114,23 +131,12 @@ sub print_client_count {
 	my $sys_mqtt = Net::MQTT::Simple->new('mqtt');
 	my $count;
 
-	# Function-local Ctrl+C handler
-	$SIG{INT} = sub {
-		print "\nExiting client count mode.\n";
-		exit;
-	};
+	$SIG{INT} = sub { print "\nExiting client count mode.\n"; exit; };
+	$SIG{HUP} = sub { print "\nExiting client count mode due to HUP.\n"; exit; };
 
-	# Function-local SIGHUP handler (optional: just exit cleanly)
-	$SIG{HUP} = sub {
-		print "\nExiting client count mode due to HUP.\n";
-		exit;
-	};
-
-	# Subscribe to retained topic and print whenever it changes
 	$sys_mqtt->run(
 		'$SYS/broker/clients/connected' => sub {
-			my ($topic, $msg) = @_;
-			$count = $msg;
+			$count = $_[1];
 			print "Clients: $count\n";
 		}
 	);
@@ -138,82 +144,79 @@ sub print_client_count {
 
 sub run_mqtt_loop {
 	my $mqtt = Net::MQTT::Simple->new('mqtt');
+	my $mqtt_data = undef;
 
-	# Function-local signal handlers
 	$SIG{INT} = sub {
 		$dbh->disconnect() if $dbh;
+		endwin() if $graphics_mode;
 		print "disconnected\n";
 		exit;
 	};
-
 	$SIG{HUP} = sub {
 		$dbh->disconnect() if $dbh;
+		endwin() if $graphics_mode;
 		print "disconnected due to HUP\n";
 		exit;
 	};
 
-	my $mqtt_data = undef;
-	$mqtt->run( q[/#] => \&v2_mqtt_handler );
-}
-
-sub DESTROY {
-	$dbh->disconnect() if $dbh;
-	print "disconnected\n";
-	exit;
-}
-
-sub sig_handler {
-	$dbh->disconnect() if $dbh;
-	print "disconnected\n";
-	exit;
+	$mqtt->run(q[/#] => \&v2_mqtt_handler);
 }
 
 sub v2_mqtt_handler {
 	my ($topic, $message) = @_;
 	my $m;
 
-	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) {
-		return;
-	}
-	$protocol_version = $1;
-	$meter_serial     = $2;
-	$unix_time        = $3;
+	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) { return; }
+	my $protocol_version	= $1;
+	my $meter_serial	= $2;
+	my $unix_time		= $3;
 
-	# Filter by serial if argument is given
-	if ($ARGV[0]) {
-		if ($meter_serial ne $ARGV[0]) {
-			return;
+	if ($ARGV[0] && $meter_serial ne $ARGV[0]) { return; }
+
+	if ($topic_only) { $message = ''; }
+
+	unless ($topic_only) {
+		$message =~ /(.{32})(.{16})(.+)/s;
+		my ($mac,$iv,$ciphertext) = ($1,$2,$3);
+
+		my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ".$dbh->quote($meter_serial)." LIMIT 1");
+		$sth->execute;
+		if ($sth->rows) {
+			my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+			my $sha256 = sha256(pack('H*', $key));
+			my $aes_key = substr($sha256,0,16);
+			my $hmac_sha256_key = substr($sha256,16,16);
+			if ($mac eq hmac_sha256($topic.$iv.$ciphertext,$hmac_sha256_key)) {
+				my $cbc = Crypt::Mode::CBC->new('AES');
+				$message = $cbc->decrypt($ciphertext,$aes_key,$iv);
+			} else {
+				$message = "[HMAC verification failed]";
+			}
 		}
 	}
 
-	# Topic-only mode
-	if ($topic_only) {
-		print $topic . "\n";
-		return;
+	if ($graphics_mode) {
+		push @mqtt_messages, "$topic\t$message";
+		display_graphics_screen();
+	} else {
+		print "$topic\t$message\n";
 	}
+}
 
-	# Extract message components
-	$message =~ /(.{32})(.{16})(.+)/s;
-	my $mac        = $1;
-	my $iv         = $2;
-	my $ciphertext = $3;
+sub display_graphics_screen {
+	return unless $graphics_mode;
 
-	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
-	$sth->execute;
-	if ($sth->rows) {
-		my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
-		my $sha256 = sha256(pack('H*', $key));
-		my $aes_key = substr($sha256, 0, 16);
-		my $hmac_sha256_key = substr($sha256, 16, 16);
+	$top_win->clear();
+	$top_win->addstr(0,0,"Clients: $client_count_current");
+	$top_win->refresh();
 
-		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-			$m = Crypt::Mode::CBC->new('AES');
-			$message = $m->decrypt($ciphertext, $aes_key, $iv);
-			print $topic . "\t" . $message . "\n";
-		} else {
-			# hmac verification failed
-		}
+	my $max_lines = getmaxy($bottom_win);
+	my $start = @mqtt_messages > $max_lines ? @mqtt_messages - $max_lines : 0;
+	$bottom_win->clear();
+	for my $i ($start..$#mqtt_messages) {
+		$bottom_win->addstr($i-$start, 0, $mqtt_messages[$i]);
 	}
+	$bottom_win->refresh();
 }
 
 __END__

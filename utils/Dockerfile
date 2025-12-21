@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
+	libcurses-perl \
 	default-mysql-client \
 	software-properties-common \
 	texlive \
@@ -86,6 +87,10 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
 # Create user
 RUN useradd -ms /bin/bash meterlogger
+
+# Allow passwordless sudo for meterlogger
+RUN echo "meterlogger ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/meterlogger && \
+	chmod 0440 /etc/sudoers.d/meterlogger
 
 # Copy entrypoint script
 COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
