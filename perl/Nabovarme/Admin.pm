@@ -29,6 +29,11 @@ sub new {
 sub cookie_is_admin {
 	my ($self, $r, $serial) = @_;
 
+	# capture the real client IP behind proxy once
+	$self->{remote_addr} = $r->headers_in->{'X-Real-IP'}
+	                     || $r->headers_in->{'X-Forwarded-For'}
+	                     || $r->connection->remote_ip;
+
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	my $passed_cookie_token;
 	if ($passed_cookie) {
@@ -61,23 +66,28 @@ sub cookie_is_admin {
 		if ($d = $sth->fetchrow_hashref) {
 			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
 
-				# capture the real client IP behind proxy
-				$self->{remote_addr} = $r->headers_in->{'X-Real-IP'}
-				                     || $r->headers_in->{'X-Forwarded-For'}
-				                     || $r->connection->remote_ip;
-
 				$self->{user_agent} = $r->headers_in->{'User-Agent'};
 
-				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
+				# store authenticated admin context
+				$self->{username}    = $username;
+				$self->{admin_group} = $admin_group;
+
+				warn $self->{remote_addr} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
 					$r->headers_in->{'User-Agent'} .
 					"\" allowing $username as admin for group $admin_group, serial $serial\n";
+
 				return 1;
 			}
 		}
 	}
-	warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
+
+	# failed admin check
+	$self->{user_agent} = $r->headers_in->{'User-Agent'};
+
+	warn $self->{remote_addr} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
 		$r->headers_in->{'User-Agent'} .
 		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!";
+
 	return 0;
 }
 
