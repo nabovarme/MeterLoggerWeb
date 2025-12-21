@@ -2,7 +2,7 @@
 
 # Perl script to sync auto-alarms from alarms_auto to alarms table
 # Run once; suitable for cron execution
-# Deletes alarms where the meter no longer exists
+# Deletes alarms where the meter no longer exists and updates existing alarms if the template changed
 
 use strict;
 use DBI;
@@ -68,26 +68,53 @@ sub sync_auto_alarms {
 				"SELECT 1 FROM alarms WHERE serial=? AND auto_id=?",
 				undef, $serial, $aa->{id}
 			);
-			next if $exists;
 
-			# Insert new alarm, using description for comment and sms_notification
-			$dbh->do(q[
-				INSERT INTO alarms
-					(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`)
-				VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-			], undef,
-				$serial,
-				$aa->{condition},
-				$aa->{down_message} || 'alarm',
-				$aa->{up_message}   || 'normal',
-				$aa->{repeat}       || 0,
-				$aa->{default_snooze} || 1800,
-				$aa->{id},
-				$aa->{sms_notification} || '',
-				$aa->{description} || ''
-			);
+			if ($exists) {
+				# Update the alarm to reflect changes in the template
+				$dbh->do(q[
+					UPDATE alarms
+					SET
+						`condition` = ?,
+						`down_message` = ?,
+						`up_message` = ?,
+						`repeat` = ?,
+						`default_snooze` = ?,
+						`sms_notification` = ?,
+						`comment` = ?
+					WHERE serial = ? AND auto_id = ?
+				], undef,
+					$aa->{condition},
+					$aa->{down_message} || 'alarm',
+					$aa->{up_message}   || 'normal',
+					$aa->{repeat}       || 0,
+					$aa->{default_snooze} || 1800,
+					$aa->{sms_notification} || '',
+					$aa->{description} || '',
+					$serial,
+					$aa->{id}
+				);
 
-			print "[".localtime()."] Created auto-alarm for serial $serial from template $aa->{id}\n";
+				print "[".localtime()."] Updated auto-alarm for serial $serial from template $aa->{id}\n";
+			} else {
+				# Insert new alarm, using description for comment and sms_notification
+				$dbh->do(q[
+					INSERT INTO alarms
+						(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`)
+					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+				], undef,
+					$serial,
+					$aa->{condition},
+					$aa->{down_message} || 'alarm',
+					$aa->{up_message}   || 'normal',
+					$aa->{repeat}       || 0,
+					$aa->{default_snooze} || 1800,
+					$aa->{id},
+					$aa->{sms_notification} || '',
+					$aa->{description} || ''
+				);
+
+				print "[".localtime()."] Created auto-alarm for serial $serial from template $aa->{id}\n";
+			}
 		}
 
 		# Reset meters statement handle so it can be iterated again for the next auto alarm
