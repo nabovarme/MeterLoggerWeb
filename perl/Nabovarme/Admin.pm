@@ -32,37 +32,50 @@ sub cookie_is_admin {
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	my $passed_cookie_token;
 	if ($passed_cookie) {
-		($passed_cookie_token) = $passed_cookie =~ /auth_token=(.*)/;
+		($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
 	}
 
 	my ($sth, $d);
 	my $quoted_passed_cookie_token = $self->{dbh}->quote($passed_cookie_token);
 
-	$sth = $self->{dbh}->prepare(qq[SELECT `users`.username, `users`.admin_group FROM `users`, `sms_auth` \
-			WHERE `sms_auth`.cookie_token LIKE $quoted_passed_cookie_token \
-				AND `sms_auth`.auth_state = 'sms_code_verified' \
-				AND `users`.phone = `sms_auth`.phone LIMIT 1]);
+	$sth = $self->{dbh}->prepare(qq[
+		SELECT `users`.username, `users`.admin_group FROM `users`, `sms_auth`
+			WHERE `sms_auth`.cookie_token LIKE $quoted_passed_cookie_token
+				AND `sms_auth`.auth_state = 'sms_code_verified'
+				AND `users`.phone = `sms_auth`.phone LIMIT 1
+	]);
 
 	$sth->execute;
 	if ($d = $sth->fetchrow_hashref) {
 		# user is admin
-		my $username = $d->{username};
-		my $admin_group = $d->{admin_group};
+		my $username		= $d->{username};
+		my $admin_group		= $d->{admin_group};
 
 		my $quoted_serial = $self->{dbh}->quote($serial);
 
 		# check which groups it is admin for
-		$sth = $self->{dbh}->prepare(qq[SELECT `group` FROM `meters` WHERE `serial` LIKE $quoted_serial LIMIT 1]);
+		$sth = $self->{dbh}->prepare(qq[
+			SELECT `group` FROM `meters` WHERE `serial` LIKE $quoted_serial LIMIT 1
+		]);
 		$sth->execute;
 		if ($d = $sth->fetchrow_hashref) {
 			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
-				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+
+				# store authenticated admin context
+				$self->{username}		= $username;
+				$self->{admin_group}	= $admin_group;
+				$self->{remote_addr}	= $ENV{REMOTE_ADDR};
+				$self->{user_agent}		= $r->headers_in->{'User-Agent'};
+
+				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
+					$r->headers_in->{'User-Agent'} .
 					"\" allowing $username as admin for group $admin_group, serial $serial\n";
 				return 1;
 			}
 		}
 	}
-	warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" . $r->headers_in->{'User-Agent'} . 
+	warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
+		$r->headers_in->{'User-Agent'} .
 		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!";
 	return 0;
 }
@@ -70,16 +83,60 @@ sub cookie_is_admin {
 sub add_payment {
 	my ($self, $serial, $type, $date, $info, $amount, $price) = @_;
 
-	my ($quoted_serial, $quoted_type, $quoted_unix_time, $quoted_info, $quoted_amount, $quoted_price);
-	$quoted_serial = $self->{dbh}->quote($serial);
-	$quoted_type = $self->{dbh}->quote($type);
-	$quoted_unix_time = $self->{dbh}->quote($date);
-	$quoted_info = $self->{dbh}->quote($info);
-	$quoted_amount = $self->{dbh}->quote(normalize_amount($amount));
-	$quoted_price = $self->{dbh}->quote(normalize_amount($price));
+	# helper function to parse amount from user input
+	my $norm_amount	= normalize_amount($amount);
+	my $norm_price	= normalize_amount($price);
 
-	warn qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)];
-	$self->{dbh}->do(qq[INSERT INTO `accounts` (`payment_time`, `serial`, `type`, `info`, `amount`, `price`) VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)]) || die $!;
+	my ($quoted_serial, $quoted_type, $quoted_unix_time, $quoted_info, $quoted_amount, $quoted_price);
+	$quoted_serial		= $self->{dbh}->quote($serial);
+	$quoted_type		= $self->{dbh}->quote($type);
+	$quoted_unix_time	= $self->{dbh}->quote($date);
+	$quoted_info		= $self->{dbh}->quote($info);
+	$quoted_amount		= $self->{dbh}->quote($norm_amount);
+	$quoted_price		= $self->{dbh}->quote($norm_price);
+
+	# quoted audit fields
+	my $quoted_user		= $self->{dbh}->quote($self->{username});
+	my $quoted_group	= $self->{dbh}->quote($self->{admin_group});
+	my $quoted_ip		= $self->{dbh}->quote($self->{remote_addr});
+	my $quoted_ua		= $self->{dbh}->quote($self->{user_agent});
+
+	# start transaction
+	$self->{dbh}->{AutoCommit} = 0;
+
+	eval {
+		# insert payment
+		warn qq[
+			INSERT INTO `accounts`
+			(`payment_time`, `serial`, `type`, `info`, `amount`, `price`)
+			VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)
+		];
+
+		$self->{dbh}->do(qq[
+			INSERT INTO `accounts`
+			(`payment_time`, `serial`, `type`, `info`, `amount`, `price`)
+			VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)
+		]);
+
+		# audit log (append-only, unix_time defaults to current UNIX timestamp)
+		$self->{dbh}->do(qq[
+			INSERT INTO `accounts_log`
+			(`username`, `admin_group`, `serial`, `type`, `info`,
+			 `amount`, `price`, `remote_addr`, `user_agent`)
+			VALUES ($quoted_user, $quoted_group, $quoted_serial, $quoted_type,
+			 $quoted_info, $quoted_amount, $quoted_price, $quoted_ip, $quoted_ua)
+		]);
+
+		$self->{dbh}->commit;
+	};
+
+	if ($@) {
+		$self->{dbh}->rollback;
+		$self->{dbh}->{AutoCommit} = 1;
+		die "add_payment transaction failed: $@";
+	}
+
+	$self->{dbh}->{AutoCommit} = 1;
 }
 
 sub default_price_for_serial {
