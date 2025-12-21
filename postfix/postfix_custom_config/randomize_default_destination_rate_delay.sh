@@ -17,7 +17,7 @@ MAX_DELAY=20
 		# Optional: print for debugging
 		echo "Set default_destination_rate_delay = ${DELAY}s"
 
-		# Sleep MIN_DELAY seconds before next update
-		sleep $MIN_DELAY
+		# Sleep DELAY seconds before next update
+		sleep $DELAY
 	done
 ) &
