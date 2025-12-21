@@ -1,5 +1,35 @@
 #!/usr/bin/perl -w
 
+# =============================================================================
+# MQTT Meter Message Encryption and Integrity Overview
+#
+# Each meter message is encrypted and authenticated as follows:
+#
+# 1. AES-CBC Encryption:
+#    - Payload is encrypted using AES in CBC mode.
+#    - AES key is derived from the meter's stored key:
+#        * SHA-256 hash of the hex-encoded meter key is computed.
+#        * First 16 bytes of the hash are used as the AES encryption key.
+#    - Each message includes a 16-byte random Initialization Vector (IV)
+#      to ensure identical plaintexts produce different ciphertexts.
+#
+# 2. HMAC-SHA256 Message Authentication:
+#    - To ensure integrity and authenticity, an HMAC-SHA256 is computed
+#      over the concatenation: topic || IV || ciphertext.
+#    - HMAC key is derived from the last 16 bytes of SHA-256(meter key).
+#    - The first 32 bytes of the message contain the HMAC.
+#    - The script verifies the HMAC before decryption.
+#
+# 3. Message Structure:
+#       [32-byte HMAC][16-byte IV][Ciphertext]
+#
+# 4. Decryption Process:
+#    - Extract HMAC, IV, and ciphertext from the message.
+#    - Verify HMAC against topic, IV, and ciphertext.
+#    - Only decrypt if HMAC verification succeeds.
+#    - Decrypt using AES-CBC with derived key and IV from message.
+# =============================================================================
+
 use strict;
 use warnings;
 use Data::Dumper;
