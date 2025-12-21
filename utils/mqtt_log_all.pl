@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict;
+use warnings;
 use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
@@ -8,6 +9,7 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config;
+use Getopt::Long;
 
 use lib qw( /home/meterlogger/perl );
 use Nabovarme::Db;
@@ -28,18 +30,69 @@ my $rssi;
 my $wifi_status;
 my $ap_status;
 
-my $mqtt;
-$mqtt = Net::MQTT::Simple->new(q[mqtt]);
+# Command-line options
+my $topic_only   = 0;
+my $help         = 0;
+my $client_count = 0;
+
+GetOptions(
+	'topic-only|t'   => \$topic_only,
+	'help|h'         => \$help,
+	'client-count|c' => \$client_count,
+) or usage();
+
+usage() if $help;
+
+# Inform user how to exit
+print "Press Ctrl+C to exit.\n";
+
+sub usage {
+	print "Usage: $0 [options] [serial]\n";
+	print "\n";
+	print "Options:\n";
+	print "\t-t, --topic-only   Print only the MQTT topic, skip decoded data\n";
+	print "\t-c, --client-count Continuously print number of connected MQTT clients\n";
+	print "\t-h, --help         Show this help message\n";
+	print "\n";
+	print "If no serial is specified, all serials are processed.\n";
+	exit;
+}
+
+# If client-count is requested, run continuous client count mode
+if ($client_count) {
+	print_client_count();
+	exit;
+}
+
+sub print_client_count {
+	my $sys_mqtt = Net::MQTT::Simple->new('mqtt');
+	my $count;
+
+	# Capture Ctrl+C to exit gracefully
+	$SIG{INT} = sub {
+		print "\nExiting client count mode.\n";
+		exit;
+	};
+
+	# Subscribe to the retained topic and print whenever it changes
+	$sys_mqtt->run(
+		'$SYS/broker/clients/connected' => sub {
+			my ($topic, $msg) = @_;
+			$count = $msg;
+			print "Connected MQTT clients: $count\n";
+		}
+	);
+}
+
+my $mqtt = Net::MQTT::Simple->new(q[mqtt]);
 my $mqtt_data = undef;
-#my $mqtt_count = 0;
 
 # connect to db
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 	syslog('info', "connected to db");
-}
-else {
+} else {
 	syslog('info', "cant't connect to db $!");
 	die $!;
 }
@@ -59,7 +112,6 @@ sub DESTROY {
 	exit;
 }
 
-
 sub sig_handler {
 	$dbh->disconnect();
 	print "disconnected\n";
@@ -74,18 +126,25 @@ sub v2_mqtt_handler {
 		return;
 	}
 	$protocol_version = $1;
-	$meter_serial = $2;
-	$unix_time = $3;
-	
+	$meter_serial     = $2;
+	$unix_time        = $3;
+
+	# filter by serial if argument is given
 	if ($ARGV[0]) {
 		if ($meter_serial ne $ARGV[0]) {
 			return;
 		}
 	}
 
+	# if topic-only mode, skip decryption/HMAC and just print
+	if ($topic_only) {
+		print $topic . "\n";
+		return;
+	}
+
 	$message =~ /(.{32})(.{16})(.+)/s;
-	my $mac = $1;
-	my $iv = $2;
+	my $mac        = $1;
+	my $iv         = $2;
 	my $ciphertext = $3;
 		
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
@@ -100,17 +159,12 @@ sub v2_mqtt_handler {
 			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
-			
-#			$sth->finish;
 			print $topic . "\t" . $message . "\n";
-		}
-		else {
+		} else {
 			# hmac sha256 not ok
-
 		}
 	}
 	$mqtt_data = undef;
 }
-
 
 __END__
