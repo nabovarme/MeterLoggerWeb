@@ -76,6 +76,28 @@ usage() if $help;
 # Inform user how to exit
 print "Press Ctrl+C to exit.\n";
 
+# Connect to DB
+my $dbh;
+if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh->{'mysql_auto_reconnect'} = 1;
+	syslog('info', "connected to db");
+} else {
+	syslog('info', "cant't connect to db $!");
+	die $!;
+}
+
+# Mode selection
+if ($client_count) {
+	print_client_count();
+	exit;
+}
+
+run_mqtt_loop();   # normal MQTT mode
+
+# =============================================================================
+# Subroutines
+# =============================================================================
+
 sub usage {
 	print "Usage: $0 [options] [serial]\n";
 	print "\n";
@@ -88,62 +110,60 @@ sub usage {
 	exit;
 }
 
-# If client-count is requested, run continuous client count mode
-if ($client_count) {
-	print_client_count();
-	exit;
-}
-
 sub print_client_count {
 	my $sys_mqtt = Net::MQTT::Simple->new('mqtt');
 	my $count;
 
-	# Capture Ctrl+C to exit gracefully
+	# Function-local Ctrl+C handler
 	$SIG{INT} = sub {
 		print "\nExiting client count mode.\n";
 		exit;
 	};
 
-	# Subscribe to the retained topic and print whenever it changes
+	# Function-local SIGHUP handler (optional: just exit cleanly)
+	$SIG{HUP} = sub {
+		print "\nExiting client count mode due to HUP.\n";
+		exit;
+	};
+
+	# Subscribe to retained topic and print whenever it changes
 	$sys_mqtt->run(
 		'$SYS/broker/clients/connected' => sub {
 			my ($topic, $msg) = @_;
 			$count = $msg;
-			print "Connected MQTT clients: $count\n";
+			print "Clients: $count\n";
 		}
 	);
 }
 
-my $mqtt = Net::MQTT::Simple->new(q[mqtt]);
-my $mqtt_data = undef;
+sub run_mqtt_loop {
+	my $mqtt = Net::MQTT::Simple->new('mqtt');
 
-# connect to db
-my $dbh;
-if ($dbh = Nabovarme::Db->my_connect) {
-	$dbh->{'mysql_auto_reconnect'} = 1;
-	syslog('info', "connected to db");
-} else {
-	syslog('info', "cant't connect to db $!");
-	die $!;
+	# Function-local signal handlers
+	$SIG{INT} = sub {
+		$dbh->disconnect() if $dbh;
+		print "disconnected\n";
+		exit;
+	};
+
+	$SIG{HUP} = sub {
+		$dbh->disconnect() if $dbh;
+		print "disconnected due to HUP\n";
+		exit;
+	};
+
+	my $mqtt_data = undef;
+	$mqtt->run( q[/#] => \&v2_mqtt_handler );
 }
 
-$SIG{HUP} = \&sig_handler;
-$SIG{INT} = \&sig_handler;
-
-# start mqtt run loop
-$mqtt->run(	q[/#] => \&v2_mqtt_handler
-);
-
-# end of main
-
 sub DESTROY {
-	$dbh->disconnect();
+	$dbh->disconnect() if $dbh;
 	print "disconnected\n";
 	exit;
 }
 
 sub sig_handler {
-	$dbh->disconnect();
+	$dbh->disconnect() if $dbh;
 	print "disconnected\n";
 	exit;
 }
@@ -159,24 +179,25 @@ sub v2_mqtt_handler {
 	$meter_serial     = $2;
 	$unix_time        = $3;
 
-	# filter by serial if argument is given
+	# Filter by serial if argument is given
 	if ($ARGV[0]) {
 		if ($meter_serial ne $ARGV[0]) {
 			return;
 		}
 	}
 
-	# if topic-only mode, skip decryption/HMAC and just print
+	# Topic-only mode
 	if ($topic_only) {
 		print $topic . "\n";
 		return;
 	}
 
+	# Extract message components
 	$message =~ /(.{32})(.{16})(.+)/s;
 	my $mac        = $1;
 	my $iv         = $2;
 	my $ciphertext = $3;
-		
+
 	my $sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ] . $dbh->quote($meter_serial) . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
@@ -186,15 +207,13 @@ sub v2_mqtt_handler {
 		my $hmac_sha256_key = substr($sha256, 16, 16);
 
 		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-			# hmac sha256 ok
 			$m = Crypt::Mode::CBC->new('AES');
 			$message = $m->decrypt($ciphertext, $aes_key, $iv);
 			print $topic . "\t" . $message . "\n";
 		} else {
-			# hmac sha256 not ok
+			# hmac verification failed
 		}
 	}
-	$mqtt_data = undef;
 }
 
 __END__
