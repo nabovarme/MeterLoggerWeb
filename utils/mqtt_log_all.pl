@@ -95,7 +95,7 @@ if ($graphics_mode) {
 	$bottom_win = newwin($rows-3, $cols, 3, 0);
 
 	$top_win->clear();
-	$top_win->addstr(0,0,"Clients: 0");
+	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
 	$top_win->refresh();
 	$bottom_win->clear();
 	$bottom_win->refresh();
@@ -140,7 +140,7 @@ sub print_client_count {
 	$sys_mqtt->run(
 		'$SYS/broker/clients/connected' => sub {
 			$count = $_[1];
-			print "Clients: $count\n";
+			print "MQTT clients connected: $count\n";
 		}
 	);
 }
@@ -218,7 +218,13 @@ sub display_graphics_screen {
 
 	# Top window: client count
 	$top_win->clear();
-	$top_win->addstr(0,0,"Clients: $client_count_current");
+	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
+
+	# Add a horizontal separator line
+	my $cols = getmaxx($top_win);
+	$top_win->move(1,0);
+	$top_win->hline('-', $cols);
+
 	$top_win->refresh();
 
 	# Bottom window: MQTT messages
