@@ -78,7 +78,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 }
 
 # Graphics mode variables
-my ($top_win, $bottom_win, @mqtt_messages, $client_count_current);
+my ($top_win, $bottom_pad, @mqtt_messages, $client_count_current);
 
 # Initialize graphics mode if requested
 if ($graphics_mode) {
@@ -92,13 +92,16 @@ if ($graphics_mode) {
 	getmaxyx($main, $rows, $cols);
 
 	$top_win    = newwin(3, $cols, 0, 0);
-	$bottom_win = newwin($rows-3, $cols, 3, 0);
+	$bottom_pad = newpad(1000, $cols);  # large enough pad for scrolling
 
 	$top_win->clear();
 	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
+	$top_win->move(1,0);
+	$top_win->hline('-', $cols);
 	$top_win->refresh();
-	$bottom_win->clear();
-	$bottom_win->refresh();
+
+	$bottom_pad->clear();
+	$bottom_pad->prefresh(0,0,3,0,$rows-1,$cols-1);
 
 	$SIG{INT} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode.\n"; exit; };
 	$SIG{HUP} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode due to HUP.\n"; exit; };
@@ -173,7 +176,6 @@ sub run_mqtt_loop {
 
 sub v2_mqtt_handler {
 	my ($topic, $message) = @_;
-	my $m;
 
 	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) { return; }
 	my $protocol_version	= $1;
@@ -195,7 +197,6 @@ sub v2_mqtt_handler {
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256,0,16);
 			my $hmac_sha256_key = substr($sha256,16,16);
-
 			if ($mac eq hmac_sha256($topic.$iv.$ciphertext,$hmac_sha256_key)) {
 				my $cbc = Crypt::Mode::CBC->new('AES');
 				$message = $cbc->decrypt($ciphertext,$aes_key,$iv);
@@ -216,25 +217,29 @@ sub v2_mqtt_handler {
 sub display_graphics_screen {
 	return unless $graphics_mode;
 
+	my ($rows, $cols);
+	getmaxyx(stdscr(), $rows, $cols);
+
 	# Top window: client count
 	$top_win->clear();
 	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
+	$top_win->move(1,0);
 
 	# Add a horizontal separator line
-	my $cols = getmaxx($top_win);
-	$top_win->move(1,0);
 	$top_win->hline('-', $cols);
-
 	$top_win->refresh();
 
-	# Bottom window: MQTT messages
-	my $max_lines = getmaxy($bottom_win);
+	# Bottom pad: MQTT messages
+	my $max_lines = $rows-3;
 	my $start = @mqtt_messages > $max_lines ? @mqtt_messages - $max_lines : 0;
-	$bottom_win->clear();
-	for my $i ($start..$#mqtt_messages) {
-		$bottom_win->addstr($i-$start, 0, $mqtt_messages[$i]);
+	for my $i (0..$max_lines-1) {
+		my $msg = $mqtt_messages[$start+$i] // '';
+		$bottom_pad->move($i,0);
+		$bottom_pad->clrtoeol();
+		$bottom_pad->addstr($msg);
 	}
-	$bottom_win->refresh();
+	prefresh($bottom_pad, 0,0, 3,0,$rows-1,$cols-1);
 }
 
 __END__
+
