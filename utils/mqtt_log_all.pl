@@ -70,16 +70,13 @@ sub v2_mqtt_handler {
 	my ($topic, $message) = @_;
 	my $m;
 
-	unless ($topic =~ m!/[^/]+/v\d+/([^/]+)/(\d+)!) {
+	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) {
 		return;
 	}
 	$protocol_version = $1;
 	$meter_serial = $2;
 	$unix_time = $3;
 	
-	$meter_serial = $1;
-	$unix_time = $2;
-
 	if ($ARGV[0]) {
 		if ($meter_serial ne $ARGV[0]) {
 			return;
