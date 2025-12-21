@@ -66,7 +66,6 @@ sub cookie_is_admin {
 				                     || $r->headers_in->{'X-Forwarded-For'}
 				                     || $r->connection->remote_ip;
 
-				$self->{remote_addr} = $client_ip;
 				$self->{user_agent} = $r->headers_in->{'User-Agent'};
 
 				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
