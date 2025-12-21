@@ -241,7 +241,9 @@ sub add_log_message {
 # -------------------------------------------------------------------------
 sub display_top_window {
 	$top_win->clear();
+	$top_win->attron(A_BOLD);  # enable bold
 	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
+	$top_win->attroff(A_BOLD); # disable bold
 	$top_win->move(1,0);
 	my ($rows, $cols);
 	getmaxyx($top_win, $rows, $cols);
