@@ -77,14 +77,10 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	die $!;
 }
 
-# Mode selection
-if ($client_count && !$graphics_mode) {
-	print_client_count();
-	exit;
-}
-
-# Graphics mode initialization
+# Graphics mode variables
 my ($top_win, $bottom_win, @mqtt_messages, $client_count_current);
+
+# Initialize graphics mode if requested
 if ($graphics_mode) {
 	initscr();
 	noecho();
@@ -93,7 +89,7 @@ if ($graphics_mode) {
 
 	my $main = stdscr();
 	my ($rows, $cols);
-	getmaxyx($main, $rows, $cols);   # ✅ this works in Perl Curses
+	getmaxyx($main, $rows, $cols);
 
 	$top_win    = newwin(3, $cols, 0, 0);
 	$bottom_win = newwin($rows-3, $cols, 3, 0);
@@ -108,6 +104,13 @@ if ($graphics_mode) {
 	$SIG{HUP} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode due to HUP.\n"; exit; };
 }
 
+# Mode selection
+if ($client_count && !$graphics_mode) {
+	print_client_count();
+	exit;
+}
+
+# Start normal MQTT loop
 run_mqtt_loop();
 
 # =============================================================================
@@ -147,19 +150,25 @@ sub run_mqtt_loop {
 	my $mqtt_data = undef;
 
 	$SIG{INT} = sub {
-		$dbh->disconnect() if $dbh;
 		endwin() if $graphics_mode;
+		$dbh->disconnect() if $dbh;
 		print "disconnected\n";
 		exit;
 	};
 	$SIG{HUP} = sub {
-		$dbh->disconnect() if $dbh;
 		endwin() if $graphics_mode;
+		$dbh->disconnect() if $dbh;
 		print "disconnected due to HUP\n";
 		exit;
 	};
 
-	$mqtt->run(q[/#] => \&v2_mqtt_handler);
+	$mqtt->run(
+		'/#' => \&v2_mqtt_handler,
+		'$SYS/broker/clients/connected' => sub {
+			$client_count_current = $_[1];
+			display_graphics_screen() if $graphics_mode;
+		}
+	);
 }
 
 sub v2_mqtt_handler {
@@ -173,9 +182,9 @@ sub v2_mqtt_handler {
 
 	if ($ARGV[0] && $meter_serial ne $ARGV[0]) { return; }
 
-	if ($topic_only) { $message = ''; }
-
-	unless ($topic_only) {
+	if ($topic_only) {
+		$message = '';
+	} else {
 		$message =~ /(.{32})(.{16})(.+)/s;
 		my ($mac,$iv,$ciphertext) = ($1,$2,$3);
 
@@ -186,6 +195,7 @@ sub v2_mqtt_handler {
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256,0,16);
 			my $hmac_sha256_key = substr($sha256,16,16);
+
 			if ($mac eq hmac_sha256($topic.$iv.$ciphertext,$hmac_sha256_key)) {
 				my $cbc = Crypt::Mode::CBC->new('AES');
 				$message = $cbc->decrypt($ciphertext,$aes_key,$iv);
@@ -206,10 +216,12 @@ sub v2_mqtt_handler {
 sub display_graphics_screen {
 	return unless $graphics_mode;
 
+	# Top window: client count
 	$top_win->clear();
 	$top_win->addstr(0,0,"Clients: $client_count_current");
 	$top_win->refresh();
 
+	# Bottom window: MQTT messages
 	my $max_lines = getmaxy($bottom_win);
 	my $start = @mqtt_messages > $max_lines ? @mqtt_messages - $max_lines : 0;
 	$bottom_win->clear();
