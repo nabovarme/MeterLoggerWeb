@@ -78,7 +78,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 }
 
 # Graphics mode variables
-my ($top_win, $bottom_pad, @mqtt_messages, $client_count_current);
+my ($top_win, $log_win, @log_lines, $client_count_current, $max_lines);
 
 # Initialize graphics mode if requested
 if ($graphics_mode) {
@@ -91,18 +91,19 @@ if ($graphics_mode) {
 	my ($rows, $cols);
 	getmaxyx($main, $rows, $cols);
 
-	$top_win    = newwin(3, $cols, 0, 0);
-	$bottom_pad = newpad(1000, $cols);  # large enough pad for scrolling
+	# Top window: client count
+	$top_win = newwin(3, $cols, 0, 0);
 
-	$top_win->clear();
-	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
-	$top_win->move(1,0);
-	$top_win->hline('-', $cols);
-	$top_win->refresh();
+	# Log window: visible MQTT messages
+	$max_lines = $rows - 3;
+	$log_win = newwin($max_lines, $cols, 3, 0);
+	@log_lines = ();
 
-	$bottom_pad->clear();
-	$bottom_pad->prefresh(0,0,3,0,$rows-1,$cols-1);
+	# Initial draw
+	display_top_window();
+	$log_win->refresh();
 
+	# Signal handlers
 	$SIG{INT} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode.\n"; exit; };
 	$SIG{HUP} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode due to HUP.\n"; exit; };
 }
@@ -169,7 +170,7 @@ sub run_mqtt_loop {
 		'/#' => \&v2_mqtt_handler,
 		'$SYS/broker/clients/connected' => sub {
 			$client_count_current = $_[1];
-			display_graphics_screen() if $graphics_mode;
+			display_top_window() if $graphics_mode;
 		}
 	);
 }
@@ -207,39 +208,45 @@ sub v2_mqtt_handler {
 	}
 
 	if ($graphics_mode) {
-		push @mqtt_messages, "$topic\t$message";
-		display_graphics_screen();
+		add_log_message("$topic\t$message");
 	} else {
 		print "$topic\t$message\n";
 	}
 }
 
-sub display_graphics_screen {
-	return unless $graphics_mode;
+# -------------------------------------------------------------------------
+# Add new message to the log window (smooth scrolling, no flicker)
+# -------------------------------------------------------------------------
+sub add_log_message {
+	my ($msg) = @_;
 
-	my ($rows, $cols);
-	getmaxyx(stdscr(), $rows, $cols);
+	# Append message to circular buffer
+	push @log_lines, $msg;
 
-	# Top window: client count
+	# Keep only last $max_lines
+	@log_lines = @log_lines[-$max_lines..-1] if @log_lines > $max_lines;
+
+	# Draw all visible lines
+	for my $i (0 .. $#log_lines) {
+		$log_win->move($i,0);
+		$log_win->clrtoeol();
+		$log_win->addstr($log_lines[$i]);
+	}
+
+	$log_win->refresh();
+}
+
+# -------------------------------------------------------------------------
+# Redraw top window with client count
+# -------------------------------------------------------------------------
+sub display_top_window {
 	$top_win->clear();
 	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
 	$top_win->move(1,0);
-
-	# Add a horizontal separator line
+	my ($rows, $cols);
+	getmaxyx($top_win, $rows, $cols);
 	$top_win->hline('-', $cols);
 	$top_win->refresh();
-
-	# Bottom pad: MQTT messages
-	my $max_lines = $rows-3;
-	my $start = @mqtt_messages > $max_lines ? @mqtt_messages - $max_lines : 0;
-	for my $i (0..$max_lines-1) {
-		my $msg = $mqtt_messages[$start+$i] // '';
-		$bottom_pad->move($i,0);
-		$bottom_pad->clrtoeol();
-		$bottom_pad->addstr($msg);
-	}
-	prefresh($bottom_pad, 0,0, 3,0,$rows-1,$cols-1);
 }
 
 __END__
-
