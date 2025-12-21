@@ -61,10 +61,22 @@ sub cookie_is_admin {
 		if ($d = $sth->fetchrow_hashref) {
 			if (grep(/^$d->{group}$/, split(/,\s*/, $admin_group))) {
 
-				# store authenticated admin context
-				$self->{username}		= $username;
-				$self->{admin_group}	= $admin_group;
-				$self->{remote_addr}	= $ENV{REMOTE_ADDR};
+				# capture the real client IP behind proxy
+				my $client_ip;
+
+				if ($r->headers_in->{'X-Real-IP'}) {
+					$client_ip = $r->headers_in->{'X-Real-IP'};
+				}
+				elsif ($r->headers_in->{'X-Forwarded-For'}) {
+					# X-Forwarded-For can contain multiple IPs, take the first one
+					my @ips = split /,/, $r->headers_in->{'X-Forwarded-For'};
+					$client_ip = $ips[0];
+				}
+				else {
+					$client_ip = $ENV{REMOTE_ADDR};
+				}
+
+				$self->{remote_addr} = $client_ip;
 				$self->{user_agent}		= $r->headers_in->{'User-Agent'};
 
 				warn $ENV{REMOTE_ADDR} . " \"" . $r->method() . " " . $r->uri() . "\" \"" .
