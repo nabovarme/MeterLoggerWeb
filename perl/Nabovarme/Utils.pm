@@ -62,7 +62,7 @@ sub estimate_remaining_energy {
 		FROM meters m
 		LEFT JOIN samples_cache sc ON m.serial = sc.serial
 		WHERE m.serial = $quoted_serial
-		ORDER BY sc.unix_time DESC
+		ORDER BY sc.`unix_time` DESC
 		LIMIT 1
 	]);
 	$sth->execute;
@@ -77,8 +77,8 @@ sub estimate_remaining_energy {
 		SELECT energy
 		FROM samples_cache
 		WHERE serial = $quoted_serial
-		  AND unix_time <= UNIX_TIMESTAMP(NOW()) - 86400
-		ORDER BY unix_time DESC
+		  AND `unix_time` <= UNIX_TIMESTAMP(NOW()) - 86400
+		ORDER BY `unix_time` DESC
 		LIMIT 1
 	]);
 	$sth->execute;
@@ -117,10 +117,10 @@ sub estimate_remaining_energy {
 			SELECT energy
 			FROM samples_daily
 			WHERE serial = $quoted_serial
-			  AND unix_time BETWEEN 
+			  AND `unix_time` BETWEEN 
 			      UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR)) 
 			      AND UNIX_TIMESTAMP(DATE_SUB(DATE_SUB(NOW(), INTERVAL 1 YEAR), INTERVAL 1 DAY))
-			ORDER BY unix_time DESC
+			ORDER BY `unix_time` DESC
 			LIMIT 1
 		]);
 		$sth->execute;
@@ -165,7 +165,7 @@ sub estimate_remaining_energy {
 	# --- Return all calculated values ---
 	return {
 		kwh_remaining               => $kwh_remaining,
-		time_remaining_hours        => $time_remaining_hours,  # undef if infinite
+		time_remaining_hours        => $time_remaining_hours,
 		time_remaining_hours_string => $time_remaining_hours_string,
 		energy_last_day             => $energy_last_day,
 		avg_energy_last_day         => $avg_energy_last_day,
