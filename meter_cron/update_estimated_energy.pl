@@ -13,29 +13,32 @@ use Nabovarme::Utils;
 my $dbh = Nabovarme::Db->my_connect;
 die "DB connection failed" unless $dbh;
 
-# Prepare update statement for estimated_energy (kW)
-my $update_sth = $dbh->prepare("UPDATE meters SET estimated_energy = ? WHERE serial = ?");
+# Prepare update statement for time_remaining_hours_string
+my $update_sth = $dbh->prepare(
+	"UPDATE meters SET time_remaining_hours_string = ? WHERE serial = ?"
+);
 
 # Fetch all enabled meters
-my $sth = $dbh->prepare("SELECT serial FROM meters WHERE enabled = 1");
+my $sth = $dbh->prepare(
+	"SELECT serial FROM meters WHERE enabled = 1"
+);
 $sth->execute();
 
 while (my ($serial) = $sth->fetchrow_array) {
 
-    # Calculate remaining energy using Nabovarme::Utils
-    my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
+	# Calculate remaining values using Utils
+	my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
 
-    # Extract average energy per hour (kWh/h) → represents power in kW
-    my $kW = $est->{avg_energy_last_day} || 0;
+	# Extract formatted remaining time string
+	my $time_remaining_hours_string = $est->{time_remaining_hours_string} || 'NULL';
 
-    # Update meters table
-    $update_sth->execute($kW, $serial);
+	# Update meters table
+	$update_sth->execute($time_remaining_hours_string, $serial);
 
-    # Log update
-    print "Updated meter $serial with estimated power = $kW kW\n";
+	# Log update
+	print "Updated meter $serial with time_remaining_hours_string = $time_remaining_hours_string\n";
 }
 
-# All meters updated
 print "All enabled meters updated successfully.\n";
 
 # Disconnect from database
