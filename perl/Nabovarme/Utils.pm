@@ -67,10 +67,10 @@ sub estimate_remaining_energy {
 	]);
 	$sth->execute;
 	($latest_energy, $latest_effect, $valve_status, $valve_installed) = $sth->fetchrow_array;
-	$latest_energy  ||= 0;
-	$latest_effect  ||= 0;
-	$valve_status   ||= '';
-	$valve_installed ||= 0;
+	$latest_energy    ||= 0;
+	$latest_effect    ||= 0;
+	$valve_status     ||= '';
+	$valve_installed  ||= 0;
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
@@ -106,7 +106,7 @@ sub estimate_remaining_energy {
 	$paid_kwh ||= 0;
 
 	# --- Calculate energy last day and avg energy last day ---
-	my $energy_last_day = $latest_energy - $prev_energy;
+	my $energy_last_day    = $latest_energy - $prev_energy;
 	my $avg_energy_last_day = 0;
 
 	if ($energy_last_day > 0) {
@@ -117,8 +117,9 @@ sub estimate_remaining_energy {
 			SELECT energy
 			FROM samples_daily
 			WHERE serial = $quoted_serial
-			  AND unix_time BETWEEN UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR))
-			                     AND UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR - 1 DAY))
+			  AND unix_time BETWEEN 
+			      UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR)) 
+			      AND UNIX_TIMESTAMP(DATE_SUB(DATE_SUB(NOW(), INTERVAL 1 YEAR), INTERVAL 1 DAY))
 			ORDER BY unix_time DESC
 			LIMIT 1
 		]);
@@ -128,7 +129,7 @@ sub estimate_remaining_energy {
 	}
 
 	# --- Format energy values ---
-	$energy_last_day = sprintf("%.2f", $energy_last_day);
+	$energy_last_day    = sprintf("%.2f", $energy_last_day);
 	$avg_energy_last_day = sprintf("%.2f", $avg_energy_last_day);
 
 	# --- Calculate kWh remaining ---
