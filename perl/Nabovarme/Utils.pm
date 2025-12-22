@@ -54,11 +54,11 @@ sub estimate_remaining_energy {
 
 	my $quoted_serial = $dbh->quote($serial);
 
-	my ($latest_energy, $latest_effect, $prev_energy, $setup_value, $paid_kwh, $valve_status);
+	my ($latest_energy, $latest_effect, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed);
 
 	# --- Fetch latest sample and valve_status ---
 	my $sth = $dbh->prepare(qq[
-		SELECT energy, effect, valve_status
+		SELECT sc.energy, sc.effect, m.valve_status, m.valve_installed
 		FROM meters m
 		LEFT JOIN samples_cache sc ON m.serial = sc.serial
 		WHERE m.serial = $quoted_serial
@@ -66,11 +66,11 @@ sub estimate_remaining_energy {
 		LIMIT 1
 	]);
 	$sth->execute;
-	($latest_energy, $latest_effect, $valve_status) = $sth->fetchrow_array;
-
+	($latest_energy, $latest_effect, $valve_status, $valve_installed) = $sth->fetchrow_array;
 	$latest_energy  ||= 0;
 	$latest_effect  ||= 0;
 	$valve_status   ||= '';
+	$valve_installed ||= 0;
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
@@ -105,33 +105,40 @@ sub estimate_remaining_energy {
 	($paid_kwh) = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
 
-	# --- Fetch valve_installed ---
-	$sth = $dbh->prepare(qq[
-		SELECT valve_installed
-		FROM meters
-		WHERE serial = $quoted_serial
-	]);
-	$sth->execute;
-	my ($valve_installed) = $sth->fetchrow_array;
-	$valve_installed ||= 0;
-
 	# --- Calculate energy last day and avg energy last day ---
-	my $energy_last_day     = sprintf("%.2f", $latest_energy - $prev_energy);
-	my $avg_energy_last_day = sprintf("%.2f", ($latest_energy - $prev_energy) / 24);
+	my $energy_last_day = $latest_energy - $prev_energy;
+	my $avg_energy_last_day = 0;
 
-	# --- Fallback if no recent 24h sample ---
-	if ($energy_last_day == 0 && $latest_effect > 0) {
-		$energy_last_day     = sprintf("%.2f", 0);
-		$avg_energy_last_day = sprintf("%.2f", $latest_effect);
+	if ($energy_last_day > 0) {
+		$avg_energy_last_day = $energy_last_day / 24;
+	} else {
+		# fallback to same day last year from samples_daily
+		$sth = $dbh->prepare(qq[
+			SELECT energy
+			FROM samples_daily
+			WHERE serial = $quoted_serial
+			  AND unix_time BETWEEN UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR))
+			                     AND UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR - 1 DAY))
+			ORDER BY unix_time DESC
+			LIMIT 1
+		]);
+		$sth->execute;
+		my ($prev_year_energy) = $sth->fetchrow_array;
+		$avg_energy_last_day = $prev_year_energy ? $prev_year_energy / 24 : 0;
 	}
 
+	# --- Format energy values ---
+	$energy_last_day = sprintf("%.2f", $energy_last_day);
+	$avg_energy_last_day = sprintf("%.2f", $avg_energy_last_day);
+
 	# --- Calculate kWh remaining ---
-	my $kwh_remaining = int($paid_kwh - $latest_energy + $setup_value + 0.5);
+	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+	$kwh_remaining = sprintf("%.2f", $kwh_remaining);
 
 	# --- Determine if meter is closed ---
 	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0);
 
-	# --- Calculate time remaining hours ---
+	# --- Calculate time_remaining_hours ---
 	my $time_remaining_hours;
 	if ($is_closed) {
 		$time_remaining_hours = 0;
@@ -140,24 +147,24 @@ sub estimate_remaining_energy {
 	} elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 	} else {
-		$time_remaining_hours = '∞';
+		$time_remaining_hours = undef;  # infinite
 	}
 
 	# --- Human-readable string ---
 	my $time_remaining_hours_string;
-	if ($time_remaining_hours eq '∞' || $valve_installed == 0) {
+	if (!defined $time_remaining_hours || $valve_installed == 0) {
 		$time_remaining_hours_string = '∞';
 	} else {
 		$time_remaining_hours_string = rounded_duration($time_remaining_hours * 3600);
 	}
 
-	# --- Debug info (optional) ---
-	warn "[DEBUG] Serial=$serial, valve_status=$valve_status, valve_installed=$valve_installed, kwh_remaining=$kwh_remaining, latest_effect=$latest_effect, avg_energy_last_day=$avg_energy_last_day, time_remaining_hours=$time_remaining_hours\n" if $DEBUG;
+	# --- Debug info ---
+	warn "[DEBUG] Serial=$serial, valve_status=$valve_status, valve_installed=$valve_installed, kwh_remaining=$kwh_remaining, latest_effect=$latest_effect, avg_energy_last_day=$avg_energy_last_day, time_remaining_hours=" . (defined $time_remaining_hours ? $time_remaining_hours : '∞') . "\n" if $DEBUG;
 
 	# --- Return all calculated values ---
 	return {
 		kwh_remaining               => $kwh_remaining,
-		time_remaining_hours        => $time_remaining_hours eq '∞' ? '∞' : sprintf("%.2f", $time_remaining_hours),
+		time_remaining_hours        => $time_remaining_hours,  # undef if infinite
 		time_remaining_hours_string => $time_remaining_hours_string,
 		energy_last_day             => $energy_last_day,
 		avg_energy_last_day         => $avg_energy_last_day,
