@@ -301,6 +301,10 @@ sub login_handler {
 				if ($d = $sth->fetchrow_hashref) {
 					# SMS code is valid
 					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_verified', `session` = ] . ($stay_logged_in ? 0 : 1) . qq[, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
+
+					# Log admin login if applicable
+					log_admin_event($dbh, $r, 'login', $dbh->quote($passed_cookie_token));
+
 					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $d->{orig_uri});
 					return Apache2::Const::REDIRECT;
@@ -385,6 +389,9 @@ sub logout_handler {
 			-expires => '-1y'
 		);
 		
+		# Log admin logout if applicable
+		log_admin_event($dbh, $r, 'logout', $dbh->quote($passed_cookie_token));
+
 		my $quoted_cookie_token = $dbh->quote($passed_cookie_token);
 		$dbh->do(qq[DELETE FROM sms_auth WHERE cookie_token = $quoted_cookie_token]) or warn $!;
 		
@@ -426,6 +433,43 @@ sub add_set_cookie_once {
 		}
 	}
 	$r->err_headers_out->add('Set-Cookie' => $cookie);
+}
+
+# Log admin login/logout events
+sub log_admin_event {
+	my ($dbh, $r, $action, $quoted_cookie_token) = @_;
+
+	# Only log if user is admin
+	my $sth = $dbh->prepare(qq[
+		SELECT u.username, u.admin_group, a.remote_host, a.user_agent
+		FROM users u, sms_auth a
+		WHERE a.cookie_token LIKE $quoted_cookie_token
+			AND a.auth_state = 'sms_code_verified'
+			AND u.phone = a.phone
+		LIMIT 1
+	]);
+	$sth->execute;
+	if (my $d = $sth->fetchrow_hashref) {
+		if ($d->{admin_group} && length($d->{admin_group})) {
+			# Insert log entry with all required fields
+			$dbh->do(qq[
+				INSERT INTO accounts_log
+				(username, admin_group, type, info, serial, amount, price, remote_addr, user_agent, unix_time)
+				VALUES (
+					] . $dbh->quote($d->{username}) . qq[,
+					] . $dbh->quote($d->{admin_group}) . qq[,
+					'auth',
+					] . $dbh->quote($action) . qq[,
+					NULL,
+					NULL,
+					NULL,
+					] . $dbh->quote($d->{remote_host}) . qq[,
+					] . $dbh->quote($d->{user_agent}) . qq[,
+					UNIX_TIMESTAMP()
+				)
+			]) or warn $!;
+		}
+	}
 }
 
 1;
