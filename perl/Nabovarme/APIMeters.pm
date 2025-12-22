@@ -40,8 +40,6 @@ sub handler {
 				2
 			) AS kwh_remaining,
 
-			m.time_remaining_hours_string,
-
 			latest_sc.unix_time AS last_sample_time
 
 		FROM meters m
@@ -121,7 +119,9 @@ sub handler {
 				volume						=> defined $row->{volume} ? int($row->{volume}) : 0,
 				hours						=> $row->{hours} || 0,
 				kwh_remaining				=> defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
-				time_remaining_hours_string	=> $row->{time_remaining_hours_string} || '∞',
+				time_remaining_hours_string	=> (!defined $row->{time_remaining_hours} || $row->{valve_installed} == 0)
+												? '∞'
+												: rounded_duration($row->{time_remaining_hours} * 3600),
 				energy_last_day				=> $row->{energy_last_day} || 0,
 				avg_energy_last_day			=> $row->{avg_energy_last_day} || 0,
 			};
