@@ -28,13 +28,23 @@ while (my ($serial) = $sth->fetchrow_array) {
 	# Calculate remaining values using Utils
 	my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
 
-	my $time_remaining_hours = defined $est->{time_remaining_hours} ? sprintf("%.2f", $est->{time_remaining_hours}) : undef;
+	my $time_remaining_hours = $est->{time_remaining_hours};
+
+	# override for NO_AUTO_CLOSE meters
+	my $sth_sw = $dbh->prepare("SELECT sw_version FROM meters WHERE serial = ?");
+	$sth_sw->execute($serial);
+	my ($sw_version) = $sth_sw->fetchrow_array;
+	if ($sw_version && $sw_version =~ /NO_AUTO_CLOSE/) {
+		$time_remaining_hours = undef;
+	}
+
+	my $time_remaining_hours_formatted = defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef;
 
 	# Update meters table
-	$update_sth->execute($time_remaining_hours, $serial);
+	$update_sth->execute($time_remaining_hours_formatted, $serial);
 
 	# Log update
-	print "Updated meter $serial with time_remaining_hours = " . (defined $time_remaining_hours ? $time_remaining_hours : 'NULL') . "\n";
+	print "Updated meter $serial with time_remaining_hours = " . (defined $time_remaining_hours_formatted ? $time_remaining_hours_formatted : 'NULL') . "\n";
 }
 
 print "All enabled meters updated successfully.\n";

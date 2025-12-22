@@ -16,7 +16,7 @@ use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
-my ($dbh, $sth, $d, $d_kwh_remaining, $energy_remaining, $energy_time_remaining, $notification);
+my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
@@ -42,13 +42,17 @@ while (1) {
 	$sth->execute;
 
 	while ($d = $sth->fetchrow_hashref) {
+
 		my $quoted_serial = $dbh->quote($d->{serial});
 
-		# calculate remaining energy for warning purposes
+		# calculate remaining energy
 		$energy_remaining = ($d->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 
-		# use precomputed time_remaining_hours from DB
-		$energy_time_remaining = $d->{time_remaining_hours} || 0;
+		# override time_remaining_hours if meter is NO_AUTO_CLOSE
+		$energy_time_remaining = $d->{time_remaining_hours};
+		if ($d->{sw_version} && $d->{sw_version} =~ /NO_AUTO_CLOSE/) {
+			$energy_time_remaining = undef;
+		}
 
 		my $time_remaining_string = (!defined $energy_time_remaining || $d->{valve_installed} == 0)
 			? '∞'
@@ -56,7 +60,7 @@ while (1) {
 
 		# --- Notifications ---
 		if ($d->{notification_state} == 0) {    # close warning not sent yet
-			if ($energy_time_remaining < (($d->{close_notification_time} || CLOSE_WARNING_TIME))) {
+			if (defined $energy_time_remaining && $energy_time_remaining < (($d->{close_notification_time} || CLOSE_WARNING_TIME))) {
 				$notification = "Nabovarme $d->{info} closing in $time_remaining_string. ($d->{serial}) https://meterlogger.net/detail_acc.epl?serial=$d->{serial}";
 				_send_notification($d->{sms_notification}, $notification);
 
@@ -79,7 +83,7 @@ while (1) {
 				]) or warn $!;
 				syslog('info', "close notice sent for serial #$d->{serial}, energy_remaining=$energy_remaining");
 			}
-			elsif (($energy_time_remaining > 0) && ($energy_remaining > $d->{notification_sent_at})) {
+			elsif (defined $energy_time_remaining && $energy_remaining > $d->{notification_sent_at}) {
 				# send open notice
 				$notification = "Nabovarme $d->{info} open. $time_remaining_string remaining. ($d->{serial}) https://meterlogger.net/detail_acc.epl?serial=$d->{serial}";
 				_send_notification($d->{sms_notification}, $notification);
@@ -91,7 +95,7 @@ while (1) {
 			}
 		}
 		elsif ($d->{notification_state} == 2) { # open notice previously sent
-			if ($energy_time_remaining > 0) {
+			if (defined $energy_time_remaining && $energy_time_remaining > 0) {
 				$notification = "Nabovarme $d->{info} open. $time_remaining_string remaining. ($d->{serial}) https://meterlogger.net/detail_acc.epl?serial=$d->{serial}";
 				_send_notification($d->{sms_notification}, $notification);
 
@@ -121,6 +125,3 @@ sub _send_notification {
 sub sig_int_handler {
 	die $!;
 }
-
-1;
-__END__
