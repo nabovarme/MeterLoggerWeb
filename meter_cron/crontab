@@ -14,3 +14,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1
 0 5	* * *	root	/etc/apache2/perl/Nabovarme/bin/remove_spikes.pl >> /var/log/cron.log 2>&1 ; /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl >> /var/log/cron.log 2>&1
 * * * * *	root	/etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1
+* * * * *	root	/etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl >> /var/log/cron.log 2>&1
