@@ -54,7 +54,7 @@ while (1) {
 		# --- Notifications ---
 		if ($d->{notification_state} == 0) {
 			if (defined $energy_time_remaining && $energy_time_remaining < ($d->{close_notification_time} || CLOSE_WARNING_TIME)) {
-				$notification = "[DEBUG] close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})";
+				$notification = "close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -68,7 +68,7 @@ while (1) {
 		}
 		elsif ($d->{notification_state} == 1) {
 			if ($energy_remaining <= 0) {
-				$notification = "[DEBUG] close notice: $d->{info} closed. ($d->{serial})";
+				$notification = "close notice: $d->{info} closed. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -79,7 +79,7 @@ while (1) {
 		}
 		elsif ($d->{notification_state} == 2) {
 			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin for hysteresis
-				$notification = "[DEBUG] open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
+				$notification = "open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
