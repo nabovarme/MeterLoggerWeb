@@ -91,18 +91,6 @@ sub estimate_remaining_energy {
 	my ($prev_energy_sample, $prev_unix_time) = $sth->fetchrow_array;
 	$prev_energy_sample ||= 0;
 
-	my $use_fallback = 0;
-	if ($prev_energy_sample == $latest_energy) {
-		warn "[DEBUG] latest_energy == prev_energy ($latest_energy) => using fallback\n" if is_debug();
-		$use_fallback = 1;
-	} elsif ($prev_unix_time && (time() - $prev_unix_time) < 12*3600) {
-		warn "[DEBUG] Previous sample less than 12 hours old => using fallback\n" if is_debug();
-		$use_fallback = 1;
-	}
-
-	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
-	warn "[DEBUG] Previous energy used: $prev_energy\n" if is_debug();
-
 	# --- Fetch meter setup_value ---
 	$sth = $dbh->prepare(qq[
 		SELECT setup_value
@@ -124,6 +112,28 @@ sub estimate_remaining_energy {
 	($paid_kwh) = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
 	warn "[DEBUG] Paid kWh=$paid_kwh\n" if is_debug();
+
+	# --- Determine if we can use the last day's sample ---
+	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
+	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
+
+	my $use_fallback = 0;
+	if ($prev_energy_sample == $latest_energy) {
+		# No change in energy => maybe just idle
+		warn "[DEBUG] latest_energy == prev_energy ($latest_energy) => using fallback\n" if is_debug();
+		$use_fallback = 1;
+	} elsif ($prev_unix_time && (time() - $prev_unix_time) < 12*3600) {
+		# Sample too recent
+		warn "[DEBUG] Previous sample less than 12 hours old => using fallback\n" if is_debug();
+		$use_fallback = 1;
+	} elsif ($current_kwh_remaining > $prev_kwh_remaining) {
+		# Meter opened / reset
+		warn "[DEBUG] kwh_remaining increased (meter opened/reset) => using fallback\n" if is_debug();
+		$use_fallback = 1;
+	}
+
+	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
+	warn "[DEBUG] Previous energy used: $prev_energy\n" if is_debug();
 
 	# --- Calculate energy last day and avg energy last day ---
 	my ($energy_last_day, $avg_energy_last_day);
@@ -172,13 +182,16 @@ sub estimate_remaining_energy {
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
 		$time_remaining_hours = undef;
 		warn "[DEBUG] SW version NO_AUTO_CLOSE => time_remaining_hours=∞\n" if is_debug();
-	} elsif ($is_closed) {
+	}
+	elsif ($is_closed) {
 		$time_remaining_hours = 0;
 		warn "[DEBUG] Valve closed or no kWh remaining => time_remaining_hours=0\n" if is_debug();
-	} elsif ($avg_energy_last_day > 0) {
+	}
+	elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 		warn "[DEBUG] Calculated time_remaining_hours=$time_remaining_hours\n" if is_debug();
-	} else {
+	}
+	else {
 		$time_remaining_hours = undef;
 		warn "[DEBUG] avg_energy_last_day=0 => time_remaining_hours=∞\n" if is_debug();
 	}
