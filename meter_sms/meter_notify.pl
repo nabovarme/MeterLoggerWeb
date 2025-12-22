@@ -33,7 +33,7 @@ while (1) {
 		SELECT serial, info, min_amount, valve_status, valve_installed,
 			   sw_version, email_notification, sms_notification,
 			   close_notification_time, notification_state, notification_sent_at,
-			   kwh_remaining, time_remaining_hours
+			   time_remaining_hours
 		FROM meters
 		WHERE enabled
 		  AND type = 'heat'
@@ -45,15 +45,15 @@ while (1) {
 
 		my $quoted_serial = $dbh->quote($d->{serial});
 
+		# get latest estimates from Utils.pm
+		my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $d->{serial});
+
 		# calculate remaining energy
-		$energy_remaining = ($d->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
+		$energy_remaining      = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 
-		# use precomputed time_remaining_hours from DB
-		$energy_time_remaining = $d->{time_remaining_hours};
-
-		my $time_remaining_string = (!defined $energy_time_remaining || $d->{valve_installed} == 0)
-			? '∞'
-			: rounded_duration($energy_time_remaining * 3600);
+		# use time_remaining_hours from Utils (NO_AUTO_CLOSE handled internally)
+		$energy_time_remaining = $est->{time_remaining_hours};
+		my $time_remaining_string = $est->{time_remaining_hours_string};
 
 		# --- Notifications ---
 		if ($d->{notification_state} == 0) {    # close warning not sent yet
