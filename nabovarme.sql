@@ -1,9 +1,9 @@
 /*M!999999\- enable the sandbox mode */ 
--- MariaDB dump 10.19  Distrib 10.5.29-MariaDB, for debian-linux-gnu (aarch64)
+-- MariaDB dump 10.19  Distrib 10.5.29-MariaDB, for debian-linux-gnu (x86_64)
 --
 -- Host: db    Database: nabovarme
 -- ------------------------------------------------------
--- Server version	10.5.29-MariaDB-ubu2004-log
+-- Server version	10.5.28-MariaDB-ubu2004-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -82,7 +82,7 @@ CREATE TABLE `accounts` (
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`),
   KEY `accounts_serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=7894 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7912 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -131,18 +131,18 @@ CREATE TABLE `accounts_log` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `username` varchar(64) NOT NULL,
   `admin_group` varchar(255) NOT NULL,
-  `serial` varchar(64) NOT NULL,
+  `serial` varchar(16) DEFAULT NULL,
   `type` varchar(32) NOT NULL,
   `info` text DEFAULT NULL,
-  `amount` decimal(12,2) NOT NULL,
-  `price` decimal(12,2) NOT NULL,
+  `amount` float DEFAULT NULL,
+  `price` float DEFAULT NULL,
   `remote_addr` varchar(45) NOT NULL,
   `user_agent` text NOT NULL,
   `unix_time` int(10) unsigned NOT NULL DEFAULT unix_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_serial_time` (`serial`,`unix_time`),
   KEY `idx_user_time` (`username`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -228,7 +228,7 @@ CREATE TABLE `command_queue` (
   `timeout` int(11) NOT NULL DEFAULT 0,
   `sent_count` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=838343592 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=838804194 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -245,7 +245,7 @@ CREATE TABLE `log` (
   `param` varchar(256) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=51033937 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=53448816 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -338,7 +338,7 @@ CREATE TABLE `samples` (
   KEY `serial_unix_time_idx` (`serial`,`unix_time`),
   KEY `serial_time_spike_idx` (`serial`,`unix_time`,`is_spike`),
   KEY `spike_serial_unix_time_idx` (`serial`,`is_spike`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=973610094 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=810284216 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -367,7 +367,7 @@ CREATE TABLE `samples_cache` (
   KEY `serial_unix_time_idx` (`serial`,`unix_time`),
   KEY `spike_serial_unix_time_idx` (`serial`,`is_spike`,`unix_time`),
   KEY `samples_cache_serial_unix_id_idx` (`serial`,`unix_time`,`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=809624187 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=810034777 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -393,7 +393,7 @@ CREATE TABLE `samples_daily` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=773865187 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=773865979 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -419,7 +419,7 @@ CREATE TABLE `samples_hourly` (
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_unix_time_idx` (`serial`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=973658805 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=973665925 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -442,7 +442,7 @@ CREATE TABLE `sms_auth` (
   `user_agent` longtext DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2157679 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2321782 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -464,7 +464,7 @@ CREATE TABLE `users` (
   `meter_id` int(255) DEFAULT NULL,
   `comment` varchar(256) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=98 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=101 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -493,7 +493,7 @@ CREATE TABLE `wifi_scan` (
   KEY `serial_unix_time_idx` (`serial`,`unix_time`),
   KEY `ssid_idx` (`ssid`),
   KEY `unix_time_idx` (`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=435631587 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=450189351 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -505,4 +505,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-21 22:47:07
+-- Dump completed on 2025-12-22  1:35:31
