@@ -126,7 +126,7 @@ sub estimate_remaining_energy {
 	}
 
 	# --- Calculate kWh remaining ---
-	my $kwh_remaining = sprintf("%.2f", $paid_kwh - $latest_energy + $setup_value);
+	my $kwh_remaining = int($paid_kwh - $latest_energy + $setup_value + 0.5);
 
 	# --- Determine if meter is closed ---
 	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0);
