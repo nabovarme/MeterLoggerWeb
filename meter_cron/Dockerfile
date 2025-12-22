@@ -82,6 +82,7 @@ COPY ./meter_cron/wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_
 COPY ./meter_cron/update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
 COPY ./meter_cron/remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
 COPY ./meter_cron/sync_alarms_auto.pl /etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl
+COPY ./meter_cron/update_estimated_energy.pl /etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 
