@@ -60,7 +60,7 @@ services:
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
-      ENABLE_DEBUG: true
+      ENABLE_DEBUG: false
 
   certbot:
     container_name: certbot
