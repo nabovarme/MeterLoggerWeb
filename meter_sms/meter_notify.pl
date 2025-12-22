@@ -48,11 +48,8 @@ while (1) {
 		# calculate remaining energy
 		$energy_remaining = ($d->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 
-		# override time_remaining_hours if meter is NO_AUTO_CLOSE
+		# use precomputed time_remaining_hours from DB
 		$energy_time_remaining = $d->{time_remaining_hours};
-		if ($d->{sw_version} && $d->{sw_version} =~ /NO_AUTO_CLOSE/) {
-			$energy_time_remaining = undef;
-		}
 
 		my $time_remaining_string = (!defined $energy_time_remaining || $d->{valve_installed} == 0)
 			? '∞'
