@@ -3,11 +3,14 @@ package Nabovarme::Utils;
 use strict;
 use warnings;
 use utf8;
-
 use Exporter 'import';
+use POSIX qw(floor);
 
-our @EXPORT = qw(rounded_duration);
+our @EXPORT = qw(rounded_duration estimate_remaining_energy);
 
+# ----------------------------
+# Format seconds into readable duration
+# ----------------------------
 sub rounded_duration {
 	my $seconds = shift;
 	return '∞' unless defined $seconds;
@@ -28,12 +31,121 @@ sub rounded_duration {
 		my $minutes = int(($seconds + 30) / 60);
 		$result = $minutes == 1 ? "1 minute" : "$minutes minutes";
 	}
+	elsif ($seconds == 0) {
+		$result = "0 days";
+	}
 	else {
 		my $secs = int($seconds + 0.5);
 		$result = $secs == 1 ? "1 second" : "$secs seconds";
 	}
 
 	return $is_negative ? "$result ago" : $result;
+}
+
+# ----------------------------
+# Estimate remaining energy and time left
+# ----------------------------
+sub estimate_remaining_energy {
+	my ($dbh, $serial) = @_;
+	return {} unless $dbh && $serial;
+
+	my $quoted_serial = $dbh->quote($serial);
+
+	my ($latest_energy, $latest_effect, $prev_energy, $setup_value, $paid_kwh);
+
+	# --- Fetch latest sample ---
+	my $sth = $dbh->prepare(qq[
+		SELECT energy, effect
+		FROM samples_cache
+		WHERE serial = $quoted_serial
+		ORDER BY unix_time DESC
+		LIMIT 1
+	]);
+	$sth->execute;
+	($latest_energy, $latest_effect) = $sth->fetchrow_array;
+
+	$latest_energy  //= 0;
+	$latest_effect  //= 0;
+
+	# --- Fetch sample from ~24h ago ---
+	$sth = $dbh->prepare(qq[
+		SELECT energy
+		FROM samples_cache
+		WHERE serial = $quoted_serial
+		  AND unix_time <= UNIX_TIMESTAMP(NOW()) - 86400
+		ORDER BY unix_time DESC
+		LIMIT 1
+	]);
+	$sth->execute;
+	($prev_energy) = $sth->fetchrow_array;
+	$prev_energy //= 0;
+
+	# --- Fetch meter setup_value ---
+	$sth = $dbh->prepare(qq[
+		SELECT setup_value
+		FROM meters
+		WHERE serial = $quoted_serial
+	]);
+	$sth->execute;
+	($setup_value) = $sth->fetchrow_array;
+	$setup_value //= 0;
+
+	# --- Fetch paid kWh from accounts ---
+	$sth = $dbh->prepare(qq[
+		SELECT SUM(amount / price)
+		FROM accounts
+		WHERE serial = $quoted_serial
+	]);
+	$sth->execute;
+	($paid_kwh) = $sth->fetchrow_array;
+	$paid_kwh //= 0;
+
+	# --- Calculate energy last day and avg energy last day ---
+	my $energy_last_day = sprintf("%.2f", $latest_energy - $prev_energy);
+	my $avg_energy_last_day = sprintf("%.2f", ($latest_energy - $prev_energy) / 24);
+
+	# --- Fallback if no recent 24h sample ---
+	if ($energy_last_day == 0 && $latest_effect > 0) {
+		$energy_last_day     = sprintf("%.2f", 0);
+		$avg_energy_last_day = sprintf("%.2f", $latest_effect);
+	}
+
+	# --- Calculate kWh remaining ---
+	my $kwh_remaining = sprintf("%.2f", $paid_kwh - $latest_energy + $setup_value);
+
+	# --- Calculate time remaining hours ---
+	my $time_remaining_hours;
+	if ($kwh_remaining <= 0) {
+		$time_remaining_hours = 0;
+	} elsif ($latest_effect > 0) {
+		$time_remaining_hours = $kwh_remaining / $latest_effect;
+	} elsif ($avg_energy_last_day > 0) {
+		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
+	} else {
+		$time_remaining_hours = undef;
+	}
+
+	my $time_remaining_hours_string;
+	if (!defined $time_remaining_hours || $avg_energy_last_day == 0) {
+		$time_remaining_hours_string = '∞';
+	} elsif ($time_remaining_hours <= 0) {
+		$time_remaining_hours_string = rounded_duration(0);
+	} else {
+		$time_remaining_hours_string = rounded_duration($time_remaining_hours * 3600);
+	}
+
+	# --- Return all calculated values ---
+	return {
+		kwh_remaining               => $kwh_remaining,
+		time_remaining_hours        => $time_remaining_hours // '∞',
+		time_remaining_hours_string => $time_remaining_hours_string,
+		energy_last_day             => $energy_last_day,
+		avg_energy_last_day         => $avg_energy_last_day,
+		latest_effect               => $latest_effect,
+		latest_energy               => $latest_energy,
+		paid_kwh                    => $paid_kwh,
+		setup_value                 => $setup_value,
+	};
 }
 
 1;
