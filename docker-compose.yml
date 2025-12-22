@@ -180,6 +180,7 @@ services:
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
 
   meter_cron:
     build:
