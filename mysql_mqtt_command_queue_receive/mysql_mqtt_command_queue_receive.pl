@@ -1,35 +1,37 @@
 #!/usr/bin/perl -w
 
 use strict;
+use warnings;
 use Data::Dumper;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config::Simple;
-use Time::HiRes qw( gettimeofday tv_interval );
+use Time::HiRes qw( gettimeofday usleep );
 
 use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+# --- Constants ---
+use constant CONFIG_FILE          => '/etc/Nabovarme.conf';
+use constant CACHE_DEFAULT_SEC    => 3600;    # default 1 hour for key cache
+use constant PROCESS_DELAY_USEC   => 20_000;  # optional small delay between processing messages (20 ms)
 
+# --- Config ---
 my $config = new Config::Simple(CONFIG_FILE)
 	or die Config::Simple->error();
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
 
-my $config_cached_time = $config->param('cached_time') || 3600;	# default 1 hour
+my $config_cached_time = $config->param('cached_time') || CACHE_DEFAULT_SEC;
 
 $SIG{INT} = \&sig_int_handler;
 
-my $dbh;
-my $sth;
-my $d;
-
+my ($dbh, $sth, $d);
 my $key_cache = {};
 
-my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
+my $subscribe_mqtt = Net::MQTT::Simple->new("$mqtt_host:$mqtt_port");
 
 sub sig_int_handler {
 	$subscribe_mqtt->disconnect();
@@ -51,18 +53,14 @@ sub mqtt_handler {
 	my $unix_time = $2;
 
 	# Only react to meters with commands in queue
-	$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
-		WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-		LIMIT 1 \
-	]);
-	$sth->execute;
+	$sth = $dbh->prepare(qq[SELECT serial FROM command_queue WHERE serial = ? LIMIT 1]);
+	$sth->execute($meter_serial);
 	return unless $sth->rows;
 
 	# Extract mac, iv, ciphertext
-	$message =~ /(.{32})(.{16})(.+)/s;
-	my $mac = $1;
-	my $iv = $2;
-	my $ciphertext = $3;
+	my $mac        = substr($message, 0, 32);
+	my $iv         = substr($message, 32, 16);
+	my $ciphertext = substr($message, 48);
 
 	# Extract function from topic
 	my ($function) = $topic =~ m!/([^/]+)!;
@@ -73,11 +71,8 @@ sub mqtt_handler {
 	if (exists($key_cache->{$meter_serial}) && ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
 		$key = $key_cache->{$meter_serial}->{key};
 	} else {
-		$sth = $dbh->prepare(qq[SELECT `key` FROM meters \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			LIMIT 1 \
-		]);
-		$sth->execute;
+		$sth = $dbh->prepare(qq[SELECT `key` FROM meters WHERE serial = ? LIMIT 1]);
+		$sth->execute($meter_serial);
 		if ($sth->rows) {
 			$d = $sth->fetchrow_hashref;
 			$key_cache->{$meter_serial}->{key} = $d->{key};
@@ -93,10 +88,8 @@ sub mqtt_handler {
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
 		print("Received MQTT reply from $meter_serial: $function, deleting from MySQL queue\n");
-		$dbh->do(qq[DELETE FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = 'scan' \
-		]) or warn $DBI::errstr;
+		$dbh->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = 'scan'], undef, $meter_serial)
+			or warn $DBI::errstr;
 		return;
 	}
 
@@ -111,12 +104,8 @@ sub mqtt_handler {
 		$cleartext =~ s/[\x00\s]+$//; # remove trailing nulls
 
 		# Only react to functions we have sent commands for
-		$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = ] . $dbh->quote($function) . qq[ \
-			LIMIT 1 \
-		]);
-		$sth->execute or warn $DBI::errstr;
+		$sth = $dbh->prepare(qq[SELECT serial FROM command_queue WHERE serial = ? AND function = ? LIMIT 1]);
+		$sth->execute($meter_serial, $function) or warn $DBI::errstr;
 		return unless $sth->rows;
 
 		# --------------------
@@ -124,24 +113,23 @@ sub mqtt_handler {
 		# --------------------
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
-			$sth = $dbh->prepare(qq[SELECT id FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = ] . $dbh->quote($function) . qq[ \
-				AND param > ] . ($cleartext - $tolerance) . qq[ \
-				AND param < ] . ($cleartext + $tolerance) . qq[ \
-				LIMIT 1 \
+			$sth = $dbh->prepare(qq[
+				SELECT id FROM command_queue
+				WHERE serial = ? AND function = ?
+				AND param > ? AND param < ?
+				LIMIT 1
 			]);
-			$sth->execute or warn $DBI::errstr;
+			$sth->execute($meter_serial, $function, $cleartext - $tolerance, $cleartext + $tolerance)
+				or warn $DBI::errstr;
 
 			if ($sth->rows) {
 				my $row = $sth->fetchrow_hashref;
-				$dbh->do(qq[DELETE FROM command_queue \
-					WHERE id = ] . $row->{id} . qq[ \
-				]) or warn $DBI::errstr;
+				$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $row->{id}) or warn $DBI::errstr;
 				print("Deleted open_until command for $meter_serial, param: $cleartext");
 			} else {
 				print("No matching open_until command found for $meter_serial, param: $cleartext");
 			}
+			usleep(PROCESS_DELAY_USEC);
 			return;
 		}
 
@@ -149,41 +137,37 @@ sub mqtt_handler {
 		# status special case
 		# --------------------
 		if ($function =~ /^status$/i) {
-			$dbh->do(qq[DELETE FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = ] . $dbh->quote($function) . qq[ \
-			]) or warn $DBI::errstr;
+			$dbh->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = ?], undef, $meter_serial, $function)
+				or warn $DBI::errstr;
 			print("Deleted status command for $meter_serial");
+			usleep(PROCESS_DELAY_USEC);
 			return;
 		}
 
 		# --------------------
 		# General case
 		# --------------------
-		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = ] . $dbh->quote($function) . qq[ \
-			AND state = 'sent' \
+		$sth = $dbh->prepare(qq[
+			SELECT id, has_callback FROM command_queue
+			WHERE serial = ? AND function = ? AND state = 'sent'
 		]);
-		$sth->execute or warn $DBI::errstr;
+		$sth->execute($meter_serial, $function) or warn $DBI::errstr;
 
 		if ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
 				print("Marking serial $meter_serial, command $function for deletion\n");
-				$dbh->do(qq[UPDATE command_queue SET \
-					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
-					WHERE id = ] . $d->{id} . qq[ \
-				]) or warn $DBI::errstr;
+				$dbh->do(qq[UPDATE command_queue SET state = 'received', param = ? WHERE id = ?], undef, $cleartext, $d->{id})
+					or warn $DBI::errstr;
 			} else {
 				print("Deleting serial $meter_serial, command $function from MySQL queue\n");
-				$dbh->do(qq[DELETE FROM command_queue \
-					WHERE id = ] . $d->{id} . qq[ \
-				]) or warn $DBI::errstr;
+				$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id}) or warn $DBI::errstr;
 			}
 		}
+		usleep(PROCESS_DELAY_USEC);
 
 	} else {
 		print("Serial $meter_serial checksum error\n");  
+		usleep(PROCESS_DELAY_USEC);
 	}
 }
 
@@ -223,12 +207,13 @@ $subscribe_mqtt->subscribe(q[/reset_reason/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/flash_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
+
 $subscribe_mqtt->run();
 
 # --- debug print helper ---
 sub debug_print {
 	my ($msg) = @_;
-	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
 }
 
 1;

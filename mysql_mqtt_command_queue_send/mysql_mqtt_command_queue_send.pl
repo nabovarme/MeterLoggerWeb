@@ -1,45 +1,47 @@
 #!/usr/bin/perl -w
 
 use strict;
+use warnings;
 use Data::Dumper;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
-use Digest::SHA qw( sha256 hmac_sha256 );
+use Digest::SHA qw(sha256 hmac_sha256);
 use Config::Simple;
-use Time::HiRes qw( usleep );
+use Time::HiRes qw(usleep);
 
-use lib qw( /etc/apache2/perl );
+use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 
-use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10 second
-use constant DELAY_BETWEEN_SERIALS => 1_000_000;		# 1 second
-use constant DB_POLL_DELAY => 1_000_000;					# 1 second
-use constant DELAY_BETWEEN_COMMAND => 20_000;	# 20 mS
+# --- Constants ---
+use constant CONFIG_FILE                 => '/etc/Nabovarme.conf';
+use constant DELAY_BETWEEN_RETRANSMIT    => 10;       # 10 second
+use constant DELAY_BETWEEN_SERIALS       => 1;        # 1 second
+use constant DB_POLL_DELAY               => 1;        # 1 second
+use constant DELAY_BETWEEN_COMMAND_USEC  => 20_000;   # 20 mS
 
-$SIG{INT} = \&sig_int_handler;
-
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
-
-my $config = new Config::Simple(CONFIG_FILE)
+# --- Config ---
+my $config = Config::Simple->new(CONFIG_FILE)
 	or die Config::Simple->error();
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
 
-my $dbh;
-my $sth;
-my $d;
+# --- Globals ---
+my ($dbh, $sth, $d);
+my ($current_function, $last_function);
 
 #print Dumper $pp->pidfile();
 
 debug_print("starting...\n");
 
+# --- MQTT publisher ---
 my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
-sub sig_int_handler {
+# --- SIGINT handler ---
+$SIG{INT} = sub {
 	$publish_mqtt->disconnect();
 	die "Interrupted\n";
-}
+};
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
@@ -55,8 +57,6 @@ my $m = Crypt::Mode::CBC->new('AES');
 
 # delete commands timed out
 $dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $DBI::errstr;
-
-my ($current_function, $last_function);
 
 while (1) {
 	$sth = $dbh->prepare(qq[SELECT \
@@ -76,13 +76,15 @@ while (1) {
 		ORDER BY `function` ASC, `unix_time` ASC \
 	]);
 	$sth->execute || warn $DBI::errstr;
+
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
+
 		if ($current_function ne $last_function) {
-			usleep(DELAY_BETWEEN_SERIALS);
+			usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
 		}
 
-		if ($d->{unix_time} + $d->{sent_count} * (DELAY_BETWEEN_RETRANSMIT / 1_000_000) < time()) {
+		if ($d->{unix_time} + $d->{sent_count} * DELAY_BETWEEN_RETRANSMIT < time()) {
 			# send mqtt function to meter
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
@@ -97,11 +99,10 @@ while (1) {
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 			
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
-			$dbh->do(qq[UPDATE command_queue SET \
-				`sent_count` = `sent_count` + 1 \
-				WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
+			$dbh->do(qq[UPDATE command_queue SET `sent_count` = `sent_count` + 1 WHERE `id` = ?], undef, $d->{id})
+				or warn $DBI::errstr;
 			
-			usleep(DELAY_BETWEEN_COMMAND);
+			usleep(DELAY_BETWEEN_COMMAND_USEC);
 		}
 		
 		# remove timed out calls from db
@@ -109,29 +110,29 @@ while (1) {
 			if (time() - $d->{unix_time} > $d->{timeout}) {
 				debug_print("function " . $d->{function} . " to " . $d->{serial} . " timed out\n");
 				if ($d->{has_callback}) {
-					$dbh->do(qq[UPDATE command_queue SET \
-						`state` = 'timeout' \
-						WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
+					$dbh->do(qq[UPDATE command_queue SET `state` = 'timeout' WHERE `id` = ?], undef, $d->{id})
+						or warn $DBI::errstr;
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
+					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $d->{id})
+						or warn $DBI::errstr;
 				}
 			}
 		}
 		
 		$last_function = $current_function;
 	} 	   
+	
 	# wait and retransmit     
 #	usleep(DELAY_BETWEEN_RETRANSMIT);
-	usleep(DB_POLL_DELAY);
+	usleep(DB_POLL_DELAY * 1_000_000);
 }
 
 # --- debug print helper ---
 sub debug_print {
 	my ($msg) = @_;
-	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
 }
-
 
 1;
 
