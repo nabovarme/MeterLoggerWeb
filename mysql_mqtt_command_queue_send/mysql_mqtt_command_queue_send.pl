@@ -6,7 +6,7 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config;
+use Config::Simple;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
@@ -21,7 +21,8 @@ $SIG{INT} = \&sig_int_handler;
 
 use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
 
-my $config = new Config::Simple(CONFIG_FILE) || die $!;
+my $config = new Config::Simple(CONFIG_FILE)
+	or die Config::Simple->error();
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
 
@@ -37,7 +38,7 @@ my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
 sub sig_int_handler {
 	$publish_mqtt->disconnect();
-	die $!;
+	die "Interrupted\n";
 }
 
 # connect to db
@@ -53,7 +54,7 @@ else {
 my $m = Crypt::Mode::CBC->new('AES');
 
 # delete commands timed out
-$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or debug_print($!);
+$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $DBI::errstr;
 
 my ($current_function, $last_function);
 
@@ -70,11 +71,11 @@ while (1) {
 			meters.`key` \
 		FROM command_queue, meters \
 		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() \
-		AND command_queue.`serial` LIKE meters.`serial` \
+		AND command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
 		ORDER BY `function` ASC, `unix_time` ASC \
 	]);
-	$sth->execute || debug_print($!);
+	$sth->execute || warn $DBI::errstr;
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
 		if ($current_function ne $last_function) {
@@ -98,7 +99,7 @@ while (1) {
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 			$dbh->do(qq[UPDATE command_queue SET \
 				`sent_count` = `sent_count` + 1 \
-				WHERE `id` = ] . $d->{id}) or debug_print($!);
+				WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
 			
 			usleep(DELAY_BETWEEN_COMMAND);
 		}
@@ -110,10 +111,10 @@ while (1) {
 				if ($d->{has_callback}) {
 					$dbh->do(qq[UPDATE command_queue SET \
 						`state` = 'timeout' \
-						WHERE `id` = ] . $d->{id}) or debug_print($!);
+						WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
+					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id}) or warn $DBI::errstr;
 				}
 			}
 		}
@@ -128,7 +129,7 @@ while (1) {
 # --- debug print helper ---
 sub debug_print {
 	my ($msg) = @_;
-	print "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
 }
 
 
