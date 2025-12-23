@@ -223,8 +223,11 @@ sub debug_print {
 	# Get the basename of the script, without path or .pl extension
 	my $script_name = basename($0, ".pl");
 
-	# Print the script name prefix to STDERR
-	print STDERR "[", $script_name, "] ";
+	# Get module/package name (optional: set it manually or dynamically)
+	my $module_name = __PACKAGE__;  # Current package/module
+
+	# Print the script and module name prefix to STDERR
+	print STDERR "[", $script_name, "->", $module_name, "] ";
 
 	# Print all provided arguments, converting undef to empty string to avoid warnings
 	print STDERR map { defined $_ ? $_ : '' } @_;

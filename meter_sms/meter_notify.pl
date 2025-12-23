@@ -1,5 +1,29 @@
 #!/usr/bin/perl -w
 
+# -----------------------------------------------------------------------------
+# Notification State Mapping
+#
+# 0  - Ready to send close warning
+# 1  - Close warning marked to send (in-progress)
+# 2  - Close notice marked to send (in-progress)
+# 3  - Open notice marked to send (in-progress)
+# 4  - Close warning sent
+# 5  - Close notice sent
+# 6  - Open notice sent
+#
+# Workflow:
+#   0 -> 1 -> 4      Close warning
+#   4 -> 2 -> 5      Close notice
+#   5 -> 3 -> 6      Open notice
+#
+# Notes:
+# - When sending a notification, the row is first marked as "marked to send"
+#   (1,2,3) to prevent duplicate sends if the script crashes.
+# - After a successful send, the state is updated to the final "sent" state
+#   (4,5,6).
+# - This allows safe retries and crash recovery without duplicate notifications.
+# -----------------------------------------------------------------------------
+
 use strict;
 use warnings;
 use Data::Dumper;
@@ -16,14 +40,14 @@ use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
 
-debug_print("Starting debug mode...");
+print "[", $script_name, "] Starting debug mode...\n";
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	print "[", $script_name, "] ", "Connected to DB\n";
+	print "[", $script_name, "] Connected to DB\n";
 } else {
 	die "Can't connect to DB: $!";
 }
@@ -59,54 +83,74 @@ while (1) {
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
 		# --- DEBUG LOG ---
-		debug_print(
-			"[DEBUG] Serial: $d->{serial}\n",
-			"        State: $d->{notification_state}\n",
-			"        Energy remaining: $energy_remaining_fmt kWh\n",
-			"        Paid kWh: $paid_kwh kWh\n",
-			"        Avg energy last day: $avg_energy_last_day kWh\n",
-			"        Time remaining: $time_remaining_fmt h\n",
-			"        Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n"
-		);
+		print "[", $script_name, "] ";
+		print "[DEBUG] Serial: $d->{serial}\n",
+			  "        State: $d->{notification_state}\n",
+			  "        Energy remaining: $energy_remaining_fmt kWh\n",
+			  "        Paid kWh: $paid_kwh kWh\n",
+			  "        Avg energy last day: $avg_energy_last_day kWh\n",
+			  "        Time remaining: $time_remaining_fmt h\n",
+			  "        Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n";
 
 		# --- Notifications ---
-		if ($d->{notification_state} == 0) {
+		# Close warning
+		if ($d->{notification_state} == 0 || $d->{notification_state} == 1) {
 			if (defined $energy_time_remaining && $energy_time_remaining < ($d->{close_notification_time} || CLOSE_WARNING_TIME)) {
-				$notification = "close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})";
-				_send_notification($d->{sms_notification}, $notification);
-
-				$dbh->do(qq[
+				my $claimed = $dbh->do(qq[
 					UPDATE meters
-					SET notification_state = 1,
-						notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
-
-				debug_print("[INFO] close warning sent for serial ", $d->{serial});
+					SET notification_state = 1, notification_sent_at = UNIX_TIMESTAMP()
+					WHERE serial = $quoted_serial AND (notification_state = 0 OR notification_state = 1)
+				]);
+				if ($claimed) {
+					my $success = eval { _send_notification($d->{sms_notification},
+						"close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})") };
+					if ($@ || !$success) {
+						print "[WARN] Sending close warning failed for serial $d->{serial}: $@\n";
+					} else {
+						$dbh->do(qq[UPDATE meters SET notification_state = 4 WHERE serial = $quoted_serial]);
+						print "[INFO] close warning sent for serial $d->{serial}\n";
+					}
+				}
 			}
 		}
-		elsif ($d->{notification_state} == 1) {
+		# Close notice
+		elsif ($d->{notification_state} == 4 || $d->{notification_state} == 2) {
 			if ($energy_remaining <= 0) {
-				$notification = "close notice: $d->{info} closed. ($d->{serial})";
-				_send_notification($d->{sms_notification}, $notification);
-
-				$dbh->do(qq[
-					UPDATE meters SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
-
-				debug_print("[INFO] close notice sent for serial ", $d->{serial});
+				my $claimed = $dbh->do(qq[
+					UPDATE meters
+					SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP()
+					WHERE serial = $quoted_serial AND (notification_state = 4 OR notification_state = 2)
+				]);
+				if ($claimed) {
+					my $success = eval { _send_notification($d->{sms_notification},
+						"close notice: $d->{info} closed. ($d->{serial})") };
+					if ($@ || !$success) {
+						print "[WARN] Sending close notice failed for serial $d->{serial}: $@\n";
+					} else {
+						$dbh->do(qq[UPDATE meters SET notification_state = 5 WHERE serial = $quoted_serial]);
+						print "[INFO] close notice sent for serial $d->{serial}\n";
+					}
+				}
 			}
 		}
-		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin for hysteresis
-				$notification = "open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
-				_send_notification($d->{sms_notification}, $notification);
-
-				$dbh->do(qq[
-					UPDATE meters SET notification_state = 0, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
-
-				debug_print("[INFO] open notice sent for serial ", $d->{serial});
+		# Open notice
+		elsif ($d->{notification_state} == 5 || $d->{notification_state} == 3) {
+			if (defined $energy_time_remaining && $energy_remaining > 0.2) {
+				my $claimed = $dbh->do(qq[
+					UPDATE meters
+					SET notification_state = 3, notification_sent_at = UNIX_TIMESTAMP()
+					WHERE serial = $quoted_serial AND (notification_state = 5 OR notification_state = 3)
+				]);
+				if ($claimed) {
+					my $success = eval { _send_notification($d->{sms_notification},
+						"open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})") };
+					if ($@ || !$success) {
+						print "[WARN] Sending open notice failed for serial $d->{serial}: $@\n";
+					} else {
+						$dbh->do(qq[UPDATE meters SET notification_state = 6 WHERE serial = $quoted_serial]);
+						print "[INFO] open notice sent for serial $d->{serial}\n";
+					}
+				}
 			}
 		}
 	}
@@ -121,22 +165,7 @@ sub _send_notification {
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		debug_print("[SMS] 45", $num, ": ", $message);
+		print "[SMS] 45", $num, ": ", $message, "\n";
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
 	}
-}
-
-# --- debug print helper ---
-sub debug_print {
-	# Only print if debug mode is enabled via environment variable
-	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
-
-	# Print the script name prefix
-	print "[", $script_name, "] ";
-
-	# Print all provided arguments, converting undef to empty string to avoid warnings
-	print map { defined $_ ? $_ : '' } @_;
-
-	# End the line with a newline character
-	print "\n";
 }
