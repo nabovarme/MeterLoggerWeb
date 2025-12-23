@@ -159,7 +159,7 @@ sub mqtt_handler {
 				$dbh->do(qq[UPDATE command_queue SET state = 'received', param = ? WHERE id = ?], undef, $cleartext, $d->{id})
 					or warn $DBI::errstr;
 			} else {
-				print("Deleting serial $meter_serial, command $function from MySQL queue\n");
+				print("Deleting serial $meter_serial, command $function\n");
 				$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id}) or warn $DBI::errstr;
 			}
 		}
