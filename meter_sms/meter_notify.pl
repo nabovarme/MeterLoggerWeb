@@ -52,13 +52,21 @@ while (1) {
 		$energy_time_remaining = $est->{time_remaining_hours};
 		my $time_remaining_string = $est->{time_remaining_hours_string};
 
+		# get paid kWh and avg energy last day
+		my $paid_kwh = sprintf("%.2f", $est->{paid_kwh} || 0);
+		my $avg_energy_last_day = sprintf("%.2f", $est->{avg_energy_last_day} || 0);
+		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
+		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
+
 		# --- DEBUG LOG ---
 		debug_print(
-			"[DEBUG] serial=",				$d->{serial},
-			" state=",						$d->{notification_state},
-			" energy_remaining=",			$energy_remaining,
-			" time_remaining=",				$energy_time_remaining,
-			" notification_sent_at=",		$d->{notification_sent_at}
+			"[DEBUG] Serial: $d->{serial}\n",
+			"        State: $d->{notification_state}\n",
+			"        Energy remaining: $energy_remaining_fmt kWh\n",
+			"        Paid kWh: $paid_kwh kWh\n",
+			"        Avg energy last day: $avg_energy_last_day kWh\n",
+			"        Time remaining: $time_remaining_fmt h\n",
+			"        Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n"
 		);
 
 		# --- Notifications ---
