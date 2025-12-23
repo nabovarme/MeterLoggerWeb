@@ -10,9 +10,6 @@ use Config;
 use Time::HiRes qw( usleep );
 
 use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl );
-use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
-use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
 use constant DELAY_BETWEEN_RETRANSMIT => 10_000_000;	# 10 second
@@ -34,7 +31,7 @@ my $d;
 
 #print Dumper $pp->pidfile();
 
-warn "starting...\n";
+debug_print("starting...\n");
 
 my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
@@ -56,7 +53,7 @@ else {
 my $m = Crypt::Mode::CBC->new('AES');
 
 # delete commands timed out
-$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $!;
+$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or debug_print($!);
 
 my ($current_function, $last_function);
 
@@ -77,7 +74,7 @@ while (1) {
 		AND `state` = 'sent' \
 		ORDER BY `function` ASC, `unix_time` ASC \
 	]);
-	$sth->execute || warn $!;
+	$sth->execute || debug_print($!);
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
 		if ($current_function ne $last_function) {
@@ -90,7 +87,7 @@ while (1) {
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
-			warn "send mqtt function " . $d->{function} . " to " . $d->{serial} . "\n";
+			debug_print("send mqtt function " . $d->{function} . " to " . $d->{serial} . "\n");
 			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
@@ -101,7 +98,7 @@ while (1) {
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 			$dbh->do(qq[UPDATE command_queue SET \
 				`sent_count` = `sent_count` + 1 \
-				WHERE `id` = ] . $d->{id}) or warn $!;
+				WHERE `id` = ] . $d->{id}) or debug_print($!);
 			
 			usleep(DELAY_BETWEEN_COMMAND);
 		}
@@ -109,11 +106,11 @@ while (1) {
 		# remove timed out calls from db
 		if ($d->{timeout}) {
 			if (time() - $d->{unix_time} > $d->{timeout}) {
-				warn "function " . $d->{function} . " to " . $d->{serial} . " timed out\n";
+				debug_print("function " . $d->{function} . " to " . $d->{serial} . " timed out\n");
 				if ($d->{has_callback}) {
 					$dbh->do(qq[UPDATE command_queue SET \
 						`state` = 'timeout' \
-						WHERE `id` = ] . $d->{id}) or warn $!;
+						WHERE `id` = ] . $d->{id}) or debug_print($!);
 				}
 				else {
 					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ] . $d->{id});
@@ -126,7 +123,13 @@ while (1) {
 	# wait and retransmit     
 #	usleep(DELAY_BETWEEN_RETRANSMIT);
 	usleep(DB_POLL_DELAY);
-}               
+}
+
+# --- debug print helper ---
+sub debug_print {
+	my ($msg) = @_;
+	print "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+}
 
 
 1;

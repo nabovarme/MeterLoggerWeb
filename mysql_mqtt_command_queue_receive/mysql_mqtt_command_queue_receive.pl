@@ -2,7 +2,6 @@
 
 use strict;
 use Data::Dumper;
-use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
@@ -11,9 +10,6 @@ use Config;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl );
-use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
-use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
 use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
@@ -31,9 +27,6 @@ my $sth;
 my $d;
 
 my $key_cache;
-
-openlog($0, "ndelay,pid", "local0");
-syslog('info', "starting...");
 
 my $subscribe_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 
@@ -98,8 +91,7 @@ sub mqtt_handler {
 	# scan_result special case
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
-		warn "Received MQTT reply from $meter_serial: $function, deleting from MySQL queue\n";
-		syslog('info', "Received MQTT reply from $meter_serial: $function, deleting from MySQL queue");
+		debug_print("Received MQTT reply from $meter_serial: $function, deleting from MySQL queue\n");
 		$dbh->do(qq[DELETE FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 			AND function = 'scan' \
@@ -145,11 +137,9 @@ sub mqtt_handler {
 				$dbh->do(qq[DELETE FROM command_queue \
 					WHERE id = ] . $row->{id} . qq[ \
 				]) or warn $!;
-				warn "Deleted open_until command for $meter_serial, param: $cleartext";
-				syslog('info', "Deleted open_until command for $meter_serial, param: $cleartext");
+				debug_print("Deleted open_until command for $meter_serial, param: $cleartext");
 			} else {
-				warn "No matching open_until command found for $meter_serial, param: $cleartext";
-				syslog('info', "No matching open_until command found for $meter_serial, param: $cleartext");
+				debug_print("No matching open_until command found for $meter_serial, param: $cleartext");
 			}
 			return;
 		}
@@ -162,8 +152,7 @@ sub mqtt_handler {
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = ] . $dbh->quote($function) . qq[ \
 			]) or warn $!;
-			warn "Deleted status command for $meter_serial";
-			syslog('info', "Deleted status command for $meter_serial");
+			debug_print("Deleted status command for $meter_serial");
 			return;
 		}
 
@@ -179,15 +168,13 @@ sub mqtt_handler {
 
 		if ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
-				warn "Marking serial $meter_serial, command $function for deletion\n";
-				syslog('info', "Marking serial $meter_serial, command $function for deletion");
+				debug_print("Marking serial $meter_serial, command $function for deletion\n");
 				$dbh->do(qq[UPDATE command_queue SET \
 					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
 					WHERE id = ] . $d->{id} . qq[ \
 				]) or warn $!;
 			} else {
-				warn "Deleting serial $meter_serial, command $function from MySQL queue\n";
-				syslog('info', "Deleting serial $meter_serial, command $function from MySQL queue");
+				debug_print("Deleting serial $meter_serial, command $function from MySQL queue\n");
 				$dbh->do(qq[DELETE FROM command_queue \
 					WHERE id = ] . $d->{id} . qq[ \
 				]) or warn $!;
@@ -196,7 +183,6 @@ sub mqtt_handler {
 
 	} else {
 		warn "Serial $meter_serial checksum error\n";  
-		syslog('info', "Serial $meter_serial checksum error");	 
 	}
 }
 
@@ -206,7 +192,7 @@ sub mqtt_handler {
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 } else {
-	syslog('info', "Can't connect to DB: $!");
+	warn "Can't connect to DB: $!";
 	die $!;
 }
 
@@ -237,6 +223,12 @@ $subscribe_mqtt->subscribe(q[/flash_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
 $subscribe_mqtt->run();
+
+# --- debug print helper ---
+sub debug_print {
+	my ($msg) = @_;
+	print "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+}
 
 1;
 
