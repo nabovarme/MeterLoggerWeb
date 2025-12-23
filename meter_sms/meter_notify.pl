@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use DBI;
+use File::Basename;
 use Config;
 
 use lib qw( /etc/apache2/perl /opt/local/apache2/perl/ );
@@ -12,6 +13,9 @@ use Nabovarme::Utils;
 
 use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 
+# Get the basename of the script, without path or .pl extension
+my $script_name = basename($0, ".pl");
+
 debug_print("Starting debug mode...");
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
@@ -19,7 +23,7 @@ my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	debug_print("Connected to DB");
+	print "[", $script_name, "] ", "Connected to DB\n";
 } else {
 	die "Can't connect to DB: $!";
 }
@@ -49,7 +53,13 @@ while (1) {
 		my $time_remaining_string = $est->{time_remaining_hours_string};
 
 		# --- DEBUG LOG ---
-		debug_print("[DEBUG] serial=$d->{serial} state=$d->{notification_state} energy_remaining=$energy_remaining time_remaining=$energy_time_remaining notification_sent_at=$d->{notification_sent_at}");
+		debug_print(
+			"[DEBUG] serial=",				$d->{serial},
+			" state=",						$d->{notification_state},
+			" energy_remaining=",			$energy_remaining,
+			" time_remaining=",				$energy_time_remaining,
+			" notification_sent_at=",		$d->{notification_sent_at}
+		);
 
 		# --- Notifications ---
 		if ($d->{notification_state} == 0) {
@@ -62,8 +72,9 @@ while (1) {
 					SET notification_state = 1,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE serial = $quoted_serial
-				]) or debug_print($!);
-				debug_print("[INFO] close warning sent for serial #$d->{serial}, energy_remaining=$energy_remaining");
+				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+
+				debug_print("[INFO] close warning sent for serial ", $d->{serial});
 			}
 		}
 		elsif ($d->{notification_state} == 1) {
@@ -73,8 +84,9 @@ while (1) {
 
 				$dbh->do(qq[
 					UPDATE meters SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print($!);
-				debug_print("[INFO] close notice sent for serial #$d->{serial}, energy_remaining=$energy_remaining");
+				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+
+				debug_print("[INFO] close notice sent for serial ", $d->{serial});
 			}
 		}
 		elsif ($d->{notification_state} == 2) {
@@ -84,8 +96,9 @@ while (1) {
 
 				$dbh->do(qq[
 					UPDATE meters SET notification_state = 0, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print($!);
-				debug_print("[INFO] open notice sent for serial #$d->{serial}, energy_remaining=$energy_remaining");
+				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+
+				debug_print("[INFO] open notice sent for serial ", $d->{serial});
 			}
 		}
 	}
@@ -100,13 +113,22 @@ sub _send_notification {
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		debug_print("[SMS] 45$num: $message");
+		debug_print("[SMS] 45", $num, ": ", $message);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
 	}
 }
 
 # --- debug print helper ---
 sub debug_print {
-	my ($msg) = @_;
-	print "$msg\n" if ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+	# Only print if debug mode is enabled via environment variable
+	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
+
+	# Print the script name prefix
+	print "[", $script_name, "] ";
+
+	# Print all provided arguments, converting undef to empty string to avoid warnings
+	print map { defined $_ ? $_ : '' } @_;
+
+	# End the line with a newline character
+	print "\n";
 }
