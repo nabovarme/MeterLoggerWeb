@@ -217,7 +217,7 @@ sub estimate_remaining_energy {
 	debug_print("[DEBUG] ", "kWh remaining=", sprintf("%.2f", $kwh_remaining));
 
 	# --- Determine if meter is closed ---
-	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0);
+	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
 	debug_print("[DEBUG] ", "Meter closed=", $is_closed);
 
 	# --- Calculate time_remaining_hours ---
