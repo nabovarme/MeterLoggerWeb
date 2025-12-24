@@ -37,10 +37,9 @@ use Nabovarme::Utils;
 
 use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 
-# Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
 
-print "[", $script_name, "] Starting debug mode...\n";
+debug_print("Starting debug mode...");
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
@@ -93,74 +92,125 @@ while (1) {
 		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
-		# --- DEBUG LOG ---
-		my $state_label_str = $state_label{$d->{notification_state}} // 'Unknown';
-		print "[", $script_name, "] [DEBUG] Serial: $d->{serial}\n";
-		print "[", $script_name, "]         State:  $d->{notification_state} ($state_label_str)\n";
-		print "[", $script_name, "]         Energy remaining: $energy_remaining_fmt kWh\n";
-		print "[", $script_name, "]         Paid kWh: $paid_kwh kWh\n";
-		print "[", $script_name, "]         Avg energy last day: $avg_energy_last_day kWh\n";
-		print "[", $script_name, "]         Time remaining: $time_remaining_fmt h\n";
-		print "[", $script_name, "]         Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n";
+		debug_print(
+			"[DEBUG] Serial: $d->{serial}",
+			"        State: $d->{notification_state}",
+			"        Energy remaining: $energy_remaining_fmt kWh",
+			"        Paid kWh: $paid_kwh kWh",
+			"        Avg energy last day: $avg_energy_last_day kWh",
+			"        Time remaining: $time_remaining_fmt h",
+			"        Notification sent at: ", ($d->{notification_sent_at} || 'N/A')
+		);
 
 		# --- Notifications ---
-		# Close warning
+		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
+
+		# Close warning: state 0 -> 1 -> 4
 		if ($d->{notification_state} == 0 || $d->{notification_state} == 1) {
-			if (defined $energy_time_remaining && $energy_time_remaining < ($d->{close_notification_time} || CLOSE_WARNING_TIME)) {
-				my $claimed = $dbh->do(qq[
-					UPDATE meters
-					SET notification_state = 1, notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $quoted_serial AND (notification_state = 0 OR notification_state = 1)
-				]);
-				if ($claimed) {
-					my $success = eval { _send_notification($d->{sms_notification},
-						"close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})") };
-					if ($@ || !$success) {
-						print "[WARN] Sending close warning failed for serial $d->{serial}: $@\n";
+			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
+				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
+
+				eval {
+					$dbh->{'AutoCommit'} = 0;
+					$dbh->{'RaiseError'} = 1;
+
+					my $claimed = $dbh->do(qq[
+						UPDATE meters
+						SET notification_state = 1, notification_sent_at = UNIX_TIMESTAMP()
+						WHERE serial = $quoted_serial
+						  AND (notification_state = 0 OR notification_state = 1)
+					]);
+
+					if ($claimed) {
+						my $msg = "close warning: $d->{info} closing soon. $time_remaining_string remaining. ($d->{serial})";
+						_send_notification($d->{sms_notification}, $msg);
+
+						$dbh->do(qq[
+							UPDATE meters
+							SET notification_state = 4
+							WHERE serial = $quoted_serial
+						]);
+						$dbh->commit;
+						debug_print("[INFO] close warning sent for serial $d->{serial}");
 					} else {
-						$dbh->do(qq[UPDATE meters SET notification_state = 4 WHERE serial = $quoted_serial]);
-						print "[INFO] close warning sent for serial $d->{serial}\n";
+						$dbh->rollback;
 					}
+				};
+				if ($@) {
+					warn "[WARN] Error processing serial $d->{serial}: $@\n";
+					eval { $dbh->rollback(); };
 				}
 			}
 		}
-		# Close notice
+
+		# Close notice: state 4 -> 2 -> 5
 		elsif ($d->{notification_state} == 4 || $d->{notification_state} == 2) {
 			if ($energy_remaining <= 0) {
-				my $claimed = $dbh->do(qq[
-					UPDATE meters
-					SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $quoted_serial AND (notification_state = 4 OR notification_state = 2)
-				]);
-				if ($claimed) {
-					my $success = eval { _send_notification($d->{sms_notification},
-						"close notice: $d->{info} closed. ($d->{serial})") };
-					if ($@ || !$success) {
-						print "[WARN] Sending close notice failed for serial $d->{serial}: $@\n";
+				eval {
+					$dbh->{'AutoCommit'} = 0;
+					$dbh->{'RaiseError'} = 1;
+
+					my $claimed = $dbh->do(qq[
+						UPDATE meters
+						SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP()
+						WHERE serial = $quoted_serial
+						  AND (notification_state = 4 OR notification_state = 2)
+					]);
+
+					if ($claimed) {
+						my $msg = "close notice: $d->{info} closed. ($d->{serial})";
+						_send_notification($d->{sms_notification}, $msg);
+
+						$dbh->do(qq[
+							UPDATE meters
+							SET notification_state = 5
+							WHERE serial = $quoted_serial
+						]);
+						$dbh->commit;
+						debug_print("[INFO] close notice sent for serial $d->{serial}");
 					} else {
-						$dbh->do(qq[UPDATE meters SET notification_state = 5 WHERE serial = $quoted_serial]);
-						print "[INFO] close notice sent for serial $d->{serial}\n";
+						$dbh->rollback;
 					}
+				};
+				if ($@) {
+					warn "[WARN] Error processing serial $d->{serial}: $@\n";
+					eval { $dbh->rollback(); };
 				}
 			}
 		}
-		# Open notice
+
+		# Open notice: state 5 -> 3 -> 6
 		elsif ($d->{notification_state} == 5 || $d->{notification_state} == 3) {
 			if (defined $energy_time_remaining && $energy_remaining > 0.2) {
-				my $claimed = $dbh->do(qq[
-					UPDATE meters
-					SET notification_state = 3, notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $quoted_serial AND (notification_state = 5 OR notification_state = 3)
-				]);
-				if ($claimed) {
-					my $success = eval { _send_notification($d->{sms_notification},
-						"open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})") };
-					if ($@ || !$success) {
-						print "[WARN] Sending open notice failed for serial $d->{serial}: $@\n";
+				eval {
+					$dbh->{'AutoCommit'} = 0;
+					$dbh->{'RaiseError'} = 1;
+
+					my $claimed = $dbh->do(qq[
+						UPDATE meters
+						SET notification_state = 3, notification_sent_at = UNIX_TIMESTAMP()
+						WHERE serial = $quoted_serial
+						  AND (notification_state = 5 OR notification_state = 3)
+					]);
+
+					if ($claimed) {
+						my $msg = "open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
+						_send_notification($d->{sms_notification}, $msg);
+
+						$dbh->do(qq[
+							UPDATE meters
+							SET notification_state = 6
+							WHERE serial = $quoted_serial
+						]);
+						$dbh->commit;
+						debug_print("[INFO] open notice sent for serial $d->{serial}");
 					} else {
-						$dbh->do(qq[UPDATE meters SET notification_state = 6 WHERE serial = $quoted_serial]);
-						print "[INFO] open notice sent for serial $d->{serial}\n";
+						$dbh->rollback;
 					}
+				};
+				if ($@) {
+					warn "[WARN] Error processing serial $d->{serial}: $@\n";
+					eval { $dbh->rollback(); };
 				}
 			}
 		}
@@ -172,21 +222,23 @@ while (1) {
 # --- helper to send SMS ---
 sub _send_notification {
 	my ($sms_notification, $message) = @_;
-	return 0 unless $sms_notification;
-	
+	return unless $sms_notification;
+
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
-	my $all_ok = 1;
-	
 	foreach my $num (@numbers) {
-		print "[SMSD] Sending to 45$num: $message\n";
+		debug_print("[SMS] Sending to 45$num: $message");
 		my $ok = system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]) == 0;
-		$all_ok &&= $ok;  # accumulate overall success
 
 		unless ($ok) {
-			print "[SMSD] Failed to send SMS to 45$num\n";
+			debug_print("[SMS] Failed to send SMS to 45$num");
 		}
 	}
-
-	return $all_ok;
 }
 
+# --- debug print helper ---
+sub debug_print {
+	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
+	print "[", $script_name, "] ";
+	print map { defined $_ ? $_ : '' } @_;
+	print "\n";
+}
