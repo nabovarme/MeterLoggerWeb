@@ -100,7 +100,6 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($setup_value) = $sth->fetchrow_array;
 	$setup_value ||= 0;
-
 	my $setup_value_fmt = sprintf("%.2f", $setup_value);
 	debug_print("[DEBUG] ", "Setup value=", $setup_value_fmt);
 
@@ -113,7 +112,6 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($paid_kwh) = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
-
 	my $paid_kwh_fmt = sprintf("%.2f", $paid_kwh);
 	debug_print("[DEBUG] ", "Paid kWh=", $paid_kwh_fmt);
 
@@ -222,15 +220,16 @@ sub estimate_remaining_energy {
 		", kwh_remaining=", $kwh_remaining_fmt,
 		", time_remaining_hours_string=", $time_remaining_hours_string);
 
+	# --- Format numbers for return ---
 	return {
-		kwh_remaining               => $kwh_remaining,
-		time_remaining_hours        => $time_remaining_hours,
+		kwh_remaining               => sprintf("%.2f", $kwh_remaining),
+		time_remaining_hours        => defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef,
 		time_remaining_hours_string => $time_remaining_hours_string,
-		energy_last_day             => $energy_last_day,
-		avg_energy_last_day         => $avg_energy_last_day,
-		latest_energy               => $latest_energy,
-		paid_kwh                    => $paid_kwh,
-		setup_value                 => $setup_value,
+		energy_last_day             => sprintf("%.2f", $energy_last_day),
+		avg_energy_last_day         => sprintf("%.2f", $avg_energy_last_day),
+		latest_energy               => sprintf("%.2f", $latest_energy),
+		paid_kwh                    => sprintf("%.2f", $paid_kwh),
+		setup_value                 => sprintf("%.2f", $setup_value),
 		valve_status                => $valve_status,
 		valve_installed             => $valve_installed,
 	};
