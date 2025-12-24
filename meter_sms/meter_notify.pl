@@ -68,7 +68,7 @@ while (1) {
 
 				# DEBUG: only when sending notification
 				debug_print(
-					"[DEBUG] Serial: $d->{serial}",
+					"[SMS] Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
@@ -88,7 +88,7 @@ while (1) {
 					WHERE serial = $dbh->quote($d->{serial})
 				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[INFO] close warning sent for serial ", $d->{serial});
+				print("[", $script_name, "] ", "[SMS] close warning sent for serial ", $d->{serial});
 			}
 		}
 
@@ -98,7 +98,7 @@ while (1) {
 
 				# DEBUG: only when sending notification
 				debug_print(
-					"[DEBUG] Serial: $d->{serial}",
+					"[SMS] Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
@@ -116,9 +116,9 @@ while (1) {
 					SET notification_state = 2,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE serial = $dbh->quote($d->{serial})
-				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or warn("[SMS] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[INFO] close notice sent for serial ", $d->{serial});
+				print("[", $script_name, "] ", "[SMS] close notice sent for serial ", $d->{serial});
 			}
 		}
 
@@ -128,7 +128,7 @@ while (1) {
 
 				# DEBUG: only when sending notification
 				debug_print(
-					"[DEBUG] Serial: $d->{serial}",
+					"[SMS] Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
@@ -148,7 +148,7 @@ while (1) {
 					WHERE serial = $dbh->quote($d->{serial})
 				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[INFO] open notice sent for serial ", $d->{serial});
+				print("[", $script_name, "] ", "[SMS] open notice sent for serial ", $d->{serial});
 			}
 		}
 	}
@@ -163,7 +163,7 @@ sub _send_notification {
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		debug_print("[SMS] 45", $num, ": ", $message);
+		debug_print("[", $script_name, "] ", "[SMS] 45", $num, ": ", $message);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
 	}
 }
