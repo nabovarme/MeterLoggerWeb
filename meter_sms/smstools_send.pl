@@ -14,8 +14,10 @@ if ($smtp->to($destination . '@meterlogger')) {
 	$smtp->data();
 	$smtp->datasend("$message");
 	$smtp->dataend();
+	exit 0;   # success
 } else {
 	print "Error: ", $smtp->message();
+	exit 1;   # failure
 }
 
 $smtp->quit;

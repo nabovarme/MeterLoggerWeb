@@ -95,14 +95,13 @@ while (1) {
 
 		# --- DEBUG LOG ---
 		my $state_label_str = $state_label{$d->{notification_state}} // 'Unknown';
-		print "[", $script_name, "] ";
-		print "[DEBUG] Serial: $d->{serial}\n",
-			  "        State: $d->{notification_state} ($state_label_str)\n",
-			  "        Energy remaining: $energy_remaining_fmt kWh\n",
-			  "        Paid kWh: $paid_kwh kWh\n",
-			  "        Avg energy last day: $avg_energy_last_day kWh\n",
-			  "        Time remaining: $time_remaining_fmt h\n",
-			  "        Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n";
+		print "[", $script_name, "] [DEBUG] Serial: $d->{serial}\n";
+		print "[", $script_name, "]         State:  $d->{notification_state} ($state_label_str)\n";
+		print "[", $script_name, "]         Energy remaining: $energy_remaining_fmt kWh\n";
+		print "[", $script_name, "]         Paid kWh: $paid_kwh kWh\n";
+		print "[", $script_name, "]         Avg energy last day: $avg_energy_last_day kWh\n";
+		print "[", $script_name, "]         Time remaining: $time_remaining_fmt h\n";
+		print "[", $script_name, "]         Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n";
 
 		# --- Notifications ---
 		# Close warning
@@ -173,11 +172,21 @@ while (1) {
 # --- helper to send SMS ---
 sub _send_notification {
 	my ($sms_notification, $message) = @_;
-	return unless $sms_notification;
-
+	return 0 unless $sms_notification;
+	
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
+	my $all_ok = 1;
+	
 	foreach my $num (@numbers) {
-		print "[SMS] 45", $num, ": ", $message, "\n";
-		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
+		print "[SMSD] Sending to 45$num: $message\n";
+		my $ok = system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]) == 0;
+		$all_ok &&= $ok;  # accumulate overall success
+
+		unless ($ok) {
+			print "[SMSD] Failed to send SMS to 45$num\n";
+		}
 	}
+
+	return $all_ok;
 }
+
