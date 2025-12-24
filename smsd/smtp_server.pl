@@ -91,9 +91,9 @@ sub save_sms_to_file {
 		my $timestamp = localtime();
 		print $fh "To: $phone\nSent: $timestamp\n\n$message";
 		close $fh;
-		print "[SMSD] Saved message to $filename\n";
+		print "[SMS] Saved message to $filename\n";
 	};
-	warn "[SMSD] Failed to save SMS to $filename: $@\n" if $@;
+	warn "[SMS] Failed to save SMS to $filename: $@\n" if $@;
 
 	return $filename;
 }
@@ -107,14 +107,14 @@ sub send_sms {
 
 	# 1: Ensure message is flagged as UTF-8 internally
 	unless (is_utf8($message)) {
-		print "[SMSD] Message is NOT flagged as UTF-8 internally, decoding...\n";
+		print "[SMS] Message is NOT flagged as UTF-8 internally, decoding...\n";
 		$message = decode('UTF-8', $message);
 	} else {
-		print "[SMSD] Message is already flagged as UTF-8 internally\n";
+		print "[SMS] Message is already flagged as UTF-8 internally\n";
 	}
 
 	# 2: Initialize session
-	print "[SMSD] Initializing session with router $router\n";
+	print "[SMS] Initializing session with router $router\n";
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
 		warn "HTTP GET failed: " . $init->status_line;
@@ -124,7 +124,7 @@ sub send_sms {
 	print "Session initialized successfully\n";
 
 	# 3: Login to router
-	print "[SMSD] Logging in as $username\n";
+	print "[SMS] Logging in as $username\n";
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
 		"http://$router/login.cgi",
@@ -134,26 +134,26 @@ sub send_sms {
 		Origin       => "http://$router"
 	);
 	die "Login failed\n" unless $login->is_success;
-	print "[SMSD] Login HTTP response code: " . $login->code . "\n";
-	print "[SMSD] Login Set-Cookie: " . ($login->header("Set-Cookie") || '') . "\n";
+	print "[SMS] Login HTTP response code: " . $login->code . "\n";
+	print "[SMS] Login Set-Cookie: " . ($login->header("Set-Cookie") || '') . "\n";
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
 	die "qSessId not found\n" unless $qsess;
-	print "[SMSD] qSessId obtained: $qsess\n";
+	print "[SMS] qSessId obtained: $qsess\n";
 
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 	# 5: Retrieve authorization ID (authID)
-	print "[SMSD] Fetching authID\n";
+	print "[SMS] Fetching authID\n";
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1",
 		Referer => "http://$router/controlPanel.html");
 	die "Failed to get authID\n" unless $auth_resp->is_success;
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
 	die "Empty authID\n" unless $authID;
-	print "[SMSD] authID obtained: $authID\n";
+	print "[SMS] authID obtained: $authID\n";
 
 	# 6: Send SMS
 	print "Sending SMS payload\n";
@@ -168,7 +168,7 @@ sub send_sms {
 		phone_list => $payload_phone,
 		authID     => $authID
 	};
-	print "[SMSD] SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
+	print "[SMS] SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }) . "\n";
 
 	my $json = encode_json($payload);
 
@@ -181,7 +181,7 @@ sub send_sms {
 	);
 
 	unless ($sms->is_success) {
-		print "[SMSD] SMS POST failed: " . $sms->status_line . "\n";
+		print "[SMS] SMS POST failed: " . $sms->status_line . "\n";
 		print "Response content: " . $sms->decoded_content . "\n";
 		$sms_busy = 0;
 		die "SMS HTTP failed: " . $sms->code;
@@ -189,7 +189,7 @@ sub send_sms {
 	my $resp = $sms->decoded_content;
 
 	# 7: Logout
-	print "[SMSD] Logging out session $qsess\n";
+	print "[SMS] Logging out session $qsess\n";
 	my $logout_json = qq({"logout":"$qsess"});
 	my $logout = $ua->post(
 		"http://$router/login.cgi",
@@ -271,7 +271,7 @@ sub read_sms {
 		my $sms_list;
 		eval { $sms_list = JSON->new->utf8->decode($content) };
 		if ($@) {
-			warn "[SMSD] Failed to decode SMS JSON: $@\n$content\n";
+			warn "[SMS] Failed to decode SMS JSON: $@\n$content\n";
 			$sms_busy = 0;
 			return;
 		}
@@ -360,7 +360,7 @@ sub read_sms {
 		return $sms_list;
 	};
 	if ($@) {
-		warn "[SMSD] Error in read_sms: $@\n";
+		warn "[SMS] Error in read_sms: $@\n";
 		$sms_busy = 0;
 	}
 }
@@ -432,7 +432,7 @@ sub forward_sms_email {
 		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$text} = 1;
 	};
-	warn "[SMSD] Failed to send email for SMS from $phone: $@\n" if $@;
+	warn "[SMS] Failed to send email for SMS from $phone: $@\n" if $@;
 }
 
 # --- Background thread to read SMS ---
