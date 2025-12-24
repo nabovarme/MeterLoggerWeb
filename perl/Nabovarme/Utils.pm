@@ -9,6 +9,8 @@ use File::Basename;
 
 our @EXPORT = qw(rounded_duration estimate_remaining_energy);
 
+$| = 1;  # Autoflush STDOUT
+
 # Make sure STDOUT and STDERR handles UTF-8
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
@@ -269,7 +271,6 @@ sub estimate_remaining_energy {
 # ----------------------------
 sub debug_print {
 	# Only print if debug mode is enabled via environment variable
-	return;
 	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
 
 	# Get the basename of the script, without path or .pl extension
