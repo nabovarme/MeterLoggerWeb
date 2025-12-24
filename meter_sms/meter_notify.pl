@@ -52,6 +52,17 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	die "Can't connect to DB: $!";
 }
 
+# --- state labels for debug output ---
+my %state_label = (
+	0 => 'Ready to send close warning',
+	1 => 'Close warning marked to send (in-progress)',
+	2 => 'Close notice marked to send (in-progress)',
+	3 => 'Open notice marked to send (in-progress)',
+	4 => 'Close warning sent',
+	5 => 'Close notice sent',
+	6 => 'Open notice sent',
+);
+
 while (1) {
 	$sth = $dbh->prepare(qq[
 		SELECT serial, info, min_amount, valve_status, valve_installed,
@@ -83,9 +94,10 @@ while (1) {
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
 		# --- DEBUG LOG ---
+		my $state_label_str = $state_label{$d->{notification_state}} // 'Unknown';
 		print "[", $script_name, "] ";
 		print "[DEBUG] Serial: $d->{serial}\n",
-			  "        State: $d->{notification_state}\n",
+			  "        State: $d->{notification_state} ($state_label_str)\n",
 			  "        Energy remaining: $energy_remaining_fmt kWh\n",
 			  "        Paid kWh: $paid_kwh kWh\n",
 			  "        Avg energy last day: $avg_energy_last_day kWh\n",

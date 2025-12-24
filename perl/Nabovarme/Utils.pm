@@ -70,7 +70,13 @@ sub estimate_remaining_energy {
 	$valve_installed ||= 0;
 	$sw_version      ||= '';
 
-	debug_print("[DEBUG] ", "Latest sample fetched: ", "latest_energy=", $latest_energy, ", valve_status=", $valve_status, ", valve_installed=", $valve_installed, ", sw_version=", $sw_version);
+	my $latest_energy_fmt = sprintf("%.2f", $latest_energy);
+
+	debug_print("[DEBUG] ",
+		"Latest sample fetched: latest_energy=", $latest_energy_fmt,
+		", valve_status=", $valve_status,
+		", valve_installed=", $valve_installed,
+		", sw_version=", $sw_version);
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
@@ -94,7 +100,9 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($setup_value) = $sth->fetchrow_array;
 	$setup_value ||= 0;
-	debug_print("[DEBUG] ", "Setup value=", $setup_value);
+
+	my $setup_value_fmt = sprintf("%.2f", $setup_value);
+	debug_print("[DEBUG] ", "Setup value=", $setup_value_fmt);
 
 	# --- Fetch paid kWh from accounts ---
 	$sth = $dbh->prepare(qq[
@@ -105,7 +113,9 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($paid_kwh) = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
-	debug_print("[DEBUG] ", "Paid kWh=", $paid_kwh);
+
+	my $paid_kwh_fmt = sprintf("%.2f", $paid_kwh);
+	debug_print("[DEBUG] ", "Paid kWh=", $paid_kwh_fmt);
 
 	# --- Determine if we can use the last day's sample ---
 	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
@@ -113,32 +123,33 @@ sub estimate_remaining_energy {
 
 	my $use_fallback = 0;
 	if ($prev_energy_sample == $latest_energy) {
-		# No change in energy => maybe just idle
-		debug_print("[DEBUG] ", "latest_energy == prev_energy ($latest_energy) => using fallback");
+		debug_print("[DEBUG] ", "latest_energy == prev_energy (", $latest_energy_fmt, ") => using fallback");
 		$use_fallback = 1;
-	} elsif ($prev_unix_time && (time() - $prev_unix_time) < 12*3600) {
-		# Sample too recent
+	}
+	elsif ($prev_unix_time && (time() - $prev_unix_time) < 12*3600) {
 		debug_print("[DEBUG] ", "Previous sample less than 12 hours old => using fallback");
 		$use_fallback = 1;
-	} elsif ($current_kwh_remaining > $prev_kwh_remaining) {
-		# Meter opened / reset
+	}
+	elsif ($current_kwh_remaining > $prev_kwh_remaining) {
 		debug_print("[DEBUG] ", "kwh_remaining increased (meter opened/reset) => using fallback");
 		$use_fallback = 1;
 	}
 
 	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
-	debug_print("[DEBUG] ", "Previous energy used: ", $prev_energy);
+	my $prev_energy_fmt = sprintf("%.2f", $prev_energy);
+	debug_print("[DEBUG] ", "Previous energy used=", $prev_energy_fmt);
 
 	# --- Calculate energy last day and avg energy last day ---
 	my ($energy_last_day, $avg_energy_last_day);
 
 	if (!$use_fallback && $prev_energy) {
-		# Normal path: use difference over 24h
-		$energy_last_day    = $latest_energy - $prev_energy;
+		$energy_last_day     = $latest_energy - $prev_energy;
 		$avg_energy_last_day = $energy_last_day / 24;
-		debug_print("[DEBUG] ", "Using normal 24h average for avg_energy_last_day=", $avg_energy_last_day);
-	} else {
-		# Fallback: average effect from samples_daily for same day in previous years
+
+		my $avg_energy_last_day_fmt = sprintf("%.2f", $avg_energy_last_day);
+		debug_print("[DEBUG] ", "Using normal 24h average for avg_energy_last_day=", $avg_energy_last_day_fmt);
+	}
+	else {
 		$sth = $dbh->prepare(qq[
 			SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
 			FROM samples_daily
@@ -150,22 +161,29 @@ sub estimate_remaining_energy {
 		my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 		$avg_daily_usage ||= 0;
 
-		debug_print("[DEBUG] ", "Fallback: avg_daily_usage=", $avg_daily_usage, " from ", $years_count, " previous years");
+		my $avg_daily_usage_fmt = sprintf("%.2f", $avg_daily_usage);
+		debug_print("[DEBUG] ", "Fallback: avg_daily_usage=", $avg_daily_usage_fmt, " from ", $years_count, " previous years");
 
-		$energy_last_day     = $avg_daily_usage;        # daily total usage
-		$avg_energy_last_day = $avg_daily_usage;        # do NOT divide by 24
-		debug_print("[DEBUG] ", "Using fallback from samples_daily.effect, energy_last_day=", $energy_last_day, ", avg_energy_last_day=", $avg_energy_last_day);
+		$energy_last_day     = $avg_daily_usage;
+		$avg_energy_last_day = $avg_daily_usage;
+
+		debug_print("[DEBUG] ",
+			"Using fallback from samples_daily.effect, energy_last_day=", $avg_daily_usage_fmt,
+			", avg_energy_last_day=", $avg_daily_usage_fmt);
 	}
 
-	# --- Format energy values ---
-	$energy_last_day     = sprintf("%.2f", $energy_last_day);
-	$avg_energy_last_day = sprintf("%.2f", $avg_energy_last_day);
-	debug_print("[DEBUG] ", "Energy last day=", $energy_last_day, ", avg_energy_last_day=", $avg_energy_last_day);
+	my $energy_last_day_fmt     = sprintf("%.2f", $energy_last_day);
+	my $avg_energy_last_day_fmt = sprintf("%.2f", $avg_energy_last_day);
+
+	debug_print("[DEBUG] ",
+		"Energy last day=", $energy_last_day_fmt,
+		", avg_energy_last_day=", $avg_energy_last_day_fmt);
 
 	# --- Calculate kWh remaining ---
 	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
-	$kwh_remaining = sprintf("%.2f", $kwh_remaining);
-	debug_print("[DEBUG] ", "kWh remaining=", $kwh_remaining);
+	my $kwh_remaining_fmt = sprintf("%.2f", $kwh_remaining);
+
+	debug_print("[DEBUG] ", "kWh remaining=", $kwh_remaining_fmt);
 
 	# --- Determine if meter is closed ---
 	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0);
@@ -179,11 +197,12 @@ sub estimate_remaining_energy {
 	}
 	elsif ($is_closed) {
 		$time_remaining_hours = 0;
-		debug_print("[DEBUG] ", "Valve closed or no kWh remaining => time_remaining_hours=0");
+		debug_print("[DEBUG] ", "Valve closed or no kWh remaining => time_remaining_hours=0.00");
 	}
 	elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
-		debug_print("[DEBUG] ", "Calculated time_remaining_hours=", $time_remaining_hours);
+		my $time_remaining_hours_fmt = sprintf("%.2f", $time_remaining_hours);
+		debug_print("[DEBUG] ", "Calculated time_remaining_hours=", $time_remaining_hours_fmt);
 	}
 	else {
 		$time_remaining_hours = undef;
@@ -197,7 +216,11 @@ sub estimate_remaining_energy {
 	debug_print("[DEBUG] ", "Time remaining string=", $time_remaining_hours_string);
 
 	# --- Final summary ---
-	debug_print("[DEBUG] ", "Summary: latest_energy=", $latest_energy, ", prev_energy=", $prev_energy, ", kwh_remaining=", $kwh_remaining, ", time_remaining_hours_string=", $time_remaining_hours_string);
+	debug_print("[DEBUG] ",
+		"Summary: latest_energy=", $latest_energy_fmt,
+		", prev_energy=", $prev_energy_fmt,
+		", kwh_remaining=", $kwh_remaining_fmt,
+		", time_remaining_hours_string=", $time_remaining_hours_string);
 
 	return {
 		kwh_remaining               => $kwh_remaining,
@@ -220,20 +243,23 @@ sub debug_print {
 	# Only print if debug mode is enabled via environment variable
 	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
 
+	# Make sure STDERR handles UTF-8
+	binmode STDERR, ":encoding(UTF-8)";
+
 	# Get the basename of the script, without path or .pl extension
 	my $script_name = basename($0, ".pl");
 
 	# Get module/package name (optional: set it manually or dynamically)
-	my $module_name = __PACKAGE__;  # Current package/module
+	my $module_name = __PACKAGE__;
 
-	# Print the script and module name prefix to STDERR
-	print STDERR "[", $script_name, "->", $module_name, "] ";
+	# Prepare the output string, converting undef to empty string
+	my $output = join('', map { defined $_ ? $_ : '' } @_);
 
-	# Print all provided arguments, converting undef to empty string to avoid warnings
-	print STDERR map { defined $_ ? $_ : '' } @_;
+	# Print the script and module name prefix plus the output to STDERR
+	print STDERR "[", $script_name, "->", $module_name, "] ", $output;
 
-	# End the line with a newline character
-	warn "\n";
+	# Only add a newline if the output doesn't already end with one
+	print STDERR "\n" unless $output =~ /\n\z/;
 }
 
 1;
