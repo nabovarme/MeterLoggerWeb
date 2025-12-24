@@ -39,7 +39,7 @@ while (1) {
 		  AND type = 'heat'
 		  AND (email_notification OR sms_notification)
 	]);
-	$sth->execute;
+	$sth->execute or warn $DBI::errstr;
 
 	while ($d = $sth->fetchrow_hashref) {
 
@@ -58,55 +58,97 @@ while (1) {
 		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
-		# --- DEBUG LOG ---
-		debug_print(
-			"[DEBUG] Serial: $d->{serial}\n",
-			"        State: $d->{notification_state}\n",
-			"        Energy remaining: $energy_remaining_fmt kWh\n",
-			"        Paid kWh: $paid_kwh kWh\n",
-			"        Avg energy last day: $avg_energy_last_day kWh\n",
-			"        Time remaining: $time_remaining_fmt h\n",
-			"        Notification sent at: ", ($d->{notification_sent_at} || 'N/A'), "\n"
-		);
-
 		# --- Notifications ---
+		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
+
+		# Close warning: state 0 -> 1
 		if ($d->{notification_state} == 0) {
-			if (defined $energy_time_remaining && $energy_time_remaining < ($d->{close_notification_time} || CLOSE_WARNING_TIME)) {
-				$notification = "close warning: $d->{info} closing in $time_remaining_string. ($d->{serial})";
+			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
+				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
+
+				# DEBUG: only when sending notification
+				debug_print(
+					"[DEBUG] Serial: $d->{serial}",
+					"State: $d->{notification_state}",
+					"Energy remaining: $energy_remaining_fmt kWh",
+					"Paid kWh: $paid_kwh kWh",
+					"Avg energy last day: $avg_energy_last_day kWh",
+					"Time remaining: $time_remaining_fmt h",
+					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
+				);
+
+				# Send notification
+				$notification = "close warning: $d->{info} closing soon. $time_remaining_string remaining. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 1,
 						notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+					WHERE serial = $dbh->quote($d->{serial})
+				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				debug_print("[INFO] close warning sent for serial ", $d->{serial});
+				print("[INFO] close warning sent for serial ", $d->{serial});
 			}
 		}
+
+		# Close notice: state 1 -> 2
 		elsif ($d->{notification_state} == 1) {
 			if ($energy_remaining <= 0) {
+
+				# DEBUG: only when sending notification
+				debug_print(
+					"[DEBUG] Serial: $d->{serial}",
+					"State: $d->{notification_state}",
+					"Energy remaining: $energy_remaining_fmt kWh",
+					"Paid kWh: $paid_kwh kWh",
+					"Avg energy last day: $avg_energy_last_day kWh",
+					"Time remaining: $time_remaining_fmt h",
+					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
+				);
+
+				# Send notification
 				$notification = "close notice: $d->{info} closed. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
-					UPDATE meters SET notification_state = 2, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+					UPDATE meters
+					SET notification_state = 2,
+						notification_sent_at = UNIX_TIMESTAMP()
+					WHERE serial = $dbh->quote($d->{serial})
+				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				debug_print("[INFO] close notice sent for serial ", $d->{serial});
+				print("[INFO] close notice sent for serial ", $d->{serial});
 			}
 		}
+
+		# Open notice: state 2 -> 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin for hysteresis
+			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin
+
+				# DEBUG: only when sending notification
+				debug_print(
+					"[DEBUG] Serial: $d->{serial}",
+					"State: $d->{notification_state}",
+					"Energy remaining: $energy_remaining_fmt kWh",
+					"Paid kWh: $paid_kwh kWh",
+					"Avg energy last day: $avg_energy_last_day kWh",
+					"Time remaining: $time_remaining_fmt h",
+					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
+				);
+
+				# Send notification
 				$notification = "open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
-					UPDATE meters SET notification_state = 0, notification_sent_at = UNIX_TIMESTAMP() WHERE serial = $quoted_serial
-				]) or debug_print("[ERROR] DB update failed for serial ", $d->{serial});
+					UPDATE meters
+					SET notification_state = 0,
+						notification_sent_at = UNIX_TIMESTAMP()
+					WHERE serial = $dbh->quote($d->{serial})
+				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				debug_print("[INFO] open notice sent for serial ", $d->{serial});
+				print("[INFO] open notice sent for serial ", $d->{serial});
 			}
 		}
 	}
@@ -131,12 +173,10 @@ sub debug_print {
 	# Only print if debug mode is enabled via environment variable
 	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
 
-	# Print the script name prefix
-	print "[", $script_name, "] ";
+	# Print each item on its own line, with script name prefix
+	foreach my $line (@_) {
+		my $text = defined $line ? $line : '';
 
-	# Print all provided arguments, converting undef to empty string to avoid warnings
-	print map { defined $_ ? $_ : '' } @_;
-
-	# End the line with a newline character
-	print "\n";
+		print "[", $script_name, "] ", $text, "\n";
+	}
 }
