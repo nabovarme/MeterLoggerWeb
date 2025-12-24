@@ -52,20 +52,21 @@ sub estimate_remaining_energy {
 
 	my $quoted_serial = $dbh->quote($serial);
 
-	my ($latest_energy, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed, $sw_version);
+	my ($latest_energy, $latest_unix_time, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed, $sw_version);
 
 	# --- Fetch latest sample and valve_status ---
 	my $sth = $dbh->prepare(qq[
-		SELECT sc.energy, m.valve_status, m.valve_installed, m.sw_version
+		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
 		FROM meters m
 		LEFT JOIN samples_cache sc ON m.serial = sc.serial
 		WHERE m.serial = $quoted_serial
-		ORDER BY sc.`unix_time` DESC
+		ORDER BY sc.unix_time DESC
 		LIMIT 1
 	]);
 	$sth->execute;
-	($latest_energy, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
-	$latest_energy   ||= 0;
+	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
+	$latest_energy   = 0 unless defined $latest_energy;
+	$latest_unix_time = time() unless defined $latest_unix_time; # fallback
 	$valve_status    ||= '';
 	$valve_installed ||= 0;
 	$sw_version      ||= '';
@@ -87,7 +88,39 @@ sub estimate_remaining_energy {
 	]);
 	$sth->execute;
 	my ($prev_energy_sample, $prev_unix_time) = $sth->fetchrow_array;
-	$prev_energy_sample ||= 0;
+
+	# --- Determine if we have historical daily samples ---
+	my $has_historical_data = 0;
+	$sth = $dbh->prepare(qq[
+		SELECT COUNT(*)
+		FROM samples_daily
+		WHERE serial = $quoted_serial
+		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
+	]);
+	$sth->execute;
+	my ($historical_count) = $sth->fetchrow_array;
+	$has_historical_data = $historical_count > 0 ? 1 : 0;
+	debug_print("[DEBUG] ", "Has historical data? ", $has_historical_data ? "Yes" : "No");
+
+	# --- Fallback to oldest sample if no historical data ---
+	if ((!defined $prev_energy_sample || !defined $prev_unix_time) && !$has_historical_data) {
+		$sth = $dbh->prepare(qq[
+			SELECT energy, `unix_time`
+			FROM samples_cache
+			WHERE serial = $quoted_serial
+			ORDER BY `unix_time` ASC
+			LIMIT 1
+		]);
+		$sth->execute;
+		($prev_energy_sample, $prev_unix_time) = $sth->fetchrow_array;
+	}
+
+	$prev_energy_sample = 0 unless defined $prev_energy_sample;
+	$prev_unix_time     = $latest_unix_time unless defined $prev_unix_time;  # fallback to latest if still undefined
+
+	debug_print("[DEBUG] Serial: $serial\n");
+	debug_print("[DEBUG] Sample at start of period: ", $prev_unix_time, " => ", sprintf("%.2f", $prev_energy_sample), " kWh\n");
+	debug_print("[DEBUG] Sample at end of period:   ", $latest_unix_time, " => ", sprintf("%.2f", $latest_energy), " kWh\n");
 
 	# --- Fetch meter setup_value ---
 	$sth = $dbh->prepare(qq[
@@ -111,26 +144,17 @@ sub estimate_remaining_energy {
 	$paid_kwh ||= 0;
 	debug_print("[DEBUG] ", "Paid kWh=", sprintf("%.2f", $paid_kwh));
 
-	# --- Determine if we have historical daily samples ---
-	my $has_historical_data = 0;
-	$sth = $dbh->prepare(qq[
-		SELECT COUNT(*)
-		FROM samples_daily
-		WHERE serial = $quoted_serial
-		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
-	]);
-	$sth->execute;
-	my ($historical_count) = $sth->fetchrow_array;
-	$has_historical_data = $historical_count > 0 ? 1 : 0;
-	debug_print("[DEBUG] ", "Has historical data? ", $has_historical_data ? "Yes" : "No");
-
 	# --- Decide if we should use fallback or real samples ---
 	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
 	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
 
 	my $use_fallback = 0;
-	if ($prev_energy_sample == $latest_energy) {
-		debug_print("[DEBUG] ", "latest_energy == prev_energy (", sprintf("%.2f", $latest_energy), ") => using fallback");
+	if (!defined $prev_energy_sample) {
+		$use_fallback = 1;
+		debug_print("[DEBUG] ", "No previous sample => using fallback");
+	}
+	elsif ($latest_energy < $prev_energy_sample) {
+		debug_print("[DEBUG] ", "kWh decreased (meter reset/opened) => using fallback");
 		$use_fallback = 1;
 	}
 	elsif ($current_kwh_remaining > $prev_kwh_remaining) {
@@ -152,10 +176,9 @@ sub estimate_remaining_energy {
 	# --- Calculate energy last day and avg energy last day ---
 	my ($energy_last_day, $avg_energy_last_day);
 
-	if (!$use_fallback && $prev_energy) {
+	if (!$use_fallback) {
 		$energy_last_day     = $latest_energy - $prev_energy;
 		$avg_energy_last_day = $energy_last_day / 24;
-
 		debug_print("[DEBUG] ", "Using actual 24h average for avg_energy_last_day=", sprintf("%.2f", $avg_energy_last_day));
 	}
 	else {
@@ -174,7 +197,7 @@ sub estimate_remaining_energy {
 
 		$energy_last_day     = $avg_daily_usage;
 		$avg_energy_last_day = $avg_daily_usage;
-		
+
 		debug_print("[DEBUG] ",
 			"Using fallback from samples_daily.effect, energy_last_day=", sprintf("%.2f", $avg_daily_usage),
 			", avg_energy_last_day=", sprintf("%.2f", $avg_daily_usage));
