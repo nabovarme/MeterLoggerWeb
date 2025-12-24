@@ -83,6 +83,9 @@ sub evaluate_alarm {
 
 	# Replace $closed with calculated status (based on valve being closed > 5 min)
 	my $closed_status = check_delayed_valve_closed($alarm->{serial});
+	# Skip evaluation entirely if in grace period
+	return if not defined $closed_status;
+	
 	$condition =~ s/\$closed/$closed_status/;
 
 	# Interpolate other variables from DB/sample data
@@ -138,35 +141,34 @@ sub fill_template {
 	return interpolate_variables($template, $alarm->{serial});
 }
 
-# Returns 1 if valve has been closed for >5 minutes, 0 otherwise
+# Returns 1 if valve has been closed long enough (VALVE_CLOSE_DELAY)
+# Returns 0 if currently open or not installed
+# Returns undef during grace period to prevent SMS/actions
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
-	my $quoted_serial = $dbh->quote($serial);
-
-	my $sth = $dbh->prepare("SELECT valve_status, valve_installed
-		FROM meters
-		WHERE serial = $quoted_serial");
-	$sth->execute;
+	
+	# Fetch current valve status from DB
+	my $sth = $dbh->prepare("SELECT valve_status, valve_installed FROM meters WHERE serial = ?");
+	$sth->execute($serial);
 	my ($status, $valve_installed) = $sth->fetchrow_array;
 
-	my $now = time();
-	if ($status =~ /close/i && $valve_installed) {
-		if (!exists $valve_close_time{$serial}) {
-			# Start timer on first closure detection
-			$valve_close_time{$serial} = $now;
-			return 0;
-		}
-		if ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) {
-			# Closed long enough b@T trigger false closed detection
-			return 1;
-		} else {
-			return 0;
-		}
-	} else {
-		# Valve reopened b@T reset timer
+	# If valve not installed or currently open, reset timer and return 0
+	unless ($valve_installed && $status =~ /close/i) {
 		delete $valve_close_time{$serial};
 		return 0;
 	}
+
+	# Current time
+	my $now = time();
+
+	# Start timer if this is the first detection of closure
+	if (!exists $valve_close_time{$serial}) {
+		$valve_close_time{$serial} = $now;
+		return undef;  # Grace period: skip evaluation/SMS
+	}
+
+	# Return 1 only if valve has been closed long enough
+	return ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) ? 1 : undef;
 }
 
 
