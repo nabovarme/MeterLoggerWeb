@@ -9,6 +9,10 @@ use File::Basename;
 
 our @EXPORT = qw(rounded_duration estimate_remaining_energy);
 
+# Make sure STDOUT and STDERR handles UTF-8
+binmode(STDOUT, ":utf8");
+binmode(STDERR, ":utf8");
+
 # ----------------------------
 # Format seconds into readable duration
 # ----------------------------
@@ -265,10 +269,8 @@ sub estimate_remaining_energy {
 # ----------------------------
 sub debug_print {
 	# Only print if debug mode is enabled via environment variable
+	return;
 	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
-
-	# Make sure STDERR handles UTF-8
-	binmode STDERR, ":encoding(UTF-8)";
 
 	# Get the basename of the script, without path or .pl extension
 	my $script_name = basename($0, ".pl");
