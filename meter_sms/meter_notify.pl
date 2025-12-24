@@ -13,6 +13,8 @@ use Nabovarme::Utils;
 
 use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 
+$| = 1;  # Autoflush STDOUT
+
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
 
@@ -30,7 +32,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 
 while (1) {
 	$sth = $dbh->prepare(qq[
-		SELECT serial, info, min_amount, valve_status, valve_installed,
+		SELECT `serial`, info, min_amount, valve_status, valve_installed,
 			   sw_version, email_notification, sms_notification,
 			   close_notification_time, notification_state, notification_sent_at,
 			   time_remaining_hours
@@ -85,7 +87,7 @@ while (1) {
 					UPDATE meters
 					SET notification_state = 1,
 						notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $dbh->quote($d->{serial})
+					WHERE `serial` = $quoted_serial
 				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
 				print("[", $script_name, "] ", "[SMS] close warning sent for serial ", $d->{serial});
@@ -115,10 +117,10 @@ while (1) {
 					UPDATE meters
 					SET notification_state = 2,
 						notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $dbh->quote($d->{serial})
+					WHERE `serial` = $quoted_serial
 				]) or warn("[SMS] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[", $script_name, "] ", "[SMS] close notice sent for serial ", $d->{serial});
+				print("[", $script_name, "] " . "[SMS] close notice sent for serial " . $d->{serial});
 			}
 		}
 
@@ -145,7 +147,7 @@ while (1) {
 					UPDATE meters
 					SET notification_state = 0,
 						notification_sent_at = UNIX_TIMESTAMP()
-					WHERE serial = $dbh->quote($d->{serial})
+					WHERE `serial` = $quoted_serial
 				]) or warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
 				print("[", $script_name, "] ", "[SMS] open notice sent for serial ", $d->{serial});
@@ -163,7 +165,7 @@ sub _send_notification {
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		debug_print("[", $script_name, "] ", "[SMS] 45", $num, ": ", $message);
+		debug_print("[SMS] 45" . $num . ": " . $message);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
 	}
 }
