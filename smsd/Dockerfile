@@ -31,8 +31,11 @@ RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
 RUN groupadd -r smsd && useradd -r -g smsd -m -s /bin/bash smsd
 
 # Copy scripts
-COPY ./smtp_server.pl .
-COPY ./docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./perl /etc/apache2/perl
+COPY ./Nabovarme.conf /etc/
+
+COPY ./smsd/smtp_server.pl .
+COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Create directories and set ownership
 RUN mkdir -p /var/spool/sms/{outgoing,failed,incoming,checked,sent}

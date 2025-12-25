@@ -127,7 +127,9 @@ services:
       ENABLE_DEBUG: ${ENABLE_DEBUG}
 
   smsd:
-    build: ./smsd
+    build:
+        context: .
+        dockerfile: ./smsd/Dockerfile
     container_name: smsd
     privileged: true
     volumes:
