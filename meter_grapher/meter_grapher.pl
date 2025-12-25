@@ -244,7 +244,7 @@ sub v2_mqtt_version_handler {
 						sw_version = $quoted_sw_version, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
-		log_warn($topic . "\t" . $sw_version, {-no_script_name => 1});
+		log_info($topic . "\t" . $sw_version, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -306,6 +306,7 @@ sub v2_mqtt_uptime_handler {
 						uptime = $quoted_uptime, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $uptime, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -336,6 +337,7 @@ sub v2_mqtt_ssid_handler {
 						ssid = $quoted_ssid, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $ssid, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -366,6 +368,7 @@ sub v2_mqtt_rssi_handler {
 						rssi = $quoted_rssi, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $rssi, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -396,6 +399,7 @@ sub v2_mqtt_wifi_status_handler {
 						wifi_status = $quoted_wifi_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $wifi_status, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -426,6 +430,7 @@ sub v2_mqtt_ap_status_handler {
 						ap_status = $quoted_ap_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $ap_status, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -459,6 +464,7 @@ sub v2_mqtt_reset_reason_handler {
 						reset_reason = $quoted_reset_reason, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		log_info($topic . "\t" . $sreset_reason, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
@@ -537,7 +543,7 @@ sub v2_mqtt_scan_result_handler {
 			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
 		}
 		else {
-			log_warn($topic . " " . $message, {-no_script_name => 1});
+			log_info($topic . " " . $message, {-no_script_name => 1});
 		}	
 		$sth->finish;
 	}
