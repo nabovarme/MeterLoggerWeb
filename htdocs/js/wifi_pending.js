@@ -13,7 +13,11 @@ async function loadWifi() {
 			tr.valign = 'top';
 
 			tr.innerHTML = `
-				<td align="left"><span class="default">${row.serial}</span></td>
+				<td align="left">
+					<a href="detail_acc.epl?serial=${encodeURIComponent(row.serial || '')}">
+						<span class="default">${row.serial}</span>
+					</a>
+				</td>
 				<td>&nbsp;</td>
 				<td align="left"><span class="default">${row.info}</span></td>
 				<td>&nbsp;</td>
