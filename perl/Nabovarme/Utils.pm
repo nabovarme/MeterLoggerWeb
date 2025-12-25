@@ -191,9 +191,21 @@ sub estimate_remaining_energy {
 	my ($energy_last_day, $avg_energy_last_day);
 
 	if (!$use_fallback) {
+		# Calculate energy consumed since previous sample
 		$energy_last_day     = $latest_energy - $prev_energy;
-		$avg_energy_last_day = $energy_last_day / 24;
-		log_debug("Using actual 24h average for avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+
+		# Calculate hours between previous and latest sample
+		my $hours_diff = ($latest_unix_time - $prev_unix_time) / 3600;
+
+		# Protect against division by zero or very small intervals
+		if ($hours_diff <= 0) {
+			$avg_energy_last_day = 0;
+			log_debug("Hours difference <= 0, setting avg_energy_last_day=0");
+		}
+		else {
+			$avg_energy_last_day = $energy_last_day / $hours_diff;
+			log_debug("Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+		}
 	}
 	else {
 		$sth = $dbh->prepare(qq[
