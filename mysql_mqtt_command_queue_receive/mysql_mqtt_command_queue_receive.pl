@@ -95,7 +95,7 @@ sub mqtt_handler {
 	# scan_result special case
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
-		debug_print("Received MQTT reply from $meter_serial: $function, deleting from MySQL queue");
+		log_info("Received MQTT reply from $meter_serial: $function, deleting from MySQL queue");
 		$dbh->do(qq[DELETE FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 			AND function = 'scan' \
