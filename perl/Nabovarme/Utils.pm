@@ -331,7 +331,7 @@ sub _log_message {
 	}
 
 	my $script_display = $disable_script ? '' : $script_name;
-	my $prefix = $level ? "[$level] " : '';
+	my $prefix = (!$disable_tag && $level) ? "[$level] " : '';
 
 	foreach my $msg (@$msgs_ref) {
 		my $text = defined $msg ? $msg : '';
