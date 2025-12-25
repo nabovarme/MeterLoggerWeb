@@ -25,6 +25,9 @@ use File::Spec;
 use Time::HiRes qw(sleep);
 use threads;
 
+use lib qw( /etc/apache2/perl );
+use Nabovarme::Utils;
+
 use constant USER  => 'smsd';
 use constant GROUP => 'smsd';
 

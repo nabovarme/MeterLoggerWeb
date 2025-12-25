@@ -5,7 +5,7 @@ use warnings;
 use Data::Dumper;
 use DBI;
 
-use lib qw( /etc/apache2/perl /opt/local/apache2/perl/ );
+use lib qw( /etc/apache2/perl);
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
@@ -14,6 +14,11 @@ use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 $| = 1;  # Autoflush STDOUT
 
 log_debug("Starting debug mode...");
+
+# --- Read messages from environment variables ---
+my $UP_MESSAGE             = $ENV{UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
+my $DOWN_MESSAGE           = $ENV{DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
+my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info} closing soon. {time_remaining} remaining. ({serial})';
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
@@ -74,8 +79,11 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send notification
-				$notification = "close warning: $d->{info} closing soon. $time_remaining_string remaining. ($d->{serial})";
+				# Send close warning notification
+				$notification = $CLOSE_WARNING_MESSAGE;
+				$notification =~ s/\{serial\}/$d->{serial}/g;
+				$notification =~ s/\{info\}/$d->{info}/g;
+				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -83,9 +91,9 @@ while (1) {
 					SET notification_state = 1,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or log_warn("DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
-				log_info("close warning sent for serial ", $d->{serial});
+				log_info("close warning sent for serial " . $d->{serial});
 			}
 		}
 
@@ -104,8 +112,11 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send notification
-				$notification = "close notice: $d->{info} closed. ($d->{serial})";
+				# Send close notice
+				$notification = $DOWN_MESSAGE;
+				$notification =~ s/\{serial\}/$d->{serial}/g;
+				$notification =~ s/\{info\}/$d->{info}/g;
+				$notification =~ s/\{time_remaining\}/$time_remaining_string/g; # optional
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -113,7 +124,7 @@ while (1) {
 					SET notification_state = 2,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or log_warn("DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
 				log_info("close notice sent for serial " . $d->{serial});
 			}
@@ -134,8 +145,11 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send notification
-				$notification = "open notice: $d->{info} open. $time_remaining_string remaining. ($d->{serial})";
+				# Send open notice
+				$notification = $UP_MESSAGE;
+				$notification =~ s/\{serial\}/$d->{serial}/g;
+				$notification =~ s/\{info\}/$d->{info}/g;
+				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				_send_notification($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -143,9 +157,9 @@ while (1) {
 					SET notification_state = 0,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or log_warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
-				log_info("open notice sent for serial ", $d->{serial});
+				log_info("open notice sent for serial " . $d->{serial});
 			}
 		}
 	}
