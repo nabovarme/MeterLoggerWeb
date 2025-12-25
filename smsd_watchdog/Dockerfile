@@ -12,9 +12,12 @@ RUN apt-get update && apt-get install -y \
 	docker.io
 
 # Copy watcher script
-COPY watcher.pl /watcher.pl
+COPY ./perl /usr/local/lib/perl
+COPY ./smsd_watchdog/watcher.pl /watcher.pl
 RUN chmod +x /watcher.pl
 
 WORKDIR /
+
+ENV PERL5LIB=/usr/local/lib/perl:${PERL5LIB}
 
 CMD ["/watcher.pl"]
