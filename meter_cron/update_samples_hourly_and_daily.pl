@@ -11,14 +11,15 @@ use File::Basename;
 use Parallel::ForkManager;
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 # === LOCKING ===
 my $script_name = basename($0);
 my $lockfile = "/tmp/$script_name.lock";
 
-open(my $LOCKFH, '>', $lockfile) or die "Cannot open lock file $lockfile: $!";
+open(my $LOCKFH, '>', $lockfile) or log_die("Cannot open lock file $lockfile: $!");
 unless (flock($LOCKFH, LOCK_EX | LOCK_NB)) {
-	die "Another instance of $script_name is already running. Exiting.\n";
+	log_die("Another instance of $script_name is already running. Exiting.");
 }
 
 # Optional: write PID to lock file
@@ -30,7 +31,7 @@ $| = 1;
 # Max concurrent processes
 my $MAX_PROCESSES = 4;
 
-print "starting...\n";
+log_info("starting...");
 
 # Declare database handle and variables
 my $dbh;
@@ -47,11 +48,10 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	# Automatically raise errors as exceptions
 	$dbh->{'RaiseError'} = 1;
 
-	print "connected to db\n";
+	log_info("connected to db");
 } else {
 	# Connection failed; print error and exit
-	print "can't connect to db $!\n";
-	die $!;
+	log_die("can't connect to db $!");
 }
 
 # Prepare and execute SQL to get all meter serials
@@ -79,7 +79,7 @@ foreach my $serial (@serials) {
 	$dbh->{'RaiseError'} = 1;
 
 	my $quoted_serial = $dbh->quote($serial);
-	print "processing $serial (PID $$)\n";
+	log_info("processing $serial (PID $$)");
 
 	eval {
 		# HOURLY aggregation
@@ -125,7 +125,7 @@ foreach my $serial (@serials) {
 		$dbh->commit();
 	};
 	if ($@) {
-		warn "Error processing $serial in child $$: $@\n";
+		log_warn("Error processing $serial in child $$: $@");
 		$dbh->rollback();
 	}
 
@@ -137,7 +137,7 @@ foreach my $serial (@serials) {
 
 $pm->wait_all_children;
 
-print "All serials processed.\n";
+log_info("All serials processed.");
 
 # End of script
 1;
