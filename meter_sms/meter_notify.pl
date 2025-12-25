@@ -4,8 +4,6 @@ use strict;
 use warnings;
 use Data::Dumper;
 use DBI;
-use File::Basename;
-use Config;
 
 use lib qw( /etc/apache2/perl /opt/local/apache2/perl/ );
 use Nabovarme::Db;
@@ -15,19 +13,16 @@ use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
 
 $| = 1;  # Autoflush STDOUT
 
-# Get the basename of the script, without path or .pl extension
-my $script_name = basename($0, ".pl");
-
-debug_print("Starting debug mode...");
+log_debug("Starting debug mode...");
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	print "[", $script_name, "] ", "Connected to DB\n";
+	log_info("Connected to DB");
 } else {
-	die "Can't connect to DB: $!";
+	log_die("Can't connect to DB: $!");
 }
 
 while (1) {
@@ -41,7 +36,7 @@ while (1) {
 		  AND type = 'heat'
 		  AND (email_notification OR sms_notification)
 	]);
-	$sth->execute or warn "[", $script_name, "] " . $DBI::errstr;
+	$sth->execute or log_warn($DBI::errstr);
 
 	while ($d = $sth->fetchrow_hashref) {
 
@@ -69,7 +64,7 @@ while (1) {
 				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
 
 				# DEBUG: only when sending notification
-				debug_print(
+				log_debug(
 					"Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -88,9 +83,9 @@ while (1) {
 					SET notification_state = 1,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or warn("[", $script_name, "] ", "DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[", $script_name, "] ", "close warning sent for serial ", $d->{serial});
+				log_info("close warning sent for serial ", $d->{serial});
 			}
 		}
 
@@ -99,7 +94,7 @@ while (1) {
 			if ($energy_remaining <= 0) {
 
 				# DEBUG: only when sending notification
-				debug_print(
+				log_debug(
 					"Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -118,9 +113,9 @@ while (1) {
 					SET notification_state = 2,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or warn("[", $script_name, "] ", "DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[", $script_name, "] " . "close notice sent for serial " . $d->{serial});
+				log_info("close notice sent for serial " . $d->{serial});
 			}
 		}
 
@@ -129,7 +124,7 @@ while (1) {
 			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin
 
 				# DEBUG: only when sending notification
-				debug_print(
+				log_debug(
 					"Serial: $d->{serial}",
 					"State: $d->{notification_state}",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -148,9 +143,9 @@ while (1) {
 					SET notification_state = 0,
 						notification_sent_at = UNIX_TIMESTAMP()
 					WHERE `serial` = $quoted_serial
-				]) or warn("[", $script_name, "] ", "[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
+				]) or log_warn("[ERROR] DB update failed for serial ", $d->{serial}, ". ", $DBI::errstr);
 
-				print("[", $script_name, "] ", "open notice sent for serial ", $d->{serial});
+				log_info("open notice sent for serial ", $d->{serial});
 			}
 		}
 	}
@@ -165,20 +160,7 @@ sub _send_notification {
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		debug_print("45" . $num . ": " . $message);
+		log_info("45" . $num . ": " . $message);
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
-	}
-}
-
-# --- debug print helper ---
-sub debug_print {
-	# Only print if debug mode is enabled via environment variable
-	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
-
-	# Print each item on its own line, with script name prefix
-	foreach my $line (@_) {
-		my $text = defined $line ? $line : '';
-
-		print "[", $script_name, "] ", $text, "\n";
 	}
 }
