@@ -214,8 +214,7 @@ sub v2_mqtt_sample_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 	$mqtt_data = undef;
 }
@@ -246,8 +245,7 @@ sub v2_mqtt_version_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -277,8 +275,7 @@ sub v2_mqtt_status_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -308,8 +305,7 @@ sub v2_mqtt_uptime_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -339,8 +335,7 @@ sub v2_mqtt_ssid_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -370,8 +365,7 @@ sub v2_mqtt_rssi_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -401,8 +395,7 @@ sub v2_mqtt_wifi_status_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -432,8 +425,7 @@ sub v2_mqtt_ap_status_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -466,8 +458,7 @@ sub v2_mqtt_reset_reason_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -547,8 +538,7 @@ sub v2_mqtt_scan_result_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 	$mqtt_data = undef;
 }
@@ -594,8 +584,7 @@ sub mqtt_flash_id_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -625,8 +614,7 @@ sub mqtt_flash_size_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -655,8 +643,7 @@ sub mqtt_flash_error_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -684,8 +671,7 @@ sub mqtt_reset_reason_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -729,8 +715,7 @@ sub mqtt_network_quality_handler {
 	}
 	else {
 		# hmac sha256 not ok
-		log_warn($topic . " hmac error", {-no_script_name => 1});
-		log_warn($topic . "\t" . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
