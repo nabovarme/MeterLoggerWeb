@@ -164,24 +164,26 @@ sub estimate_remaining_energy {
 	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
 
 	my $use_fallback = 0;
+
 	if (!defined $prev_energy_sample) {
 		$use_fallback = 1;
 		log_debug("No previous sample => using fallback");
 	}
 	elsif ($latest_energy < $prev_energy_sample) {
-		log_debug("kWh decreased (meter reset/opened) => using fallback");
 		$use_fallback = 1;
+		log_debug("kWh decreased (meter reset/opened) => using fallback");
 	}
 	elsif ($current_kwh_remaining > $prev_kwh_remaining) {
-		log_debug("kwh_remaining increased (meter opened/reset) => using fallback");
 		$use_fallback = 1;
+		log_debug("kWh remaining increased (meter opened/reset) => using fallback");
 	}
 	elsif ($prev_unix_time && (time() - $prev_unix_time < 12*3600) && $has_historical_data) {
-		log_debug("Previous sample less than 12 hours old and historical data exists => using fallback");
 		$use_fallback = 1;
+		log_debug("Previous sample less than 12 hours old and historical data exists => using fallback");
 	}
-	else {
-		log_debug("Using available samples for estimation");
+	elsif ($latest_unix_time - $prev_unix_time <= 0) {
+		$use_fallback = 1;
+		log_debug("Latest sample same as previous sample => using fallback");
 	}
 
 	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
@@ -191,23 +193,22 @@ sub estimate_remaining_energy {
 	my ($energy_last_day, $avg_energy_last_day);
 
 	if (!$use_fallback) {
-		# Calculate energy consumed since previous sample
-		$energy_last_day     = $latest_energy - $prev_energy;
+		$energy_last_day = $latest_energy - $prev_energy;
 
-		# Calculate hours between previous and latest sample
+		# Calculate actual hours difference
 		my $hours_diff = ($latest_unix_time - $prev_unix_time) / 3600;
 
-		# Protect against division by zero or very small intervals
 		if ($hours_diff <= 0) {
-			$avg_energy_last_day = 0;
-			log_debug("Hours difference <= 0, setting avg_energy_last_day=0");
-		}
-		else {
+			$use_fallback = 1;  # fallback if time difference invalid
+			log_debug("Hours difference <= 0, switching to fallback");
+		} else {
 			$avg_energy_last_day = $energy_last_day / $hours_diff;
 			log_debug("Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 		}
 	}
-	else {
+
+	# --- Fallback to historical daily averages if needed ---
+	if ($use_fallback) {
 		$sth = $dbh->prepare(qq[
 			SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
 			FROM samples_daily
@@ -219,16 +220,12 @@ sub estimate_remaining_energy {
 		my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 		$avg_daily_usage ||= 0;
 
-		log_debug("Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) . " from " . $years_count . " previous years");
-
 		$energy_last_day     = $avg_daily_usage;
 		$avg_energy_last_day = $avg_daily_usage;
 
 		log_debug("Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $avg_daily_usage) .
 			", avg_energy_last_day=" . sprintf("%.2f", $avg_daily_usage));
 	}
-	log_debug("Energy last day=" . sprintf("%.2f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	# --- Calculate kWh remaining ---
 	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
