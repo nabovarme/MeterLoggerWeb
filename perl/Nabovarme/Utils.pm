@@ -275,48 +275,76 @@ sub estimate_remaining_energy {
 # Logging functions
 # ----------------------------
 sub log_info {
-	_log_message(\*STDOUT, '', @_);
+	my (@msgs) = @_;
+	my $opts = {};
+	if (ref $msgs[-1] eq 'HASH') {
+		$opts = pop @msgs;
+	}
+	_log_message(\*STDOUT, '', \@msgs, $opts);
 }
 
 sub log_warn {
-	_log_message(\*STDERR, 'WARN', @_);
+	my (@msgs) = @_;
+	my $opts = {};
+	if (ref $msgs[-1] eq 'HASH') {
+		$opts = pop @msgs;
+	}
+	_log_message(\*STDERR, 'WARN', \@msgs, $opts);
 }
 
 sub log_debug {
 	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
-	_log_message(\*STDOUT, 'DEBUG', @_);
+	my (@msgs) = @_;
+	my $opts = {};
+	if (ref $msgs[-1] eq 'HASH') {
+		$opts = pop @msgs;
+	}
+	_log_message(\*STDOUT, 'DEBUG', \@msgs, $opts);
 }
 
 sub log_die {
 	my (@msgs) = @_;
+	my $opts = {};
+	if (ref $msgs[-1] eq 'HASH') {
+		$opts = pop @msgs;
+	}
+
 	# Log as WARN first
-	_log_message(\*STDERR, 'WARN', @msgs);
-	
+	_log_message(\*STDERR, 'WARN', \@msgs, $opts);
+
 	# Exit immediately with joined messages
 	my $text = join('', map { defined $_ ? $_ : '' } @msgs);
-	chomp($text);  # remove any trailing newlines
-	die "[$script_name] [WARN] $text\n";
+	chomp($text);
+	die "[" . ($opts->{no_script_name} ? '' : $script_name) . "] [WARN] $text\n";
 }
 
 sub _log_message {
-	my ($fh, $level, @msgs) = @_;
-	
+	my ($fh, $level, $msgs_ref, $opts) = @_;
+	my $disable_tag    = $opts->{-no_tag};
+	my $disable_script = $opts->{-no_script_name};
+
 	# Determine module/package name dynamically
 	my $module_name;
-	my ($package, $filename, $line) = caller(1);  # caller of log_* function
-	if ($package && $package ne 'main') {
-		$module_name = $package;
+	unless ($disable_tag) {
+		my ($package, $filename, $line) = caller(1);  # caller of log_* function
+		$module_name = $package if ($package && $package ne 'main');
 	}
-	
-	foreach my $msg (@msgs) {
+
+	my $script_display = $disable_script ? '' : $script_name;
+	my $prefix = $level ? "[$level] " : '';
+
+	foreach my $msg (@$msgs_ref) {
 		my $text = defined $msg ? $msg : '';
-		chomp($text);  # remove any existing newlines
-		
-		my $prefix = $level ? "[$level] " : '';
-		if ($module_name) {
-			print $fh "[$script_name->$module_name] $prefix$text\n";
+		chomp($text);
+
+		if ($module_name && !$disable_script) {
+			print $fh "[$script_display->$module_name] $prefix$text\n";
+		} elsif ($module_name) {
+			print $fh "[$module_name] $prefix$text\n";
+		} elsif (!$disable_script) {
+			print $fh "[$script_display] $prefix$text\n";
 		} else {
-			print $fh "[$script_name] $prefix$text\n";
+			print $fh "$prefix$text\n";
 		}
 	}
 }
