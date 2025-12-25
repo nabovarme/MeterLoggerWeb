@@ -6,7 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	const container = document.getElementById('alarmContainer');
 
 	// Helper: Check if alarm is active
-	const isActiveAlarm = alarm => alarm.alarm_state > 0 && alarm.enabled > 0;
+	const isActiveAlarm = alarm =>
+		Number(alarm.enabled) > 0 &&
+		Number(alarm.alarm_state) > 0;
 
 	// Helper: Check if alarm matches search text
 	const matchesSearch = (alarm, searchText) => {
