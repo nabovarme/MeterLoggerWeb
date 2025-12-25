@@ -478,14 +478,14 @@ while (my $client = $socket->accept()) {
 		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
 		my $dest    = $session->{_sms_to};
 
-		print "[SMTP] Sending SMS to $dest ...\n";
+		print "[SMS] Sending SMS to $dest ...\n";
 		my $ok = eval { send_sms($dest, $message) };
 
 		if ($ok) {
-			print "[SMTP] ✔ SMS to $dest sent successfully\n";
+			print "[SMS] ✔ SMS to $dest sent successfully\n";
 			return 1;
 		} else {
-			print "[SMTP] ❌ SMS to $dest failed: $@\n";
+			print "[SMS] ❌ SMS to $dest failed: $@\n";
 			$smtp->reply(421, "SMS gateway temporarily down");
 			return 0;
 		}
