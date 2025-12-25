@@ -149,8 +149,10 @@ services:
       TZ: 'Europe/Copenhagen'
 
   smsd_watchdog:
+    build:
+        context: .
+        dockerfile: ./smsd_watchdog/Dockerfile
     container_name: smsd_watchdog
-    build: ./smsd_watchdog
     depends_on:
       - smsd
     volumes:
