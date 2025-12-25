@@ -21,6 +21,9 @@ $| = 1;  # Autoflush STDOUT
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
 
+# Get the basename of the script, without path or .pl extension
+my $script_name = basename($0, ".pl");
+
 # ----------------------------
 # Format seconds into readable duration
 # ----------------------------
@@ -288,6 +291,17 @@ sub log_debug {
 	_log_message(\*STDOUT, 'DEBUG', @_);
 }
 
+sub log_die {
+	my (@msgs) = @_;
+	# Log as WARN first
+	_log_message(\*STDERR, 'WARN', @msgs);
+	
+	# Exit immediately with joined messages
+	my $text = join('', map { defined $_ ? $_ : '' } @msgs);
+	chomp($text);  # remove any trailing newlines
+	die "[$script_name] [WARN] $text\n";
+}
+
 sub _log_message {
 	my ($fh, $level, @msgs) = @_;
 
@@ -305,9 +319,6 @@ sub _log_message {
 sub debug_print {
 	# Only print if debug mode is enabled via environment variable
 	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
-
-	# Get the basename of the script, without path or .pl extension
-	my $script_name = basename($0, ".pl");
 
 	# Get module/package name (optional: set it manually or dynamically)
 	my $module_name = __PACKAGE__;

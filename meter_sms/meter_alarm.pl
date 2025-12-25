@@ -8,12 +8,12 @@ use Data::Dumper;
 use DBI;
 use Statistics::Basic qw(:all);	 # for computing medians
 use Math::Random::Secure qw(rand);      # for generating secure random keys
-use Config;
 use File::Basename;
 
 # Custom library path for database connection
 use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 # Constants
 use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
@@ -21,17 +21,17 @@ use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
 $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
 # Get the basename of the script, without path or .pl extension
-my $script_name = basename($0, ".pl");
+my $script_name = basename($0 . ".pl");
 
 # Keep track of when each valve was first seen as "closed"
 # key: serial, value: timestamp
 my %valve_close_time;
 
 # Connect to MySQL database
-my $dbh = Nabovarme::Db->my_connect or die "Can't connect to DB: $!";
+my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
-print STDERR "[", $script_name, "] connected to db";
+log_info("connected to db");
 
 # Main loop: run every 60 seconds
 while (1) {
@@ -79,7 +79,7 @@ sub evaluate_alarm {
 	my $up_message    = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
 	# Print the raw condition before any variable replacement
-	debug_print("[DEBUG] ", "raw condition for serial ", $serial, ", id ", $alarm->{id}, ": ", $condition);
+	log_debug("raw condition for serial " . $serial . ", id " . $alarm->{id} . ": " . $condition);
 
 	# Replace $closed with calculated status (based on valve being closed > 5 min)
 	my $closed_status = check_delayed_valve_closed($alarm->{serial});
@@ -92,7 +92,7 @@ sub evaluate_alarm {
 	$condition = interpolate_variables($condition, $serial);
 
 	# Print the final parsed condition to be evaluated
-	debug_print("[DEBUG] ", "parsed condition for serial ", $serial, ", id ", $alarm->{id}, ": ", $condition);
+	log_debug("parsed condition for serial " . $serial . ", id " . $alarm->{id} . ": " . $condition);
 
 	# Evaluate the condition safely
 	my $eval_alarm_state;
@@ -106,7 +106,7 @@ sub evaluate_alarm {
 		if ($@) {
 			# Log condition parse errors in DB
 			my $error = $@;
-			print STDERR "[", $script_name, "] ", "error parsing condition for serial ", $serial, ": ", $condition, ", error: ", $error;
+			 log_warn("error parsing condition for serial " . $serial . ": " . $condition . ", error: " . $error);
 
 			my $quoted_error = $dbh->quote($error);
 			$dbh->do(qq[
@@ -271,7 +271,7 @@ sub handle_alarm {
 	if ($state) {
 		if ($alarm->{alarm_state} == 0) {
 			# First time alarm triggered
-			sms_send($alarm->{sms_notification}, $down_message);
+			sms_send($alarm->{sms_notification} . $down_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
@@ -279,11 +279,11 @@ sub handle_alarm {
 					snooze_auth_key = $quoted_snooze_auth_key
 				WHERE id = $quoted_id
 			]);
-			print STDERR "[", $script_name, "] ", "serial ", $alarm->{serial}, ": down";
+			log_info("serial " . $alarm->{serial} . ": down");
 		}
 		elsif ($alarm->{repeat} && (($alarm->{last_notification} + $alarm->{repeat} + $alarm->{snooze}) < time())) {
 			# Repeated notification after snooze period
-			sms_send($alarm->{sms_notification}, $down_message);
+			sms_send($alarm->{sms_notification} . $down_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
@@ -292,13 +292,13 @@ sub handle_alarm {
 					snooze_auth_key = $quoted_snooze_auth_key 
 				WHERE id = $quoted_id
 			]);
-			print STDERR "[", $script_name, "] ", "serial ", $alarm->{serial}, ": down repeat";
+			log_info("serial " . $alarm->{serial} . ": down repeat");
 		}
 	}
 	else {
 		if ($alarm->{alarm_state} == 1) {
 			# Condition has cleared — send "back to normal" message
-			sms_send($alarm->{sms_notification}, $up_message);
+			sms_send($alarm->{sms_notification} . $up_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
@@ -307,7 +307,7 @@ sub handle_alarm {
 					snooze_auth_key = ''
 				WHERE id = $quoted_id
 			]);
-			debug_print("[DEBUG] ", "serial ", $alarm->{serial}, ": up");
+			log_info("serial " . $alarm->{serial} . ": up");
 		}
 	}
 }
@@ -320,7 +320,7 @@ sub sms_send {
 	my @recipients = ($recipient =~ /\d+/g);
 	for my $r (@recipients) {
 		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
-		debug_print("[DEBUG] ", qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
+		log_info(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
 	}
 }
 
@@ -329,21 +329,5 @@ sub generate_snooze_key {
 	return join('', map { sprintf("%02x", int rand(256)) } 1..8);
 }
 
-# ----------------------------
-# Debug print helper
-# ----------------------------
-sub debug_print {
-	# Only print if debug mode is enabled via environment variable
-	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
-
-	# Print the script name prefix to STDERR
-	print STDERR "[", $script_name, "] ";
-
-	# Print all provided arguments, converting undef to empty string to avoid warnings
-	print STDERR map { defined $_ ? $_ : '' } @_;
-
-	# End the line with a newline character
-	warn "\n";
-}
 
 __END__
