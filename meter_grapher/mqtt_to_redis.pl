@@ -12,9 +12,9 @@ use Redis;
 use lib qw( /etc/apache2/perl );
 use lib qw( /opt/local/apache2/perl/ );
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
-my $config = new Config::Simple(CONFIG_FILE) || die $!;
+my $config = new Config::Simple(CONFIG_FILE) || die Config::Simple->error();
 
 my $redis_host = $config->param('redis_host') || '127.0.0.1';
 my $redis_port = $config->param('redis_port') || '6379';

@@ -17,7 +17,7 @@ use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
 # Load configuration
 print "Loading configuration from " . CONFIG_FILE . "\n";
-my $config = new Config::Simple(CONFIG_FILE) || die "ERROR: Failed to load config: $!\n";
+my $config = new Config::Simple(CONFIG_FILE) || die "ERROR: Failed to load config: " . Config::Simple->error() . "\n";
 my $api_key = $config->param('google_api_key');
 my $url = $config->param('google_geolocation_api_url');
 
