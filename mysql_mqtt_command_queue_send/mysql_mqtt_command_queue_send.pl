@@ -11,6 +11,7 @@ use Config::Simple;
 use Time::HiRes qw(usleep);
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 # --- Constants ---
 use constant CONFIG_FILE                 => '/etc/Nabovarme.conf';
@@ -21,7 +22,7 @@ use constant DELAY_BETWEEN_COMMAND_USEC  => 20_000;   # 20 mS
 
 # --- Config ---
 my $config = Config::Simple->new(CONFIG_FILE)
-	or die Config::Simple->error();
+	or log_die(Config::Simple->error(), {-no_script_name => 1});
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
 
@@ -31,7 +32,7 @@ my ($current_function, $last_function);
 
 #print Dumper $pp->pidfile();
 
-debug_print("starting...\n");
+log_info("starting...", {-no_script_name => 1});
 
 # --- MQTT publisher ---
 my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
@@ -39,7 +40,7 @@ my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
 # --- SIGINT handler ---
 $SIG{INT} = sub {
 	$publish_mqtt->disconnect();
-	die "Interrupted\n";
+	log_die("Interrupted", {-no_script_name => 1});
 };
 
 # connect to db
@@ -48,8 +49,7 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_enable_utf8'} = 0;	# get data as from queue as byte string
 }
 else {
-	warn "cant't connect to db $!\n";
-	die $!;
+	log_die("cant't connect to db $!", {-no_script_name => 1});
 }
 
 my $m = Crypt::Mode::CBC->new('AES');
@@ -89,7 +89,7 @@ while (1) {
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
-			debug_print("send mqtt function " . $d->{function} . " to " . $d->{serial} . "\n");
+			log_info("send mqtt function " . $d->{function} . " to " . $d->{serial}, {-no_script_name => 1});
 			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
@@ -107,7 +107,7 @@ while (1) {
 		# remove timed out calls from db
 		if ($d->{timeout}) {
 			if (time() - $d->{unix_time} > $d->{timeout}) {
-				debug_print("function " . $d->{function} . " to " . $d->{serial} . " timed out\n");
+				log_warn("function " . $d->{function} . " to " . $d->{serial} . " timed out", {-no_script_name => 1});
 				if ($d->{has_callback}) {
 					$dbh->do(qq[UPDATE command_queue SET `state` = 'timeout' WHERE `id` = ?], undef, $d->{id})
 						or warn $DBI::errstr;

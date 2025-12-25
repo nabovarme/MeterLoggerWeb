@@ -11,6 +11,7 @@ use Config::Simple;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 # --- Constants ---
 use constant CONFIG_FILE       => '/etc/Nabovarme.conf';
@@ -20,7 +21,7 @@ $| = 1;  # Autoflush STDOUT
 
 # --- Config ---
 my $config = new Config::Simple(CONFIG_FILE)
-	or die Config::Simple->error();
+	or log_die(Config::Simple->error(), {-no_script_name => 1});
 my $mqtt_host = $config->param('mqtt_host');
 my $mqtt_port = $config->param('mqtt_port');
 
@@ -35,7 +36,7 @@ my $subscribe_mqtt = Net::MQTT::Simple->new("$mqtt_host:$mqtt_port");
 
 sub sig_int_handler {
 	$subscribe_mqtt->disconnect();
-	die "Interrupted\n";
+	log_die("Interrupted", {-no_script_name => 1});
 }
 
 # --------------------
@@ -84,7 +85,7 @@ sub mqtt_handler {
 			$d = $sth->fetchrow_hashref;
 			$key_cache->{$meter_serial}->{key} = $d->{key};
 			$key_cache->{$meter_serial}->{cached_time} = time();
-			$key = $d->{key} || warn "No AES key found\n";
+			$key = $d->{key} || log_warn("No AES key found", {-no_script_name => 1});
 		}
 	}
 
@@ -98,7 +99,7 @@ sub mqtt_handler {
 		$dbh->do(qq[DELETE FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 			AND function = 'scan' \
-		]) or warn $DBI::errstr;
+		]) or log_warn($DBI::errstr, {-no_script_name => 1});
 		return;
 	}
 
@@ -118,7 +119,7 @@ sub mqtt_handler {
 			AND function = ] . $dbh->quote($function) . qq[ \
 			LIMIT 1 \
 		]);
-		$sth->execute or warn $DBI::errstr;
+		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 		
 		return unless $sth->rows;
 
@@ -134,16 +135,16 @@ sub mqtt_handler {
 				AND param < ] . ($cleartext + $tolerance) . qq[ \
 				LIMIT 1 \
 			]);
-			$sth->execute or warn $DBI::errstr;
+			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 
 			if ($sth->rows) {
 				my $row = $sth->fetchrow_hashref;
 				$dbh->do(qq[DELETE FROM command_queue \
 					WHERE id = ] . $row->{id} . qq[ \
-				]) or warn $!;				
-				debug_print("Deleted open_until command for $meter_serial, param: $cleartext");
+				]) or log_warn($DBI::errstr, {-no_script_name => 1});			
+				log_info("Deleted open_until command for $meter_serial, param: $cleartext", {-no_script_name => 1});
 			} else {
-				debug_print("No matching open_until command found for $meter_serial, param: $cleartext");
+				log_info("No matching open_until command found for $meter_serial, param: $cleartext", {-no_script_name => 1});
 			}
 			return;
 		}
@@ -155,8 +156,8 @@ sub mqtt_handler {
 			$dbh->do(qq[DELETE FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = ] . $dbh->quote($function) . qq[ \
-			]) or warn $DBI::errstr;
-			debug_print("Deleted status command for $meter_serial");
+			]) or log_warn($DBI::errstr, {-no_script_name => 1});
+			log_info("Deleted status command for $meter_serial", {-no_script_name => 1});
 			return;
 		}
 
@@ -168,25 +169,25 @@ sub mqtt_handler {
 			AND function = ] . $dbh->quote($function) . qq[ \
 			AND state = 'sent' \
 		]);
-		$sth->execute or warn $DBI::errstr;
+		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 
 		if ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
 				$dbh->do(qq[UPDATE command_queue SET \
 					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
 					WHERE id = ] . $d->{id} . qq[ \
-				]) or warn $DBI::errstr;
-				debug_print("Marked serial $meter_serial, command $function for deletion");
+				]) or log_warn($DBI::errstr, {-no_script_name => 1});
+				log_info("Marked serial $meter_serial, command $function for deletion", {-no_script_name => 1});
 			} else {
 				$dbh->do(qq[DELETE FROM command_queue \
 					WHERE id = ] . $d->{id} . qq[ \
-				]) or warn $DBI::errstr;
-				debug_print("Deleted serial $meter_serial, command $function");
+				]) or log_warn($DBI::errstr, {-no_script_name => 1});
+				log_info("Deleted serial $meter_serial, command $function", {-no_script_name => 1});
 			}
 		}
 
 	} else {
-		debug_print("Serial $meter_serial checksum error");  
+		log_warn("Serial $meter_serial checksum error", {-no_script_name => 1});
 	}
 }
 
@@ -195,10 +196,9 @@ sub mqtt_handler {
 # --------------------
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	debug_print("Connected to DB");
+	log_info("Connected to DB", {-no_script_name => 1});
 } else {
-	debug_print("Can't connect to DB: $!");
-	die $!;
+	log_die("Can't connect to DB: $!", {-no_script_name => 1});
 }
 
 # --------------------
@@ -230,11 +230,6 @@ $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
 
-# --- debug print helper ---
-sub debug_print {
-	my ($msg) = @_;
-	print STDERR "$msg\n" if ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true)$/i;
-}
 
 1;
 
