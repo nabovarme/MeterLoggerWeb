@@ -9,22 +9,23 @@ use JSON::Parse 'parse_json';
 use Config::Simple;
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
 # Load configuration
 print "Loading configuration from " . CONFIG_FILE . "\n";
-my $config = new Config::Simple(CONFIG_FILE) || die "ERROR: Failed to load config: " . Config::Simple->error() . "\n";
+my $config = new Config::Simple(CONFIG_FILE) || log_die("ERROR: Failed to load config: " . Config::Simple->error());
 my $api_key = $config->param('google_api_key');
 my $url = $config->param('google_geolocation_api_url');
 
 # Database connection
-print "Connecting to the database...\n";
+log_info("Connecting to the database...");
 my $dbh = Nabovarme::Db->my_connect;
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 # Main processing
-print "Processing meters...\n";
+log_info("Processing meters...");
 process_meters($dbh);
 
 sub process_meters {
@@ -47,22 +48,22 @@ sub process_meters {
 	
 	if ($sth->rows) {
 		while (my $meter = $sth->fetchrow_hashref) {
-			print "Processing meter: $meter->{serial}\n";
+			log_info("Processing meter: $meter->{serial}");
 
 			my $wifi_data = fetch_wifi_data($dbh, $meter->{serial});
 			
 			if ($wifi_data) {
-				print "Fetched WiFi data for meter $meter->{serial}\n";
+				log_info("Fetched WiFi data for meter $meter->{serial}");
 				my $location = get_location($wifi_data);
 				
 				if ($location) {
-					print "Location found for meter $meter->{serial}: $location->{lat}, $location->{lng}\n";
+					log_info("Location found for meter $meter->{serial}: $location->{lat}, $location->{lng}");
 					update_meter_location($dbh, $meter->{serial}, $location);
 				} else {
-					print "WARN: No location found for meter $meter->{serial}\n";
+					log_warn("No location found for meter $meter->{serial}");
 				}
 			} else {
-				print "WARN: No WiFi data found for meter $meter->{serial}\n";
+				log_warn("No WiFi data found for meter $meter->{serial}");
 			}
 		}
 	}
@@ -72,7 +73,7 @@ sub fetch_wifi_data {
 	my ($dbh, $serial) = @_;
 	my $quoted_serial = $dbh->quote($serial);
 	
-	print "Fetching WiFi data for meter $serial\n";
+	log_info("Fetching WiFi data for meter $serial");
 	my $sth = $dbh->prepare(qq[SELECT `serial`, `ssid`, `bssid`, `rssi`, `channel`, `unix_time`
 		FROM wifi_scan where `serial` LIKE $quoted_serial
 		AND FROM_UNIXTIME(`unix_time`) > NOW() - INTERVAL 3 DAY
@@ -98,7 +99,7 @@ sub fetch_wifi_data {
 sub get_location {
 	my ($wifi_data) = @_;
 	
-	print "Requesting geolocation...\n";
+	log_info("Requesting geolocation...");
 	my $request_data = {
 		considerIp		=> 'false',
 		wifiAccessPoints  => $wifi_data
@@ -108,14 +109,14 @@ sub get_location {
 	my $response = send_geolocation_request($json_request);
 	
 	return parse_location_response($response) if $response;
-	print "WARN: Failed to get location data from geolocation service\n";
+	log_warn("Failed to get location data from geolocation service");
 	return;
 }
 
 sub send_geolocation_request {
 	my ($json_request) = @_;
 	
-	print "Sending geolocation request...\n";
+	log_info("Sending geolocation request...");
 	my $req = HTTP::Request->new(POST => $url . $api_key);
 	$req->content($json_request);
 	$req->header('content-type' => 'application/json');
@@ -124,10 +125,10 @@ sub send_geolocation_request {
 	my $response = $ua->request($req);
 	
 	if ($response->is_success) {
-		print "Geolocation request successful\n";
+		log_info("Geolocation request successful");
 		return $response;
 	} else {
-		print "ERROR: Geolocation request failed: " . $response->status_line . "\n";
+		log_info("ERROR: Geolocation request failed: " . $response->status_line);
 		return undef;
 	}
 }
@@ -135,13 +136,13 @@ sub send_geolocation_request {
 sub parse_location_response {
 	my ($response) = @_;
 	
-	print "Parsing location response...\n";
+	log_info("Parsing location response...");
 	my $location_data = parse_json($response->decoded_content);
 	
 	if ($location_data->{location}) {
 		return $location_data->{location};
 	} else {
-		print "WARN: Location data missing in response\n";
+		log_warn("Location data missing in response");
 		return undef;
 	}
 }
@@ -149,7 +150,7 @@ sub parse_location_response {
 sub update_meter_location {
 	my ($dbh, $serial, $location) = @_;
 	
-	print "Updating location for meter $serial in database...\n";
+	log_info("Updating location for meter $serial in database...");
 	my $lat = $dbh->quote($location->{lat});
 	my $lng = $dbh->quote($location->{lng});
 	my $quoted_serial = $dbh->quote($serial);
@@ -161,9 +162,9 @@ sub update_meter_location {
 	];
 	
 	if ($dbh->do($update_query)) {
-		print "Successfully updated location for meter $serial\n";
+		log_info("Successfully updated location for meter $serial");
 	} else {
-		print "ERROR: Failed to update location for meter $serial: $!\n";
+		log_warn("Failed to update location for meter $serial: $!");
 	}
 }
 
