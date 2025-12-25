@@ -8,6 +8,7 @@ use File::Basename;
 use Getopt::Long;
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 $| = 1;  # Autoflush STDOUT
 
@@ -16,14 +17,14 @@ my $dry_run = 0;
 GetOptions('n' => \$dry_run);
 
 if ($dry_run) {
-	print "Running in DRY RUN mode: no database updates will be performed.\n";
+	log_info("Running in DRY RUN mode: no database updates will be performed.");
 }
 
 # === LOCKING ===
 my $script_name = basename($0);
 my $lockfile = "/tmp/$script_name.lock";
-open(my $fh, ">", $lockfile) or die "Cannot open lock file $lockfile: $!";
-flock($fh, LOCK_EX | LOCK_NB) or die "Another instance is already running. Exiting.\n";
+open(my $fh, ">", $lockfile) or log_die("Cannot open lock file $lockfile: $!");
+flock($fh, LOCK_EX | LOCK_NB) or log_die("Another instance is already running. Exiting.");
 print $fh "$$\n";  # Write current PID to the lock file
 
 # === CONFIGURATION ===
@@ -47,7 +48,7 @@ my $pm = Parallel::ForkManager->new($MAX_PROCESSES);
 my $total_spikes_marked = 0;
 
 for my $table (@tables) {
-	print "\n=== Processing table: $table ===\n";
+	log_info("=== Processing table: $table ===");
 
 	# Get serials from meters table
 	my $serials_sth = $dbh->prepare(qq[
@@ -122,7 +123,7 @@ for my $table (@tables) {
 			push @log, "  No data after last spike for serial $serial in table $table\n";
 			$sth->finish;
 			$child_dbh->disconnect;
-			print @log;
+			log_info(@log);
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
 		push @log, "  First row unix_time: $prev->{unix_time}\n";
@@ -132,7 +133,7 @@ for my $table (@tables) {
 			push @log, "  Not enough data for serial $serial in table $table (only 1 row)\n";
 			$sth->finish;
 			$child_dbh->disconnect;
-			print @log;
+			log_info(@log);
 			$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 		}
 
@@ -146,7 +147,7 @@ for my $table (@tables) {
 			push @log, "  Not enough samples for serial $serial — skipping\n";
 			$sth->finish;
 			$child_dbh->disconnect;
-			print @log;
+			log_info(@log);
 			$pm->finish(0, { serial => $serial, spikes_marked => 0 });
 		}
 
@@ -174,27 +175,27 @@ for my $table (@tables) {
 
 		$sth->finish;
 		$child_dbh->disconnect;
-		print @log;
+		log_info(@log);
 		$pm->finish(0, { serial => $serial, spikes_marked => $spikes_marked });
 	}
 
 	$pm->wait_all_children;
 
 	# Summary per table
-	print "\nSummary for table '$table':\n";
+	log_info("Summary for table '$table':");
 	my $table_total = 0;
 	foreach my $serial (sort keys %serial_spikes) {
 		my $count = $serial_spikes{$serial} || 0;
-		print "  Serial $serial: $count spikes marked\n";
+		log_info("  Serial $serial: $count spikes marked");
 		$table_total += $count;
 	}
-	print "  Total spikes marked in table '$table': $table_total\n";
+	log_info("  Total spikes marked in table '$table': $table_total");
 }
 
 $dbh->disconnect;
 
-print "\nDone.\n";
-print "Total spikes marked in all tables: $total_spikes_marked\n";
+log_info("Done.");
+log_info("Total spikes marked in all tables: $total_spikes_marked");
 
 # === UNLOCKING ===
 # Clean up lock file after successful run
