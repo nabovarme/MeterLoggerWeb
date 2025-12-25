@@ -13,6 +13,7 @@ our @EXPORT = qw(
 	log_info
 	log_warn
 	log_debug
+	log_die
 );
 
 $| = 1;  # Autoflush STDOUT
