@@ -7,12 +7,13 @@ use Config;
 use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 $SIG{USR1} = \&clean_samples_cache;
 
 $SIG{INT} = \&sig_int_handler;
 
-warn("starting...\n");
+log_info("starting...");
 
 my $dbh;
 my $sth;
@@ -21,10 +22,10 @@ my $d;
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
-	warn("connected to db\n");
+	log_info("connected to db\n");
 }
 else {
-	warn("cant't connect to db $!\n");
+	log_warn("cant't connect to db $!");
 	die $!;
 }
 
@@ -37,11 +38,11 @@ sub clean_samples_cache {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL]);
 	$sth->execute;
 	
-	warn("cleaning samples_cache for all meters\n");
+	log_info("cleaning samples_cache for all meters");
 	while ($d = $sth->fetchrow_hashref) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 
-		warn("\tcleaning samples_cache for " . $d->{serial} . "\n");
+		log_info("cleaning samples_cache for " . $d->{serial});
 		# send scan
 		$dbh->do(qq[DELETE FROM `samples_cache` WHERE SERIAL LIKE $quoted_serial AND `id` NOT IN ( \
 						SELECT `id` FROM (
@@ -58,13 +59,12 @@ sub clean_samples_cache {
 							ORDER BY `unix_time` DESC
 						) b
 						) save_list
-					)]) or warn "$!\n";
+					)]) or log_warn($DBI::errstr);
 	}
 }
 
 sub sig_int_handler {
-
-	die $!;
+	log_die("Interrupted" . $!);
 }
 
 1;
