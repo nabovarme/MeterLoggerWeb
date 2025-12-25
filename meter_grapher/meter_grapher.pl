@@ -567,7 +567,7 @@ sub mqtt_offline_handler {
 	my $quoted_meter_serial = $dbh->quote($meter_serial);
 	my $quoted_unix_time = $dbh->quote($unix_time);
 	$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES ($quoted_meter_serial, 'offline', $quoted_unix_time)]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
-	log_info($topic . "\t" . 'offline', {-no_script_name => 1});
+	log_warn($topic . "\t" . 'offline', {-no_script_name => 1});
 }
 
 sub mqtt_flash_id_handler {
