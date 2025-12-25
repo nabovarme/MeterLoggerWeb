@@ -8,7 +8,6 @@ use Apache2::RequestIO ();
 use Apache2::Const;
 use JSON::XS;
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::Utils;
 

@@ -4,7 +4,6 @@ use strict;
 use utf8;
 use Data::Dumper;
 
-use lib qw( /home/meterlogger/perl );
 use Nabovarme::Db;
 
 binmode(STDOUT, ":utf8");

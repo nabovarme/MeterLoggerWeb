@@ -9,7 +9,6 @@ use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
 use JSON::XS;
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::Utils;
 

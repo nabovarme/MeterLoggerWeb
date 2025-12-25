@@ -1,7 +1,6 @@
 ﻿[-
 	use utf8;
 
-	use lib qw( /var/www/lib/perl );
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
 	use Data::Dumper;

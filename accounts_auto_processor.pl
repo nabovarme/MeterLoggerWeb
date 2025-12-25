@@ -8,10 +8,7 @@ use Sys::Syslog;
 use DBI;
 use Config;
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
-
 
 $SIG{INT} = \&sig_int_handler;
 

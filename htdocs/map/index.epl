@@ -1,5 +1,4 @@
 ﻿[-
-	use lib qw( /var/www/lib/perl );
 	use Nabovarme::Db;
 
 	$dbh = Nabovarme::Db->my_connect || die $!;

@@ -8,7 +8,6 @@ use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use DBI;
 use utf8;
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {

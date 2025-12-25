@@ -5,7 +5,6 @@ use warnings;
 use Data::Dumper;
 use DBI;
 
-use lib qw( /etc/apache2/perl);
 use Nabovarme::Db;
 use Nabovarme::Utils;
 

@@ -74,5 +74,7 @@ COPY ./meter_grapher/meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grap
 
 COPY ./meter_grapher/docker-entrypoint.sh /docker-entrypoint.sh
 
+ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+
 CMD /docker-entrypoint.sh
 

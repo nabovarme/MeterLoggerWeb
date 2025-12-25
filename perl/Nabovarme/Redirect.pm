@@ -7,9 +7,6 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK DONE REDIRECT NOT_FOUND);
 use DBI;
 
-#use lib qw( /var/www/perl/lib );
-use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {

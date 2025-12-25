@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use utf8;
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::Utils;
 

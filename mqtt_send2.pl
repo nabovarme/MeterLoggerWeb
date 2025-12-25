@@ -5,10 +5,6 @@ use Data::Dumper;
 use Sys::Syslog;
 use Time::HiRes qw( usleep );
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl );
-use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
-use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::MQTT_RPC;
 
 openlog($0, "ndelay,pid", "local0");

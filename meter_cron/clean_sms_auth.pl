@@ -6,8 +6,6 @@ use DBI;
 use Config;
 use Time::HiRes qw( usleep );
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl/ );
 use Nabovarme::Db;
 
 warn("starting...\n");

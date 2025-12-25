@@ -6,8 +6,6 @@ use DBI;
 use Data::Dumper;
 use Sys::Syslog;
 
-use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 use Nabovarme::MQTT_RPC;
 

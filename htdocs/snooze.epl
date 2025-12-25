@@ -2,7 +2,6 @@
 [- 
 use Time::Format qw( time_format );
 
-use lib qw( /var/www/lib/perl );
 use Nabovarme::Db;
 
 $is_authorized = 0;

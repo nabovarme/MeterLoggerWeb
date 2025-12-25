@@ -6,10 +6,6 @@ use DBI;
 use Config;
 use Time::HiRes qw( usleep );
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl );
-use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
-use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::MQTT_RPC;
 
 use constant RPC_TIMEOUT => 300;	# 5 minutes

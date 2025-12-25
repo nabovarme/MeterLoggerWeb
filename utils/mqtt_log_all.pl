@@ -38,11 +38,9 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config;
 use Getopt::Long;
 use Curses;
 
-use lib qw( /home/meterlogger/perl );
 use Nabovarme::Db;
 
 STDOUT->autoflush(1);

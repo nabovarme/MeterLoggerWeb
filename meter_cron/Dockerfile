@@ -75,8 +75,8 @@ COPY ./meter_cron/crontab /etc/
 RUN chmod 0644 /etc/crontab && \
 	touch /var/log/cron.log
 
-COPY ./meter_cron/update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
-COPY ./meter_cron/clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
+COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
+COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
 COPY ./meter_cron/clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
 COPY ./meter_cron/wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
 COPY ./meter_cron/update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
@@ -85,5 +85,7 @@ COPY ./meter_cron/sync_alarms_auto.pl /etc/apache2/perl/Nabovarme/bin/sync_alarm
 COPY ./meter_cron/update_estimated_energy.pl /etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
+
+ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]
