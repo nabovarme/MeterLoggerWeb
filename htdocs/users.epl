@@ -1,5 +1,4 @@
 ﻿[-
-	use lib qw( /var/www/lib/perl );
 	use Nabovarme::Db;
 	
 -]

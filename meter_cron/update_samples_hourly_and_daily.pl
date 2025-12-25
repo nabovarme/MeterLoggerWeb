@@ -10,8 +10,6 @@ use Fcntl qw(:flock);
 use File::Basename;
 use Parallel::ForkManager;
 
-# Include custom library path
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 # === LOCKING ===

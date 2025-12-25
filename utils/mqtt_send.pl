@@ -7,7 +7,6 @@ use Crypt::Mode::CBC;
 use Math::Random::Secure qw(rand);
 use Digest::SHA qw( sha256 hmac_sha256 );
 
-use lib qw( /home/meterlogger/perl );
 use Nabovarme::Db;
 
 my $m = Crypt::Mode::CBC->new('AES');

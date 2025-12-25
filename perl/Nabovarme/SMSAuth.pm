@@ -130,7 +130,6 @@ use Net::SMTP;
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
 use constant SNOOZE_LOCATION => '/snooze.epl';
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 # Main Apache request handler

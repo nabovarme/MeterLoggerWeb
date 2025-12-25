@@ -6,7 +6,6 @@ use DBI;
 use Config;
 use Time::HiRes qw( usleep );
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 $SIG{USR1} = \&clean_samples_cache;

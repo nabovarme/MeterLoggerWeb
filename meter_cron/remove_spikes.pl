@@ -7,7 +7,6 @@ use Parallel::ForkManager;
 use File::Basename;
 use Getopt::Long;
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT

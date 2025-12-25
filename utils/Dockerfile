@@ -113,4 +113,6 @@ COPY ./utils/mqtt_send.pl mqtt_send.pl
 COPY ./utils/find_alternative_ssid.pl find_alternative_ssid.pl
 COPY ./utils/mesh_topology.pl mesh_topology.pl
 
+ENV PERL5LIB=/home/meterlogger/perl:${PERL5LIB}
+
 CMD /docker-entrypoint.sh

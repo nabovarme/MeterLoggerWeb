@@ -3,9 +3,6 @@
 	use Config;
 	use Time::Duration;
 
-	# Include custom Perl library paths
-	use lib qw( /var/www/lib/perl );
-
 	# Load internal application modules
 	use Nabovarme::Db;
 	use Nabovarme::Admin;

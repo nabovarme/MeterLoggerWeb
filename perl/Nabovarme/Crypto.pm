@@ -8,8 +8,6 @@ use Digest::SHA qw( sha256 hmac_sha256 );
 use Data::Dumper;
 use Sys::Syslog;
 
-use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );

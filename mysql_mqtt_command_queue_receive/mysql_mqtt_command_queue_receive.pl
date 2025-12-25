@@ -10,7 +10,6 @@ use Digest::SHA qw( sha256 hmac_sha256 );
 use Config::Simple;
 use Time::HiRes qw( gettimeofday tv_interval );
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 # --- Constants ---

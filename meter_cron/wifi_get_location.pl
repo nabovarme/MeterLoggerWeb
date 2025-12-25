@@ -8,9 +8,6 @@ use JSON::Create 'create_json';
 use JSON::Parse 'parse_json';
 use Config::Simple;
 
-# Add the required libraries to the Perl search path
-use lib qw( /etc/apache2/perl );
-
 use Nabovarme::Db;
 
 use constant CONFIG_FILE => '/etc/Nabovarme.conf';

@@ -9,9 +9,6 @@ use Digest::SHA qw( sha256 hmac_sha256 );
 use Config::Simple;
 use Redis;
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl/ );
-
 use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
 my $config = new Config::Simple(CONFIG_FILE) || die Config::Simple->error();

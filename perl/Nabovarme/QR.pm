@@ -9,8 +9,6 @@ use Apache2::Const;
 use DBI;
 use Fcntl qw(:flock);
 
-use lib qw( /etc/apache2/perl );
-#use lib qw( /opt/local/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {

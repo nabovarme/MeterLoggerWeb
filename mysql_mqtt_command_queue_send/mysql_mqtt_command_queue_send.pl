@@ -10,7 +10,6 @@ use Digest::SHA qw(sha256 hmac_sha256);
 use Config::Simple;
 use Time::HiRes qw(usleep);
 
-use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 
 # --- Constants ---

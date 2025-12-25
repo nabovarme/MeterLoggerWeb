@@ -9,7 +9,6 @@ use HTTP::Date qw(time2str);
 use DBI;
 use Fcntl qw(:flock);
 
-use lib qw( /etc/apache2/perl );
 use Nabovarme::Db;
 
 sub handler {

@@ -8,8 +8,6 @@ use strict;
 use DBI;
 use Config;
 
-# Custom library path for database connection
-use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 
 $| = 1;  # Autoflush STDOUT

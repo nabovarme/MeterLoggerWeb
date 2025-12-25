@@ -6,10 +6,6 @@ use Sys::Syslog;
 use DBI;
 use Time::HiRes qw( usleep );
 
-use lib qw( /etc/apache2/perl );
-use lib qw( /opt/local/apache2/perl );
-use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
-use lib qw( /Users/stoffer/src/esp8266/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
 use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );

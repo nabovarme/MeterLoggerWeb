@@ -10,8 +10,6 @@ use Statistics::Basic qw(:all);	 # for computing medians
 use Math::Random::Secure qw(rand);      # for generating secure random keys
 use File::Basename;
 
-# Custom library path for database connection
-use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
 use Nabovarme::Utils;
 

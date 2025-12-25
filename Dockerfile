@@ -104,4 +104,6 @@ COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cach
 RUN ln -sf /dev/stdout /var/log/apache2/access.log \
 	&& ln -sf /dev/stderr /var/log/apache2/error.log
 
+ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+
 CMD /docker-entrypoint.sh
