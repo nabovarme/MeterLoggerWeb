@@ -16,9 +16,9 @@ use lib qw( /opt/local/apache2/perl );
 use lib qw( /Users/loppen/Documents/stoffer/MeterLoggerWeb/perl );
 use Nabovarme::Db;
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
-my $config = new Config::Simple(CONFIG_FILE) || die $!;
+my $config = new Config::Simple(CONFIG_FILE) || die Config::Simple->error();
 my $mqtt_host :shared = $config->param('mqtt_host');
 my $mqtt_port :shared = $config->param('mqtt_port');
 
