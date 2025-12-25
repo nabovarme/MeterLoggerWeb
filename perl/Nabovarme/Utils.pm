@@ -320,8 +320,11 @@ sub log_die {
 
 sub _log_message {
 	my ($fh, $level, $msgs_ref, $opts) = @_;
-	my $disable_tag    = $opts->{-no_tag};
-	my $disable_script = $opts->{-no_script_name};
+	
+	my $disable_tag        = $opts->{-no_tag};
+	my $disable_script     = $opts->{-no_script_name};
+	my $custom_tag         = $opts->{-custom_tag};          # e.g. "CUSTOM_TAG"
+	my $custom_script_name = $opts->{-custom_script_name};  # e.g. "my_script.pl"
 
 	# Determine module/package name dynamically
 	my $module_name;
@@ -330,7 +333,10 @@ sub _log_message {
 		$module_name = $package if ($package && $package ne 'main');
 	}
 
-	my $script_display = $disable_script ? '' : $script_name;
+	# Override with custom tag/script name if provided
+	$module_name = $custom_tag if defined $custom_tag;
+	my $script_display = $disable_script ? '' : ($custom_script_name || $script_name);
+
 	my $prefix = (!$disable_tag && $level) ? "[$level] " : '';
 
 	foreach my $msg (@$msgs_ref) {
@@ -348,6 +354,7 @@ sub _log_message {
 		}
 	}
 }
+
 
 1;
 
