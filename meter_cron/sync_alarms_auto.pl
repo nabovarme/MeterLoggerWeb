@@ -9,16 +9,17 @@ use DBI;
 use Config;
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 $| = 1;  # Autoflush STDOUT
 
 # Connect to MySQL database
-my $dbh = Nabovarme::Db->my_connect or die "Can't connect to DB: $!";
+my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 $dbh->{'AutoCommit'} = 0;   # Disable AutoCommit for transaction
 $dbh->{'RaiseError'} = 1;   # Raise exceptions on errors
 
-print "[".localtime()."] Connected to DB\n";
+log_info("Connected to DB");
 
 # Run sync once
 eval {
@@ -36,7 +37,7 @@ $dbh->disconnect;
 # Sync auto-alarms into alarms
 # -------------------------------
 sub sync_auto_alarms {
-	print "[".localtime()."] Starting auto-alarm sync...\n";
+	log_info("Starting auto-alarm sync...");
 
 	# Delete alarms for serials that no longer exist
 	my $deleted = $dbh->do(q{
@@ -45,7 +46,7 @@ sub sync_auto_alarms {
 	});
 	# Normalize DBI 0E0 value to 0 for printing
 	my $num_deleted = ($deleted && $deleted eq '0E0') ? 0 : $deleted;
-	print "[".localtime()."] Deleted $num_deleted alarms with missing meters\n";
+	log_info("Deleted $num_deleted alarms with missing meters");
 
 	# Fetch all enabled auto alarms
 	my $sth_aa = $dbh->prepare("SELECT * FROM alarms_auto WHERE enabled=1");
@@ -92,7 +93,7 @@ sub sync_auto_alarms {
 					$aa->{id}
 				);
 
-				print "[".localtime()."] Updated auto-alarm for serial $serial from template $aa->{id}\n";
+				log_info("Updated auto-alarm for serial $serial from template $aa->{id}");
 			} else {
 				# Insert new alarm, using description for comment and sms_notification
 				$dbh->do(q[
@@ -111,7 +112,7 @@ sub sync_auto_alarms {
 					$aa->{description} || ''
 				);
 
-				print "[".localtime()."] Created auto-alarm for serial $serial from template $aa->{id}\n";
+				log_info("Created auto-alarm for serial $serial from template $aa->{id}");
 			}
 		}
 
@@ -119,5 +120,5 @@ sub sync_auto_alarms {
 		$sth_m->execute;
 	}
 
-	print "[".localtime()."] Auto-alarm sync complete.\n";
+	log_info("Auto-alarm sync complete.");
 }
