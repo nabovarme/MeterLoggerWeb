@@ -271,7 +271,7 @@ sub handle_alarm {
 	if ($state) {
 		if ($alarm->{alarm_state} == 0) {
 			# First time alarm triggered
-			sms_send($alarm->{sms_notification} . $down_message);
+			sms_send($alarm->{sms_notification}, $down_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
@@ -283,7 +283,7 @@ sub handle_alarm {
 		}
 		elsif ($alarm->{repeat} && (($alarm->{last_notification} + $alarm->{repeat} + $alarm->{snooze}) < time())) {
 			# Repeated notification after snooze period
-			sms_send($alarm->{sms_notification} . $down_message);
+			sms_send($alarm->{sms_notification}, $down_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
@@ -298,7 +298,7 @@ sub handle_alarm {
 	else {
 		if ($alarm->{alarm_state} == 1) {
 			# Condition has cleared — send "back to normal" message
-			sms_send($alarm->{sms_notification} . $up_message);
+			sms_send($alarm->{sms_notification}, $up_message);
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
