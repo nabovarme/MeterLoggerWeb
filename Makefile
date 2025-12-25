@@ -17,6 +17,9 @@ log:
 	fi
 	docker compose logs -f $(filter-out $@,$(MAKECMDGOALS))
 
+logs:
+	docker compose logs -f
+
 down:
 	docker compose down
 
