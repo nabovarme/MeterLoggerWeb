@@ -31,7 +31,7 @@ my %valve_close_time;
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
-log_info("connected to db");
+log_info("Connected to DB");
 
 # Main loop: run every 60 seconds
 while (1) {
@@ -106,7 +106,7 @@ sub evaluate_alarm {
 		if ($@) {
 			# Log condition parse errors in DB
 			my $error = $@;
-			 log_warn("error parsing condition for serial " . $serial . ": " . $condition . ", error: " . $error);
+			 log_warn("Error parsing condition for serial " . $serial . ": " . $condition . ", error: " . $error);
 
 			my $quoted_error = $dbh->quote($error);
 			$dbh->do(qq[
@@ -279,7 +279,7 @@ sub handle_alarm {
 					snooze_auth_key = $quoted_snooze_auth_key
 				WHERE id = $quoted_id
 			]);
-			log_info("serial " . $alarm->{serial} . ": down");
+			log_info("Serial " . $alarm->{serial} . ": down");
 		}
 		elsif ($alarm->{repeat} && (($alarm->{last_notification} + $alarm->{repeat} + $alarm->{snooze}) < time())) {
 			# Repeated notification after snooze period
@@ -292,7 +292,7 @@ sub handle_alarm {
 					snooze_auth_key = $quoted_snooze_auth_key 
 				WHERE id = $quoted_id
 			]);
-			log_info("serial " . $alarm->{serial} . ": down repeat");
+			log_info("Serial " . $alarm->{serial} . ": down repeat");
 		}
 	}
 	else {
@@ -307,7 +307,7 @@ sub handle_alarm {
 					snooze_auth_key = ''
 				WHERE id = $quoted_id
 			]);
-			log_info("serial " . $alarm->{serial} . ": up");
+			log_info("Serial " . $alarm->{serial} . ": up");
 		}
 	}
 }
