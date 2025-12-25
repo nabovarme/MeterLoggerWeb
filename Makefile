@@ -9,8 +9,13 @@ build: $(BASH_HISTORY_FILE)
 up:
 	docker compose up -d
 
+# Log a specific service
 log:
-	docker compose logs -f
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		echo "Usage: make log <service>"; \
+		exit 1; \
+	fi
+	docker compose logs -f $(filter-out $@,$(MAKECMDGOALS))
 
 down:
 	docker compose down
@@ -23,3 +28,18 @@ $(BASH_HISTORY_FILE):
 	@mkdir -p ./utils
 	@touch $(BASH_HISTORY_FILE)
 	@echo "Created $(BASH_HISTORY_FILE) if it did not exist"
+
+# Redeploy a specific service
+redeploy:
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		echo "Usage: make redeploy <service>"; \
+		exit 1; \
+	fi
+	git pull
+	docker compose build $(filter-out $@,$(MAKECMDGOALS))
+	docker compose down $(filter-out $@,$(MAKECMDGOALS))
+	docker compose up -d $(filter-out $@,$(MAKECMDGOALS))
+
+# Prevent make from treating service names as targets
+%:
+	@:
