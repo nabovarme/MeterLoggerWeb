@@ -40,17 +40,17 @@ $Data::Dumper::Quotekeys = 0;
 my $script_name = basename($0, ".pl");
 
 # --- Read configuration from environment ---
-my $router    = $ENV{DLINK_ROUTER_IP}   or die "[SMS] Missing DLINK_ROUTER_IP env variable\n";
-my $username  = $ENV{DLINK_ROUTER_USER} or die "[SMS] Missing DLINK_ROUTER_USER env variable\n";
+my $router    = $ENV{DLINK_ROUTER_IP}   or log_die("Missing DLINK_ROUTER_IP env variable", { -custom_tag => 'SMS' });
+my $username  = $ENV{DLINK_ROUTER_USER} or log_die("Missing DLINK_ROUTER_USER env variable", { -custom_tag => 'SMS' });
 my $password  = $ENV{DLINK_ROUTER_PASS} || "";
 
 # --- SMTP configuration from environment ---
-my $smtp_host  = $ENV{SMTP_HOST}     or die "[SMS] Missing SMTP_HOST env variable\n";
+my $smtp_host  = $ENV{SMTP_HOST}     or log_die("Missing SMTP_HOST env variable", { -custom_tag => 'SMTP' });
 my $smtp_port  = $ENV{SMTP_PORT}     || 587;
 my $smtp_user  = $ENV{SMTP_USER}     || '';
 my $smtp_pass  = $ENV{SMTP_PASSWORD} || '';
-my $from_email = $ENV{FROM_EMAIL}    or die "[SMS] Missing FROM_EMAIL env variable\n";
-my $to_email   = $ENV{TO_EMAIL}      or die "[SMS] Missing TO_EMAIL env variable\n";
+my $from_email = $ENV{FROM_EMAIL}    or log_die("Missing FROM_EMAIL env variable", { -custom_tag => 'SMTP' });
+my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable", { -custom_tag => 'SMTP' });
 
 my @to_list = split /[\s,]+/, $to_email;
 
@@ -73,9 +73,9 @@ my %sent_sms;
 # --- Save SMS to file ---
 sub save_sms_to_file {
 	my (%args) = @_;
-	my $phone   = $args{phone}   or die "[SMS] Missing phone";
-	my $message = $args{message} or die "[SMS] Missing message";
-	my $dir     = $args{dir}     or die "[SMS] Missing directory";
+	my $phone   = $args{phone}   or log_die("Missing phone", { -custom_tag => 'SMS' });
+	my $message = $args{message} or log_die("Missing message", { -custom_tag => 'SMS' });
+	my $dir     = $args{dir}     or log_die("Missing directory", { -custom_tag => 'SMS' });
 
 	make_path($dir) unless -d $dir;
 
@@ -89,13 +89,13 @@ sub save_sms_to_file {
 	my $filename      = File::Spec->catfile($dir, "${safe_phone}_$rand_str");
 
 	eval {
-		open my $fh, '>:encoding(UTF-8)', $filename or die "[SMS] " . $!;
+		open my $fh, '>:encoding(UTF-8)', $filename or log_die("Failed to open file: $!", { -custom_tag => 'SMS' });
 		my $timestamp = localtime();
 		print $fh "To: $phone\nSent: $timestamp\n\n$message";
 		close $fh;
 		log_info("Saved message to $filename", { -custom_tag => 'SMS' });
 	};
-	warn "[SMS] Failed to save SMS to $filename: $@\n" if $@;
+	log_warn("Failed to save SMS to $filename: $@", { -custom_tag => 'SMS' }) if $@;
 
 	return $filename;
 }
@@ -103,7 +103,7 @@ sub save_sms_to_file {
 # --- Send SMS via router ---
 sub send_sms {
 	my ($phone, $message) = @_;
-	die "[SMS] Missing phone or message\n" unless $phone && $message;
+	log_die("Missing phone or message", { -custom_tag => 'SMS' }) unless $phone && $message;
 
 	$sms_busy = 1;  # Lock other SMS actions
 
@@ -121,7 +121,7 @@ sub send_sms {
 	unless ($init->is_success) {
 		log_warn("HTTP GET failed: " . $init->status_line, { -custom_tag => 'SMS' });
 		$sms_busy = 0;
-		die "[SMS] Failed to init session\n";
+		log_die("Failed to init session", { -custom_tag => 'SMS' });
 	}
 	log_info("Session initialized successfully", { -custom_tag => 'SMS' });
 
@@ -135,13 +135,15 @@ sub send_sms {
 		Referer      => "http://$router/index.html",
 		Origin       => "http://$router"
 	);
-	die "[SMS] Login failed\n" unless $login->is_success;
+	log_die("Login failed", { -custom_tag => 'SMS' }) unless $login->is_success;
+
 	log_info("Login HTTP response code: " . $login->code, { -custom_tag => 'SMS' });
 	log_info("Login Set-Cookie: " . ($login->header("Set-Cookie") || ''), { -custom_tag => 'SMS' });
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-	die "[SMS] qSessId not found\n" unless $qsess;
+	log_die("qSessId not found", { -custom_tag => 'SMS' }) unless $qsess;
+
 	log_info("qSessId obtained: $qsess", { -custom_tag => 'SMS' });
 
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
@@ -150,10 +152,12 @@ sub send_sms {
 	# 5: Retrieve authorization ID (authID)
 	log_info("Fetching authID", { -custom_tag => 'SMS' });
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1", Referer => "http://$router/controlPanel.html");
-	die "[SMS] Failed to get authID\n" unless $auth_resp->is_success;
+	log_die("Failed to get authID", { -custom_tag => 'SMS' }) unless $auth_resp->is_success;
+
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
-	die "[SMS] Empty authID\n" unless $authID;
+	log_die("Empty authID", { -custom_tag => 'SMS' }) unless $authID;
+
 	log_info("authID obtained: $authID", { -custom_tag => 'SMS' });
 
 	# 6: Send SMS
@@ -185,8 +189,9 @@ sub send_sms {
 		log_warn("SMS POST failed: " . $sms->status_line, { -custom_tag => 'SMS' });
 		log_warn("Response content: " . $sms->decoded_content, { -custom_tag => 'SMS' });
 		$sms_busy = 0;
-		die "[SMS] SMS HTTP failed: " . $sms->code;
+		log_die("SMS HTTP failed: " . $sms->code, { -custom_tag => 'SMS' });
 	}
+
 	my $resp = $sms->decoded_content;
 
 	# 7: Logout
@@ -218,7 +223,7 @@ sub send_sms {
 			log_debug(JSON->new->utf8->pretty->canonical->encode($decoded), { -custom_tag => 'SMS' });
 		} or log_warn("Response was not valid JSON", { -custom_tag => 'SMS' });
 
-		die "[SMS] SMS gateway error: $resp";
+		log_die("SMS gateway error: $resp", { -custom_tag => 'SMS' });
 	}
 }
 
@@ -232,8 +237,7 @@ sub read_sms {
 		# 1: Initialize session
 		log_info("Initializing session with router $router", { -custom_tag => 'SMS' });
 		my $init = $ua->get("http://$router/index.html");
-		die "[SMS] Failed to init session\n" unless $init->is_success;
-
+		log_die("Failed to init session", { -custom_tag => 'SMS' }) unless $init->is_success;
 		log_info("Session initialized successfully", { -custom_tag => 'SMS' });
 
 		# 2: Login to router
@@ -246,10 +250,10 @@ sub read_sms {
 			Referer      => "http://$router/index.html",
 			Origin       => "http://$router"
 		);
-		die "[SMS] Login failed\n" unless $login->is_success;
+		log_die("Login failed", { -custom_tag => 'SMS' }) unless $login->is_success;
 
 		my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-		die "[SMS] qSessId not found\n" unless $qsess;
+		log_die("qSessId not found", { -custom_tag => 'SMS' }) unless $qsess;
 		log_info("qSessId obtained: $qsess", { -custom_tag => 'SMS' });
 		$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 		$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
@@ -264,7 +268,7 @@ sub read_sms {
 			Referer            => "http://$router/controlPanel.html",
 			'X-Requested-With' => 'XMLHttpRequest'
 		);
-		die "[SMS] SMS read request failed: " . $resp->status_line unless $resp->is_success;
+		log_die("SMS read request failed: " . $resp->status_line, { -custom_tag => 'SMS' }) unless $resp->is_success;
 
 		# 4: Parse JSON response
 		my $content = $resp->decoded_content;
@@ -375,7 +379,8 @@ sub forward_sms_email {
 		$text =~ s/\r?\n/\r\n/g;
 
 		# Encode UTF-8 flagged string to bytes
-		my $utf8_text = encode('UTF-8', $text);
+		my $utf8_text = encode('UTF-8', $text)
+			or log_die("UTF-8 encode failed", { -custom_tag => 'SMTP' });
 
 		# Create proper Email::MIME object
 		my $email = Email::MIME->create(
@@ -386,7 +391,7 @@ sub forward_sms_email {
 			],
 			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
 			body       => $utf8_text,
-		);
+		) or log_die("Failed to create Email::MIME object", { -custom_tag => 'SMTP' });
 
 		# Loop over each recipient and send individually
 		foreach my $recipient (@to_list) {
@@ -397,7 +402,12 @@ sub forward_sms_email {
 				Timeout         => 20,
 				Debug           => 0,
 				SSL_verify_mode => 0,
-			) or do { log_warn("SMTP connect failed", { -custom_tag => 'SMTP' }); next; };
+			);
+
+			unless ($smtp) {
+				log_warn("SMTP connect failed for $recipient", { -custom_tag => 'SMTP' });
+				next;
+			}
 
 			# Start TLS if using port 587
 			eval { $smtp->starttls() } if $smtp_port == 587;
@@ -405,7 +415,7 @@ sub forward_sms_email {
 			# Authenticate if credentials provided
 			if ($smtp_user && $smtp_pass) {
 				unless ($smtp->auth($smtp_user, $smtp_pass)) {
-					log_warn("SMTP auth failed", { -custom_tag => 'SMTP' });
+					log_warn("SMTP auth failed for $recipient", { -custom_tag => 'SMTP' });
 					$smtp->quit;
 					next;
 				}
@@ -414,13 +424,17 @@ sub forward_sms_email {
 			}
 
 			# Set sender and recipient
-			$smtp->mail($smtp_user || $from_email);
-			$smtp->to($recipient);
+			$smtp->mail($smtp_user || $from_email)
+				or log_die("SMTP MAIL FROM failed", { -custom_tag => 'SMTP' });
+			$smtp->to($recipient)
+				or log_die("SMTP RCPT TO failed for $recipient", { -custom_tag => 'SMTP' });
 
-			# Send the full Email::MIME message
-			$smtp->data();
-			$smtp->datasend($email->as_string);
-			$smtp->dataend();
+			$smtp->data()
+				or log_die("SMTP DATA failed", { -custom_tag => 'SMTP' });
+			$smtp->datasend($email->as_string)
+				or log_die("SMTP DATASEND failed", { -custom_tag => 'SMTP' });
+			$smtp->dataend()
+				or log_die("SMTP DATAEND failed", { -custom_tag => 'SMTP' });
 
 			# Close SMTP session
 			$smtp->quit();
@@ -431,6 +445,7 @@ sub forward_sms_email {
 		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$text} = 1;
 	};
+
 	log_warn("Failed to send email for SMS from $phone: $@", { -custom_tag => 'SMTP' }) if $@;
 }
 
@@ -448,7 +463,7 @@ my $socket = IO::Socket::INET->new(
 	Listen    => 5,
 	Proto     => 'tcp',
 	Reuse     => 1,
-) or die "[SMTP] Unable to bind port 25: $!";
+) or log_die("Unable to bind port 25: $!", { -custom_tag => 'SMTP' });
 
 log_info("SMS Gateway running on port 25...", { -custom_tag => 'SMTP' });
 
