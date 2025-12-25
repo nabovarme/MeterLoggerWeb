@@ -8,6 +8,7 @@ const menuItems = [
 	{ text: "Valve control", href: "/valve_control.epl" },
 	{ text: "User log", href: "/users.epl" },
 	{ text: "Payments pending", href: "/payments_pending.html" },
+	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
 	{ text: "Alarms", href: "/alarms.html" },
 	{ separator: true },
 	{ text: "Logout", href: "/logout" }
