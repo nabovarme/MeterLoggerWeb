@@ -7,7 +7,13 @@ use Exporter 'import';
 use POSIX qw(floor);
 use File::Basename;
 
-our @EXPORT = qw(rounded_duration estimate_remaining_energy);
+our @EXPORT = qw(
+	rounded_duration
+	estimate_remaining_energy
+	log_info
+	log_warn
+	log_debug
+);
 
 $| = 1;  # Autoflush STDOUT
 
@@ -264,6 +270,33 @@ sub estimate_remaining_energy {
 		valve_status                => $valve_status,
 		valve_installed             => $valve_installed,
 	};
+}
+
+# ----------------------------
+# Logging functions
+# ----------------------------
+sub log_info {
+	_log_message(\*STDOUT, '', @_);
+}
+
+sub log_warn {
+	_log_message(\*STDERR, 'WARN', @_);
+}
+
+sub log_debug {
+	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true)$/i;
+	_log_message(\*STDOUT, 'DEBUG', @_);
+}
+
+sub _log_message {
+	my ($fh, $level, @msgs) = @_;
+
+	foreach my $msg (@msgs) {
+		my $text = defined $msg ? $msg : '';
+		chomp($text);  # remove any existing newlines
+		my $prefix = $level ? "[$level] " : '';
+		print $fh "[$script_name] $prefix$text\n";
+	}
 }
 
 # ----------------------------
