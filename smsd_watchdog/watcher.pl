@@ -31,7 +31,10 @@ my %error_patterns = (
 # ---- Recovery patterns ----
 my %reset_patterns = (
 	smsd    => [ qr/Session initialized successfully/i ],
-	postfix => [ qr/dsn=2\.0\.0/i ],
+	postfix => [ 
+		qr/postfix\/master\[\d+\]: daemon started/i,
+		qr/dsn=2\.0\.0/i
+	],
 );
 
 # ---- SMTP config ----
