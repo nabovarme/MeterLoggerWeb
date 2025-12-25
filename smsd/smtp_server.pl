@@ -40,17 +40,17 @@ $Data::Dumper::Quotekeys = 0;
 my $script_name = basename($0, ".pl");
 
 # --- Read configuration from environment ---
-my $router    = $ENV{DLINK_ROUTER_IP}   or log_die("Missing DLINK_ROUTER_IP env variable", { -custom_tag => 'SMS' });
-my $username  = $ENV{DLINK_ROUTER_USER} or log_die("Missing DLINK_ROUTER_USER env variable", { -custom_tag => 'SMS' });
+my $router    = $ENV{DLINK_ROUTER_IP}   or log_die("Missing DLINK_ROUTER_IP env variable", {-no_script_name => 1, -custom_tag => 'SMS' });
+my $username  = $ENV{DLINK_ROUTER_USER} or log_die("Missing DLINK_ROUTER_USER env variable", {-no_script_name => 1, -custom_tag => 'SMS' });
 my $password  = $ENV{DLINK_ROUTER_PASS} || "";
 
 # --- SMTP configuration from environment ---
-my $smtp_host  = $ENV{SMTP_HOST}     or log_die("Missing SMTP_HOST env variable", { -custom_tag => 'SMTP' });
+my $smtp_host  = $ENV{SMTP_HOST}     or log_die("Missing SMTP_HOST env variable", {-no_script_name => 1, -custom_tag => 'SMTP' });
 my $smtp_port  = $ENV{SMTP_PORT}     || 587;
 my $smtp_user  = $ENV{SMTP_USER}     || '';
 my $smtp_pass  = $ENV{SMTP_PASSWORD} || '';
-my $from_email = $ENV{FROM_EMAIL}    or log_die("Missing FROM_EMAIL env variable", { -custom_tag => 'SMTP' });
-my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable", { -custom_tag => 'SMTP' });
+my $from_email = $ENV{FROM_EMAIL}    or log_die("Missing FROM_EMAIL env variable", {-no_script_name => 1, -custom_tag => 'SMTP' });
+my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 my @to_list = split /[\s,]+/, $to_email;
 
@@ -73,9 +73,9 @@ my %sent_sms;
 # --- Save SMS to file ---
 sub save_sms_to_file {
 	my (%args) = @_;
-	my $phone   = $args{phone}   or log_die("Missing phone", { -custom_tag => 'SMS' });
-	my $message = $args{message} or log_die("Missing message", { -custom_tag => 'SMS' });
-	my $dir     = $args{dir}     or log_die("Missing directory", { -custom_tag => 'SMS' });
+	my $phone   = $args{phone}   or log_die("Missing phone", {-no_script_name => 1, -custom_tag => 'SMS' });
+	my $message = $args{message} or log_die("Missing message", {-no_script_name => 1, -custom_tag => 'SMS' });
+	my $dir     = $args{dir}     or log_die("Missing directory", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	make_path($dir) unless -d $dir;
 
@@ -89,13 +89,13 @@ sub save_sms_to_file {
 	my $filename      = File::Spec->catfile($dir, "${safe_phone}_$rand_str");
 
 	eval {
-		open my $fh, '>:encoding(UTF-8)', $filename or log_die("Failed to open file: $!", { -custom_tag => 'SMS' });
+		open my $fh, '>:encoding(UTF-8)', $filename or log_die("Failed to open file: $!", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $timestamp = localtime();
 		print $fh "To: $phone\nSent: $timestamp\n\n$message";
 		close $fh;
-		log_info("Saved message to $filename", { -custom_tag => 'SMS' });
+		log_info("Saved message to $filename", {-no_script_name => 1, -custom_tag => 'SMS' });
 	};
-	log_warn("Failed to save SMS to $filename: $@", { -custom_tag => 'SMS' }) if $@;
+	log_warn("Failed to save SMS to $filename: $@", {-no_script_name => 1, -custom_tag => 'SMS' }) if $@;
 
 	return $filename;
 }
@@ -103,30 +103,30 @@ sub save_sms_to_file {
 # --- Send SMS via router ---
 sub send_sms {
 	my ($phone, $message) = @_;
-	log_die("Missing phone or message", { -custom_tag => 'SMS' }) unless $phone && $message;
+	log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $phone && $message;
 
 	$sms_busy = 1;  # Lock other SMS actions
 
 	# 1: Ensure message is flagged as UTF-8 internally
 	unless (is_utf8($message)) {
-		log_info("Message is NOT flagged as UTF-8 internally, decoding...", { -custom_tag => 'SMS' });
+		log_info("Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name => 1, -custom_tag => 'SMS' });
 		$message = decode('UTF-8', $message);
 	} else {
-		log_info("Message is already flagged as UTF-8 internally", { -custom_tag => 'SMS' });
+		log_info("Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS' });
 	}
 
 	# 2: Initialize session
-	log_info("Initializing session with router $router", { -custom_tag => 'SMS' });
+	log_info("Initializing session with router $router", {-no_script_name => 1, -custom_tag => 'SMS' });
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
-		log_warn("HTTP GET failed: " . $init->status_line, { -custom_tag => 'SMS' });
+		log_warn("HTTP GET failed: " . $init->status_line, {-no_script_name => 1, -custom_tag => 'SMS' });
 		$sms_busy = 0;
-		log_die("Failed to init session", { -custom_tag => 'SMS' });
+		log_die("Failed to init session", {-no_script_name => 1, -custom_tag => 'SMS' });
 	}
-	log_info("Session initialized successfully", { -custom_tag => 'SMS' });
+	log_info("Session initialized successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	# 3: Login to router
-	log_info("Logging in as $username", { -custom_tag => 'SMS' });
+	log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS' });
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
 		"http://$router/login.cgi",
@@ -135,33 +135,33 @@ sub send_sms {
 		Referer      => "http://$router/index.html",
 		Origin       => "http://$router"
 	);
-	log_die("Login failed", { -custom_tag => 'SMS' }) unless $login->is_success;
+	log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $login->is_success;
 
-	log_info("Login HTTP response code: " . $login->code, { -custom_tag => 'SMS' });
-	log_info("Login Set-Cookie: " . ($login->header("Set-Cookie") || ''), { -custom_tag => 'SMS' });
+	log_info("Login HTTP response code: " . $login->code, {-no_script_name => 1, -custom_tag => 'SMS' });
+	log_info("Login Set-Cookie: " . ($login->header("Set-Cookie") || ''), {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-	log_die("qSessId not found", { -custom_tag => 'SMS' }) unless $qsess;
+	log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $qsess;
 
-	log_info("qSessId obtained: $qsess", { -custom_tag => 'SMS' });
+	log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 	$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 	# 5: Retrieve authorization ID (authID)
-	log_info("Fetching authID", { -custom_tag => 'SMS' });
+	log_info("Fetching authID", {-no_script_name => 1, -custom_tag => 'SMS' });
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1", Referer => "http://$router/controlPanel.html");
-	log_die("Failed to get authID", { -custom_tag => 'SMS' }) unless $auth_resp->is_success;
+	log_die("Failed to get authID", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $auth_resp->is_success;
 
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
-	log_die("Empty authID", { -custom_tag => 'SMS' }) unless $authID;
+	log_die("Empty authID", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $authID;
 
-	log_info("authID obtained: $authID", { -custom_tag => 'SMS' });
+	log_info("authID obtained: $authID", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	# 6: Send SMS
-	log_info("Sending SMS payload", { -custom_tag => 'SMS' });
+	log_info("Sending SMS payload", {-no_script_name => 1, -custom_tag => 'SMS' });
 	my $csrf = sprintf("%06d", int(rand(999_999)));
 	$ua->default_header("X-Csrf-Token" => $csrf);
 
@@ -173,7 +173,7 @@ sub send_sms {
 		phone_list => $payload_phone,
 		authID     => $authID
 	};
-	log_debug("SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }), { -custom_tag => 'SMS' });
+	log_debug("SMS payload: " . to_json($payload, { utf8 => 0, pretty => 0 }), {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	my $json = encode_json($payload);
 
@@ -186,16 +186,16 @@ sub send_sms {
 	);
 
 	unless ($sms->is_success) {
-		log_warn("SMS POST failed: " . $sms->status_line, { -custom_tag => 'SMS' });
-		log_warn("Response content: " . $sms->decoded_content, { -custom_tag => 'SMS' });
+		log_warn("SMS POST failed: " . $sms->status_line, {-no_script_name => 1, -custom_tag => 'SMS' });
+		log_warn("Response content: " . $sms->decoded_content, {-no_script_name => 1, -custom_tag => 'SMS' });
 		$sms_busy = 0;
-		log_die("SMS HTTP failed: " . $sms->code, { -custom_tag => 'SMS' });
+		log_die("SMS HTTP failed: " . $sms->code, {-no_script_name => 1, -custom_tag => 'SMS' });
 	}
 
 	my $resp = $sms->decoded_content;
 
 	# 7: Logout
-	log_info("Logging out session $qsess", { -custom_tag => 'SMS' });
+	log_info("Logging out session $qsess", {-no_script_name => 1, -custom_tag => 'SMS' });
 	my $logout_json = qq({"logout":"$qsess"});
 	my $logout = $ua->post(
 		"http://$router/login.cgi",
@@ -204,7 +204,7 @@ sub send_sms {
 		Referer      => "http://$router/controlPanel.html",
 		Origin       => "http://$router"
 	);
-	log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, { -custom_tag => 'SMS' });
+	log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	# 8: Verify SMS sent successfully
 	$sms_busy = 0;
@@ -217,13 +217,13 @@ sub send_sms {
 		);
 		return 1;
 	} else {
-		log_warn("SMS gateway returned unexpected response:\n$resp", { -custom_tag => 'SMS' });
+		log_warn("SMS gateway returned unexpected response:\n$resp", {-no_script_name => 1, -custom_tag => 'SMS' });
 		eval {
 			my $decoded = JSON->new->utf8->pretty->canonical->decode($resp);
-			log_debug(JSON->new->utf8->pretty->canonical->encode($decoded), { -custom_tag => 'SMS' });
-		} or log_warn("Response was not valid JSON", { -custom_tag => 'SMS' });
+			log_debug(JSON->new->utf8->pretty->canonical->encode($decoded), {-no_script_name => 1, -custom_tag => 'SMS' });
+		} or log_warn("Response was not valid JSON", {-no_script_name => 1, -custom_tag => 'SMS' });
 
-		log_die("SMS gateway error: $resp", { -custom_tag => 'SMS' });
+		log_die("SMS gateway error: $resp", {-no_script_name => 1, -custom_tag => 'SMS' });
 	}
 }
 
@@ -235,13 +235,13 @@ sub read_sms {
 		$sms_busy = 1;
 
 		# 1: Initialize session
-		log_info("Initializing session with router $router", { -custom_tag => 'SMS' });
+		log_info("Initializing session with router $router", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $init = $ua->get("http://$router/index.html");
-		log_die("Failed to init session", { -custom_tag => 'SMS' }) unless $init->is_success;
-		log_info("Session initialized successfully", { -custom_tag => 'SMS' });
+		log_die("Failed to init session", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $init->is_success;
+		log_info("Session initialized successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 		# 2: Login to router
-		log_info("Logging in as $username", { -custom_tag => 'SMS' });
+		log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $md5pass = md5_hex($password);
 		my $login = $ua->post(
 			"http://$router/login.cgi",
@@ -250,16 +250,16 @@ sub read_sms {
 			Referer      => "http://$router/index.html",
 			Origin       => "http://$router"
 		);
-		log_die("Login failed", { -custom_tag => 'SMS' }) unless $login->is_success;
+		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $login->is_success;
 
 		my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-		log_die("qSessId not found", { -custom_tag => 'SMS' }) unless $qsess;
-		log_info("qSessId obtained: $qsess", { -custom_tag => 'SMS' });
+		log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $qsess;
+		log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS' });
 		$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 		$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
 		# 3: Get SMS from inbox
-		log_info("Fetching inbox messages", { -custom_tag => 'SMS' });
+		log_info("Fetching inbox messages", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $timestamp = int(time() * 1000);
 		my $url = "http://$router/data.ria?CfgType=sms_action&cont=inbox&index=0&_=$timestamp";
 
@@ -268,18 +268,18 @@ sub read_sms {
 			Referer            => "http://$router/controlPanel.html",
 			'X-Requested-With' => 'XMLHttpRequest'
 		);
-		log_die("SMS read request failed: " . $resp->status_line, { -custom_tag => 'SMS' }) unless $resp->is_success;
+		log_die("SMS read request failed: " . $resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS' }) unless $resp->is_success;
 
 		# 4: Parse JSON response
 		my $content = $resp->decoded_content;
 		my $sms_list;
 		eval { $sms_list = JSON->new->utf8->decode($content) };
 		if ($@) {
-			log_warn("Failed to decode SMS JSON: $@\n$content", { -custom_tag => 'SMS' });
+			log_warn("Failed to decode SMS JSON: $@\n$content", {-no_script_name => 1, -custom_tag => 'SMS' });
 			$sms_busy = 0;
 			return;
 		}
-		log_info("Received " . ($sms_list->{total} || 0) . " messages", { -custom_tag => 'SMS' });
+		log_info("Received " . ($sms_list->{total} || 0) . " messages", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 		my $incoming_dir = "/var/spool/sms/incoming";
 		make_path($incoming_dir) unless -d $incoming_dir;
@@ -293,12 +293,12 @@ sub read_sms {
 			my $text  = $msg->{msg}   || '';
 			my $read  = $msg->{read}  || 0;
 
-			log_info("Processing message $key", { -custom_tag => 'SMS' });
-			log_info("\tFrom: $phone", { -custom_tag => 'SMS' });
-			log_info("\tDate: $date", { -custom_tag => 'SMS' });
-			log_info("\tTag:  $tag", { -custom_tag => 'SMS' });
-			log_info("\tRead: $read", { -custom_tag => 'SMS' });
-			log_info("\tMessage: $text", { -custom_tag => 'SMS' });
+			log_info("Processing message $key", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tFrom: $phone", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tDate: $date", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tTag:  $tag", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tRead: $read", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tMessage: $text", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 			# 5a: Fetch new authID
 			my $auth_resp = $ua->get(
@@ -306,16 +306,16 @@ sub read_sms {
 				Referer => "http://$router/controlPanel.html"
 			);
 			unless ($auth_resp->is_success) {
-				log_warn("Failed to get authID for tag=$tag", { -custom_tag => 'SMS' });
+				log_warn("Failed to get authID for tag=$tag", {-no_script_name => 1, -custom_tag => 'SMS' });
 				next;
 			}
 			my $authID = $auth_resp->decoded_content;
 			$authID =~ s/\s+//g;
 			unless ($authID) {
-				log_warn("Empty authID for tag=$tag", { -custom_tag => 'SMS' });
+				log_warn("Empty authID for tag=$tag", {-no_script_name => 1, -custom_tag => 'SMS' });
 				next;
 			}
-			log_info("authID obtained for tag=$tag: $authID", { -custom_tag => 'SMS' });
+			log_info("authID obtained for tag=$tag: $authID", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 			# 5b: Generate CSRF token
 			my $csrf = sprintf("%06d", int(rand(999_999)));
@@ -332,10 +332,10 @@ sub read_sms {
 				'X-Requested-With'=> 'XMLHttpRequest'
 			);
 			unless ($del->is_success) {
-				log_warn("DELETE FAILED for tag=$tag, status=" . $del->status_line, { -custom_tag => 'SMS' });
+				log_warn("DELETE FAILED for tag=$tag, status=" . $del->status_line, {-no_script_name => 1, -custom_tag => 'SMS' });
 				next;
 			}
-			log_info("Deleted message tag=$tag successfully", { -custom_tag => 'SMS' });
+			log_info("Deleted message tag=$tag successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 			# 5d: Save to spool
 			save_sms_to_file(
@@ -349,7 +349,7 @@ sub read_sms {
 		}
 
 		# 6: Logout
-		log_info("Logging out session $qsess", { -custom_tag => 'SMS' });
+		log_info("Logging out session $qsess", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $logout_json = qq({"logout":"$qsess"});
 		my $logout = $ua->post(
 			"http://$router/login.cgi",
@@ -358,13 +358,13 @@ sub read_sms {
 			Referer      => "http://$router/controlPanel.html",
 			Origin       => "http://$router"
 		);
-		log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, { -custom_tag => 'SMS' });
+		log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS' });
 
 		$sms_busy = 0;
 		return $sms_list;
 	};
 	if ($@) {
-		log_warn("Error in read_sms: $@", { -custom_tag => 'SMS' });
+		log_warn("Error in read_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS' });
 		$sms_busy = 0;
 	}
 }
@@ -380,7 +380,7 @@ sub forward_sms_email {
 
 		# Encode UTF-8 flagged string to bytes
 		my $utf8_text = encode('UTF-8', $text)
-			or log_die("UTF-8 encode failed", { -custom_tag => 'SMTP' });
+			or log_die("UTF-8 encode failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 		# Create proper Email::MIME object
 		my $email = Email::MIME->create(
@@ -391,7 +391,7 @@ sub forward_sms_email {
 			],
 			attributes => { encoding => 'quoted-printable', charset => 'UTF-8' },
 			body       => $utf8_text,
-		) or log_die("Failed to create Email::MIME object", { -custom_tag => 'SMTP' });
+		) or log_die("Failed to create Email::MIME object", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 		# Loop over each recipient and send individually
 		foreach my $recipient (@to_list) {
@@ -405,7 +405,7 @@ sub forward_sms_email {
 			);
 
 			unless ($smtp) {
-				log_warn("SMTP connect failed for $recipient", { -custom_tag => 'SMTP' });
+				log_warn("SMTP connect failed for $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
 				next;
 			}
 
@@ -415,38 +415,38 @@ sub forward_sms_email {
 			# Authenticate if credentials provided
 			if ($smtp_user && $smtp_pass) {
 				unless ($smtp->auth($smtp_user, $smtp_pass)) {
-					log_warn("SMTP auth failed for $recipient", { -custom_tag => 'SMTP' });
+					log_warn("SMTP auth failed for $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
 					$smtp->quit;
 					next;
 				}
 			} else {
-				log_warn("SMTP credentials not provided, skipping auth", { -custom_tag => 'SMTP' });
+				log_warn("SMTP credentials not provided, skipping auth", {-no_script_name => 1, -custom_tag => 'SMTP' });
 			}
 
 			# Set sender and recipient
 			$smtp->mail($smtp_user || $from_email)
-				or log_die("SMTP MAIL FROM failed", { -custom_tag => 'SMTP' });
+				or log_die("SMTP MAIL FROM failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 			$smtp->to($recipient)
-				or log_die("SMTP RCPT TO failed for $recipient", { -custom_tag => 'SMTP' });
+				or log_die("SMTP RCPT TO failed for $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 			$smtp->data()
-				or log_die("SMTP DATA failed", { -custom_tag => 'SMTP' });
+				or log_die("SMTP DATA failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 			$smtp->datasend($email->as_string)
-				or log_die("SMTP DATASEND failed", { -custom_tag => 'SMTP' });
+				or log_die("SMTP DATASEND failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 			$smtp->dataend()
-				or log_die("SMTP DATAEND failed", { -custom_tag => 'SMTP' });
+				or log_die("SMTP DATAEND failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 			# Close SMTP session
 			$smtp->quit();
 
-			log_info("Forwarded SMS from $phone to: $recipient", { -custom_tag => 'SMTP' });
+			log_info("Forwarded SMS from $phone to: $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
 		}
 
 		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$text} = 1;
 	};
 
-	log_warn("Failed to send email for SMS from $phone: $@", { -custom_tag => 'SMTP' }) if $@;
+	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP' }) if $@;
 }
 
 # --- Background thread to read SMS ---
@@ -463,13 +463,13 @@ my $socket = IO::Socket::INET->new(
 	Listen    => 5,
 	Proto     => 'tcp',
 	Reuse     => 1,
-) or log_die("Unable to bind port 25: $!", { -custom_tag => 'SMTP' });
+) or log_die("Unable to bind port 25: $!", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
-log_info("SMS Gateway running on port 25...", { -custom_tag => 'SMTP' });
+log_info("SMS Gateway running on port 25...", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 # Main loop: accept SMTP clients
 while (my $client = $socket->accept()) {
-	log_info("Accepted connection from " . $client->peerhost . ":" . $client->peerport, { -custom_tag => 'SMTP' });
+	log_info("Accepted connection from " . $client->peerhost . ":" . $client->peerport, {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 	my $smtp = Net::Server::Mail::SMTP->new(socket => $client);
 
@@ -477,7 +477,7 @@ while (my $client = $socket->accept()) {
 		my ($session, $rcpt) = @_;
 		$rcpt =~ s/\D//g;
 		$session->{_sms_to} = $rcpt;
-		log_info("RCPT TO: $rcpt", { -custom_tag => 'SMTP' });
+		log_info("RCPT TO: $rcpt", {-no_script_name => 1, -custom_tag => 'SMTP' });
 		return 1;
 	});
 
@@ -490,14 +490,14 @@ while (my $client = $socket->accept()) {
 		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
 		my $dest    = $session->{_sms_to};
 
-		log_info("Sending SMS to $dest ...", { -custom_tag => 'SMS' });
+		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $ok = eval { send_sms($dest, $message) };
 
 		if ($ok) {
-			log_info("✔ SMS to $dest sent successfully", { -custom_tag => 'SMS' });
+			log_info("✔ SMS to $dest sent successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
 			return 1;
 		} else {
-			log_warn("❌ SMS to $dest failed: $@", { -custom_tag => 'SMS' });
+			log_warn("❌ SMS to $dest failed: $@", {-no_script_name => 1, -custom_tag => 'SMS' });
 			$smtp->reply(421, "SMS gateway temporarily down");
 			return 0;
 		}

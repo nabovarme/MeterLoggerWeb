@@ -9,7 +9,7 @@ use Nabovarme::Utils;
 
 # Connect to database
 my $dbh = Nabovarme::Db->my_connect;
-die "DB connection failed" unless $dbh;
+log_die("DB connection failed: $!") unless $dbh;
 
 # Prepare update statement for time_remaining_hours only
 my $update_sth = $dbh->prepare(
@@ -36,10 +36,10 @@ while (my ($serial) = $sth->fetchrow_array) {
 	$update_sth->execute($time_remaining_hours_formatted, $serial);
 
 	# Log update
-	print "Updated meter $serial with time_remaining_hours = " . (defined $time_remaining_hours_formatted ? $time_remaining_hours_formatted : 'NULL') . "\n";
+	log_info("Updated meter $serial with time_remaining_hours = " . (defined $time_remaining_hours_formatted ? $time_remaining_hours_formatted : 'NULL'));
 }
 
-print "All enabled meters updated successfully.\n";
+log_info("All enabled meters updated successfully.");
 
 # Disconnect from database
 $dbh->disconnect;
