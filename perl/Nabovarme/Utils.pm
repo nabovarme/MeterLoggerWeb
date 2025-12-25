@@ -320,38 +320,49 @@ sub log_die {
 
 sub _log_message {
 	my ($fh, $level, $msgs_ref, $opts) = @_;
-	
+
 	my $disable_tag        = $opts->{-no_tag};
 	my $disable_script     = $opts->{-no_script_name};
-	my $custom_tag         = $opts->{-custom_tag};          # e.g. "CUSTOM_TAG"
+	my $custom_tag         = $opts->{-custom_tag};          # e.g. "SMS"
 	my $custom_script_name = $opts->{-custom_script_name};  # e.g. "my_script.pl"
 
-	# Determine module/package name dynamically
-	my $module_name;
-	unless ($disable_tag) {
-		my ($package, $filename, $line) = caller(1);  # caller of log_* function
-		$module_name = $package if ($package && $package ne 'main');
-	}
+	# Determine caller info
+	my ($caller_package, $caller_file, $caller_line) = caller(1);  # caller of log_* function
+	my $module_name = ($caller_package && $caller_package ne 'main') ? $caller_package : undef;
 
-	# Override with custom tag/script name if provided
-	$module_name = $custom_tag if defined $custom_tag;
 	my $script_display = $disable_script ? '' : ($custom_script_name || $script_name);
 
+	# Determine prefix for levels like WARN/DEBUG
 	my $prefix = (!$disable_tag && $level) ? "[$level] " : '';
 
 	foreach my $msg (@$msgs_ref) {
 		my $text = defined $msg ? $msg : '';
 		chomp($text);
 
-		if ($module_name && !$disable_script) {
-			print $fh "[$script_display->$module_name] $prefix$text\n";
+		# Determine output style
+		my $line;
+		if (defined $custom_tag) {
+			# Custom tag is always separate brackets
+			my @parts;
+			push @parts, "[$script_display]" if $script_display;
+			push @parts, "[$custom_tag]";
+			my $line_prefix = join(' ', @parts);
+			$line = "$line_prefix $prefix$text";
+		} elsif ($module_name && $caller_package eq $module_name && !$disable_script) {
+			# Called from another function in the same module → arrow style
+			$line = "[$script_display->$module_name] $prefix$text";
+		} elsif ($module_name && !$disable_script) {
+			# External module → separate brackets
+			$line = "[$script_display] [$module_name] $prefix$text";
 		} elsif ($module_name) {
-			print $fh "[$module_name] $prefix$text\n";
+			$line = "[$module_name] $prefix$text";
 		} elsif (!$disable_script) {
-			print $fh "[$script_display] $prefix$text\n";
+			$line = "[$script_display] $prefix$text";
 		} else {
-			print $fh "$prefix$text\n";
+			$line = "$prefix$text";
 		}
+
+		print $fh "$line\n";
 	}
 }
 
