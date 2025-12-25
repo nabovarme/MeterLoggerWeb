@@ -273,7 +273,7 @@ sub v2_mqtt_status_handler {
 						valve_status = $quoted_valve_status, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
-		log_warn('valve_status changed' . " " . $meter_serial . " " . $valve_status, {-no_script_name => 1});
+		log_info($topic . "\t" . $valve_status, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
