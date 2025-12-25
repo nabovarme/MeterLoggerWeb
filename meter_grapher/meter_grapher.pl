@@ -464,7 +464,7 @@ sub v2_mqtt_reset_reason_handler {
 						reset_reason = $quoted_reset_reason, \
 						last_updated = $quoted_unix_time \
 						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
-		log_info($topic . "\t" . $sreset_reason, {-no_script_name => 1});
+		log_info($topic . "\t" . $reset_reason, {-no_script_name => 1});
 	}
 	else {
 		# hmac sha256 not ok
