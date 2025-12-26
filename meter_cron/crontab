@@ -6,13 +6,12 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-PERL5LIB=/etc/apache2/perl
 
-*/10 *	* * *	root	killall -HUP update_meters.pl
-57 *	* * *	root	killall -USR1 update_meters.pl
-0 *	* * *	root	killall -USR1 clean_samples_cache.pl
-5 *	* * *	root	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl >> /var/log/cron.log 2>&1
-0 23	* * *	root	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1
-0 5	* * *	root	/etc/apache2/perl/Nabovarme/bin/remove_spikes.pl >> /var/log/cron.log 2>&1 ; /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl >> /var/log/cron.log 2>&1
-* * * * *	root	/etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1
-* * * * *	root	/etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl >> /var/log/cron.log 2>&1
+*/10 *	* * *	root	. /etc/cron_env;	killall -HUP update_meters.pl
+57 *	* * *	root	. /etc/cron_env;	killall -USR1 update_meters.pl
+0 *	* * *	root	. /etc/cron_env;	killall -USR1 clean_samples_cache.pl
+5 *	* * *	root	. /etc/cron_env;	/etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl >> /var/log/cron.log 2>&1
+0 23	* * *	root	. /etc/cron_env;	/etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1
+0 5	* * *	root	. /etc/cron_env;	/etc/apache2/perl/Nabovarme/bin/remove_spikes.pl >> /var/log/cron.log 2>&1 ; /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl >> /var/log/cron.log 2>&1
+* * * * *	root	. /etc/cron_env;	/etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1
+* * * * *	root	. /etc/cron_env;	/etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl >> /var/log/cron.log 2>&1
