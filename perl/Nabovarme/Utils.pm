@@ -203,7 +203,7 @@ sub estimate_from_yearly_history {
 
 	unless (defined $earliest_unix_time) {
 		log_debug("$serial: No earliest sample found, yearly history cannot be used");
-		return (undef, undef);
+		return undef;
 	}
 
 	# --- Determine how many years of data exist ---
@@ -213,7 +213,7 @@ sub estimate_from_yearly_history {
 
 	log_debug("$serial: Earliest sample year=$earliest_year, current year=$current_year, years_back=$years_back");
 
-	return (undef, undef) if $years_back < 1;
+	return undef if $years_back < 1;
 
 	# ============================================================
 	# --- Compute overall average kWh per hour from previous years ---
@@ -272,7 +272,7 @@ sub estimate_from_yearly_history {
 
 	unless (@avg_kwh_per_hour) {
 		log_debug("$serial: No yearly historical averages could be computed");
-		return (undef, undef);
+		return undef;
 	}
 
 	# --- Compute overall average across years ---
@@ -285,7 +285,7 @@ sub estimate_from_yearly_history {
 	log_debug("$serial: Yearly historical estimate: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
-	return ($energy_last_day, $avg_energy_last_day);
+	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
 
 # ============================================================
@@ -371,22 +371,20 @@ sub estimate_from_recent_samples {
 	log_debug("$serial: Previous energy used=" . sprintf("%.2f", $prev_energy));
 
 	# --- If we need to fallback, return undef to let main function use fallback method ---
-	if ($use_fallback) {
-		return (undef, undef);
-	}
+	return undef if $use_fallback;
 
 	# --- Compute energy and average over the period ---
 	my $energy_last_day = $latest_energy - $prev_energy;
 	my $hours_diff      = ($latest_unix_time - $recent_unix_time) / 3600;
 	if ($hours_diff <= 0) {
 		log_debug("$serial: Hours difference <= 0, cannot compute average => using fallback");
-		return (undef, undef);
+		return undef;
 	}
 
 	my $avg_energy_last_day = $energy_last_day / $hours_diff;
 	log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
-	return ($energy_last_day, $avg_energy_last_day);
+	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
 
 # ============================================================
@@ -413,7 +411,7 @@ sub estimate_from_daily_fallback {
 	log_debug("$serial: Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) .
 		" from $years_count previous years");
 
-	return (undef, undef) if $avg_daily_usage <= 0;
+	return undef if $avg_daily_usage <= 0;
 
 	my $energy_last_day     = $avg_daily_usage;
 	my $avg_energy_last_day = $avg_daily_usage;
@@ -421,7 +419,7 @@ sub estimate_from_daily_fallback {
 	log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
-	return ($energy_last_day, $avg_energy_last_day);
+	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
 
 # ----------------------------
