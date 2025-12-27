@@ -125,7 +125,7 @@ sub estimate_remaining_energy {
 	# Determine how many full years of data exist for this meter
 	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
 		SELECT MIN(unix_time)
-		FROM samples_cache
+		FROM samples_daily
 		WHERE serial = ?
 	], undef, $serial);
 
@@ -145,7 +145,7 @@ sub estimate_remaining_energy {
 
 		my ($start_energy, $start_time) = $dbh->selectrow_array(qq[
 			SELECT energy, unix_time
-			FROM samples_cache
+			FROM samples_daily
 			WHERE serial = ?
 			  AND unix_time >= UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL ? YEAR))
 			ORDER BY unix_time ASC
@@ -157,7 +157,7 @@ sub estimate_remaining_energy {
 
 		my ($end_time) = $dbh->selectrow_array(qq[
 			SELECT unix_time
-			FROM samples_cache
+			FROM samples_daily
 			WHERE serial = ?
 			  AND energy >= ?
 			  AND unix_time >= ?
