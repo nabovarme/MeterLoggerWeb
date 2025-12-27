@@ -155,15 +155,33 @@ sub estimate_remaining_energy {
 
 	# Method 1: yearly historical
 	my $res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
+	if (defined $res) {
+		log_debug("$serial: Yearly history returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
+			", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+	} else {
+		log_debug("$serial: Yearly history returned undef");
+	}
 
 	# Method 2: recent samples
 	unless (defined $res) {
 		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
+		if (defined $res) {
+			log_debug("$serial: Recent samples returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
+				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+		} else {
+			log_debug("$serial: Recent samples returned undef");
+		}
 	}
 
 	# Method 3: fallback daily
 	unless (defined $res) {
 		$res = estimate_from_daily_fallback($dbh, $serial);
+		if (defined $res) {
+			log_debug("$serial: Fallback daily returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
+				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+		} else {
+			log_debug("$serial: Fallback daily returned undef");
+		}
 	}
 
 	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
