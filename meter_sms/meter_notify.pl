@@ -96,8 +96,8 @@ while (1) {
 		# Close notice: transition state from 1 to 2 or top-up: state 1 → 0
 		elsif ($d->{notification_state} == 1) {
 
-			# --- Open notice after top-up ---
-			if (defined $energy_time_remaining && $energy_remaining > $d->{notification_sent_at}) {
+			# --- Open notice after top-up (always send if energy increased) ---
+			if (defined $energy_time_remaining && $energy_remaining > ($d->{notification_sent_at} || 0)) {
 
 				# Debug log for sending open notice after top-up
 				log_debug(
