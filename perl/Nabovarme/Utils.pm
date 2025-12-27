@@ -119,8 +119,7 @@ sub estimate_remaining_energy {
 	# ============================================================
 
 	# Use current paid_kwh as energy to consume
-	my $energy_available = $paid_kwh;
-	log_debug("$serial: yearly historical: energy_available set to paid_kwh=" . sprintf("%.2f", $energy_available));
+	log_debug("$serial: yearly historical: energy_available set to paid_kwh=" . sprintf("%.2f", $paid_kwh));
 
 	# Determine how many full years of data exist for this meter
 	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
@@ -153,34 +152,18 @@ sub estimate_remaining_energy {
 			ORDER BY unix_time ASC
 			LIMIT 1
 		]);
-		log_debug("$serial: " . qq[
-			SELECT energy, unix_time
-			FROM samples_daily
-			WHERE serial = $quoted_serial
-			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
-			ORDER BY unix_time ASC
-			LIMIT 1
-		]);
 		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf("%.2f", $start_energy) : 'undef') .
 			", start_time=" . (defined $start_time ? $start_time : 'undef'));
 
 		next unless defined $start_energy && defined $start_time;
 
-		# End sample: when $energy_to_measure is consumed
-		# Use total energy available or fallback to realistic consumption for that year
-		my $energy_to_measure = $paid_kwh; # could be adjusted to historical fraction if needed
-		my $target_energy = $start_energy + $energy_to_measure;
+		# End sample: when remaining energy is consumed
+		my $energy_available = $paid_kwh - ($latest_energy - $start_energy);
+		$energy_available = 0 if $energy_available < 0; # prevent negative
+
+		my $target_energy = $start_energy + $energy_available;
 
 		my ($end_time) = $dbh->selectrow_array(qq[
-			SELECT unix_time
-			FROM samples_daily
-			WHERE serial = $quoted_serial
-			  AND energy >= $target_energy
-			  AND unix_time >= $start_time
-			ORDER BY unix_time ASC
-			LIMIT 1
-		]);
-		log_debug("$serial: " . qq[
 			SELECT unix_time
 			FROM samples_daily
 			WHERE serial = $quoted_serial
@@ -201,6 +184,7 @@ sub estimate_remaining_energy {
 		push @durations_sec, $duration_sec;
 		log_debug("$serial: Year offset=$year_offset, duration_sec=" . $duration_sec . " seconds");
 	}
+
 
 	if (@durations_sec) {
 		my $sum = 0;
