@@ -139,6 +139,7 @@ sub estimate_remaining_energy {
 	}
 
 	my @durations_sec;
+	my @avg_kwh_per_hour;
 
 	# --- Loop over previous years to measure time to consume paid kWh ---
 	for my $year_offset (1 .. $years_back) {
@@ -181,25 +182,39 @@ sub estimate_remaining_energy {
 			log_debug("$serial: Year offset=$year_offset, duration_sec <= 0, skipping");
 			next;
 		}
+
 		push @durations_sec, $duration_sec;
-		log_debug("$serial: Year offset=$year_offset, duration_sec=" . $duration_sec . " seconds");
+
+		# --- Calculate avg kWh per hour for this year ---
+		my $duration_hours = $duration_sec / 3600;
+		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_available / $duration_hours : 0;
+		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_per_hour[-1]));
 	}
 
+	# --- Compute overall average kWh per hour from previous years ---
+	if (@avg_kwh_per_hour) {
+		my $sum_kwh_hour = 0;
+		$sum_kwh_hour += $_ for @avg_kwh_per_hour;
+		my $avg_energy_last_day = $sum_kwh_hour / @avg_kwh_per_hour;
 
-	if (@durations_sec) {
-		my $sum = 0;
-		$sum += $_ for @durations_sec;
+		my $avg_duration_sec     = 0;
+		$avg_duration_sec += $_ for @durations_sec;
+		$avg_duration_sec /= @durations_sec if @durations_sec;
 
-		my $avg_duration_sec     = $sum / @durations_sec;
 		my $time_remaining_hours = $avg_duration_sec / 3600;
 
-		log_debug("$serial: yearly historical: durations_sec=" . join(", ", @durations_sec));
-		log_debug("$serial: yearly historical: avg_duration_sec=" . sprintf("%.2f", $avg_duration_sec) .
+		# Set energy_last_day to avg_energy_last_day for this method
+		my $energy_last_day = $avg_energy_last_day;
+
+		log_debug("$serial: yearly historical: avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day) .
+			", energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 			", time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours)
 		);
 
 		return {
 			time_remaining_hours => sprintf('%.2f', $time_remaining_hours),
+			avg_energy_last_day  => sprintf('%.2f', $avg_energy_last_day),
+			energy_last_day      => sprintf('%.2f', $energy_last_day),
 		};
 	}
 
