@@ -63,7 +63,7 @@ while (1) {
 		my $update_needed = 0;
 
 		# --- Notifications ---
-		my $close_warning_threshold = $d->{close_notification_time} ? $d->{close_notification_time} / 3600 : CLOSE_WARNING_TIME;
+		my $close_warning_threshold = $d->{close_notification_time} ? $d->{close_notification_time} / 3600 : $CLOSE_WARNING_TIME;
 
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
