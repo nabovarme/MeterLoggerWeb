@@ -111,20 +111,24 @@ sub estimate_remaining_energy {
 	# --- Try estimation methods in order using unified interface ---
 	# ============================================================
 
-	my ($energy_last_day, $avg_energy_last_day);
+	my $res;
 
-	for my $method (
-		\&estimate_from_yearly_history,
-		\&estimate_from_recent_samples,
-		\&estimate_from_daily_fallback
-	) {
-		($energy_last_day, $avg_energy_last_day) 
-			= $method->($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
-		last if defined $avg_energy_last_day;
-	}
+	# Method 1: yearly historical
+	$res = estimate_from_yearly_history($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh);
 
-	$energy_last_day     ||= 0;
-	$avg_energy_last_day ||= 0;
+	# Method 2: recent samples
+	$res = estimate_from_recent_samples($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time)
+		unless defined $res;
+
+	# Method 3: fallback daily
+	$res = estimate_from_daily_fallback($dbh, $quoted_serial)
+		unless defined $res;
+
+	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
+	my $avg_energy_last_day = $res ? $res->{avg_energy_last_day} : 0;
+
+	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
+		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	# ============================================================
 	# --- Calculate remaining kWh and time ---
@@ -133,25 +137,37 @@ sub estimate_remaining_energy {
 	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
 	$kwh_remaining = 0 if $kwh_remaining < 0;
 
+	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
+
 	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
+	log_debug("$serial: Meter closed=" . $is_closed);
 
 	my $time_remaining_hours;
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
 		$time_remaining_hours = undef;
+		log_debug("$serial: SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
 	}
 	elsif ($is_closed) {
 		$time_remaining_hours = 0;
+		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=0.00");
 	}
 	elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
+		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
 	else {
 		$time_remaining_hours = undef;
+		log_debug("$serial: avg_energy_last_day=0 => time_remaining_hours=∞");
 	}
 
 	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
 		? '∞'
 		: rounded_duration($time_remaining_hours * 3600);
+	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
+
+	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
+		", kwh_remaining=" . sprintf("%.2f", $kwh_remaining) .
+		", time_remaining_hours_string=" . $time_remaining_hours_string);
 
 	# ============================================================
 	# --- Final formatting ---
