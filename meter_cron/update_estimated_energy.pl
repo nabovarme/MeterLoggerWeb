@@ -28,7 +28,7 @@ while (my ($serial) = $sth->fetchrow_array) {
 	my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
 
 	my $time_remaining_hours = $est->{time_remaining_hours};
-	my $method_used           = $est->{method} || 'unknown';
+	my $method_used           = $est->{method} || 'none';
 	my $time_remaining_hours_formatted = defined $time_remaining_hours
 		? sprintf("%.2f", $time_remaining_hours)
 		: undef;
