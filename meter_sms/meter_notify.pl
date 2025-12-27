@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+use utf8;
 use Data::Dumper;
 use DBI;
 
@@ -10,7 +11,10 @@ use Nabovarme::Utils;
 
 $| = 1;  # Autoflush STDOUT
 
-log_debug("Starting debug mode...");
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
+
+log_warn("Starting debug mode...");
 
 # --- Read messages from environment variables ---
 my $UP_MESSAGE             = $ENV{UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
@@ -70,7 +74,7 @@ while (1) {
 			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
 
 				# Debug log for sending close warning notification
-				log_debug(
+				log_warn(
 					"Serial: $d->{serial}",
 					"State: 0 → 1",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -100,7 +104,7 @@ while (1) {
 			if (defined $energy_time_remaining && $energy_remaining > ($d->{notification_sent_at} || 0)) {
 
 				# Debug log for sending open notice after top-up
-				log_debug(
+				log_warn(
 					"Serial: $d->{serial}",
 					"State: 1 → 0 (top-up)",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -128,7 +132,7 @@ while (1) {
 			elsif ($energy_remaining <= 0) {
 
 				# Debug log for sending close notice
-				log_debug(
+				log_warn(
 					"Serial: $d->{serial}",
 					"State: 1 → 2",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -157,7 +161,7 @@ while (1) {
 			if (defined $energy_time_remaining && $energy_remaining > 0) {
 
 				# Debug log for sending open notice
-				log_debug(
+				log_warn(
 					"Serial: $d->{serial}",
 					"State: 2 → 0",
 					"Energy remaining: $energy_remaining_fmt kWh",
@@ -181,8 +185,8 @@ while (1) {
 			}
 		}
 		# --- Always update notification_sent_at if energy increased ---
-		if (!defined $new_notification_sent_at || $energy_remaining > $new_notification_sent_at) {
-			$new_notification_sent_at = $energy_remaining;
+		if (!defined $new_notification_sent_at || ($est->{paid_kwh} || 0) > ($d->{paid_kwh} || 0)) {
+			$new_notification_sent_at = $est->{paid_kwh} || 0;
 			$update_needed = 1;
 		}
 		
