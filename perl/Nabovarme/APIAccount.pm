@@ -41,7 +41,6 @@ sub handler {
 		? sprintf("%.0f", $remaining->{time_remaining_hours}) + 0 
 		: undef;
 
-	my $time_remaining_hours_string = $remaining->{time_remaining_hours_string};
 	my $energy_last_day = defined $remaining->{energy_last_day} 
 		? sprintf("%.0f", $remaining->{energy_last_day}) + 0 
 		: undef;
@@ -49,8 +48,6 @@ sub handler {
 	my $avg_energy_last_day = defined $remaining->{avg_energy_last_day} 
 		? sprintf("%.2f", $remaining->{avg_energy_last_day}) + 0 
 		: undef;
-
-	my $method = $remaining->{method};
 
 	# --- Fetch latest sample data ---
 	my $sth = $dbh->prepare(qq[
@@ -87,9 +84,10 @@ sub handler {
 
 	# --- Construct response ---
 	my $response = {
+		method                      => $remaining->{method},
 		kwh_remaining               => $kwh_remaining,
 		time_remaining_hours        => $time_remaining_hours,
-		time_remaining_hours_string => $time_remaining_hours_string,
+		time_remaining_hours_string => $remaining->{time_remaining_hours_string},
 		energy_last_day             => $energy_last_day,
 		avg_energy_last_day         => $avg_energy_last_day,
 		last_hours                  => $last_hours,
