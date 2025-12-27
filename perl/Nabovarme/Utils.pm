@@ -153,9 +153,18 @@ sub estimate_remaining_energy {
 			ORDER BY unix_time ASC
 			LIMIT 1
 		]);
+		log_debug("$serial: " . qq[
+			SELECT energy, unix_time
+			FROM samples_daily
+			WHERE serial = $quoted_serial
+			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
+			ORDER BY unix_time ASC
+			LIMIT 1
+		]);
+		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf("%.2f", $start_energy) : 'undef') .
+			", start_time=" . (defined $start_time ? $start_time : 'undef'));
 
 		next unless defined $start_energy && defined $start_time;
-		log_debug("$serial: Year offset=$year_offset, start_energy=" . sprintf("%.2f", $start_energy) . ", start_time=$start_time");
 
 		# End sample: when $energy_to_measure is consumed
 		# Use total energy available or fallback to realistic consumption for that year
@@ -171,9 +180,18 @@ sub estimate_remaining_energy {
 			ORDER BY unix_time ASC
 			LIMIT 1
 		]);
+		log_debug("$serial: " . qq[
+			SELECT unix_time
+			FROM samples_daily
+			WHERE serial = $quoted_serial
+			  AND energy >= $target_energy
+			  AND unix_time >= $start_time
+			ORDER BY unix_time ASC
+			LIMIT 1
+		]);
+		log_debug("$serial: Year offset=$year_offset, end_time=" . (defined $end_time ? $end_time : 'undef'));
 
 		next unless defined $end_time;
-		log_debug("$serial: Year offset=$year_offset, end_time=$end_time");
 
 		my $duration_sec = $end_time - $start_time;
 		if ($duration_sec <= 0) {
