@@ -210,8 +210,11 @@ function updateLastReadingStats() {
 
 function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
+		// Round kwh_remaining to the nearest integer
+		const kwhRemainingInt = Math.round(accountData.kwh_remaining);
+
 		document.getElementById("kwh_remaining").innerHTML =
-			normalizeAmount(accountData.kwh_remaining) + " kWh remaining, " +
+			normalizeAmount(kwhRemainingInt) + " kWh remaining, " +
 			accountData.time_remaining_hours_string + " at " +
 			accountData.avg_energy_last_day + " kW/h";
 	}
