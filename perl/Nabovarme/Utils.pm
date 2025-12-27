@@ -124,8 +124,8 @@ sub estimate_remaining_energy {
 		SELECT setup_value
 		FROM meters
 		WHERE serial = $quoted_serial
-	]) or log_die("Failed to prepare statement for setup_value: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for setup_value: $DBI::errstr");
+	]) or log_die("$serial: Failed to prepare statement for setup_value: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for setup_value: $DBI::errstr");
 	my $setup_value = $sth->fetchrow_array;
 	$setup_value ||= 0;
 
@@ -134,8 +134,8 @@ sub estimate_remaining_energy {
 		SELECT SUM(amount / price)
 		FROM accounts
 		WHERE serial = $quoted_serial
-	]) or log_die("Failed to prepare statement for paid_kwh: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for paid_kwh: $DBI::errstr");
+	]) or log_die("$serial: Failed to prepare statement for paid_kwh: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for paid_kwh: $DBI::errstr");
 	my $paid_kwh = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
 
@@ -232,15 +232,18 @@ sub estimate_remaining_energy {
 sub estimate_from_yearly_history {
 	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh) = @_;
 
+	# --- Quote serial for SQL ---
+	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
+
 	my @avg_kwh_per_hour;
 
 	# --- Find earliest sample ---
 	my $sth = $dbh->prepare(qq[
 		SELECT MIN(unix_time)
 		FROM samples_daily
-		WHERE serial = $serial
-	]) or log_die("Failed to prepare statement for earliest sample: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for earliest sample: $DBI::errstr");
+		WHERE serial = $quoted_serial
+	]) or log_die("$serial: Failed to prepare statement for earliest sample: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for earliest sample: $DBI::errstr");
 	my ($earliest_unix_time) = $sth->fetchrow_array;
 
 	unless (defined $earliest_unix_time) {
@@ -266,12 +269,12 @@ sub estimate_from_yearly_history {
 		$sth = $dbh->prepare(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
-			WHERE serial = $serial
+			WHERE serial = $quoted_serial
 			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
 			ORDER BY unix_time ASC
 			LIMIT 1
-		]) or log_die("Failed to prepare statement for start_energy for year offset $year_offset: $DBI::errstr");
-		$sth->execute() or log_die("Failed to execute statement for start_energy for year offset $year_offset: $DBI::errstr");
+		]) or log_die("$serial: Failed to prepare statement for start_energy for year offset $year_offset: $DBI::errstr");
+		$sth->execute() or log_die("$serial: Failed to execute statement for start_energy for year offset $year_offset: $DBI::errstr");
 		my ($start_energy, $start_time) = $sth->fetchrow_array;
 
 		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf("%.2f", $start_energy) : 'undef') .
@@ -288,13 +291,13 @@ sub estimate_from_yearly_history {
 		$sth = $dbh->prepare(qq[
 			SELECT unix_time
 			FROM samples_daily
-			WHERE serial = $serial
+			WHERE serial = $quoted_serial
 			  AND energy >= $target_energy
 			  AND unix_time >= $start_time
 			ORDER BY unix_time ASC
 			LIMIT 1
-		]) or log_die("Failed to prepare statement for end_time for year offset $year_offset: $DBI::errstr");
-		$sth->execute() or log_die("Failed to execute statement for end_time for year offset $year_offset: $DBI::errstr");
+		]) or log_die("$serial: Failed to prepare statement for end_time for year offset $year_offset: $DBI::errstr");
+		$sth->execute() or log_die("$serial: Failed to execute statement for end_time for year offset $year_offset: $DBI::errstr");
 		my ($end_time) = $sth->fetchrow_array;
 
 		log_debug("$serial: Year offset=$year_offset, end_time=" . (defined $end_time ? $end_time : 'undef'));
@@ -338,26 +341,29 @@ sub estimate_from_yearly_history {
 sub estimate_from_recent_samples {
 	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time) = @_;
 
+	# --- Quote serial for SQL ---
+	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
+
 	# --- Fetch sample from ~24h ago ---
 	my $sth = $dbh->prepare(qq[
 		SELECT energy, `unix_time`
 		FROM samples_cache
-		WHERE serial = $serial
+		WHERE serial = $quoted_serial
 		  AND `unix_time` <= UNIX_TIMESTAMP(NOW()) - 86400
 		ORDER BY `unix_time` DESC
 		LIMIT 1
-	]) or log_die("Failed to prepare statement for recent sample: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for recent sample: $DBI::errstr");
+	]) or log_die("$serial: Failed to prepare statement for recent sample: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for recent sample: $DBI::errstr");
 	my ($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 
 	# --- Determine if we have historical daily samples ---
 	$sth = $dbh->prepare(qq[
 		SELECT COUNT(*)
 		FROM samples_daily
-		WHERE serial = $serial
+		WHERE serial = $quoted_serial
 		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
-	]) or log_die("Failed to prepare statement for historical count: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for historical count: $DBI::errstr");
+	]) or log_die("$serial: Failed to prepare statement for historical count: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for historical count: $DBI::errstr");
 	my ($historical_count) = $sth->fetchrow_array;
 	my $has_historical_data = $historical_count > 0;
 
@@ -368,11 +374,11 @@ sub estimate_from_recent_samples {
 		$sth = $dbh->prepare(qq[
 			SELECT energy, `unix_time`
 			FROM samples_cache
-			WHERE serial = $serial
+			WHERE serial = $quoted_serial
 			ORDER BY `unix_time` ASC
 			LIMIT 1
-		]) or log_die("Failed to prepare statement for fallback sample: $DBI::errstr");
-		$sth->execute() or log_die("Failed to execute statement for fallback sample: $DBI::errstr");
+		]) or log_die("$serial: Failed to prepare statement for fallback sample: $DBI::errstr");
+		$sth->execute() or log_die("$serial: Failed to execute statement for fallback sample: $DBI::errstr");
 		($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 	}
 
@@ -434,18 +440,26 @@ sub estimate_from_recent_samples {
 # Uses historical daily averages if recent samples or yearly history fail
 # Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
 # ============================================================
+# ============================================================
+# 3) FALLBACK DAILY METHOD
+# Uses historical daily averages if recent samples or yearly history fail
+# Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
+# ============================================================
 sub estimate_from_daily_fallback {
 	my ($dbh, $serial) = @_;
+
+	# --- Quote serial for SQL ---
+	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
 
 	# --- Fetch average daily usage from previous years for the same day ---
 	my $sth = $dbh->prepare(qq[
 		SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
 		FROM samples_daily
-		WHERE serial = $serial
+		WHERE serial = $quoted_serial
 		  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL 1 DAY))
 		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
-	]) or log_die("Failed to prepare statement for fallback daily usage: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for fallback daily usage: $DBI::errstr");
+	]) or log_die("$serial: Failed to prepare statement for fallback daily usage: $DBI::errstr");
+	$sth->execute() or log_die("$serial: Failed to execute statement for fallback daily usage: $DBI::errstr");
 
 	my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 	$avg_daily_usage ||= 0;
