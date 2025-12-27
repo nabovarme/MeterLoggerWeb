@@ -68,43 +68,97 @@ sub estimate_remaining_energy {
 
 	my $quoted_serial = $dbh->quote($serial);
 
+	my ($latest_energy, $latest_unix_time, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed, $sw_version);
+
+	# --- Fetch latest sample and valve_status ---
+	my $sth = $dbh->prepare(qq[
+		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
+		FROM meters m
+		LEFT JOIN samples_cache sc ON m.serial = sc.serial
+		WHERE m.serial = $quoted_serial
+		ORDER BY sc.unix_time DESC
+		LIMIT 1
+	]);
+	$sth->execute;
+	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
+	$latest_energy   = 0 unless defined $latest_energy;
+	$latest_unix_time = time() unless defined $latest_unix_time; # fallback
+	$valve_status    ||= '';
+	$valve_installed ||= 0;
+	$sw_version      ||= '';
+
+	log_debug("Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
+		", valve_status=" . $valve_status .
+		", valve_installed=" . $valve_installed .
+		", sw_version=" . $sw_version);
+
+	# --- Fetch meter setup_value ---
+	$sth = $dbh->prepare(qq[
+		SELECT setup_value
+		FROM meters
+		WHERE serial = $quoted_serial
+	]);
+	$sth->execute;
+	($setup_value) = $sth->fetchrow_array;
+	$setup_value ||= 0;
+	log_debug("Setup value=" . sprintf("%.2f", $setup_value));
+
+	# --- Fetch paid kWh from accounts ---
+	$sth = $dbh->prepare(qq[
+		SELECT SUM(amount / price)
+		FROM accounts
+		WHERE serial = $quoted_serial
+	]);
+	$sth->execute;
+	($paid_kwh) = $sth->fetchrow_array;
+	$paid_kwh ||= 0;
+	log_debug("Paid kWh=" . sprintf("%.2f", $paid_kwh));
+
 	# ============================================================
 	# NEW METHOD: historical multi-year / partial average
 	# ============================================================
 
-	my $energy_available = 100;	# same unit as akk_forbrug
-	my $years_back       = 5;
+	# Use current paid_kwh as energy to consume
+	my $energy_available = $paid_kwh;
+
+	# Determine how many full years of data exist for this meter
+	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
+		SELECT MIN(unix_time)
+		FROM samples_cache
+		WHERE serial = ?
+	], undef, $serial);
+
+	my $years_back = 0;
+	if (defined $earliest_unix_time) {
+		my $earliest_year = (localtime($earliest_unix_time))[5] + 1900;
+		my $current_year  = (localtime(time()))[5] + 1900;
+		$years_back = $current_year - $earliest_year;
+	}
+
 	my @durations_sec;
 
 	for my $year_offset (1 .. $years_back) {
 
-		my ($start_accum_energy, $start_time) = $dbh->selectrow_array(qq[
-			SELECT
-				energy, `unix_time` AS start_time
+		my ($start_energy, $start_time) = $dbh->selectrow_array(qq[
+			SELECT energy, unix_time
 			FROM samples_cache
-			 WHERE `serial` = ?
-			   AND `unix_time` >= DATE_SUB(CURDATE(), INTERVAL ? YEAR)
-			 ORDER BY `unix_time` ASC
-			 LIMIT 1],
-			undef, $serial, $year_offset
-		);
+			WHERE serial = ?
+			  AND unix_time >= UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL ? YEAR))
+			ORDER BY unix_time ASC
+			LIMIT 1
+		], undef, $serial, $year_offset);
 
-		next unless defined $start_accum_energy && defined $start_time;
+		next unless defined $start_energy && defined $start_time;
 
 		my ($end_time) = $dbh->selectrow_array(qq[
-			SELECT
-				energy, `unix_time` AS end_time
-			 FROM samples_cache
-			 WHERE `serial` = ?
-			   AND energy >= ?
-			   AND `unix_time` >= ?
-			 ORDER BY `unix_time` ASC
-			 LIMIT 1",
-			undef],
-			$serial,
-			$start_accum_energy + $energy_available,
-			$start_time
-		);
+			SELECT unix_time
+			FROM samples_cache
+			WHERE serial = ?
+			  AND energy >= ?
+			  AND unix_time >= ?
+			ORDER BY unix_time ASC
+			LIMIT 1
+		], undef, $serial, $start_energy + $energy_available, $start_time);
 
 		next unless defined $end_time;
 
@@ -135,34 +189,6 @@ sub estimate_remaining_energy {
 	}
 
 	log_debug("Serial $serial: historical method not usable, falling back to existing logic");
-
-	# ============================================================
-	# EXISTING LOGIC (UNCHANGED)
-	# ============================================================
-
-	my ($latest_energy, $latest_unix_time, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed, $sw_version);
-
-	# --- Fetch latest sample and valve_status ---
-	my $sth = $dbh->prepare(qq[
-		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
-		FROM meters m
-		LEFT JOIN samples_cache sc ON m.serial = sc.serial
-		WHERE m.serial = $quoted_serial
-		ORDER BY sc.unix_time DESC
-		LIMIT 1
-	]);
-	$sth->execute;
-	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
-	$latest_energy   = 0 unless defined $latest_energy;
-	$latest_unix_time = time() unless defined $latest_unix_time; # fallback
-	$valve_status    ||= '';
-	$valve_installed ||= 0;
-	$sw_version      ||= '';
-
-	log_debug("Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
-		", valve_status=" . $valve_status .
-		", valve_installed=" . $valve_installed .
-		", sw_version=" . $sw_version);
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
@@ -203,33 +229,11 @@ sub estimate_remaining_energy {
 	}
 
 	$prev_energy_sample = 0 unless defined $prev_energy_sample;
-	$prev_unix_time     = $latest_unix_time unless defined $prev_unix_time;  # fallback to latest if still undefined
+	$prev_unix_time     = $latest_unix_time unless defined $prev_unix_time;
 
 	log_debug("Serial: $serial\n");
 	log_debug("Sample at start of period: " . $prev_unix_time . " => " . sprintf("%.2f", $prev_energy_sample) . " kWh\n");
 	log_debug("Sample at end of period:   " . $latest_unix_time . " => " . sprintf("%.2f", $latest_energy) . " kWh\n");
-
-	# --- Fetch meter setup_value ---
-	$sth = $dbh->prepare(qq[
-		SELECT setup_value
-		FROM meters
-		WHERE serial = $quoted_serial
-	]);
-	$sth->execute;
-	($setup_value) = $sth->fetchrow_array;
-	$setup_value ||= 0;
-	log_debug("Setup value=" . sprintf("%.2f", $setup_value));
-
-	# --- Fetch paid kWh from accounts ---
-	$sth = $dbh->prepare(qq[
-		SELECT SUM(amount / price)
-		FROM accounts
-		WHERE serial = $quoted_serial
-	]);
-	$sth->execute;
-	($paid_kwh) = $sth->fetchrow_array;
-	$paid_kwh ||= 0;
-	log_debug("Paid kWh=" . sprintf("%.2f", $paid_kwh));
 
 	# --- Decide if we should use fallback or real samples ---
 	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
@@ -264,7 +268,7 @@ sub estimate_remaining_energy {
 
 	if (!$use_fallback) {
 		# Calculate energy consumed since previous sample
-		$energy_last_day     = $latest_energy - $prev_energy;
+		$energy_last_day = $latest_energy - $prev_energy;
 
 		# Calculate hours between previous and latest sample
 		my $hours_diff = ($latest_unix_time - $prev_unix_time) / 3600;
