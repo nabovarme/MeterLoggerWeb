@@ -91,14 +91,53 @@ sub estimate_remaining_energy {
 	my $quoted_serial = $dbh->quote($serial);
 
 	# --- Fetch latest sample and valve_status ---
-	my ($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) 
-		= fetch_latest_sample($dbh, $quoted_serial);
+	my $latest_energy;
+	my $latest_unix_time;
+	my $valve_status;
+	my $valve_installed;
+	my $sw_version;
+
+	my $sth = $dbh->prepare(qq[
+		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
+		FROM meters m
+		LEFT JOIN samples_cache sc ON m.serial = sc.serial
+		WHERE m.serial = $quoted_serial
+		ORDER BY sc.unix_time DESC
+		LIMIT 1
+	]) or log_die("Failed to prepare statement for latest sample: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for latest sample: $DBI::errstr");
+	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
+
+	$latest_energy    = 0 unless defined $latest_energy;
+	$latest_unix_time = time() unless defined $latest_unix_time;
+	$valve_status     ||= '';
+	$valve_installed  ||= 0;
+	$sw_version       ||= '';
+
+	log_debug("$serial: Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
+		", valve_status=" . $valve_status .
+		", valve_installed=" . $valve_installed .
+		", sw_version=" . $sw_version);
 
 	# --- Fetch meter setup_value ---
-	my $setup_value = fetch_setup_value($dbh, $quoted_serial);
+	$sth = $dbh->prepare(qq[
+		SELECT setup_value
+		FROM meters
+		WHERE serial = $quoted_serial
+	]) or log_die("Failed to prepare statement for setup_value: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for setup_value: $DBI::errstr");
+	my $setup_value = $sth->fetchrow_array;
+	$setup_value ||= 0;
 
 	# --- Fetch paid kWh from accounts ---
-	my $paid_kwh = fetch_paid_kwh($dbh, $quoted_serial);
+	$sth = $dbh->prepare(qq[
+		SELECT SUM(amount / price)
+		FROM accounts
+		WHERE serial = $quoted_serial
+	]) or log_die("Failed to prepare statement for paid_kwh: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for paid_kwh: $DBI::errstr");
+	my $paid_kwh = $sth->fetchrow_array;
+	$paid_kwh ||= 0;
 
 	# --- Populate basic results ---
 	$result{latest_energy}   = sprintf("%.2f", $latest_energy);
@@ -107,22 +146,25 @@ sub estimate_remaining_energy {
 	$result{setup_value}     = sprintf("%.2f", $setup_value);
 	$result{paid_kwh}        = sprintf("%.2f", $paid_kwh);
 
+	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
+	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
+
 	# ============================================================
 	# --- Try estimation methods in order using unified interface ---
 	# ============================================================
 
-	my $res;
-
 	# Method 1: yearly historical
-	$res = estimate_from_yearly_history($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh);
+	my $res = estimate_from_yearly_history($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh);
 
 	# Method 2: recent samples
-	$res = estimate_from_recent_samples($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time)
-		unless defined $res;
+	unless (defined $res) {
+		$res = estimate_from_recent_samples($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
+	}
 
 	# Method 3: fallback daily
-	$res = estimate_from_daily_fallback($dbh, $quoted_serial)
-		unless defined $res;
+	unless (defined $res) {
+		$res = estimate_from_daily_fallback($dbh, $quoted_serial);
+	}
 
 	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
 	my $avg_energy_last_day = $res ? $res->{avg_energy_last_day} : 0;
