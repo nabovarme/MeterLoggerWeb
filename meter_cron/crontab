@@ -6,6 +6,7 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+PERL5LIB=/etc/apache2/perl
 
 */10 *	* * *	root	. /etc/cron_env;	killall -HUP update_meters.pl
 57 *	* * *	root	. /etc/cron_env;	killall -USR1 update_meters.pl
