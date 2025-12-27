@@ -83,6 +83,7 @@ sub estimate_remaining_energy {
 		setup_value                 => 0,
 		valve_status                => '',
 		valve_installed             => 0,
+		method                      => undef,
 	);
 
 	# Early return if missing DB handle or serial
@@ -156,6 +157,7 @@ sub estimate_remaining_energy {
 	# Method 1: yearly historical
 	my $res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
 	if (defined $res) {
+		$result{method} = 'yearly_historical';
 		log_debug("$serial: Yearly history returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
 			", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
 	} else {
@@ -166,6 +168,7 @@ sub estimate_remaining_energy {
 	unless (defined $res) {
 		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
 		if (defined $res) {
+			$result{method} = 'recent_samples';
 			log_debug("$serial: Recent samples returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
 				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
 		} else {
@@ -177,6 +180,7 @@ sub estimate_remaining_energy {
 	unless (defined $res) {
 		$res = estimate_from_daily_fallback($dbh, $serial);
 		if (defined $res) {
+			$result{method} = 'fallback_daily';
 			log_debug("$serial: Fallback daily returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
 				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
 		} else {
