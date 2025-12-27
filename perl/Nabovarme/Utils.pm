@@ -141,19 +141,26 @@ sub estimate_remaining_energy {
 
 	my @durations_sec;
 
+	# --- Loop over previous years to measure time to consume paid kWh ---
 	for my $year_offset (1 .. $years_back) {
 
+		# Start sample for same day-of-year in previous year
 		my ($start_energy, $start_time) = $dbh->selectrow_array(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
 			WHERE serial = ?
-			  AND unix_time >= UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL ? YEAR))
+			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL ? YEAR))
 			ORDER BY unix_time ASC
 			LIMIT 1
 		], undef, $serial, $year_offset);
 
 		next unless defined $start_energy && defined $start_time;
 		log_debug("$serial: Year offset=$year_offset, start_energy=" . sprintf("%.2f", $start_energy) . ", start_time=$start_time");
+
+		# End sample: when $energy_to_measure is consumed
+		# Use total energy available or fallback to realistic consumption for that year
+		my $energy_to_measure = $paid_kwh; # could be adjusted to historical fraction if needed
+		my $target_energy = $start_energy + $energy_to_measure;
 
 		my ($end_time) = $dbh->selectrow_array(qq[
 			SELECT unix_time
@@ -163,7 +170,7 @@ sub estimate_remaining_energy {
 			  AND unix_time >= ?
 			ORDER BY unix_time ASC
 			LIMIT 1
-		], undef, $serial, $start_energy + $energy_available, $start_time);
+		], undef, $serial, $target_energy, $start_time);
 
 		next unless defined $end_time;
 		log_debug("$serial: Year offset=$year_offset, end_time=$end_time");
@@ -178,7 +185,6 @@ sub estimate_remaining_energy {
 	}
 
 	if (@durations_sec) {
-
 		my $sum = 0;
 		$sum += $_ for @durations_sec;
 
