@@ -67,10 +67,9 @@ while (1) {
 			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
 				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
 
-				# DEBUG: only when sending notification
 				log_debug(
 					"Serial: $d->{serial}",
-					"State: $d->{notification_state}",
+					"State: 0 → 1",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
 					"Avg energy last day: $avg_energy_last_day kWh",
@@ -78,7 +77,6 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send close warning notification
 				$notification = $CLOSE_WARNING_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
@@ -96,14 +94,15 @@ while (1) {
 			}
 		}
 
-		# Close notice: state 1 -> 2
+		# Close notice: state 1 -> 2 or top-up: state 1 -> 0
 		elsif ($d->{notification_state} == 1) {
-			if ($energy_remaining <= 0) {
 
-				# DEBUG: only when sending notification
+			# --- OPEN after top-up ---
+			if (($energy_time_remaining > 0) && ($energy_remaining > $d->{notification_sent_at})) {
+
 				log_debug(
 					"Serial: $d->{serial}",
-					"State: $d->{notification_state}",
+					"State: 1 → 0 (top-up)",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
 					"Avg energy last day: $avg_energy_last_day kWh",
@@ -111,11 +110,39 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send close notice
+				$notification = $UP_MESSAGE;
+				$notification =~ s/\{serial\}/$d->{serial}/g;
+				$notification =~ s/\{info\}/$d->{info}/g;
+				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
+				sms_send($d->{sms_notification}, $notification);
+
+				$dbh->do(qq[
+					UPDATE meters
+					SET notification_state = 0,
+						notification_sent_at = NULL
+					WHERE serial = $quoted_serial
+				]) or log_warn("DB update failed for serial " . $d->{serial});
+
+				log_info("open notice sent after top-up for serial " . $d->{serial});
+			}
+
+			# --- CLOSE (energy exhausted) ---
+			elsif ($energy_remaining <= 0) {
+
+				log_debug(
+					"Serial: $d->{serial}",
+					"State: 1 → 2",
+					"Energy remaining: $energy_remaining_fmt kWh",
+					"Paid kWh: $paid_kwh kWh",
+					"Avg energy last day: $avg_energy_last_day kWh",
+					"Time remaining: $time_remaining_fmt h",
+					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
+				);
+
 				$notification = $DOWN_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
-				$notification =~ s/\{time_remaining\}/$time_remaining_string/g; # optional
+				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
@@ -131,12 +158,11 @@ while (1) {
 
 		# Open notice: state 2 -> 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining && $energy_remaining > 0.2) { # small margin
+			if (defined $energy_time_remaining && $energy_remaining > 0.2) { 
 
-				# DEBUG: only when sending notification
 				log_debug(
 					"Serial: $d->{serial}",
-					"State: $d->{notification_state}",
+					"State: 2 → 0",
 					"Energy remaining: $energy_remaining_fmt kWh",
 					"Paid kWh: $paid_kwh kWh",
 					"Avg energy last day: $avg_energy_last_day kWh",
@@ -144,7 +170,6 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
-				# Send open notice
 				$notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
