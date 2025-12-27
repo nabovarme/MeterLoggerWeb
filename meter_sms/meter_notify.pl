@@ -64,7 +64,7 @@ while (1) {
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
 			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
-				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
+				|| ($energy_remaining <= $d->{min_amount})) {
 
 				# Debug log for sending close warning notification
 				log_debug(
@@ -100,7 +100,7 @@ while (1) {
 		elsif ($d->{notification_state} == 1) {
 
 			# --- Open notice after top-up ---
-			if (($energy_time_remaining > 0) && ($energy_remaining > $d->{notification_sent_at})) {
+			if (defined $energy_time_remaining && $energy_remaining > $d->{notification_sent_at}) {
 
 				# Debug log for sending open notice after top-up
 				log_debug(
@@ -166,7 +166,7 @@ while (1) {
 
 		# Open notice: transition state from 2 to 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining && $energy_remaining > 0.2) { 
+			if (defined $energy_time_remaining && $energy_remaining > 0) {
 
 				# Debug log for sending open notice
 				log_debug(
