@@ -241,7 +241,7 @@ function renderPaymentRowsFromAccountData(payments) {
 		row.setAttribute('data-payment-time', d.payment_time);
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
-		const amountStr = (parseFloat(d.amount || 0).toFixed(0)) + ' kr';
+		const amountStr = (parseFloat(d.amount || 0).toFixed(2)) + ' kr';
 		const priceStr = (d.type === 'payment' && d.price) 
 			? (parseFloat(d.price || 0).toFixed(2)) + ' kr/kWh' 
 			: '';
