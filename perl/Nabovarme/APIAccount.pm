@@ -31,7 +31,6 @@ sub handler {
 
 	# --- Get remaining energy/time info using utility function ---
 	my $remaining = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
-	use Data::Dumper; warn Dumper $remaining;
 
 	# --- Round numeric values ---
 	my $kwh_remaining = defined $remaining->{kwh_remaining} 

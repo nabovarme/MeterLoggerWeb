@@ -28,6 +28,7 @@ while (my ($serial) = $sth->fetchrow_array) {
 	my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
 
 	my $time_remaining_hours = $est->{time_remaining_hours};
+	my $method_used           = $est->{method} || 'unknown';
 	my $time_remaining_hours_formatted = defined $time_remaining_hours
 		? sprintf("%.2f", $time_remaining_hours)
 		: undef;
@@ -35,9 +36,10 @@ while (my ($serial) = $sth->fetchrow_array) {
 	# Update meters table
 	$update_sth->execute($time_remaining_hours_formatted, $serial);
 
-	# Log update
-	log_info("Updated meter $serial with time_remaining_hours = " . (defined $time_remaining_hours_formatted ? $time_remaining_hours_formatted : 'NULL'));
-}
+	# Log update with method
+	log_info("Updated meter $serial with time_remaining_hours = "
+		. (defined $time_remaining_hours_formatted ? $time_remaining_hours_formatted : 'NULL')
+		. " using method: $method_used");}
 
 log_info("All enabled meters updated successfully.");
 
