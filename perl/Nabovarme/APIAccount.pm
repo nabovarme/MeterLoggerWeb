@@ -31,6 +31,25 @@ sub handler {
 
 	# --- Get remaining energy/time info using utility function ---
 	my $remaining = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
+	use Data::Dumper; warn Dumper $remaining;
+
+	# --- Round numeric values ---
+	my $kwh_remaining = defined $remaining->{kwh_remaining} 
+		? sprintf("%.0f", $remaining->{kwh_remaining}) + 0 
+		: undef;
+
+	my $time_remaining_hours = defined $remaining->{time_remaining_hours} 
+		? sprintf("%.0f", $remaining->{time_remaining_hours}) + 0 
+		: undef;
+
+	my $time_remaining_hours_string = $remaining->{time_remaining_hours_string};
+	my $energy_last_day = defined $remaining->{energy_last_day} 
+		? sprintf("%.0f", $remaining->{energy_last_day}) + 0 
+		: undef;
+
+	my $avg_energy_last_day = defined $remaining->{avg_energy_last_day} 
+		? sprintf("%.2f", $remaining->{avg_energy_last_day}) + 0 
+		: undef;
 
 	# --- Fetch latest sample data ---
 	my $sth = $dbh->prepare(qq[
@@ -67,11 +86,11 @@ sub handler {
 
 	# --- Construct response ---
 	my $response = {
-		kwh_remaining               => $remaining->{kwh_remaining},
-		time_remaining_hours        => $remaining->{time_remaining_hours},
-		time_remaining_hours_string => $remaining->{time_remaining_hours_string},
-		energy_last_day             => $remaining->{energy_last_day},
-		avg_energy_last_day         => $remaining->{avg_energy_last_day},
+		kwh_remaining               => $kwh_remaining,
+		time_remaining_hours        => $time_remaining_hours,
+		time_remaining_hours_string => $time_remaining_hours_string,
+		energy_last_day             => $energy_last_day,
+		avg_energy_last_day         => $avg_energy_last_day,
 		last_hours                  => $last_hours,
 		last_volume                 => $last_volume,
 		last_energy                 => $last_energy,
