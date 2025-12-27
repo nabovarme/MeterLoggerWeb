@@ -62,6 +62,13 @@ sub rounded_duration {
 # ----------------------------
 # Estimate remaining energy and time left
 # ----------------------------
+# ============================================================
+# three methods of estimation:
+# 1) Yearly historical: use multi-year daily samples to compute average consumption per hour
+# 2) Recent samples: use actual difference between last two samples (if available)
+# 3) Fallback historical daily: if recent samples unusable, use average from same day-of-year in past years
+# ============================================================
+
 sub estimate_remaining_energy {
 	my ($dbh, $serial) = @_;
 	return {} unless $dbh && $serial;
@@ -115,7 +122,8 @@ sub estimate_remaining_energy {
 	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
 
 	# ============================================================
-	# yearly historical: historical multi-year / partial average
+	# 1) YEARLY HISTORICAL METHOD
+	# historical multi-year / partial average consumption per hour
 	# ============================================================
 
 	# Use current paid_kwh as energy to consume
@@ -219,6 +227,11 @@ sub estimate_remaining_energy {
 
 	log_debug("$serial: yearly historical not usable, falling back to existing logic");
 
+	# ============================================================
+	# 2) RECENT SAMPLES METHOD
+	# use actual difference between last two samples (if available)
+	# ============================================================
+
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
 		SELECT energy, `unix_time`
@@ -312,6 +325,10 @@ sub estimate_remaining_energy {
 		}
 	}
 	else {
+		# ============================================================
+		# 3) FALLBACK HISTORICAL DAILY METHOD
+		# average from same day-of-year in past years
+		# ============================================================
 		$sth = $dbh->prepare(qq[
 			SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
 			FROM samples_daily
