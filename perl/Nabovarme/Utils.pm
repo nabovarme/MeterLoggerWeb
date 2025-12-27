@@ -154,16 +154,16 @@ sub estimate_remaining_energy {
 	# ============================================================
 
 	# Method 1: yearly historical
-	my $res = estimate_from_yearly_history($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh);
+	my $res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
 
 	# Method 2: recent samples
 	unless (defined $res) {
-		$res = estimate_from_recent_samples($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
+		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
 	}
 
 	# Method 3: fallback daily
 	unless (defined $res) {
-		$res = estimate_from_daily_fallback($dbh, $quoted_serial);
+		$res = estimate_from_daily_fallback($dbh, $serial);
 	}
 
 	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
