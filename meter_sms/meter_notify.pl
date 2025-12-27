@@ -58,22 +58,17 @@ while (1) {
 		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
-		# Update notification_sent_at if energy_remaining increased
-		if (!defined $d->{notification_sent_at} || $energy_remaining > $d->{notification_sent_at}) {
-			$dbh->do(qq[
-				UPDATE meters
-				SET notification_sent_at = $energy_remaining
-				WHERE `serial` = $quoted_serial
-			]) or log_warn("Failed to update notification_sent_at for serial $d->{serial}");
-		}
+		# --- Determine if notification_sent_at or state needs updating ---
+		my $new_state = $d->{notification_state};
+		my $new_notification_sent_at = $d->{notification_sent_at};
+		my $update_needed = 0;
 
 		# --- Notifications ---
 		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
 
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
-			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
-				|| ($energy_remaining <= $d->{min_amount})) {
+			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
 
 				# Debug log for sending close warning notification
 				log_debug(
@@ -92,15 +87,10 @@ while (1) {
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
-
-				# Update the database with new state and timestamp
-				$dbh->do(qq[
-				UPDATE meters
-					SET notification_state = 1
-					WHERE `serial` = $quoted_serial
-				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
-
 				log_info("Close warning sent for serial " . $d->{serial});
+
+				$new_state = 1;
+				$update_needed = 1;
 			}
 		}
 
@@ -127,15 +117,12 @@ while (1) {
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
+				log_info("Open notice sent after top-up for serial " . $d->{serial});
 
 				# Reset state and clear energy marker in the database
-				$dbh->do(qq[
-					UPDATE meters
-						SET notification_state = 0
-						WHERE serial = $quoted_serial
-				]) or log_warn("DB update failed for serial " . $d->{serial});
+				$new_state = 0;
+				$update_needed = 1;
 
-				log_info("Open notice sent after top-up for serial " . $d->{serial});
 			}
 
 			# --- Close notice when energy is exhausted ---
@@ -158,15 +145,11 @@ while (1) {
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
+				log_info("Close notice sent for serial " . $d->{serial});
 
 				# Update state and timestamp in the database
-				$dbh->do(qq[
-					UPDATE meters
-						SET notification_state = 2
-						WHERE `serial` = $quoted_serial
-				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
-
-				log_info("Close notice sent for serial " . $d->{serial});
+				$new_state = 2;
+				$update_needed = 1;
 			}
 		}
 
@@ -191,16 +174,27 @@ while (1) {
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
+				log_info("Open notice sent for serial " . $d->{serial});
 
 				# Update state and timestamp in the database
-				$dbh->do(qq[
-					UPDATE meters
-						SET notification_state = 0
-						WHERE `serial` = $quoted_serial
-				]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
-
-				log_info("Open notice sent for serial " . $d->{serial});
+				$new_state = 0;
+				$update_needed = 1;
 			}
+		}
+		# --- Always update notification_sent_at if energy increased ---
+		if (!defined $new_notification_sent_at || $energy_remaining > $new_notification_sent_at) {
+			$new_notification_sent_at = $energy_remaining;
+			$update_needed = 1;
+		}
+		
+		# --- Perform combined DB update if needed ---
+		if ($update_needed) {
+			$dbh->do(qq[
+				UPDATE meters
+				SET notification_state = $new_state,
+					notification_sent_at = $new_notification_sent_at
+				WHERE serial = $quoted_serial
+			]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial});
 		}
 	}
 
