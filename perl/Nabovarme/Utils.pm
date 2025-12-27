@@ -130,11 +130,13 @@ sub estimate_remaining_energy {
 	log_debug("$serial: yearly historical: energy_available set to paid_kwh=" . sprintf("%.2f", $paid_kwh));
 
 	# Determine how many full years of data exist for this meter
-	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
+	$sth = $dbh->prepare(qq[
 		SELECT MIN(unix_time)
 		FROM samples_daily
 		WHERE serial = $quoted_serial
-	]) or log_die("Failed to select earliest sample: $DBI::errstr");
+	]) or log_die("Failed to prepare statement for earliest sample: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for earliest sample: $DBI::errstr");
+	my ($earliest_unix_time) = $sth->fetchrow_array;
 
 	my $years_back = 0;
 	if (defined $earliest_unix_time) {
@@ -152,14 +154,16 @@ sub estimate_remaining_energy {
 	for my $year_offset (1 .. $years_back) {
 
 		# Start sample for same day-of-year in previous year
-		my ($start_energy, $start_time) = $dbh->selectrow_array(qq[
+		$sth = $dbh->prepare(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
 			WHERE serial = $quoted_serial
 			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
 			ORDER BY unix_time ASC
 			LIMIT 1
-		]) or log_die("Failed to select start_energy for year offset $year_offset: $DBI::errstr");
+		]) or log_die("Failed to prepare statement for start_energy for year offset $year_offset: $DBI::errstr");
+		$sth->execute() or log_die("Failed to execute statement for start_energy for year offset $year_offset: $DBI::errstr");
+		my ($start_energy, $start_time) = $sth->fetchrow_array;
 
 		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf("%.2f", $start_energy) : 'undef') .
 			", start_time=" . (defined $start_time ? $start_time : 'undef'));
@@ -173,7 +177,7 @@ sub estimate_remaining_energy {
 		my $target_energy = $start_energy + $energy_available;
 
 		# End sample: when remaining energy is consumed
-		my ($end_time) = $dbh->selectrow_array(qq[
+		$sth = $dbh->prepare(qq[
 			SELECT unix_time
 			FROM samples_daily
 			WHERE serial = $quoted_serial
@@ -181,7 +185,9 @@ sub estimate_remaining_energy {
 			  AND unix_time >= $start_time
 			ORDER BY unix_time ASC
 			LIMIT 1
-		]) or log_die("Failed to select end_time for year offset $year_offset: $DBI::errstr");
+		]) or log_die("Failed to prepare statement for end_time for year offset $year_offset: $DBI::errstr");
+		$sth->execute() or log_die("Failed to execute statement for end_time for year offset $year_offset: $DBI::errstr");
+		my ($end_time) = $sth->fetchrow_array;
 
 		log_debug("$serial: Year offset=$year_offset, end_time=" . (defined $end_time ? $end_time : 'undef'));
 
@@ -336,8 +342,8 @@ sub estimate_remaining_energy {
 			WHERE serial = $quoted_serial
 			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL 1 DAY))
 			  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
-		]);
-		$sth->execute;
+		]) or log_die("Failed to prepare statement for fallback daily usage: $DBI::errstr");
+		$sth->execute() or log_die("Failed to execute statement for fallback daily usage: $DBI::errstr");
 		my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 		$avg_daily_usage ||= 0;
 
