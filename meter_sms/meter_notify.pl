@@ -58,6 +58,15 @@ while (1) {
 		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
 		my $time_remaining_fmt = defined $energy_time_remaining ? sprintf("%.2f", $energy_time_remaining) : "N/A";
 
+		# Update notification_sent_at if energy_remaining increased
+		if (!defined $d->{notification_sent_at} || $energy_remaining > $d->{notification_sent_at}) {
+			$dbh->do(qq[
+				UPDATE meters
+				SET notification_sent_at = $energy_remaining
+				WHERE `serial` = $quoted_serial
+			]) or log_warn("Failed to update notification_sent_at for serial $d->{serial}");
+		}
+
 		# --- Notifications ---
 		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
 
@@ -86,9 +95,8 @@ while (1) {
 
 				# Update the database with new state and timestamp
 				$dbh->do(qq[
-					UPDATE meters
-					SET notification_state = 1,
-						notification_sent_at = $energy_remaining
+				UPDATE meters
+					SET notification_state = 1
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
@@ -123,9 +131,8 @@ while (1) {
 				# Reset state and clear energy marker in the database
 				$dbh->do(qq[
 					UPDATE meters
-					SET notification_state = 0,
-						notification_sent_at = $energy_remaining
-					WHERE serial = $quoted_serial
+						SET notification_state = 0
+						WHERE serial = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial});
 
 				log_info("Open notice sent after top-up for serial " . $d->{serial});
@@ -155,9 +162,8 @@ while (1) {
 				# Update state and timestamp in the database
 				$dbh->do(qq[
 					UPDATE meters
-					SET notification_state = 2,
-						notification_sent_at = $energy_remaining
-					WHERE `serial` = $quoted_serial
+						SET notification_state = 2
+						WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
 				log_info("Close notice sent for serial " . $d->{serial});
@@ -189,9 +195,8 @@ while (1) {
 				# Update state and timestamp in the database
 				$dbh->do(qq[
 					UPDATE meters
-					SET notification_state = 0,
-						notification_sent_at = $energy_remaining
-					WHERE `serial` = $quoted_serial
+						SET notification_state = 0
+						WHERE `serial` = $quoted_serial
 				]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
 				log_info("Open notice sent for serial " . $d->{serial});
