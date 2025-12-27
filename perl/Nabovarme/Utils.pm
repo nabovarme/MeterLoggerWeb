@@ -68,96 +68,147 @@ sub rounded_duration {
 # 2) Recent samples: use actual difference between last two samples (if available)
 # 3) Fallback historical daily: if recent samples unusable, use average from same day-of-year in past years
 # ============================================================
-
 sub estimate_remaining_energy {
 	my ($dbh, $serial) = @_;
-	return {} unless $dbh && $serial;
+
+	# --- Initialize result hash with defaults ---
+	my %result = (
+		kwh_remaining               => undef,
+		time_remaining_hours        => undef,
+		time_remaining_hours_string => '∞',
+		energy_last_day             => 0,
+		avg_energy_last_day         => 0,
+		latest_energy               => 0,
+		paid_kwh                    => 0,
+		setup_value                 => 0,
+		valve_status                => '',
+		valve_installed             => 0,
+	);
+
+	# Early return if missing DB handle or serial
+	return \%result unless $dbh && $serial;
 
 	my $quoted_serial = $dbh->quote($serial);
 
-	my ($latest_energy, $latest_unix_time, $prev_energy, $setup_value, $paid_kwh, $valve_status, $valve_installed, $sw_version);
-
 	# --- Fetch latest sample and valve_status ---
-	my $sth = $dbh->prepare(qq[
-		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
-		FROM meters m
-		LEFT JOIN samples_cache sc ON m.serial = sc.serial
-		WHERE m.serial = $quoted_serial
-		ORDER BY sc.unix_time DESC
-		LIMIT 1
-	]) or log_die("Failed to prepare statement for latest sample: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for latest sample: $DBI::errstr");
-	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
-	$latest_energy   = 0 unless defined $latest_energy;
-	$latest_unix_time = time() unless defined $latest_unix_time; # fallback
-	$valve_status    ||= '';
-	$valve_installed ||= 0;
-	$sw_version      ||= '';
-
-	log_debug("$serial: Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
-		", valve_status=" . $valve_status .
-		", valve_installed=" . $valve_installed .
-		", sw_version=" . $sw_version);
+	my ($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) 
+		= fetch_latest_sample($dbh, $quoted_serial);
 
 	# --- Fetch meter setup_value ---
-	$sth = $dbh->prepare(qq[
-		SELECT setup_value
-		FROM meters
-		WHERE serial = $quoted_serial
-	]) or log_die("Failed to prepare statement for setup_value: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for setup_value: $DBI::errstr");
-	($setup_value) = $sth->fetchrow_array;
-	$setup_value ||= 0;
-	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
+	my $setup_value = fetch_setup_value($dbh, $quoted_serial);
 
 	# --- Fetch paid kWh from accounts ---
-	$sth = $dbh->prepare(qq[
-		SELECT SUM(amount / price)
-		FROM accounts
-		WHERE serial = $quoted_serial
-	]) or log_die("Failed to prepare statement for paid_kwh: $DBI::errstr");
-	$sth->execute() or log_die("Failed to execute statement for paid_kwh: $DBI::errstr");
-	($paid_kwh) = $sth->fetchrow_array;
-	$paid_kwh ||= 0;
-	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
+	my $paid_kwh = fetch_paid_kwh($dbh, $quoted_serial);
+
+	# --- Populate basic results ---
+	$result{latest_energy}   = sprintf("%.2f", $latest_energy);
+	$result{valve_status}    = $valve_status;
+	$result{valve_installed} = $valve_installed;
+	$result{setup_value}     = sprintf("%.2f", $setup_value);
+	$result{paid_kwh}        = sprintf("%.2f", $paid_kwh);
 
 	# ============================================================
-	# 1) YEARLY HISTORICAL METHOD
-	# historical multi-year / partial average consumption per hour
+	# --- Try estimation methods in order using unified interface ---
 	# ============================================================
 
-	# Use current paid_kwh as energy to consume
-	log_debug("$serial: yearly historical: energy_available set to paid_kwh=" . sprintf("%.2f", $paid_kwh));
+	my ($energy_last_day, $avg_energy_last_day);
 
-	# Determine how many full years of data exist for this meter
-	$sth = $dbh->prepare(qq[
+	for my $method (
+		\&estimate_from_yearly_history,
+		\&estimate_from_recent_samples,
+		\&estimate_from_daily_fallback
+	) {
+		($energy_last_day, $avg_energy_last_day) 
+			= $method->($dbh, $quoted_serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
+		last if defined $avg_energy_last_day;
+	}
+
+	$energy_last_day     ||= 0;
+	$avg_energy_last_day ||= 0;
+
+	# ============================================================
+	# --- Calculate remaining kWh and time ---
+	# ============================================================
+
+	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+	$kwh_remaining = 0 if $kwh_remaining < 0;
+
+	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
+
+	my $time_remaining_hours;
+	if ($sw_version =~ /NO_AUTO_CLOSE/) {
+		$time_remaining_hours = undef;
+	}
+	elsif ($is_closed) {
+		$time_remaining_hours = 0;
+	}
+	elsif ($avg_energy_last_day > 0) {
+		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
+	}
+	else {
+		$time_remaining_hours = undef;
+	}
+
+	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
+		? '∞'
+		: rounded_duration($time_remaining_hours * 3600);
+
+	# ============================================================
+	# --- Final formatting ---
+	# ============================================================
+
+	$result{kwh_remaining}               = sprintf("%.2f", $kwh_remaining);
+	$result{time_remaining_hours}        = defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef;
+	$result{time_remaining_hours_string} = $time_remaining_hours_string;
+	$result{energy_last_day}             = sprintf("%.2f", $energy_last_day);
+	$result{avg_energy_last_day}         = sprintf("%.2f", $avg_energy_last_day);
+
+	return \%result;
+}
+
+# ============================================================
+# 1) YEARLY HISTORICAL METHOD
+# Uses multi-year daily data to estimate average consumption
+# Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
+# ============================================================
+sub estimate_from_yearly_history {
+	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh) = @_;
+
+	my @avg_kwh_per_hour;
+
+	# --- Find earliest sample ---
+	my $sth = $dbh->prepare(qq[
 		SELECT MIN(unix_time)
 		FROM samples_daily
-		WHERE serial = $quoted_serial
+		WHERE serial = $serial
 	]) or log_die("Failed to prepare statement for earliest sample: $DBI::errstr");
 	$sth->execute() or log_die("Failed to execute statement for earliest sample: $DBI::errstr");
 	my ($earliest_unix_time) = $sth->fetchrow_array;
 
-	my $years_back = 0;
-	if (defined $earliest_unix_time) {
-		my $earliest_year = (localtime($earliest_unix_time))[5] + 1900;
-		my $current_year  = (localtime(time()))[5] + 1900;
-		$years_back = $current_year - $earliest_year;
-		log_debug("$serial: Earliest sample year=$earliest_year, current year=$current_year, years_back=$years_back");
-	} else {
-		log_debug("$serial: No earliest sample found, years_back=0");
+	unless (defined $earliest_unix_time) {
+		log_debug("$serial: No earliest sample found, yearly history cannot be used");
+		return (undef, undef);
 	}
 
-	my @avg_kwh_per_hour;
+	# --- Determine how many years of data exist ---
+	my $earliest_year = (localtime($earliest_unix_time))[5] + 1900;
+	my $current_year  = (localtime(time()))[5] + 1900;
+	my $years_back    = $current_year - $earliest_year;
 
-	# --- Loop over previous years to measure time to consume paid kWh ---
+	log_debug("$serial: Earliest sample year=$earliest_year, current year=$current_year, years_back=$years_back");
+
+	return (undef, undef) if $years_back < 1;
+
+	# ============================================================
+	# --- Compute overall average kWh per hour from previous years ---
+	# ============================================================
 	for my $year_offset (1 .. $years_back) {
 
-		# Start sample for same day-of-year in previous year
+		# --- Fetch start energy for this year offset ---
 		$sth = $dbh->prepare(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
-			WHERE serial = $quoted_serial
+			WHERE serial = $serial
 			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
 			ORDER BY unix_time ASC
 			LIMIT 1
@@ -170,17 +221,16 @@ sub estimate_remaining_energy {
 
 		next unless defined $start_energy && defined $start_time;
 
-		# --- Calculate target energy using paid_kwh and latest_energy ---
+		# --- Compute available energy for this year ---
 		my $energy_available = $paid_kwh - ($latest_energy - $start_energy);
-		$energy_available = 0 if $energy_available < 0; # prevent negative
-
+		$energy_available = 0 if $energy_available < 0;
 		my $target_energy = $start_energy + $energy_available;
 
-		# End sample: when remaining energy is consumed
+		# --- Find when this energy was consumed in that year ---
 		$sth = $dbh->prepare(qq[
 			SELECT unix_time
 			FROM samples_daily
-			WHERE serial = $quoted_serial
+			WHERE serial = $serial
 			  AND energy >= $target_energy
 			  AND unix_time >= $start_time
 			ORDER BY unix_time ASC
@@ -193,58 +243,48 @@ sub estimate_remaining_energy {
 
 		next unless defined $end_time;
 
+		# --- Compute hourly average ---
 		my $duration_sec = $end_time - $start_time;
 		next if $duration_sec <= 0;
 
-		# --- Calculate avg kWh per hour for this year ---
 		my $duration_hours = $duration_sec / 3600;
 		my $energy_for_year = $target_energy - $start_energy;
 		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
+
 		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_per_hour[-1]));
 	}
 
-	# --- Compute overall average kWh per hour from previous years ---
-	if (@avg_kwh_per_hour) {
-		my $sum_kwh_hour = 0;
-		$sum_kwh_hour += $_ for @avg_kwh_per_hour;
-		my $avg_energy_last_day = $sum_kwh_hour / @avg_kwh_per_hour;
-
-		# Set energy_last_day = avg_energy_last_day
-		my $energy_last_day = $avg_energy_last_day;
-
-		# Remaining energy for this meter
-		my $current_energy_available = $setup_value + $paid_kwh - $latest_energy;
-		$current_energy_available = 0 if $current_energy_available < 0;
-
-		# Calculate time remaining based on avg consumption
-		my $time_remaining_hours = $avg_energy_last_day && $current_energy_available > 0
-			? $current_energy_available / $avg_energy_last_day
-			: undef;
-
-		log_debug("$serial: yearly historical: avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day) .
-			", energy_last_day=" . sprintf("%.2f", $energy_last_day) .
-			", time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours)
-		);
-
-		return {
-			time_remaining_hours => defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef,
-			avg_energy_last_day  => sprintf("%.2f", $avg_energy_last_day),
-			energy_last_day      => sprintf("%.2f", $energy_last_day),
-		};
+	unless (@avg_kwh_per_hour) {
+		log_debug("$serial: No yearly historical averages could be computed");
+		return (undef, undef);
 	}
 
-	log_debug("$serial: yearly historical not usable, falling back to existing logic");
+	# --- Compute overall average across years ---
+	my $avg_energy_last_day = 0;
+	$avg_energy_last_day += $_ for @avg_kwh_per_hour;
+	$avg_energy_last_day /= @avg_kwh_per_hour;
 
-	# ============================================================
-	# 2) RECENT SAMPLES METHOD
-	# use actual difference between last two samples (if available)
-	# ============================================================
+	my $energy_last_day = $avg_energy_last_day;
+
+	log_debug("$serial: Yearly historical estimate: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
+		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+
+	return ($energy_last_day, $avg_energy_last_day);
+}
+
+# ============================================================
+# 2) RECENT SAMPLES METHOD
+# Uses recent samples (~24h) with all original fallback checks
+# Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
+# ============================================================
+sub estimate_from_recent_samples {
+	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time) = @_;
 
 	# --- Fetch sample from ~24h ago ---
-	$sth = $dbh->prepare(qq[
+	my $sth = $dbh->prepare(qq[
 		SELECT energy, `unix_time`
 		FROM samples_cache
-		WHERE serial = $quoted_serial
+		WHERE serial = $serial
 		  AND `unix_time` <= UNIX_TIMESTAMP(NOW()) - 86400
 		ORDER BY `unix_time` DESC
 		LIMIT 1
@@ -253,23 +293,24 @@ sub estimate_remaining_energy {
 	my ($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 
 	# --- Determine if we have historical daily samples ---
-	my $has_historical_data = 0;
 	$sth = $dbh->prepare(qq[
 		SELECT COUNT(*)
 		FROM samples_daily
-		WHERE serial = $quoted_serial
+		WHERE serial = $serial
 		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
 	]) or log_die("Failed to prepare statement for historical count: $DBI::errstr");
 	$sth->execute() or log_die("Failed to execute statement for historical count: $DBI::errstr");
 	my ($historical_count) = $sth->fetchrow_array;
+	my $has_historical_data = $historical_count > 0;
+
 	log_debug("$serial: Has historical data? " . ($has_historical_data ? "Yes" : "No"));
 
-	# --- Fallback to oldest sample if no historical data ---
+	# --- Fallback to oldest sample if no recent sample and no historical data ---
 	if ((!defined $recent_energy || !defined $recent_unix_time) && !$has_historical_data) {
 		$sth = $dbh->prepare(qq[
 			SELECT energy, `unix_time`
 			FROM samples_cache
-			WHERE serial = $quoted_serial
+			WHERE serial = $serial
 			ORDER BY `unix_time` ASC
 			LIMIT 1
 		]) or log_die("Failed to prepare statement for fallback sample: $DBI::errstr");
@@ -277,20 +318,22 @@ sub estimate_remaining_energy {
 		($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 	}
 
-	$recent_energy = 0 unless defined $recent_energy;
+	$recent_energy    = 0 unless defined $recent_energy;
 	$recent_unix_time = $latest_unix_time unless defined $recent_unix_time;
 
-	log_debug("$serial: Sample at start of period: " . $recent_unix_time . " => " . sprintf("%.2f", $recent_energy) . " kWh");
-	log_debug("$serial: Sample at end of period:   " . $latest_unix_time . " => " . sprintf("%.2f", $latest_energy) . " kWh");
+	log_debug("$serial: Sample at start of period: $recent_unix_time => " . sprintf("%.2f", $recent_energy) . " kWh");
+	log_debug("$serial: Sample at end of period:   $latest_unix_time => " . sprintf("%.2f", $latest_energy) . " kWh");
 
 	# --- Decide if we should use fallback or real samples ---
-	my $prev_kwh_remaining = $setup_value + $paid_kwh - $recent_energy;
+	my $prev_energy           = $recent_energy;
+	my $prev_kwh_remaining    = $setup_value + $paid_kwh - $recent_energy;
 	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
 
 	my $use_fallback = 0;
+
 	if (!defined $recent_energy) {
-		$use_fallback = 1;
 		log_debug("$serial: No previous sample => using fallback");
+		$use_fallback = 1;
 	}
 	elsif ($latest_energy < $recent_energy) {
 		log_debug("$serial: kWh decreased (meter reset/opened) => using fallback");
@@ -311,105 +354,58 @@ sub estimate_remaining_energy {
 	$prev_energy = $use_fallback ? 0 : $recent_energy;
 	log_debug("$serial: Previous energy used=" . sprintf("%.2f", $prev_energy));
 
-	# --- Calculate energy last day and avg energy last day ---
-	my ($energy_last_day, $avg_energy_last_day);
-
-	if (!$use_fallback) {
-		# Calculate energy consumed since previous sample
-		$energy_last_day = $latest_energy - $prev_energy;
-
-		# Calculate hours between previous and latest sample
-		my $hours_diff = ($latest_unix_time - $recent_unix_time) / 3600;
-
-		# Protect against division by zero or very small intervals
-		if ($hours_diff <= 0) {
-			$avg_energy_last_day = 0;
-			log_debug("$serial: Hours difference <= 0, setting avg_energy_last_day=0");
-		}
-		else {
-			$avg_energy_last_day = $energy_last_day / $hours_diff;
-			log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
-		}
+	# --- If we need to fallback, return undef to let main function use fallback method ---
+	if ($use_fallback) {
+		return (undef, undef);
 	}
-	else {
-		# ============================================================
-		# 3) FALLBACK HISTORICAL DAILY METHOD
-		# average from same day-of-year in past years
-		# ============================================================
-		$sth = $dbh->prepare(qq[
-			SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
-			FROM samples_daily
-			WHERE serial = $quoted_serial
-			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL 1 DAY))
-			  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
-		]) or log_die("Failed to prepare statement for fallback daily usage: $DBI::errstr");
-		$sth->execute() or log_die("Failed to execute statement for fallback daily usage: $DBI::errstr");
-		my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
-		$avg_daily_usage ||= 0;
 
-		log_debug("$serial: Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) . " from " . $years_count . " previous years");
-
-		$energy_last_day     = $avg_daily_usage;
-		$avg_energy_last_day = $avg_daily_usage;
-
-		log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $avg_daily_usage) .
-			", avg_energy_last_day=" . sprintf("%.2f", $avg_daily_usage));
+	# --- Compute energy and average over the period ---
+	my $energy_last_day = $latest_energy - $prev_energy;
+	my $hours_diff      = ($latest_unix_time - $recent_unix_time) / 3600;
+	if ($hours_diff <= 0) {
+		log_debug("$serial: Hours difference <= 0, cannot compute average => using fallback");
+		return (undef, undef);
 	}
-	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
+
+	my $avg_energy_last_day = $energy_last_day / $hours_diff;
+	log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+
+	return ($energy_last_day, $avg_energy_last_day);
+}
+
+# ============================================================
+# 3) FALLBACK DAILY METHOD
+# Uses historical daily averages if recent samples or yearly history fail
+# Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
+# ============================================================
+sub estimate_from_daily_fallback {
+	my ($dbh, $serial) = @_;
+
+	# --- Fetch average daily usage from previous years for the same day ---
+	my $sth = $dbh->prepare(qq[
+		SELECT AVG(effect) AS avg_daily_usage, COUNT(*) AS years_count
+		FROM samples_daily
+		WHERE serial = $serial
+		  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL 1 DAY))
+		  AND YEAR(FROM_UNIXTIME(unix_time)) < YEAR(NOW())
+	]) or log_die("Failed to prepare statement for fallback daily usage: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for fallback daily usage: $DBI::errstr");
+
+	my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
+	$avg_daily_usage ||= 0;
+
+	log_debug("$serial: Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) .
+		" from $years_count previous years");
+
+	return (undef, undef) if $avg_daily_usage <= 0;
+
+	my $energy_last_day     = $avg_daily_usage;
+	my $avg_energy_last_day = $avg_daily_usage;
+
+	log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
-	# --- Calculate kWh remaining ---
-	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
-	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
-
-	# --- Determine if meter is closed ---
-	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
-	log_debug("$serial: Meter closed=" . $is_closed);
-
-	# --- Calculate time_remaining_hours ---
-	my $time_remaining_hours;
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		$time_remaining_hours = undef;
-		log_debug("$serial: SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
-	}
-	elsif ($is_closed) {
-		$time_remaining_hours = 0;
-		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=0.00");
-	}
-	elsif ($avg_energy_last_day > 0) {
-		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
-		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
-	}
-	else {
-		$time_remaining_hours = undef;
-		log_debug("$serial: avg_energy_last_day=0 => time_remaining_hours=∞");
-	}
-
-	# --- Human-readable string ---
-	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
-		? '∞'
-		: rounded_duration($time_remaining_hours * 3600);
-	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
-
-	# --- Final summary ---
-	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
-		", prev_energy=" . sprintf("%.2f", $prev_energy) .
-		", kwh_remaining=" . sprintf("%.2f", $kwh_remaining) .
-		", time_remaining_hours_string=" . $time_remaining_hours_string);
-
-	# --- Format numbers for return ---
-	return {
-		kwh_remaining               => sprintf("%.2f", $kwh_remaining),
-		time_remaining_hours        => defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef,
-		time_remaining_hours_string => $time_remaining_hours_string,
-		energy_last_day             => sprintf("%.2f", $energy_last_day),
-		avg_energy_last_day         => sprintf("%.2f", $avg_energy_last_day),
-		latest_energy               => sprintf("%.2f", $latest_energy),
-		paid_kwh                    => sprintf("%.2f", $paid_kwh),
-		setup_value                 => sprintf("%.2f", $setup_value),
-		valve_status                => $valve_status,
-		valve_installed             => $valve_installed,
-	};
+	return ($energy_last_day, $avg_energy_last_day);
 }
 
 # ----------------------------
