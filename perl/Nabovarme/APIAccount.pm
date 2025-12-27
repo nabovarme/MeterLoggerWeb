@@ -50,6 +50,8 @@ sub handler {
 		? sprintf("%.2f", $remaining->{avg_energy_last_day}) + 0 
 		: undef;
 
+	my $method = $remaining->{method};
+
 	# --- Fetch latest sample data ---
 	my $sth = $dbh->prepare(qq[
 		SELECT hours, volume, energy
