@@ -126,8 +126,8 @@ sub estimate_remaining_energy {
 	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
 		SELECT MIN(unix_time)
 		FROM samples_daily
-		WHERE serial = ?
-	], undef, $serial);
+		WHERE serial = $quoted_serial
+	]);
 
 	my $years_back = 0;
 	if (defined $earliest_unix_time) {
@@ -148,11 +148,11 @@ sub estimate_remaining_energy {
 		my ($start_energy, $start_time) = $dbh->selectrow_array(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
-			WHERE serial = ?
-			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL ? YEAR))
+			WHERE serial = $quoted_serial
+			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
 			ORDER BY unix_time ASC
 			LIMIT 1
-		], undef, $serial, $year_offset);
+		]);
 
 		next unless defined $start_energy && defined $start_time;
 		log_debug("$serial: Year offset=$year_offset, start_energy=" . sprintf("%.2f", $start_energy) . ", start_time=$start_time");
@@ -165,12 +165,12 @@ sub estimate_remaining_energy {
 		my ($end_time) = $dbh->selectrow_array(qq[
 			SELECT unix_time
 			FROM samples_daily
-			WHERE serial = ?
-			  AND energy >= ?
-			  AND unix_time >= ?
+			WHERE serial = $quoted_serial
+			  AND energy >= $target_energy
+			  AND unix_time >= $start_time
 			ORDER BY unix_time ASC
 			LIMIT 1
-		], undef, $serial, $target_energy, $start_time);
+		]);
 
 		next unless defined $end_time;
 		log_debug("$serial: Year offset=$year_offset, end_time=$end_time");
