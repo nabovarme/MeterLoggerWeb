@@ -242,7 +242,7 @@ sub estimate_remaining_energy {
 		LIMIT 1
 	]);
 	$sth->execute;
-	my ($prev_energy_sample, $prev_unix_time) = $sth->fetchrow_array;
+	my ($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 
 	# --- Determine if we have historical daily samples ---
 	my $has_historical_data = 0;
@@ -258,7 +258,7 @@ sub estimate_remaining_energy {
 	log_debug("$serial: Has historical data? " . ($has_historical_data ? "Yes" : "No"));
 
 	# --- Fallback to oldest sample if no historical data ---
-	if ((!defined $prev_energy_sample || !defined $prev_unix_time) && !$has_historical_data) {
+	if ((!defined $recent_energy || !defined $recent_unix_time) && !$has_historical_data) {
 		$sth = $dbh->prepare(qq[
 			SELECT energy, `unix_time`
 			FROM samples_cache
@@ -267,25 +267,25 @@ sub estimate_remaining_energy {
 			LIMIT 1
 		]);
 		$sth->execute;
-		($prev_energy_sample, $prev_unix_time) = $sth->fetchrow_array;
+		($recent_energy, $recent_unix_time) = $sth->fetchrow_array;
 	}
 
-	$prev_energy_sample = 0 unless defined $prev_energy_sample;
-	$prev_unix_time     = $latest_unix_time unless defined $prev_unix_time;
+	$recent_energy = 0 unless defined $recent_energy;
+	$recent_unix_time = $latest_unix_time unless defined $recent_unix_time;
 
-	log_debug("$serial: Sample at start of period: " . $prev_unix_time . " => " . sprintf("%.2f", $prev_energy_sample) . " kWh");
+	log_debug("$serial: Sample at start of period: " . $recent_unix_time . " => " . sprintf("%.2f", $recent_energy) . " kWh");
 	log_debug("$serial: Sample at end of period:   " . $latest_unix_time . " => " . sprintf("%.2f", $latest_energy) . " kWh");
 
 	# --- Decide if we should use fallback or real samples ---
-	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
+	my $prev_kwh_remaining = $setup_value + $paid_kwh - $recent_energy;
 	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
 
 	my $use_fallback = 0;
-	if (!defined $prev_energy_sample) {
+	if (!defined $recent_energy) {
 		$use_fallback = 1;
 		log_debug("$serial: No previous sample => using fallback");
 	}
-	elsif ($latest_energy < $prev_energy_sample) {
+	elsif ($latest_energy < $recent_energy) {
 		log_debug("$serial: kWh decreased (meter reset/opened) => using fallback");
 		$use_fallback = 1;
 	}
@@ -293,7 +293,7 @@ sub estimate_remaining_energy {
 		log_debug("$serial: kWh_remaining increased (meter opened/reset) => using fallback");
 		$use_fallback = 1;
 	}
-	elsif ($prev_unix_time && (time() - $prev_unix_time < 12*3600) && $has_historical_data) {
+	elsif ($recent_unix_time && (time() - $recent_unix_time < 12*3600) && $has_historical_data) {
 		log_debug("$serial: Previous sample less than 12 hours old and historical data exists => using fallback");
 		$use_fallback = 1;
 	}
@@ -301,7 +301,7 @@ sub estimate_remaining_energy {
 		log_debug("$serial: Using available samples for estimation");
 	}
 
-	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
+	$prev_energy = $use_fallback ? 0 : $recent_energy;
 	log_debug("$serial: Previous energy used=" . sprintf("%.2f", $prev_energy));
 
 	# --- Calculate energy last day and avg energy last day ---
@@ -312,7 +312,7 @@ sub estimate_remaining_energy {
 		$energy_last_day = $latest_energy - $prev_energy;
 
 		# Calculate hours between previous and latest sample
-		my $hours_diff = ($latest_unix_time - $prev_unix_time) / 3600;
+		my $hours_diff = ($latest_unix_time - $recent_unix_time) / 3600;
 
 		# Protect against division by zero or very small intervals
 		if ($hours_diff <= 0) {
