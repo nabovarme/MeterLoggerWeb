@@ -6,10 +6,12 @@ use utf8;
 use Exporter 'import';
 use POSIX qw(floor);
 use File::Basename;
+use Net::SMTP;
 
 our @EXPORT = qw(
 	rounded_duration
 	estimate_remaining_energy
+	send_notification
 	log_info
 	log_warn
 	log_debug
@@ -493,6 +495,36 @@ sub estimate_from_daily_fallback {
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
+}
+
+# ----------------------------
+# Sends SMS, returns 1 on success, 0 on failure
+# ----------------------------
+sub send_notification {
+	my ($sms_number, $message) = @_;
+	return 0 unless $sms_number && $message;
+
+	eval {
+		my $smtp = Net::SMTP->new('postfix', Timeout => 10)
+			or die "Cannot connect to SMTP server";
+
+		$smtp->mail('meterlogger');
+		if ($smtp->to("45$sms_number\@meterlogger")) {
+			$smtp->data();
+			$smtp->datasend($message);
+			$smtp->dataend();
+			log_info("SMS sent to $sms_number", { -custom_tag => 'SMS' });
+		} else {
+			log_warn("SMTP to() failed: " . $smtp->message(), { -custom_tag => 'SMS' });
+		}
+		$smtp->quit;
+	};
+	if ($@) {
+		log_warn("Failed to send SMS to $sms_number: $@", { -custom_tag => 'SMS' });
+		return 0;
+	}
+
+	return 1;
 }
 
 # ----------------------------

@@ -83,7 +83,7 @@ while (1) {
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-				_send_notification($d->{sms_notification}, $notification);
+				sms_send($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
 					UPDATE meters
@@ -116,7 +116,7 @@ while (1) {
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g; # optional
-				_send_notification($d->{sms_notification}, $notification);
+				sms_send($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
 					UPDATE meters
@@ -149,7 +149,7 @@ while (1) {
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-				_send_notification($d->{sms_notification}, $notification);
+				sms_send($d->{sms_notification}, $notification);
 
 				$dbh->do(qq[
 					UPDATE meters
@@ -167,13 +167,16 @@ while (1) {
 }
 
 # --- helper to send SMS ---
-sub _send_notification {
+sub sms_send {
 	my ($sms_notification, $message) = @_;
 	return unless $sms_notification;
 
 	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
-		log_info("45" . $num . ": " . $message);
-		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$num "$message"]);
+		log_info("Sending SMS to 45$num: $message", { -custom_tag => 'SMS' });
+		my $ok = send_notification($num, $message);
+		unless ($ok) {
+			log_warn("Failed to send SMS to 45$num", { -custom_tag => 'SMS' });
+		}
 	}
 }
