@@ -292,14 +292,14 @@ sub estimate_from_yearly_history {
 			SELECT energy, unix_time
 			FROM samples_daily
 			WHERE serial = $quoted_serial
-			  AND DAYOFYEAR(FROM_UNIXTIME(unix_time)) = DAYOFYEAR(DATE_SUB(NOW(), INTERVAL $year_offset YEAR))
-			ORDER BY unix_time ASC
+			  AND unix_time <= UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL $year_offset YEAR))
+			ORDER BY unix_time DESC
 			LIMIT 1
 		]) or log_die("$serial: Failed to prepare statement for start_energy for year offset $year_offset: $DBI::errstr");
 		$sth->execute() or log_die("$serial: Failed to execute statement for start_energy for year offset $year_offset: $DBI::errstr");
 		my ($start_energy, $start_time) = $sth->fetchrow_array;
 
-		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf("%.2f", $start_energy) : 'undef') .
+		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf('%.2f', $start_energy) : 'undef') .
 			", start_time=" . (defined $start_time ? $start_time : 'undef'));
 
 		next unless defined $start_energy && defined $start_time;
@@ -334,7 +334,7 @@ sub estimate_from_yearly_history {
 		my $energy_for_year = $target_energy - $start_energy;
 		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
 
-		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_per_hour[-1]));
+		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf('%.2f', $avg_kwh_per_hour[-1]));
 	}
 
 	unless (@avg_kwh_per_hour) {
@@ -457,11 +457,6 @@ sub estimate_from_recent_samples {
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
 
-# ============================================================
-# 3) FALLBACK DAILY METHOD
-# Uses historical daily averages if recent samples or yearly history fail
-# Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
-# ============================================================
 # ============================================================
 # 3) FALLBACK DAILY METHOD
 # Uses historical daily averages if recent samples or yearly history fail
