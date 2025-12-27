@@ -8,8 +8,6 @@ use DBI;
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
-use constant CLOSE_WARNING_TIME => 3 * 24; # 3 days in hours
-
 $| = 1;  # Autoflush STDOUT
 
 log_debug("Starting debug mode...");
@@ -18,6 +16,7 @@ log_debug("Starting debug mode...");
 my $UP_MESSAGE             = $ENV{UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
 my $DOWN_MESSAGE           = $ENV{DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
 my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info} closing soon. {time_remaining} remaining. ({serial})';
+my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining, $notification);
 
@@ -64,7 +63,7 @@ while (1) {
 		my $update_needed = 0;
 
 		# --- Notifications ---
-		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
+		my $close_warning_threshold = $d->{close_notification_time} ? $d->{close_notification_time} / 3600 : CLOSE_WARNING_TIME;
 
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
