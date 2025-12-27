@@ -87,7 +87,7 @@ sub estimate_remaining_energy {
 	$valve_installed ||= 0;
 	$sw_version      ||= '';
 
-	log_debug("Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
+	log_debug("$serial: Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
 		", valve_status=" . $valve_status .
 		", valve_installed=" . $valve_installed .
 		", sw_version=" . $sw_version);
@@ -101,7 +101,7 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($setup_value) = $sth->fetchrow_array;
 	$setup_value ||= 0;
-	log_debug("Setup value=" . sprintf("%.2f", $setup_value));
+	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
 
 	# --- Fetch paid kWh from accounts ---
 	$sth = $dbh->prepare(qq[
@@ -112,7 +112,7 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	($paid_kwh) = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
-	log_debug("Paid kWh=" . sprintf("%.2f", $paid_kwh));
+	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
 
 	# ============================================================
 	# NEW METHOD: historical multi-year / partial average
@@ -176,8 +176,7 @@ sub estimate_remaining_energy {
 		my $avg_duration_sec     = $sum / @durations_sec;
 		my $time_remaining_hours = $avg_duration_sec / 3600;
 
-		log_debug(
-			"Serial $serial: historical method used (years=" .
+		log_debug("$serial: historical method used (years=" .
 			scalar(@durations_sec) .
 			"), time_remaining_hours=" .
 			sprintf('%.2f', $time_remaining_hours)
@@ -188,7 +187,7 @@ sub estimate_remaining_energy {
 		};
 	}
 
-	log_debug("Serial $serial: historical method not usable, falling back to existing logic");
+	log_debug("$serial: historical method not usable, falling back to existing logic");
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
@@ -213,7 +212,7 @@ sub estimate_remaining_energy {
 	$sth->execute;
 	my ($historical_count) = $sth->fetchrow_array;
 	$has_historical_data = $historical_count > 0 ? 1 : 0;
-	log_debug("Has historical data? " . ($has_historical_data ? "Yes" : "No"));
+	log_debug("$serial: Has historical data? " . ($has_historical_data ? "Yes" : "No"));
 
 	# --- Fallback to oldest sample if no historical data ---
 	if ((!defined $prev_energy_sample || !defined $prev_unix_time) && !$has_historical_data) {
@@ -231,9 +230,8 @@ sub estimate_remaining_energy {
 	$prev_energy_sample = 0 unless defined $prev_energy_sample;
 	$prev_unix_time     = $latest_unix_time unless defined $prev_unix_time;
 
-	log_debug("Serial: $serial\n");
-	log_debug("Sample at start of period: " . $prev_unix_time . " => " . sprintf("%.2f", $prev_energy_sample) . " kWh\n");
-	log_debug("Sample at end of period:   " . $latest_unix_time . " => " . sprintf("%.2f", $latest_energy) . " kWh\n");
+	log_debug("$serial: Sample at start of period: " . $prev_unix_time . " => " . sprintf("%.2f", $prev_energy_sample) . " kWh");
+	log_debug("$serial: Sample at end of period:   " . $latest_unix_time . " => " . sprintf("%.2f", $latest_energy) . " kWh");
 
 	# --- Decide if we should use fallback or real samples ---
 	my $prev_kwh_remaining = $setup_value + $paid_kwh - $prev_energy_sample;
@@ -242,26 +240,26 @@ sub estimate_remaining_energy {
 	my $use_fallback = 0;
 	if (!defined $prev_energy_sample) {
 		$use_fallback = 1;
-		log_debug("No previous sample => using fallback");
+		log_debug("$serial: No previous sample => using fallback");
 	}
 	elsif ($latest_energy < $prev_energy_sample) {
-		log_debug("kWh decreased (meter reset/opened) => using fallback");
+		log_debug("$serial: kWh decreased (meter reset/opened) => using fallback");
 		$use_fallback = 1;
 	}
 	elsif ($current_kwh_remaining > $prev_kwh_remaining) {
-		log_debug("kwh_remaining increased (meter opened/reset) => using fallback");
+		log_debug("$serial: kWh_remaining increased (meter opened/reset) => using fallback");
 		$use_fallback = 1;
 	}
 	elsif ($prev_unix_time && (time() - $prev_unix_time < 12*3600) && $has_historical_data) {
-		log_debug("Previous sample less than 12 hours old and historical data exists => using fallback");
+		log_debug("$serial: Previous sample less than 12 hours old and historical data exists => using fallback");
 		$use_fallback = 1;
 	}
 	else {
-		log_debug("Using available samples for estimation");
+		log_debug("$serial: Using available samples for estimation");
 	}
 
 	$prev_energy = $use_fallback ? 0 : $prev_energy_sample;
-	log_debug("Previous energy used=" . sprintf("%.2f", $prev_energy));
+	log_debug("$serial: Previous energy used=" . sprintf("%.2f", $prev_energy));
 
 	# --- Calculate energy last day and avg energy last day ---
 	my ($energy_last_day, $avg_energy_last_day);
@@ -276,11 +274,11 @@ sub estimate_remaining_energy {
 		# Protect against division by zero or very small intervals
 		if ($hours_diff <= 0) {
 			$avg_energy_last_day = 0;
-			log_debug("Hours difference <= 0, setting avg_energy_last_day=0");
+			log_debug("$serial: Hours difference <= 0, setting avg_energy_last_day=0");
 		}
 		else {
 			$avg_energy_last_day = $energy_last_day / $hours_diff;
-			log_debug("Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+			log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 		}
 	}
 	else {
@@ -295,52 +293,52 @@ sub estimate_remaining_energy {
 		my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 		$avg_daily_usage ||= 0;
 
-		log_debug("Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) . " from " . $years_count . " previous years");
+		log_debug("$serial: Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) . " from " . $years_count . " previous years");
 
 		$energy_last_day     = $avg_daily_usage;
 		$avg_energy_last_day = $avg_daily_usage;
 
-		log_debug("Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $avg_daily_usage) .
+		log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $avg_daily_usage) .
 			", avg_energy_last_day=" . sprintf("%.2f", $avg_daily_usage));
 	}
-	log_debug("Energy last day=" . sprintf("%.2f", $energy_last_day) .
+	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	# --- Calculate kWh remaining ---
 	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
-	log_debug("kWh remaining=" . sprintf("%.2f", $kwh_remaining));
+	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
 
 	# --- Determine if meter is closed ---
 	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
-	log_debug("Meter closed=" . $is_closed);
+	log_debug("$serial: Meter closed=" . $is_closed);
 
 	# --- Calculate time_remaining_hours ---
 	my $time_remaining_hours;
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
 		$time_remaining_hours = undef;
-		log_debug("SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
+		log_debug("$serial: SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
 	}
 	elsif ($is_closed) {
 		$time_remaining_hours = 0;
-		log_debug("Valve closed or no kWh remaining => time_remaining_hours=0.00");
+		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=0.00");
 	}
 	elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
-		log_debug("Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
+		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
 	else {
 		$time_remaining_hours = undef;
-		log_debug("avg_energy_last_day=0 => time_remaining_hours=∞");
+		log_debug("$serial: avg_energy_last_day=0 => time_remaining_hours=∞");
 	}
 
 	# --- Human-readable string ---
 	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
 		? '∞'
 		: rounded_duration($time_remaining_hours * 3600);
-	log_debug("Time remaining string=" . $time_remaining_hours_string);
+	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
 
 	# --- Final summary ---
-	log_debug("Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
+	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
 		", prev_energy=" . sprintf("%.2f", $prev_energy) .
 		", kwh_remaining=" . sprintf("%.2f", $kwh_remaining) .
 		", time_remaining_hours_string=" . $time_remaining_hours_string);
