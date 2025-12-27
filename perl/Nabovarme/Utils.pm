@@ -138,7 +138,6 @@ sub estimate_remaining_energy {
 		log_debug("$serial: No earliest sample found, years_back=0");
 	}
 
-	my @durations_sec;
 	my @avg_kwh_per_hour;
 
 	# --- Loop over previous years to measure time to consume paid kWh ---
@@ -158,12 +157,13 @@ sub estimate_remaining_energy {
 
 		next unless defined $start_energy && defined $start_time;
 
-		# End sample: when remaining energy is consumed
+		# --- Calculate target energy using paid_kwh and latest_energy ---
 		my $energy_available = $paid_kwh - ($latest_energy - $start_energy);
 		$energy_available = 0 if $energy_available < 0; # prevent negative
 
 		my $target_energy = $start_energy + $energy_available;
 
+		# End sample: when remaining energy is consumed
 		my ($end_time) = $dbh->selectrow_array(qq[
 			SELECT unix_time
 			FROM samples_daily
@@ -178,16 +178,12 @@ sub estimate_remaining_energy {
 		next unless defined $end_time;
 
 		my $duration_sec = $end_time - $start_time;
-		if ($duration_sec <= 0) {
-			log_debug("$serial: Year offset=$year_offset, duration_sec <= 0, skipping");
-			next;
-		}
-
-		push @durations_sec, $duration_sec;
+		next if $duration_sec <= 0;
 
 		# --- Calculate avg kWh per hour for this year ---
 		my $duration_hours = $duration_sec / 3600;
-		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_available / $duration_hours : 0;
+		my $energy_for_year = $target_energy - $start_energy;
+		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
 		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_per_hour[-1]));
 	}
 
@@ -197,14 +193,17 @@ sub estimate_remaining_energy {
 		$sum_kwh_hour += $_ for @avg_kwh_per_hour;
 		my $avg_energy_last_day = $sum_kwh_hour / @avg_kwh_per_hour;
 
-		my $avg_duration_sec     = 0;
-		$avg_duration_sec += $_ for @durations_sec;
-		$avg_duration_sec /= @durations_sec if @durations_sec;
-
-		my $time_remaining_hours = $avg_duration_sec / 3600;
-
-		# Set energy_last_day to avg_energy_last_day for this method
+		# Set energy_last_day = avg_energy_last_day
 		my $energy_last_day = $avg_energy_last_day;
+
+		# Remaining energy for this meter
+		my $current_energy_available = $setup_value + $paid_kwh - $latest_energy;
+		$current_energy_available = 0 if $current_energy_available < 0;
+
+		# Calculate time remaining based on avg consumption
+		my $time_remaining_hours = $avg_energy_last_day && $current_energy_available > 0
+			? $current_energy_available / $avg_energy_last_day
+			: undef;
 
 		log_debug("$serial: yearly historical: avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day) .
 			", energy_last_day=" . sprintf("%.2f", $energy_last_day) .
@@ -212,9 +211,9 @@ sub estimate_remaining_energy {
 		);
 
 		return {
-			time_remaining_hours => sprintf('%.2f', $time_remaining_hours),
-			avg_energy_last_day  => sprintf('%.2f', $avg_energy_last_day),
-			energy_last_day      => sprintf('%.2f', $energy_last_day),
+			time_remaining_hours => defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef,
+			avg_energy_last_day  => sprintf("%.2f", $avg_energy_last_day),
+			energy_last_day      => sprintf("%.2f", $energy_last_day),
 		};
 	}
 
