@@ -33,8 +33,7 @@ while (1) {
 	$sth = $dbh->prepare(qq[
 		SELECT `serial`, info, min_amount, valve_status, valve_installed,
 			   sw_version, email_notification, sms_notification,
-			   close_notification_time, notification_state, notification_sent_at,
-			   time_remaining_hours
+			   close_notification_time, notification_state, notification_sent_at
 		FROM meters
 		WHERE enabled
 		  AND type = 'heat'
@@ -89,7 +88,7 @@ while (1) {
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 1,
-						notification_sent_at = UNIX_TIMESTAMP()
+						notification_sent_at = $energy_remaining
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
@@ -125,7 +124,7 @@ while (1) {
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 0,
-						notification_sent_at = NULL
+						notification_sent_at = $energy_remaining
 					WHERE serial = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial});
 
@@ -157,7 +156,7 @@ while (1) {
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 2,
-						notification_sent_at = UNIX_TIMESTAMP()
+						notification_sent_at = $energy_remaining
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
@@ -191,7 +190,7 @@ while (1) {
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 0,
-						notification_sent_at = UNIX_TIMESTAMP()
+						notification_sent_at = $energy_remaining
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
