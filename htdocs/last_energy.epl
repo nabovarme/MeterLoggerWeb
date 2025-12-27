@@ -13,8 +13,8 @@ if ($dbh = Nabovarme::Db->my_connect) {
 
 [$ if ($sth->rows) $]
 	[$ if ($d = $sth->fetchrow_hashref) $]
-		[+ $d->{energy} +] kWh<br>
-		[+ $d->{volume} +] m<sup>3</sup><br>
-		[+ $d->{hours} +] hours<br>
+		[+ sprintf("%.0f", $d->{energy}) +] kWh<br>
+		[+ sprintf("%.0f", $d->{volume}) +] m<sup>3</sup><br>
+		[+ sprintf("%.0f", $d->{hours}) +] hours<br>
 	[$ endif $]
 [$ endif $]

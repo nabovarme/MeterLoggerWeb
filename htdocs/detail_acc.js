@@ -195,7 +195,7 @@ function updateConsumptionFromGraphRange() {
 	document.getElementById('consumption_in_range').innerHTML =
 		'<span class="default-bold">Consumption for selected period </span>' +
 		'<span class="default">' +
-		consumption.toFixed(2) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
+		consumption.toFixed(0) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 
 	// 👇 Filter payments table
 	filterPaymentsBySelectedGraphRange(g);
