@@ -115,11 +115,12 @@ sub estimate_remaining_energy {
 	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
 
 	# ============================================================
-	# NEW METHOD: historical multi-year / partial average
+	# yearly historical: historical multi-year / partial average
 	# ============================================================
 
 	# Use current paid_kwh as energy to consume
 	my $energy_available = $paid_kwh;
+	log_debug("$serial: yearly historical: energy_available set to paid_kwh=" . sprintf("%.2f", $energy_available));
 
 	# Determine how many full years of data exist for this meter
 	my ($earliest_unix_time) = $dbh->selectrow_array(qq[
@@ -133,6 +134,9 @@ sub estimate_remaining_energy {
 		my $earliest_year = (localtime($earliest_unix_time))[5] + 1900;
 		my $current_year  = (localtime(time()))[5] + 1900;
 		$years_back = $current_year - $earliest_year;
+		log_debug("$serial: Earliest sample year=$earliest_year, current year=$current_year, years_back=$years_back");
+	} else {
+		log_debug("$serial: No earliest sample found, years_back=0");
 	}
 
 	my @durations_sec;
@@ -149,6 +153,7 @@ sub estimate_remaining_energy {
 		], undef, $serial, $year_offset);
 
 		next unless defined $start_energy && defined $start_time;
+		log_debug("$serial: Year offset=$year_offset, start_energy=" . sprintf("%.2f", $start_energy) . ", start_time=$start_time");
 
 		my ($end_time) = $dbh->selectrow_array(qq[
 			SELECT unix_time
@@ -161,11 +166,15 @@ sub estimate_remaining_energy {
 		], undef, $serial, $start_energy + $energy_available, $start_time);
 
 		next unless defined $end_time;
+		log_debug("$serial: Year offset=$year_offset, end_time=$end_time");
 
 		my $duration_sec = $end_time - $start_time;
-		next if $duration_sec <= 0;
-
+		if ($duration_sec <= 0) {
+			log_debug("$serial: Year offset=$year_offset, duration_sec <= 0, skipping");
+			next;
+		}
 		push @durations_sec, $duration_sec;
+		log_debug("$serial: Year offset=$year_offset, duration_sec=" . $duration_sec . " seconds");
 	}
 
 	if (@durations_sec) {
@@ -176,10 +185,9 @@ sub estimate_remaining_energy {
 		my $avg_duration_sec     = $sum / @durations_sec;
 		my $time_remaining_hours = $avg_duration_sec / 3600;
 
-		log_debug("$serial: historical method used (years=" .
-			scalar(@durations_sec) .
-			"), time_remaining_hours=" .
-			sprintf('%.2f', $time_remaining_hours)
+		log_debug("$serial: yearly historical: durations_sec=" . join(", ", @durations_sec));
+		log_debug("$serial: yearly historical: avg_duration_sec=" . sprintf("%.2f", $avg_duration_sec) .
+			", time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours)
 		);
 
 		return {
@@ -187,7 +195,7 @@ sub estimate_remaining_energy {
 		};
 	}
 
-	log_debug("$serial: historical method not usable, falling back to existing logic");
+	log_debug("$serial: yearly historical not usable, falling back to existing logic");
 
 	# --- Fetch sample from ~24h ago ---
 	$sth = $dbh->prepare(qq[
