@@ -46,14 +46,14 @@ while (1) {
 
 		my $quoted_serial = $dbh->quote($d->{serial});
 
-		# get latest estimates
+		# Get the latest energy estimates
 		my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $d->{serial});
 
 		$energy_remaining      = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 		$energy_time_remaining = $est->{time_remaining_hours};
 		my $time_remaining_string = $est->{time_remaining_hours_string};
 
-		# get paid kWh and avg energy last day
+		# Calculate paid kWh and average energy used during the last day
 		my $paid_kwh = sprintf("%.2f", $est->{paid_kwh} || 0);
 		my $avg_energy_last_day = sprintf("%.2f", $est->{avg_energy_last_day} || 0);
 		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
@@ -62,11 +62,12 @@ while (1) {
 		# --- Notifications ---
 		my $close_warning_threshold = $d->{close_notification_time} || CLOSE_WARNING_TIME;
 
-		# Close warning: state 0 -> 1
+		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
 			if ((defined $energy_time_remaining && $energy_time_remaining < $close_warning_threshold)
 				|| ($energy_remaining <= ($d->{min_amount} + 0.2))) {
 
+				# Debug log for sending close warning notification
 				log_debug(
 					"Serial: $d->{serial}",
 					"State: 0 → 1",
@@ -77,12 +78,14 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
+				# Send the close warning notification
 				$notification = $CLOSE_WARNING_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 
+				# Update the database with new state and timestamp
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 1,
@@ -90,16 +93,17 @@ while (1) {
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
-				log_info("close warning sent for serial " . $d->{serial});
+				log_info("Close warning sent for serial " . $d->{serial});
 			}
 		}
 
-		# Close notice: state 1 -> 2 or top-up: state 1 -> 0
+		# Close notice: transition state from 1 to 2 or top-up: state 1 → 0
 		elsif ($d->{notification_state} == 1) {
 
-			# --- OPEN after top-up ---
+			# --- Open notice after top-up ---
 			if (($energy_time_remaining > 0) && ($energy_remaining > $d->{notification_sent_at})) {
 
+				# Debug log for sending open notice after top-up
 				log_debug(
 					"Serial: $d->{serial}",
 					"State: 1 → 0 (top-up)",
@@ -110,12 +114,14 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
+				# Send the open notice
 				$notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 
+				# Reset state and clear energy marker in the database
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 0,
@@ -123,12 +129,13 @@ while (1) {
 					WHERE serial = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial});
 
-				log_info("open notice sent after top-up for serial " . $d->{serial});
+				log_info("Open notice sent after top-up for serial " . $d->{serial});
 			}
 
-			# --- CLOSE (energy exhausted) ---
+			# --- Close notice when energy is exhausted ---
 			elsif ($energy_remaining <= 0) {
 
+				# Debug log for sending close notice
 				log_debug(
 					"Serial: $d->{serial}",
 					"State: 1 → 2",
@@ -139,12 +146,14 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
+				# Send the close notice
 				$notification = $DOWN_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 
+				# Update state and timestamp in the database
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 2,
@@ -152,14 +161,15 @@ while (1) {
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
-				log_info("close notice sent for serial " . $d->{serial});
+				log_info("Close notice sent for serial " . $d->{serial});
 			}
 		}
 
-		# Open notice: state 2 -> 0
+		# Open notice: transition state from 2 to 0
 		elsif ($d->{notification_state} == 2) {
 			if (defined $energy_time_remaining && $energy_remaining > 0.2) { 
 
+				# Debug log for sending open notice
 				log_debug(
 					"Serial: $d->{serial}",
 					"State: 2 → 0",
@@ -170,12 +180,14 @@ while (1) {
 					"Notification sent at: " . ($d->{notification_sent_at} || 'N/A')
 				);
 
+				# Send the open notice
 				$notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 
+				# Update state and timestamp in the database
 				$dbh->do(qq[
 					UPDATE meters
 					SET notification_state = 0,
@@ -183,7 +195,7 @@ while (1) {
 					WHERE `serial` = $quoted_serial
 				]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial}, ". " . $DBI::errstr);
 
-				log_info("open notice sent for serial " . $d->{serial});
+				log_info("Open notice sent for serial " . $d->{serial});
 			}
 		}
 	}
