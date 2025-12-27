@@ -317,8 +317,11 @@ sub sms_send {
 
 	my @recipients = ($recipient =~ /\d+/g);
 	for my $r (@recipients) {
-		system(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
-		log_info(qq[/etc/apache2/perl/Nabovarme/bin/smstools_send.pl 45$r "$message"]);
+		log_info("Sending SMS to 45$r: $message", { -custom_tag => 'SMS' });
+		my $ok = send_notification($r, $message);
+		unless ($ok) {
+			log_warn("Failed to send SMS to 45$r", { -custom_tag => 'SMS' });
+		}
 	}
 }
 

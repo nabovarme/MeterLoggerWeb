@@ -1,27 +1,24 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Net::SMTP;
-use Data::Dumper;
+use warnings;
 
-my $smtp = Net::SMTP->new('postfix') || die $!;
+use Nabovarme::Utils qw(send_notification log_info log_warn);
 
 # destination and message text
 my ($destination, $message) = @ARGV;
-
-$smtp->mail('meterlogger');
-if ($smtp->to($destination . '@meterlogger')) {
-	$smtp->data();
-	$smtp->datasend("$message");
-	$smtp->dataend();
-	exit 0;   # success
-} else {
-	print "Error: ", $smtp->message();
-	exit 1;   # failure
+unless ($destination && $message) {
+	log_warn("Usage: $0 <destination_number> <message>");
+	exit 1;
 }
 
-$smtp->quit;
-# end of main
+log_info("Sending SMS to $destination: $message", { -custom_tag => 'SMS' });
 
+if (send_notification($destination, $message)) {
+	exit 0;   # success
+} else {
+	log_warn("Failed to send SMS to $destination", { -custom_tag => 'SMS' });
+	exit 1;   # failure
+}
 
 __END__
