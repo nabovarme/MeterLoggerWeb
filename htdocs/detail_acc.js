@@ -117,11 +117,6 @@ function convertCsvSecondsToMs(csv) {
 	return [header, ...convertedLines].join("\n");
 }
 
-// Normalize amount to 2 decimal places (for consistent display)
-function normalizeAmount(amount) {
-	return parseFloat(amount).toFixed(2);
-}
-
 // Formats timestamps for display in labels
 function formatDate(d) {
 	const pad = (n) => (n < 10 ? '0' + n : n);
@@ -203,20 +198,19 @@ function updateConsumptionFromGraphRange() {
 
 function updateLastReadingStats() {
 	document.getElementById("last_energy").innerHTML =
-		normalizeAmount(accountData.last_energy) + " kWh<br> " +
-		normalizeAmount(accountData.last_volume) + " m<sup>3</sup><br>" +
-		normalizeAmount(accountData.last_hours) + " hours<br>";
+		parseFloat(accountData.last_energy).toFixed(0) + " kWh<br>" +
+		parseFloat(accountData.last_volume).toFixed(0) + " m<sup>3</sup><br>" +
+		parseFloat(accountData.last_hours).toFixed(0) + " hours<br>";
 }
 
 function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
 		// Round kwh_remaining to the nearest integer
 		const kwhRemainingInt = Math.round(accountData.kwh_remaining);
-
 		document.getElementById("kwh_remaining").innerHTML =
-			normalizeAmount(kwhRemainingInt) + " kWh remaining, " +
+			parseFloat(kwhRemainingInt).toFixed(0) + " kWh remaining, " +
 			accountData.time_remaining_hours_string + " at " +
-			accountData.avg_energy_last_day + " kW/h";
+			parseFloat(accountData.avg_energy_last_day).toFixed(2) + " kW/h";
 	}
 }
 
@@ -247,8 +241,10 @@ function renderPaymentRowsFromAccountData(payments) {
 		row.setAttribute('data-payment-time', d.payment_time);
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
-		const amountStr = normalizeAmount(d.amount || 0) + ' kr';
-		const priceStr = (d.type === 'payment' && d.price) ? normalizeAmount(d.price || 0) + ' kr/kWh' : '';
+		const amountStr = (parseFloat(d.amount || 0).toFixed(0)) + ' kr';
+		const priceStr = (d.type === 'payment' && d.price) 
+			? (parseFloat(d.price || 0).toFixed(2)) + ' kr/kWh' 
+			: '';
 		const dateStr = new Date(d.payment_time * 1000).toLocaleString('da-DA').replace('T', ' ');
 
 		row.innerHTML = `
