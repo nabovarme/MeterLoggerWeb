@@ -66,6 +66,34 @@ while (1) {
 		my $new_last_paid_kwh_marker = $d->{last_paid_kwh_marker};
 		my $update_needed = 0;
 
+		# --- Top-up detection (independent of state) ---
+		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0)) {
+
+			# Debug log for sending open notice after top-up
+			log_warn(
+				"Serial: $d->{serial}",
+				"Top-up detected",
+				"Paid kWh increased: $d->{last_paid_kwh_marker} → $est->{paid_kwh}",
+				"Energy remaining: $energy_remaining_fmt kWh",
+				"Time remaining: $time_remaining_fmt h"
+			);
+
+			# Send the open notice
+			$notification = $UP_MESSAGE;
+			$notification =~ s/\{serial\}/$d->{serial}/g;
+			$notification =~ s/\{info\}/$d->{info}/g;
+			$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
+			sms_send($d->{sms_notification}, $notification);
+			log_info("Open notice sent after top-up for serial " . $d->{serial});
+
+			# Reset state to 0
+			$new_state = 0;
+			$update_needed = 1;
+
+			# Update last_paid_kwh_marker
+			$new_last_paid_kwh_marker = $est->{paid_kwh};
+		}
+
 		# --- Notifications ---
 		my $close_warning_threshold = $d->{close_notification_time} ? $d->{close_notification_time} / 3600 : $CLOSE_WARNING_TIME;
 
@@ -97,41 +125,9 @@ while (1) {
 			}
 		}
 
-		# Close notice: transition state from 1 to 2 or top-up: state 1 → 0
+		# Close notice: transition state from 1 to 2
 		elsif ($d->{notification_state} == 1) {
-
-			# --- Open notice after top-up (always send if paid kWh increased) ---
-			if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0)) {
-
-				# Debug log for sending open notice after top-up
-				log_warn(
-					"Serial: $d->{serial}",
-					"State: 1 → 0 (top-up)",
-					"Energy remaining: $energy_remaining_fmt kWh",
-					"Paid kWh: $paid_kwh kWh",
-					"Avg energy last day: $avg_energy_last_day kWh",
-					"Time remaining: $time_remaining_fmt h",
-					"Notification sent at: " . ($d->{last_paid_kwh_marker} || 'N/A')
-				);
-
-				# Send the open notice
-				$notification = $UP_MESSAGE;
-				$notification =~ s/\{serial\}/$d->{serial}/g;
-				$notification =~ s/\{info\}/$d->{info}/g;
-				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-				sms_send($d->{sms_notification}, $notification);
-				log_info("Open notice sent after top-up for serial " . $d->{serial});
-
-				# Reset state
-				$new_state = 0;
-				$update_needed = 1;
-
-				# Update last_paid_kwh_marker
-				$new_last_paid_kwh_marker = $est->{paid_kwh};
-			}
-
-			# --- Close notice when energy is exhausted ---
-			elsif ($energy_remaining <= 0) {
+			if ($energy_remaining <= 0) {
 
 				# Debug log for sending close notice
 				log_warn(
