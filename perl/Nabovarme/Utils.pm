@@ -201,7 +201,6 @@ sub estimate_remaining_energy {
 	# ============================================================
 
 	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
-	$kwh_remaining = 0 if $kwh_remaining < 0;
 
 	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
 

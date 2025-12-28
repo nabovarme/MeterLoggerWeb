@@ -294,7 +294,7 @@ CREATE TABLE `meters` (
   `sms_notification` varchar(256) DEFAULT NULL,
   `close_notification_time` int(11) DEFAULT 604800 COMMENT 'send notice this many seconds before we close (default 7 days)',
   `notification_state` int(1) unsigned NOT NULL DEFAULT 0,
-  `notification_sent_at` float DEFAULT NULL,
+  `last_paid_kwh_marker` float DEFAULT NULL,
   `wifi_status` varchar(32) DEFAULT 'disconnected',
   `wifi_set_ssid` varchar(32) DEFAULT NULL,
   `wifi_set_pwd` varchar(64) DEFAULT NULL,

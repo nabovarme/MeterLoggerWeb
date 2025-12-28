@@ -22,6 +22,8 @@ my $DOWN_MESSAGE           = $ENV{DOWN_MESSAGE}           || 'Close notice: {inf
 my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info} closing soon. {time_remaining} remaining. ({serial})';
 my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
+my $HYST = 0.5;
+
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining_hours, $notification);
 
 # connect to db
@@ -35,12 +37,14 @@ if ($dbh = Nabovarme::Db->my_connect) {
 while (1) {
 	$sth = $dbh->prepare(qq[
 		SELECT `serial`, info, min_amount, valve_status, valve_installed,
-			   sw_version, email_notification, sms_notification,
-			   close_notification_time, notification_state, last_paid_kwh_marker
+			sw_version, email_notification, sms_notification,
+			close_notification_time, notification_state, last_paid_kwh_marker
 		FROM meters
 		WHERE enabled
-		  AND type = 'heat'
-		  AND (email_notification OR sms_notification)
+			AND enabled = 1
+			AND valve_installed = 1
+			AND type = 'heat'
+			AND (email_notification OR sms_notification)
 	]);
 	$sth->execute or log_warn($DBI::errstr);
 
@@ -67,7 +71,7 @@ while (1) {
 		my $update_needed = 0;
 
 		# --- Top-up detection (independent of state) ---
-		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0)) {
+		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0) + $HYST) {
 
 			# Debug log for sending open notice after top-up
 			log_warn(
@@ -99,7 +103,8 @@ while (1) {
 
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
-			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
+			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || $energy_remaining <= $HYST
+) {
 
 				# Debug log for sending close warning notification
 				log_warn(
@@ -127,7 +132,7 @@ while (1) {
 
 		# Close notice: transition state from 1 to 2
 		elsif ($d->{notification_state} == 1) {
-			if ($energy_remaining <= 0) {
+			if ($energy_remaining <= $HYST) {
 
 				# Debug log for sending close notice
 				log_warn(
@@ -156,7 +161,7 @@ while (1) {
 
 		# Open notice: transition state from 2 to 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining_hours && $energy_remaining > 0) {
+			if (defined $energy_time_remaining_hours && $energy_remaining > $HYST) {
 
 				# Debug log for sending open notice
 				log_warn(
@@ -184,7 +189,7 @@ while (1) {
 		}
 
 		# --- Always update last_paid_kwh_marker if paid kWh increased ---
-		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($d->{paid_kwh} || 0)) {
+		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($d->{last_paid_kwh_marker} || 0)) {
 			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
 			$update_needed = 1;
 		}
