@@ -100,8 +100,8 @@ while (1) {
 		# Close notice: transition state from 1 to 2 or top-up: state 1 → 0
 		elsif ($d->{notification_state} == 1) {
 
-			# --- Open notice after top-up (always send if energy increased) ---
-			if (defined $energy_remaining && $energy_remaining > ($d->{last_paid_kwh_marker} || 0)) {
+			# --- Open notice after top-up (always send if paid kWh increased) ---
+			if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0)) {
 
 				# Debug log for sending open notice after top-up
 				log_warn(
@@ -122,10 +122,12 @@ while (1) {
 				sms_send($d->{sms_notification}, $notification);
 				log_info("Open notice sent after top-up for serial " . $d->{serial});
 
-				# Reset state and clear energy marker in the database
+				# Reset state
 				$new_state = 0;
 				$update_needed = 1;
 
+				# Update last_paid_kwh_marker
+				$new_last_paid_kwh_marker = $est->{paid_kwh};
 			}
 
 			# --- Close notice when energy is exhausted ---
@@ -150,7 +152,7 @@ while (1) {
 				sms_send($d->{sms_notification}, $notification);
 				log_info("Close notice sent for serial " . $d->{serial});
 
-				# Update state and timestamp in the database
+				# Update state and mark update
 				$new_state = 2;
 				$update_needed = 1;
 			}
@@ -179,12 +181,13 @@ while (1) {
 				sms_send($d->{sms_notification}, $notification);
 				log_info("Open notice sent for serial " . $d->{serial});
 
-				# Update state and timestamp in the database
+				# Update state and mark update
 				$new_state = 0;
 				$update_needed = 1;
 			}
 		}
-		# --- Always update last_paid_kwh_marker if energy increased ---
+
+		# --- Always update last_paid_kwh_marker if paid kWh increased ---
 		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($d->{paid_kwh} || 0)) {
 			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
 			$update_needed = 1;
