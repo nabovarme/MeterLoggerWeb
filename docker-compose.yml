@@ -247,7 +247,6 @@ services:
     container_name: utils
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-      - ./my.cnf:/etc/mysql/my.cnf
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
     environment:
