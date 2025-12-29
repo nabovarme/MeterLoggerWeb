@@ -109,7 +109,7 @@ sub send_sms {
 	log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $phone && $message;
 
 	if ($dry_run) {
-		log_info("DRY RUN: send_sms called for $phone with message:\n$message", {-no_script_name => 1, -custom_tag => 'SMS'});
+		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS'});
 		save_sms_to_file(
 			phone   => $phone,
 			message => $message,
