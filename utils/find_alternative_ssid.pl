@@ -81,7 +81,7 @@ my $avg_rssi_data = $dbh->selectall_arrayref("
 # --- Build candidate list ---
 my @candidates;
 foreach my $row (@$avg_rssi_data) {
-	my $ssid = $row->{ssid} // next;
+	my $ssid = $row->{ssid} || next;
 
 	my $avg_rssi   = $row->{avg_rssi};
 	my $seen_count = $row->{seen_count};
