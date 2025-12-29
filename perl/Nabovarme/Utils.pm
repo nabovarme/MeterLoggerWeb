@@ -66,10 +66,10 @@ sub rounded_duration {
 	return $is_negative ? "$result ago" : $result;
 }
 
-# ----------------------------
-# Estimate remaining energy and time left
-# ----------------------------
 # ============================================================
+# Estimate remaining energy and time left, using cached meters_state if possible
+# Recalculates if cache is older than 1 minute
+
 # three methods of estimation:
 # 1) Yearly historical: use multi-year daily samples to compute average consumption per hour
 # 2) Recent samples: use actual difference between last two samples (if available)
@@ -91,12 +91,60 @@ sub estimate_remaining_energy {
 		valve_status                => '',
 		valve_installed             => 0,
 		method                      => undef,
+		close_notification_time      => 604800,
+		notification_state           => 0,
+		last_notification_sent_time  => undef,
+		last_paid_kwh_marker         => undef,
 	);
 
 	# Early return if missing DB handle or serial
 	return \%result unless $dbh && $serial;
 
 	my $quoted_serial = $dbh->quote($serial);
+
+	# ----------------------------
+	# --- Try fetching cached values ---
+	# ----------------------------
+	my $sth = $dbh->prepare(qq[
+		SELECT kwh_remaining,
+		       time_remaining_hours,
+		       time_remaining_hours_string,
+		       energy_last_day,
+		       avg_energy_last_day,
+		       latest_energy,
+		       paid_kwh,
+		       method,
+		       close_notification_time,
+		       notification_state,
+		       last_notification_sent_time,
+		       last_paid_kwh_marker,
+		       UNIX_TIMESTAMP(last_updated) AS last_updated
+		FROM meters_state
+		WHERE serial = $quoted_serial
+		LIMIT 1
+	]) or log_die("Failed to prepare statement for meters_state: $DBI::errstr");
+	$sth->execute() or log_die("Failed to execute statement for meters_state: $DBI::errstr");
+	my $row = $sth->fetchrow_hashref;
+
+	if ($row) {
+		my $last_updated = $row->{last_updated} // 0;
+		if (time() - $last_updated < 60) {
+			# Cache is fresh, return it
+			for my $key (keys %$row) {
+				next if $key eq 'last_updated';
+				$result{$key} = $row->{$key};
+			}
+			log_debug("$serial: Returning cached meters_state values (last_updated=" . $last_updated . ")");
+			return \%result;
+		}
+		log_debug("$serial: Cached meters_state outdated (last_updated=" . $last_updated . "), recalculating");
+	} else {
+		log_debug("$serial: No cached meters_state found, recalculating");
+	}
+
+	# ============================================================
+	# --- Original fetching and estimation logic ---
+	# ============================================================
 
 	# --- Fetch latest sample and valve_status ---
 	my $latest_energy;
@@ -105,7 +153,7 @@ sub estimate_remaining_energy {
 	my $valve_installed;
 	my $sw_version;
 
-	my $sth = $dbh->prepare(qq[
+	$sth = $dbh->prepare(qq[
 		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
 		FROM meters m
 		LEFT JOIN samples_cache sc ON m.serial = sc.serial
@@ -248,6 +296,62 @@ sub estimate_remaining_energy {
 	$result{time_remaining_hours_string} = $time_remaining_hours_string;
 	$result{energy_last_day}             = sprintf("%.2f", $energy_last_day);
 	$result{avg_energy_last_day}         = sprintf("%.2f", $avg_energy_last_day);
+
+	# ----------------------------
+	# --- Update meters_state cache ---
+	# ----------------------------
+	my $time_remaining_hours_string_quoted = $dbh->quote($result{time_remaining_hours_string});
+	my $method_quoted                      = $dbh->quote($result{method});
+
+	my $sql = qq[
+		INSERT INTO meters_state (
+			serial,
+			kwh_remaining,
+			time_remaining_hours,
+			time_remaining_hours_string,
+			energy_last_day,
+			avg_energy_last_day,
+			latest_energy,
+			paid_kwh,
+			method,
+			close_notification_time,
+			notification_state,
+			last_notification_sent_time,
+			last_paid_kwh_marker,
+			last_updated
+		) VALUES (
+			$quoted_serial,
+			$result{kwh_remaining},
+			$result{time_remaining_hours},
+			$time_remaining_hours_string_quoted,
+			$result{energy_last_day},
+			$result{avg_energy_last_day},
+			$result{latest_energy},
+			$result{paid_kwh},
+			$method_quoted,
+			$result{close_notification_time},
+			$result{notification_state},
+			$result{last_notification_sent_time} ? $result{last_notification_sent_time} : NULL,
+			$result{last_paid_kwh_marker} ? $result{last_paid_kwh_marker} : NULL,
+			NOW()
+		) ON DUPLICATE KEY UPDATE
+			kwh_remaining = VALUES(kwh_remaining),
+			time_remaining_hours = VALUES(time_remaining_hours),
+			time_remaining_hours_string = VALUES(time_remaining_hours_string),
+			energy_last_day = VALUES(energy_last_day),
+			avg_energy_last_day = VALUES(avg_energy_last_day),
+			latest_energy = VALUES(latest_energy),
+			paid_kwh = VALUES(paid_kwh),
+			method = VALUES(method),
+			close_notification_time = VALUES(close_notification_time),
+			notification_state = VALUES(notification_state),
+			last_notification_sent_time = VALUES(last_notification_sent_time),
+			last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
+			last_updated = NOW()
+	];
+
+	$sth = $dbh->prepare($sql);
+	$sth->execute or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
 
 	return \%result;
 }
