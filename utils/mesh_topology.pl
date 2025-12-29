@@ -106,7 +106,7 @@ my @roots = grep { defined $parent{$_} && $parent{$_} =~ /^AP:/ } keys %parent;
 
 sub print_tree {
 	my ($node, $prefix) = @_;
-	my $info  = $meters->{$node}->{info} // '';
+	my $info  = $meters->{$node}->{info} || '';
 	my $label = $node;
 	$label .= " ($info)" if $info ne '';
 	if ($parent{$node} && $parent{$node} =~ /^AP:(.+)/) {
@@ -142,7 +142,7 @@ my @isolated = grep { ! $printed{$_} } keys %$meters;
 if (@isolated) {
 	print "\n--- Isolated Meters (no connection) ---\n";
 	foreach my $m (@isolated) {
-		my $info = $meters->{$m}->{info} // '';
+		my $info = $meters->{$m}->{info} || '';
 		print "$m ($info)\n";
 	}
 }

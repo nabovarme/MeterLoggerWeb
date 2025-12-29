@@ -555,7 +555,7 @@ sub log_warn {
 }
 
 sub log_debug {
-	return unless ($ENV{ENABLE_DEBUG} // '') =~ /^(1|true|yes)$/i;
+	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true|yes)$/i;
 	my (@msgs) = @_;
 	my $opts = {};
 	if (ref $msgs[-1] eq 'HASH') {

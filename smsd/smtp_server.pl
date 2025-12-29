@@ -40,7 +40,7 @@ $Data::Dumper::Quotekeys = 0;
 my $script_name = basename($0, ".pl");
 
 # --- Dry run mode ---
-my $dry_run = $ENV{SMSD_DRY_RUN} || 0;
+my $dry_run = ($ENV{SMSD_DRY_RUN} || '') =~ /^(1|true|yes)$/i;
 
 # --- Read configuration from environment ---
 my $router    = $ENV{DLINK_ROUTER_IP}   or log_die("Missing DLINK_ROUTER_IP env variable", {-no_script_name => 1, -custom_tag => 'SMS' });
