@@ -1,116 +1,3 @@
-=pod
-
-=head1 NAME
-
-Nabovarme::SMSAuth - Apache mod_perl handler for phone number + SMS code login authentication
-
-=head1 DESCRIPTION
-
-This module implements a lightweight, cookie-based login system using phone numbers and one-time SMS codes.
-It is designed to work as a request handler in Apache2 with mod_perl, ensuring users authenticate before accessing protected resources.
-
-The flow is cookie-driven and progresses through the following states:
-
-  1. new               - A user lands on a protected page without authentication.
-  2. login             - User is redirected to enter their phone number.
-  3. sms_code_sent     - A one-time SMS code is generated and sent to the phone number.
-  4. sms_code_verified - Upon correct code entry, the user is authenticated.
-  5. deny              - Access denied; user must restart the flow.
-  6. logout            - Auth cookie is expired, and session is deleted from DB.
-
-Authentication state is persisted in a MySQL table `sms_auth`, keyed by a secure cookie token.
-
-=head1 FLOW DIAGRAM
-
-             +--------------------+
-             |  Incoming Request  |
-             +--------------------+
-                       |
-                       v
-             +---------------------+
-             |  Already Auth'd?    |----> Yes -----> Serve Resource
-             |  (valid cookie)     |
-             +---------------------+
-                       |
-                      No
-                       |
-                       v
-              +----------------------+
-              |  State = 'new'       |
-              |  -> insert session   |
-              +----------------------+
-                       |
-                       v
-            +------------------------+
-            | Redirect to login.epl  |
-            +------------------------+
-                       |
-                       v
-            +-----------------------------+
-            | User enters phone number    |
-            +-----------------------------+
-                       |
-                       v
-             +-----------------------------+
-             | Valid phone number in DB?   |----> No ----> Reload login.epl
-             +-----------------------------+
-                       |
-                      Yes
-                       |
-                       v
-             +-----------------------------+
-             | Generate and send SMS code  |
-             | Update state = sms_code_sent|
-             +-----------------------------+
-                       |
-                       v
-             +----------------------------+
-             | Redirect to sms_code.epl   |
-             +----------------------------+
-                       |
-                       v
-             +-----------------------------+
-             | User enters SMS code        |
-             +-----------------------------+
-                       |
-                       v
-         +-------------------------------+
-         |  Code matches entry in DB?    |----> No ----> Reload sms_code.epl
-         +-------------------------------+
-                       |
-                      Yes
-                       |
-                       v
-             +-------------------------------+
-             | Update state = sms_code_verified
-             | Redirect to original URI
-             +-------------------------------+
-
-=head1 DEPENDENCIES
-
-- Apache2::RequestRec
-- Apache2::RequestIO
-- Apache2::SubRequest
-- CGI
-- CGI::Cookie
-- Math::Random::Secure
-- DBI
-- Net::SMTP
-- Nabovarme::Db (custom)
-
-=head1 SECURITY
-
-- Auth token is a secure, random 128-bit value stored in a cookie.
-- Token is tied to IP and User-Agent.
-- SMS codes are single-use and expire with DB cleanup strategy (not shown here).
-- Optional "stay_logged_in" checkbox enables persistent auth cookies.
-
-=head1 AUTHOR
-
-Nabovarme AS / Internal Tools
-
-=cut
-
 package Nabovarme::SMSAuth;
 
 use strict;
@@ -131,6 +18,7 @@ use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
 use constant SNOOZE_LOCATION => '/snooze.epl';
 
 use Nabovarme::Db;
+use Nabovarme::Utils;
 
 # Main Apache request handler
 sub handler {
@@ -257,7 +145,7 @@ sub login_handler {
 					my $quoted_sms_code = $dbh->quote($sms_code);
 					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, `phone` = $quoted_id, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 					
-					sms_send($id, "SMS Code: $sms_code");
+					send_notification($id, "SMS Code: $sms_code");
 
 					# Start with a session cookie
 					$cookie = CGI::Cookie->new(
@@ -403,25 +291,6 @@ sub logout_handler {
 	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
-# Sends SMS message via local SMTP relay
-sub sms_send {
-	my ($destination, $message) = @_;
-	$destination = '45' . $destination;
-
-	my $smtp = Net::SMTP->new('postfix');	
-		
-	$smtp->mail('meterlogger');
-	if ($smtp->to($destination . '@meterlogger')) {
-		$smtp->data();
-		$smtp->datasend("$message");
-		$smtp->dataend();
-	} else {
-		print "Error: ", $smtp->message();
-	}
-
-	$smtp->quit;
-}
-
 sub add_set_cookie_once {
 	my ($r, $cookie) = @_;
 	my @cookies = $r->err_headers_out->get('Set-Cookie');
@@ -474,3 +343,109 @@ sub log_admin_event {
 1;
 
 __END__
+
+/*
+Nabovarme::SMSAuth - Apache mod_perl handler for phone number + SMS code login authentication
+
+DESCRIPTION:
+
+This module implements a lightweight, cookie-based login system using phone numbers and one-time SMS codes.
+It is designed to work as a request handler in Apache2 with mod_perl, ensuring users authenticate before accessing protected resources.
+
+The flow is cookie-driven and progresses through the following states:
+
+  1. new               - A user lands on a protected page without authentication.
+  2. login             - User is redirected to enter their phone number.
+  3. sms_code_sent     - A one-time SMS code is generated and sent to the phone number.
+  4. sms_code_verified - Upon correct code entry, the user is authenticated.
+  5. deny              - Access denied; user must restart the flow.
+  6. logout            - Auth cookie is expired, and session is deleted from DB.
+
+Authentication state is persisted in a MySQL table `sms_auth`, keyed by a secure cookie token.
+
+FLOW DIAGRAM:
+
+             +--------------------+
+             |  Incoming Request  |
+             +--------------------+
+                       |
+                       v
+             +---------------------+
+             |  Already Auth'd?    |----> Yes -----> Serve Resource
+             |  (valid cookie)     |
+             +---------------------+
+                       |
+                      No
+                       |
+                       v
+              +----------------------+
+              |  State = 'new'       |
+              |  -> insert session   |
+              +----------------------+
+                       |
+                       v
+            +------------------------+
+            | Redirect to login.epl  |
+            +------------------------+
+                       |
+                       v
+            +-----------------------------+
+            | User enters phone number    |
+            +-----------------------------+
+                       |
+                       v
+             +-----------------------------+
+             | Valid phone number in DB?   |----> No ----> Reload login.epl
+             +-----------------------------+
+                       |
+                      Yes
+                       |
+                       v
+             +-----------------------------+
+             | Generate and send SMS code  |
+             | Update state = sms_code_sent|
+             +-----------------------------+
+                       |
+                       v
+             +----------------------------+
+             | Redirect to sms_code.epl   |
+             +----------------------------+
+                       |
+                       v
+             +-----------------------------+
+             | User enters SMS code        |
+             +-----------------------------+
+                       |
+                       v
+         +-------------------------------+
+         |  Code matches entry in DB?    |----> No ----> Reload sms_code.epl
+         +-------------------------------+
+                       |
+                      Yes
+                       |
+                       v
+             +-------------------------------+
+             | Update state = sms_code_verified
+             | Redirect to original URI
+             +-------------------------------+
+
+DEPENDENCIES:
+
+- Apache2::RequestRec
+- Apache2::RequestIO
+- Apache2::SubRequest
+- CGI
+- CGI::Cookie
+- Math::Random::Secure
+- DBI
+- Net::SMTP
+- Nabovarme::Db (custom)
+
+SECURITY:
+
+- Auth token is a secure, random 128-bit value stored in a cookie.
+- Token is tied to IP and User-Agent.
+- SMS codes are single-use and expire with DB cleanup strategy (not shown here).
+- Optional "stay_logged_in" checkbox enables persistent auth cookies.
+
+*/
