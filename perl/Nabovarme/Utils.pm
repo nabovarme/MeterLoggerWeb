@@ -183,7 +183,7 @@ sub estimate_remaining_energy {
 
 	# Method 3: fallback daily
 	unless (defined $res) {
-		$res = estimate_from_daily_fallback($dbh, $serial);
+		$res = estimate_from_daily_history($dbh, $serial);
 		if (defined $res) {
 			$result{method} = 'fallback_daily';
 			log_debug("$serial: Fallback daily returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
@@ -286,9 +286,9 @@ sub estimate_from_yearly_history {
 
 	return undef if $years_back < 1;
 
-	# --- Get fallback daily average for outlier check ---
-	my $fallback = estimate_from_daily_fallback($dbh, $serial);
-	my $fallback_avg = $fallback ? $fallback->{avg_energy_last_day} : undef;
+	# --- Get outlier reference for outlier check ---
+	my $est = estimate_from_daily_history($dbh, $serial);
+	my $outlier_reference = $est ? $est->{avg_energy_last_day} : undef;
 
 	# ============================================================
 	# --- Compute overall average kWh per hour from previous years ---
@@ -343,9 +343,9 @@ sub estimate_from_yearly_history {
 		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
 
 		# --- Skip outlier years based on fallback ---
-		if (defined $fallback_avg) {
-			if ($avg_kwh_hour < 0.5 * $fallback_avg || $avg_kwh_hour > 2 * $fallback_avg) {
-				log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " is outlier compared to fallback $fallback_avg, skipping this year");
+		if (defined $outlier_reference) {
+			if ($avg_kwh_hour < 0.5 * $outlier_reference || $avg_kwh_hour > 2 * $outlier_reference) {
+				log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " is outlier compared to fallback $outlier_reference, skipping this year");
 				next;
 			}
 		}
@@ -480,7 +480,7 @@ sub estimate_from_recent_samples {
 # Uses historical daily averages if recent samples or yearly history fail
 # Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
 # ============================================================
-sub estimate_from_daily_fallback {
+sub estimate_from_daily_history {
 	my ($dbh, $serial) = @_;
 
 	# --- Quote serial for SQL ---
