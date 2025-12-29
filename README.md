@@ -16,10 +16,10 @@ docker compose up --build
 To initialize the database (**only the first time**):
 
 ```sh
-docker exec -it db /nabovarme_setup.sh
+docker exec -it db /docker-entrypoint-initdb.d/nabovarme_setup.sh
 docker cp mysql_backup.sql.bz2 db:/tmp/
-docker exec -it db /nabovarme_import.sh
-docker exec -it db /nabovarme_triggers.sh
+docker exec -it db /docker-entrypoint-initdb.d/nabovarme_import.sh
+docker exec -it db /docker-entrypoint-initdb.d/nabovarme_triggers.sh
 ```
 
 

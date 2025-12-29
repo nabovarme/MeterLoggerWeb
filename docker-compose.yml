@@ -7,13 +7,9 @@ services:
     ports:
       - "127.0.0.1:3306:3306"
     volumes:
-      - ./my.cnf:/etc/mysql/my.cnf
-      - ./db_data:/var/lib/mysql:delegated
-      - ./nabovarme.sql:/nabovarme.sql
-      - ./nabovarme_triggers.sql:/nabovarme_triggers.sql
-      - ./nabovarme_setup.sh:/nabovarme_setup.sh
-      - ./nabovarme_import.sh:/nabovarme_import.sh
-      - ./nabovarme_triggers.sh:/nabovarme_triggers.sh
+      - ./db/db_data:/var/lib/mysql:delegated
+      - ./db/my.cnf.template:/etc/mysql/my.cnf.template:ro
+      - ./db/docker-entrypoint-initdb.d/:/docker-entrypoint-initdb.d/:ro
     restart: always
     healthcheck:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
@@ -24,11 +20,8 @@ services:
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
       TZ: 'Europe/Copenhagen'
-    # Apply optional innodb_buffer_pool_size only if set
-    command: >
-      bash -c "exec mysqld
-      ${INNODB_BUFFER_POOL_SIZE:+--innodb-buffer-pool-size=$INNODB_BUFFER_POOL_SIZE}"
 
   mqtt:
     image: eclipse-mosquitto:latest
@@ -254,7 +247,6 @@ services:
     container_name: utils
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-      - ./my.cnf:/etc/mysql/my.cnf
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
     environment:
