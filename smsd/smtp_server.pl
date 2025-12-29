@@ -501,12 +501,33 @@ while (my $client = $socket->accept()) {
 	$smtp->set_callback(DATA => sub {
 		my ($session, $data) = @_;
 
-		my $email = Email::Simple->new($data);		
-		my $subject = $email->header('Subject') || '';
-		my $body    = $email->body || '';
-		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
-		$message = decode('UTF-8', $message) unless is_utf8($message);    # Ensure Perl UTF-8 characters
-		my $dest    = $session->{_sms_to};
+		# Parse email with MIME decoding
+		my $mime = Email::MIME->new($data);
+
+		# Extract subject
+		my $subject = $mime->header('Subject') || '';
+		# Extract decoded text/plain body
+		my $body;
+		for my $part ($mime->parts) {
+			if (($part->content_type // '') =~ m{text/plain}i) {
+				$body = $part->body_str;   # Handles base64 / quoted-printable automatically
+				last;
+			}
+		}
+		$body //= $mime->body;  # fallback if no parts
+		
+		# Combine subject + body
+		my $message = join(" ", grep { defined $_ && length($_) } ($subject, $body));
+
+		# Ensure Perl UTF-8
+		unless (is_utf8($message)) {
+			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name => 1, -custom_tag => 'SMS'});
+			$message = decode('UTF-8', $message);
+		} else {
+			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS'});
+		}
+		
+		my $dest = $session->{_sms_to};
 
 		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS' });
 		my $ok = eval { send_sms($dest, $message) };

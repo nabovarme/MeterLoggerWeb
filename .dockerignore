@@ -1,4 +1,6 @@
 .git
+.env
+.env~
 /build/*
 db/db_data/*
 db_data/*

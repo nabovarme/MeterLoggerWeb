@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y \
 	libconfig-simple-perl \
 	default-mysql-client \
 	libparallel-forkmanager-perl \
-	libproc-pid-file-perl
+	libproc-pid-file-perl \
+	libemail-mime-perl
 
 USER root
 

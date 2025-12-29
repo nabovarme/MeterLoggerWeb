@@ -4,6 +4,7 @@
 # when certain conditions (like valve closure or abnormal energy usage) are met.
 
 use strict;
+use utf8;
 use Data::Dumper;
 use DBI;
 use Statistics::Basic qw(:all);	 # for computing medians
