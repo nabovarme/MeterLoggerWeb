@@ -514,8 +514,6 @@ sub send_notification {
 			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name=>1, -custom_tag=>'SMS'});
 		}
 
-		my $utf8_body = encode('UTF-8', $message);
-
 		my $email = Email::MIME->create(
 			header_str => [
 				From    => 'meterlogger',
@@ -527,11 +525,14 @@ sub send_notification {
 				charset       => 'UTF-8',
 				content_type  => 'text/plain',
 			},
-			body => $utf8_body,
+			body => '',
 		);
 
-		my $smtp = Net::SMTP->new('postfix', Timeout=>10)
-			|| log_warn("Cannot connect to SMTP server", {-no_script_name=>1, -custom_tag=>'SMS'}) && return 0;
+		my $smtp = Net::SMTP->new('postfix', Timeout => 10);
+		unless ($smtp) {
+			log_warn("Cannot connect to SMTP server", {-no_script_name=>1, -custom_tag=>'SMS'});
+			return 0;
+		}
 
 		$smtp->mail('meterlogger')
 			|| log_warn("SMTP MAIL FROM failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
