@@ -37,8 +37,8 @@ if ($dbh = Nabovarme::Db->my_connect) {
 while (1) {
 	$sth = $dbh->prepare(qq[
 		SELECT `serial`, info, min_amount, valve_status, valve_installed,
-			sw_version, email_notification, sms_notification,
-			close_notification_time, notification_state, last_paid_kwh_marker
+			   sw_version, email_notification, sms_notification,
+			   close_notification_time, notification_state, last_paid_kwh_marker
 		FROM meters
 		WHERE enabled
 			AND enabled = 1
@@ -103,8 +103,7 @@ while (1) {
 
 		# Close warning: transition state from 0 to 1
 		if ($d->{notification_state} == 0) {
-			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || $energy_remaining <= $HYST
-) {
+			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
 
 				# Debug log for sending close warning notification
 				log_warn(
@@ -132,7 +131,7 @@ while (1) {
 
 		# Close notice: transition state from 1 to 2
 		elsif ($d->{notification_state} == 1) {
-			if ($energy_remaining <= $HYST) {
+			if ($energy_remaining <= 0) {
 
 				# Debug log for sending close notice
 				log_warn(
@@ -161,7 +160,7 @@ while (1) {
 
 		# Open notice: transition state from 2 to 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining_hours && $energy_remaining > $HYST) {
+			if (defined $energy_time_remaining_hours && $energy_remaining > 0) {
 
 				# Debug log for sending open notice
 				log_warn(
@@ -189,7 +188,7 @@ while (1) {
 		}
 
 		# --- Always update last_paid_kwh_marker if paid kWh increased ---
-		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($d->{last_paid_kwh_marker} || 0)) {
+		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($d->{paid_kwh} || 0)) {
 			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
 			$update_needed = 1;
 		}
