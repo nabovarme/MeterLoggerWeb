@@ -41,6 +41,7 @@ RUN apt-get update && apt-get install -y \
 	libdbi-perl \
 	libconfig-simple-perl \
 	libcurses-perl \
+	libemail-mime-perl \
 	default-mysql-client \
 	software-properties-common \
 	texlive \

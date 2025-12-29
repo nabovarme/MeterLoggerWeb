@@ -7,4 +7,5 @@ mosquitto_data/
 certbot/
 htdocs/cache/
 .env
+.env~
 utils/bash_history

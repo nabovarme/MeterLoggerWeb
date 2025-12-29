@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
+	libemail-mime-perl \
 	default-mysql-client
 
 USER root
