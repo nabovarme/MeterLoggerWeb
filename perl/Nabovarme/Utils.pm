@@ -259,7 +259,7 @@ sub estimate_from_yearly_history {
 	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh) = @_;
 
 	# --- Quote serial for SQL ---
-	my $quoted_serial = $dbh->quote($serial);
+	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
 
 	my @avg_kwh_per_hour;
 
@@ -285,6 +285,10 @@ sub estimate_from_yearly_history {
 	log_debug("$serial: Earliest sample year=$earliest_year, current year=$current_year, years_back=$years_back");
 
 	return undef if $years_back < 1;
+
+	# --- Get fallback daily average for outlier check ---
+	my $fallback = estimate_from_daily_fallback($dbh, $serial);
+	my $fallback_avg = $fallback ? $fallback->{avg_energy_last_day} : undef;
 
 	# ============================================================
 	# --- Compute overall average kWh per hour from previous years ---
@@ -336,40 +340,34 @@ sub estimate_from_yearly_history {
 
 		my $duration_hours = $duration_sec / 3600;
 		my $energy_for_year = $target_energy - $start_energy;
-		push @avg_kwh_per_hour, $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
+		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
 
-		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf('%.2f', $avg_kwh_per_hour[-1]));
+		# --- Skip outlier years based on fallback ---
+		if (defined $fallback_avg) {
+			if ($avg_kwh_hour < 0.5 * $fallback_avg || $avg_kwh_hour > 2 * $fallback_avg) {
+				log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " is outlier compared to fallback $fallback_avg, skipping this year");
+				next;
+			}
+		}
+
+		push @avg_kwh_per_hour, $avg_kwh_hour;
+
+		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf('%.2f', $avg_kwh_hour));
 	}
 
 	unless (@avg_kwh_per_hour) {
-		log_debug("$serial: No yearly historical averages could be computed");
+		log_debug("$serial: No valid yearly historical averages could be computed");
 		return undef;
 	}
 
-	# --- Compute overall average across years ---
+	# --- Compute overall average across non-outlier years ---
 	my $avg_energy_last_day = 0;
 	$avg_energy_last_day += $_ for @avg_kwh_per_hour;
 	$avg_energy_last_day /= @avg_kwh_per_hour;
 
 	my $energy_last_day = $avg_energy_last_day;
 
-	log_debug("$serial: Yearly historical estimate before fallback check: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
-
-	# ============================================================
-	# --- Compare to fallback daily average ---
-	# ============================================================
-	my $fallback = estimate_from_daily_fallback($dbh, $serial);
-	if (defined $fallback) {
-		my $fallback_avg = $fallback->{avg_energy_last_day};
-		# If yearly estimate is <50% or >200% of fallback, ignore it
-		if ($avg_energy_last_day < 0.5 * $fallback_avg || $avg_energy_last_day > 2 * $fallback_avg) {
-			log_debug("$serial: Yearly historical estimate out of range compared to daily fallback ($avg_energy_last_day vs $fallback_avg), ignoring yearly estimate");
-			return undef;
-		}
-	}
-
-	log_debug("$serial: Yearly historical estimate after fallback check: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
+	log_debug("$serial: Yearly historical estimate after skipping outliers: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
