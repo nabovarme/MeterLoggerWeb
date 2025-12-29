@@ -7,7 +7,8 @@ use Exporter 'import';
 use POSIX qw(floor);
 use File::Basename;
 use Net::SMTP;
-use Encode qw(encode);
+use Encode qw(encode decode is_utf8);
+
 
 our @EXPORT = qw(
 	rounded_duration
