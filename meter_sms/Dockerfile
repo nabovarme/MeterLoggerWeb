@@ -14,7 +14,7 @@
 
 FROM debian:bullseye
 
-MAINTAINER Kristoffer Ek <stoffer@skulp.net>
+LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt-get update && apt-get install -y \

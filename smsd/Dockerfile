@@ -1,6 +1,6 @@
 FROM debian:bullseye
 
-MAINTAINER Kristoffer Ek <stoffer@skulp.net>
+LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
