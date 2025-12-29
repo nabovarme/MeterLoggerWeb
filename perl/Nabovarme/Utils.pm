@@ -512,8 +512,10 @@ sub send_notification {
 		if ($smtp->to("45$sms_number\@meterlogger")) {
 			$smtp->data();
 
-			# Encode message as UTF-8 before sending
-			$smtp->datasend(encode('utf8', $message));
+			# Ensure $message is decoded as Perl UTF-8
+			$message = decode('UTF-8', $message) unless is_utf8($message);
+
+			$smtp->datasend($message);
 
 			$smtp->dataend();
 			log_info("SMS sent to $sms_number", { -custom_tag => 'SMS' });
