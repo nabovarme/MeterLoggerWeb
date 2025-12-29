@@ -10,7 +10,6 @@ use Net::SMTP;
 use Email::MIME;
 use Encode qw(encode decode is_utf8);
 
-
 our @EXPORT = qw(
 	rounded_duration
 	estimate_remaining_energy
@@ -26,6 +25,9 @@ $| = 1;  # Autoflush STDOUT
 # Make sure STDOUT and STDERR handles UTF-8
 binmode(STDOUT, ":encoding(UTF-8)");
 binmode(STDERR, ":encoding(UTF-8)");
+
+# Minimum kWh/h to identify zero/closed years or closed valves
+use constant MIN_VALID_KWH_PER_HOUR => 0.05;
 
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
@@ -217,7 +219,7 @@ sub estimate_remaining_energy {
 	}
 	elsif ($is_closed) {
 		$time_remaining_hours = 0;
-		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=0.00");
+		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=" . MIN_VALID_KWH_PER_HOUR);
 	}
 	elsif ($avg_energy_last_day > 0) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
@@ -306,7 +308,7 @@ sub estimate_from_yearly_history {
 		$sth->execute() or log_die("$serial: Failed to execute statement for start_energy for year offset $year_offset: $DBI::errstr");
 		my ($start_energy, $start_time) = $sth->fetchrow_array;
 
-		log_debug("$serial: Year offset=$year_offset, start_energy=" . (defined $start_energy ? sprintf('%.2f', $start_energy) : 'undef') .
+		log_debug("$serial: Year offset=$year_offset start_energy=" . (defined $start_energy ? sprintf('%.2f', $start_energy) : 'undef') .
 			", start_time=" . (defined $start_time ? $start_time : 'undef'));
 
 		next unless defined $start_energy && defined $start_time;
@@ -353,7 +355,7 @@ sub estimate_from_yearly_history {
 		);
 
 		# --- Skip zero/closed years ---
-		if ($avg_kwh_hour < 0.01) {
+		if ($avg_kwh_hour < MIN_VALID_KWH_PER_HOUR) {
 			$zero_years++;
 			log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " considered zero/closed, skipping");
 			next;
