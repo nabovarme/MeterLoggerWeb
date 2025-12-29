@@ -501,10 +501,11 @@ while (my $client = $socket->accept()) {
 	$smtp->set_callback(DATA => sub {
 		my ($session, $data) = @_;
 
-		my $email = Email::Simple->new($data);
+		my $email = Email::Simple->new($data);		
 		my $subject = $email->header('Subject') || '';
 		my $body    = $email->body || '';
 		my $message = ($subject && $body) ? "$subject $body" : ($subject . $body);
+		$message = decode('UTF-8', $message) unless is_utf8($message);    # Ensure Perl UTF-8 characters
 		my $dest    = $session->{_sms_to};
 
 		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS' });
