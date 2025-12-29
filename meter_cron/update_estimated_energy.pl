@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use utf8;
 use Fcntl ':flock';  # For manual file locking
+use File::Basename;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
