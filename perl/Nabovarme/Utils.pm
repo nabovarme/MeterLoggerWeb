@@ -508,16 +508,16 @@ sub send_notification {
 
 	eval {
 		unless (is_utf8($message)) {
-			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name=>1, -custom_tag=>'SMS'});
+			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...");
 			$message = decode('UTF-8', $message);
 		} else {
-			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name=>1, -custom_tag=>'SMS'});
+			log_warn(" Message is already flagged as UTF-8 internally");
 		}
 
 		my $email = Email::MIME->create(
 			header_str => [
-				From    => 'meterlogger',
-				To      => "45$sms_number\@meterlogger",
+				From    => 'meterlogger@meterlogger',
+				To      => '45' . $sms_number . '@meterlogger',
 				Subject => $message,
 			],
 			attributes => {
@@ -530,33 +530,33 @@ sub send_notification {
 
 		my $smtp = Net::SMTP->new('postfix', Timeout => 10);
 		unless ($smtp) {
-			log_warn("Cannot connect to SMTP server", {-no_script_name=>1, -custom_tag=>'SMS'});
+			log_warn("Cannot connect to SMTP server");
 			return 0;
 		}
 
 		$smtp->mail('meterlogger')
-			|| log_warn("SMTP MAIL FROM failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP MAIL FROM failed: ".$smtp->message());
 
 		$smtp->to("45$sms_number\@meterlogger")
-			|| log_warn("SMTP RCPT TO failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP RCPT TO failed: ".$smtp->message());
 
 		$smtp->data()
-			|| log_warn("SMTP DATA failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP DATA failed: ".$smtp->message());
 
 		$smtp->datasend($email->as_string)
-			|| log_warn("SMTP DATASEND failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP DATASEND failed: ".$smtp->message());
 
 		$smtp->dataend()
-			|| log_warn("SMTP DATAEND failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP DATAEND failed: ".$smtp->message());
 
 		$smtp->quit()
-			|| log_warn("SMTP QUIT failed: ".$smtp->message(), {-no_script_name=>1, -custom_tag=>'SMS'});
+			|| log_warn("SMTP QUIT failed: ".$smtp->message());
 
-		log_info("SMS sent to $sms_number", {-custom_tag=>'SMS'});
+		log_info("SMS sent to $sms_number");
 	};
 
 	if($@) {
-		log_warn("Failed to send SMS to $sms_number: $@", {-custom_tag=>'SMS'});
+		log_warn("Failed to send SMS to $sms_number: $@");
 		return 0;
 	}
 
