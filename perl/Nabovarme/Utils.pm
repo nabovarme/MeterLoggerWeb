@@ -7,6 +7,7 @@ use Exporter 'import';
 use POSIX qw(floor);
 use File::Basename;
 use Net::SMTP;
+use Encode qw(encode);
 
 our @EXPORT = qw(
 	rounded_duration
@@ -21,8 +22,8 @@ our @EXPORT = qw(
 $| = 1;  # Autoflush STDOUT
 
 # Make sure STDOUT and STDERR handles UTF-8
-binmode(STDOUT, ":utf8");
-binmode(STDERR, ":utf8");
+binmode(STDOUT, ":encoding(UTF-8)");
+binmode(STDERR, ":encoding(UTF-8)");
 
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
@@ -510,12 +511,16 @@ sub send_notification {
 		$smtp->mail('meterlogger');
 		if ($smtp->to("45$sms_number\@meterlogger")) {
 			$smtp->data();
-			$smtp->datasend($message);
+
+			# Encode message as UTF-8 before sending
+			$smtp->datasend(encode('utf8', $message));
+
 			$smtp->dataend();
 			log_info("SMS sent to $sms_number", { -custom_tag => 'SMS' });
 		} else {
 			log_warn("SMTP to() failed: " . $smtp->message(), { -custom_tag => 'SMS' });
 		}
+
 		$smtp->quit;
 	};
 	if ($@) {

@@ -39,6 +39,9 @@ $Data::Dumper::Quotekeys = 0;
 # Get the script basename
 my $script_name = basename($0, ".pl");
 
+# --- Dry run mode ---
+my $dry_run = $ENV{SMSD_DRY_RUN} || 0;
+
 # --- Read configuration from environment ---
 my $router    = $ENV{DLINK_ROUTER_IP}   or log_die("Missing DLINK_ROUTER_IP env variable", {-no_script_name => 1, -custom_tag => 'SMS' });
 my $username  = $ENV{DLINK_ROUTER_USER} or log_die("Missing DLINK_ROUTER_USER env variable", {-no_script_name => 1, -custom_tag => 'SMS' });
@@ -104,6 +107,16 @@ sub save_sms_to_file {
 sub send_sms {
 	my ($phone, $message) = @_;
 	log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS' }) unless $phone && $message;
+
+	if ($dry_run) {
+		log_info("DRY RUN: send_sms called for $phone with message:\n$message", {-no_script_name => 1, -custom_tag => 'SMS'});
+		save_sms_to_file(
+			phone   => $phone,
+			message => $message,
+			dir     => "/var/spool/sms/sent"
+		);
+		return 1;
+	}
 
 	$sms_busy = 1;  # Lock other SMS actions
 
@@ -450,12 +463,16 @@ sub forward_sms_email {
 }
 
 # --- Background thread to read SMS ---
-threads->create(sub {
-	while (1) {
-		read_sms();
-		sleep(10);
-	}
-})->detach();
+unless ($dry_run) {
+	threads->create(sub {
+		while (1) {
+			read_sms();
+			sleep(10);
+		}
+	})->detach();
+} else {
+	log_info("DRY RUN: SMS reading thread skipped", {-no_script_name => 1, -custom_tag => 'SMS'});
+}
 
 # --- SMTP server ---
 my $socket = IO::Socket::INET->new(
