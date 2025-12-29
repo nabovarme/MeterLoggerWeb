@@ -1,5 +1,6 @@
 .git
 /build/*
+db/db_data/*
 db_data/*
 sms_spool/
 mosquitto_data/
