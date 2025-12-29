@@ -286,13 +286,12 @@ sub estimate_from_yearly_history {
 
 	return undef if $years_back < 1;
 
-	# --- Get outlier reference for outlier check ---
-	my $est = estimate_from_daily_history($dbh, $serial);
-	my $outlier_reference = $est ? $est->{avg_energy_last_day} : undef;
+	# ============================================================
+	# --- Compute yearly averages ---
+	# ============================================================
+	my @yearly_avgs;
+	my $zero_years = 0;
 
-	# ============================================================
-	# --- Compute overall average kWh per hour from previous years ---
-	# ============================================================
 	for my $year_offset (1 .. $years_back) {
 
 		# --- Fetch start energy for this year offset ---
@@ -317,7 +316,7 @@ sub estimate_from_yearly_history {
 		$energy_available = 0 if $energy_available < 0;
 		my $target_energy = $start_energy + $energy_available;
 
-		# --- Find when this energy was consumed in that year ---
+		# --- Find end time when this energy was reached ---
 		$sth = $dbh->prepare(qq[
 			SELECT unix_time
 			FROM samples_daily
@@ -329,45 +328,87 @@ sub estimate_from_yearly_history {
 		]) or log_die("$serial: Failed to prepare statement for end_time for year offset $year_offset: $DBI::errstr");
 		$sth->execute() or log_die("$serial: Failed to execute statement for end_time for year offset $year_offset: $DBI::errstr");
 		my ($end_time) = $sth->fetchrow_array;
-
-		log_debug("$serial: Year offset=$year_offset, end_time=" . (defined $end_time ? $end_time : 'undef'));
-
-		next unless defined $end_time;
-
+		
+		if (!defined $end_time) {
+			log_debug("$serial: Year offset=$year_offset end_time=undef, skipping");
+			next;
+		}
+		log_debug("$serial: Year offset=$year_offset end_time=$end_time");
+		
 		# --- Compute hourly average ---
 		my $duration_sec = $end_time - $start_time;
-		next if $duration_sec <= 0;
+		if ($duration_sec <= 0) {
+			log_debug("$serial: Year offset=$year_offset duration_sec=$duration_sec invalid, skipping");
+			next;
+		}
+		log_debug("$serial: Year offset=$year_offset duration_sec=$duration_sec valid");
 
 		my $duration_hours = $duration_sec / 3600;
-		my $energy_for_year = $target_energy - $start_energy;
-		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_year / $duration_hours : 0;
+		my $energy_for_duration = $target_energy - $start_energy;
+		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_duration / $duration_hours : 0;
+		log_debug(
+			"$serial: Year offset=$year_offset, duration_hours=" . sprintf("%.2f", $duration_hours)
+			. ", energy_for_duration=" . sprintf("%.2f", $energy_for_duration)
+			. ", avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour)
+		);
 
-		# --- Skip outlier years based on fallback ---
-		if (defined $outlier_reference) {
-			if ($avg_kwh_hour < 0.5 * $outlier_reference || $avg_kwh_hour > 2 * $outlier_reference) {
-				log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " is outlier compared to fallback $outlier_reference, skipping this year");
-				next;
-			}
+		# --- Skip zero/closed years ---
+		if ($avg_kwh_hour < 0.01) {
+			$zero_years++;
+			log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " considered zero/closed, skipping");
+			next;
 		}
 
-		push @avg_kwh_per_hour, $avg_kwh_hour;
-
-		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf('%.2f', $avg_kwh_hour));
+		push @yearly_avgs, $avg_kwh_hour;
+		log_debug("$serial: Year offset=$year_offset, avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour));
 	}
 
-	unless (@avg_kwh_per_hour) {
-		log_debug("$serial: No valid yearly historical averages could be computed");
+	log_debug("$serial: Skipped $zero_years zero/closed years");
+
+	unless (@yearly_avgs) {
+		log_debug("$serial: No valid yearly averages remain after removing zero/closed years");
+		return undef;
+	}
+
+	# ============================================================
+	# --- Median + relative deviation for outlier detection ---
+	# ============================================================
+	my @sorted = sort { $a <=> $b } @yearly_avgs;
+	my $mid = int(@sorted / 2);
+	my $median = @sorted % 2 ? $sorted[$mid] : ($sorted[$mid-1] + $sorted[$mid]) / 2;
+
+	log_debug("$serial: Median of yearly averages=$median");
+
+	my $lower_limit = 0.7 * $median;  # 70% of median
+	my $upper_limit = 1.3 * $median;  # 130% of median
+
+	my @final_avgs;
+	my $outlier_years = 0;
+
+	for my $avg (@yearly_avgs) {
+		if ($avg < $lower_limit || $avg > $upper_limit) {
+			$outlier_years++;
+			log_debug("$serial: avg_kwh_hour=" . sprintf("%.2f", $avg) . " is outlier, skipping");
+			next;
+		}
+		push @final_avgs, $avg;
+	}
+
+	log_debug("$serial: Skipped $outlier_years outlier years");
+
+	unless (@final_avgs) {
+		log_debug("$serial: No valid yearly averages remain after outlier removal");
 		return undef;
 	}
 
 	# --- Compute overall average across non-outlier years ---
 	my $avg_energy_last_day = 0;
-	$avg_energy_last_day += $_ for @avg_kwh_per_hour;
-	$avg_energy_last_day /= @avg_kwh_per_hour;
+	$avg_energy_last_day += $_ for @final_avgs;
+	$avg_energy_last_day /= @final_avgs;
 
 	my $energy_last_day = $avg_energy_last_day;
 
-	log_debug("$serial: Yearly historical estimate after skipping outliers: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
+	log_debug("$serial: Yearly historical estimate after hybrid filtering: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
