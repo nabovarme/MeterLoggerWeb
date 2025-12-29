@@ -1,4 +1,5 @@
 /build/*
+db/db_data/*
 db_data/*
 smstools_spool/
 mosquitto_data/
