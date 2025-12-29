@@ -35,16 +35,16 @@ if ($dbh = Nabovarme::Db->my_connect) {
 
 while (1) {
 	$sth = $dbh->prepare(qq[
-		SELECT `serial`, info, min_amount, valve_status, valve_installed,
-			   sw_version, email_notification, sms_notification,
-			   close_notification_time, notification_state, last_paid_kwh_marker,
-			   last_notification_sent_time
-		FROM meters
-		WHERE enabled
-			AND enabled = 1
-			AND valve_installed = 1
-			AND type = 'heat'
-			AND (email_notification OR sms_notification)
+		SELECT ms.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
+			   m.sw_version, m.email_notification, m.sms_notification,
+			   ms.close_notification_time, ms.notification_state, ms.last_paid_kwh_marker,
+			   ms.last_notification_sent_time
+		FROM meters_state ms
+		JOIN meters m ON ms.serial = m.serial
+		WHERE m.enabled = 1
+		  AND m.valve_installed = 1
+		  AND m.type = 'heat'
+		  AND (m.email_notification OR m.sms_notification)
 	]);
 	$sth->execute or log_warn($DBI::errstr);
 
@@ -199,16 +199,19 @@ while (1) {
 			$update_needed = 1;
 		}
 
-		# --- Perform combined DB update if needed ---
+		# --- Perform combined DB upsert if needed ---
 		if ($update_needed) {
 			my $now = time();
 			$dbh->do(qq[
-				UPDATE meters
-				SET notification_state = $new_state,
-					last_paid_kwh_marker = $new_last_paid_kwh_marker,
-					last_notification_sent_time = $now
-				WHERE serial = $quoted_serial
-			]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial});
+				INSERT INTO meters_state
+					(serial, close_notification_time, notification_state, last_paid_kwh_marker, last_notification_sent_time)
+				VALUES
+					($quoted_serial, $d->{close_notification_time}, $new_state, $new_last_paid_kwh_marker, $now)
+				ON DUPLICATE KEY UPDATE
+					notification_state = VALUES(notification_state),
+					last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
+					last_notification_sent_time = VALUES(last_notification_sent_time)
+			]) or log_warn("[ERROR] DB upsert failed for serial " . $d->{serial});
 		}
 	}
 
