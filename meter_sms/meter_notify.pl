@@ -195,10 +195,12 @@ while (1) {
 		
 		# --- Perform combined DB update if needed ---
 		if ($update_needed) {
+			my $now = time();
 			$dbh->do(qq[
 				UPDATE meters
 				SET notification_state = $new_state,
-					last_paid_kwh_marker = $new_last_paid_kwh_marker
+					last_paid_kwh_marker = $new_last_paid_kwh_marker,
+					last_notification_sent_time = $now
 				WHERE serial = $quoted_serial
 			]) or log_warn("[ERROR] DB update failed for serial " . $d->{serial});
 		}
