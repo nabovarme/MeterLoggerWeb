@@ -259,7 +259,7 @@ sub estimate_from_yearly_history {
 	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh) = @_;
 
 	# --- Quote serial for SQL ---
-	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
+	my $quoted_serial = $dbh->quote($serial);
 
 	my @avg_kwh_per_hour;
 
@@ -353,7 +353,23 @@ sub estimate_from_yearly_history {
 
 	my $energy_last_day = $avg_energy_last_day;
 
-	log_debug("$serial: Yearly historical estimate: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
+	log_debug("$serial: Yearly historical estimate before fallback check: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
+		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+
+	# ============================================================
+	# --- Compare to fallback daily average ---
+	# ============================================================
+	my $fallback = estimate_from_daily_fallback($dbh, $serial);
+	if (defined $fallback) {
+		my $fallback_avg = $fallback->{avg_energy_last_day};
+		# If yearly estimate is <50% or >200% of fallback, ignore it
+		if ($avg_energy_last_day < 0.5 * $fallback_avg || $avg_energy_last_day > 2 * $fallback_avg) {
+			log_debug("$serial: Yearly historical estimate out of range compared to daily fallback ($avg_energy_last_day vs $fallback_avg), ignoring yearly estimate");
+			return undef;
+		}
+	}
+
+	log_debug("$serial: Yearly historical estimate after fallback check: energy_last_day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
