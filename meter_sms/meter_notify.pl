@@ -22,6 +22,7 @@ my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {in
 my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
 my $HYST = 0.5;
+my $CLOSE_THRESHOLD = 1;
 
 my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining_hours, $notification);
 
@@ -135,7 +136,7 @@ while (1) {
 
 		# Close notice: transition state from 1 to 2
 		elsif ($d->{notification_state} == 1) {
-			if ($energy_remaining <= 0) {
+			if ($energy_remaining <= $CLOSE_THRESHOLD) {
 
 				# Debug log for sending close notice
 				log_warn(
@@ -165,7 +166,7 @@ while (1) {
 
 		# Open notice: transition state from 2 to 0
 		elsif ($d->{notification_state} == 2) {
-			if (defined $energy_time_remaining_hours && $energy_remaining > 0) {
+			if (defined $energy_time_remaining_hours && $energy_remaining > $CLOSE_THRESHOLD) {
 
 				# Debug log for sending open notice
 				log_warn(
