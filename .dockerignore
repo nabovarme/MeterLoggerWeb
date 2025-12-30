@@ -9,4 +9,3 @@ mosquitto_data/
 **/.DS_Store
 certbot/
 htdocs/cache/
-perl_modules/debs/
