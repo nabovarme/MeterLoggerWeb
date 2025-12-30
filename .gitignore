@@ -9,3 +9,4 @@ htdocs/cache/
 .env
 .env~
 utils/bash_history
+perl_modules/debs/

@@ -53,38 +53,35 @@ RUN apt-get update && apt-get install -y \
 	pbzip2 \
 	locales
 
+# Copy local repository from Docker volume
+RUN mkdir -p /opt/local-debs
+COPY ./perl_modules/debs/*.deb /opt/local-debs
+COPY ./perl_modules/debs/Packages.gz /opt/local-debs
+
+# Add a local APT source list
+RUN echo "deb [trusted=yes] file:/opt/local-debs ./" > /etc/apt/sources.list.d/local-debs.list
+
+# Update and install Perl modules
+RUN apt-get update && apt-get install -y \
+	libmath-random-secure-perl \
+	libstatistics-basic-perl \
+	libtime-format-perl \
+	libcryptx-perl \
+	libnet-mqtt-simple-perl \
+	libjson-create-perl \
+	libredis-perl \
+	libfile-chown-perl
+
 USER root
 
-RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
 # Enable en_US.UTF-8 locale
 RUN sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
 	locale-gen
-
-# we need a specific version here
-#RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
 
 # Set UTF-8 locale environment variables
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
-
-# Install specific version of Net::MQTT::Simple from git
-RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
-	cd Net-MQTT-Simple && \
-	perl Makefile.PL && \
-	make && \
-	make install
-
-# Install specific version of perl-CryptX from git
-RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
-	cd perl-CryptX && \
-	git checkout 6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489 && \
-	perl Makefile.PL && \
-	make && \
-	make install
-
-RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
-RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
 
 # Create user
 RUN useradd -ms /bin/bash meterlogger

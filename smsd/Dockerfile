@@ -21,11 +21,19 @@ RUN apt-get update && apt-get install -y \
 	libnet-server-mail-perl \
 	libemail-mime-perl
 
-# Ensure root user for setup
-USER root
+# Copy local repository from Docker volume
+RUN mkdir -p /opt/local-debs
+COPY ./perl_modules/debs/*.deb /opt/local-debs
+COPY ./perl_modules/debs/Packages.gz /opt/local-debs
 
-# Install Perl module
-RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
+# Add a local APT source list
+RUN echo "deb [trusted=yes] file:/opt/local-debs ./" > /etc/apt/sources.list.d/local-debs.list
+
+# Update and install Perl modules
+RUN apt-get update && apt-get install -y \
+	libfile-chown-perl
+
+USER root
 
 # Add smsd group and user
 RUN groupadd -r smsd && useradd -r -g smsd -m -s /bin/bash smsd

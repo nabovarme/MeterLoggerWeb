@@ -14,7 +14,9 @@ CPAN_MODULES=(
 	"Math::Random::Secure"
 	"Statistics::Basic"
 	"Time::Format"
-	"Crypt::Mode::CBC"
+	"JSON::Create"
+	"Redis"
+	"File::chown"
 )
 
 echo "Building CPAN modules..."
@@ -89,3 +91,9 @@ Description: $mod_name Perl module built from Git" > "$PKG_DIR/DEBIAN/control"
 done
 
 echo "All packages built or already present in $DEBS_DIR."
+
+# Generates a Packages.gz file for APT to use.
+cd /debs
+dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+
+echo "Made a Packages.gz file for APT to use"

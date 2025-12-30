@@ -9,21 +9,24 @@ RUN apt-get update && apt-get install -y \
 	libtest-sharedfork-perl \
 	libtest2-perl \
 	libnumber-format-perl \
-    build-essential \
-    devscripts \
-    fakeroot \
-    dh-make-perl \
-    cpanminus \
-    wget \
-    git \
+	build-essential \
+	devscripts \
+	fakeroot \
+	dh-make-perl \
+	cpanminus \
+	wget \
+	git \
 	joe \
 	aptitude \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/*
 
-RUN PERL_MM_USE_DEFAULT=1 cpan install  Test2::V0
+RUN PERL_MM_USE_DEFAULT=1 cpan install Test2::V0
+RUN PERL_MM_USE_DEFAULT=1 cpan install Test::Deep
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::ISAAC
 RUN PERL_MM_USE_DEFAULT=1 cpan install Crypt::Random::Source::Factory
+RUN PERL_MM_USE_DEFAULT=1 cpan install JSON::Create
+RUN PERL_MM_USE_DEFAULT=1 cpan install IO::Socket::Timeout
 
 # Set working directory for building
 WORKDIR /build
