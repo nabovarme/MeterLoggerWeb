@@ -1,17 +1,3 @@
-#
-# uIota Dockerfile
-#
-# The resulting image will contain everything needed to build uIota FW.
-#
-# Setup: (only needed once per Dockerfile change)
-# 1. install docker, add yourself to docker group, enable docker, relogin
-# 2. # docker build -t uiota-build .
-#
-# Usage:
-# 3. cd to MeterLoggerWeb root
-# 4. # docker run -t -i -p 8080:80 meterloggerweb:latest
-
-
 FROM debian:bullseye
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
