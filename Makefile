@@ -1,13 +1,25 @@
-all: build up
-
 # Ensure bash_history file exists before build
 BASH_HISTORY_FILE=./utils/bash_history
 
-build: $(BASH_HISTORY_FILE)
-	docker compose build
+# All services
+ALL_SERVICES=perl_modules_builder db mqtt web meter_grapher mysql_mqtt_command_queue_receive mysql_mqtt_command_queue_send smsd meter_sms meter_cron redis postfix
+OTHER_SERVICES=$(filter-out perl_modules_builder,$(ALL_SERVICES))
 
+# Default target
+all: build up
+
+# Build target: build and run perl_modules_builder first, then build other services
+build: $(BASH_HISTORY_FILE)
+	@echo "Building and starting perl_modules_builder..."
+	docker compose build perl_modules_builder
+	docker compose up -d perl_modules_builder
+	@echo "Building remaining services..."
+	docker compose build $(OTHER_SERVICES)
+
+# Start all other services (after build)
 up:
-	docker compose up -d
+	@echo "Starting all other services..."
+	docker compose up -d $(OTHER_SERVICES)
 
 # Log a specific service
 log:
@@ -24,7 +36,7 @@ down:
 	docker compose down
 
 top:
-	docker stats db mqtt web meter_grapher mysql_mqtt_command_queue_receive mysql_mqtt_command_queue_send smsd meter_sms meter_cron redis postfix
+	docker stats $(ALL_SERVICES)
 
 # Automatically create bash_history file if missing
 $(BASH_HISTORY_FILE):
