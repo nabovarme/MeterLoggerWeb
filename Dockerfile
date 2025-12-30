@@ -60,27 +60,21 @@ RUN apt-get update && apt-get install -y \
 	qrencode \
 	imagemagick
 
-USER root
+# Copy local repository from Docker volume
+RUN mkdir -p /opt/local-debs
+COPY ./perl_modules/debs/*.deb /opt/local-debs
+COPY ./perl_modules/debs/Packages.gz /opt/local-debs
 
-RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
+# Add a local APT source list
+RUN echo "deb [trusted=yes] file:/opt/local-debs ./" > /etc/apt/sources.list.d/local-debs.list
 
-# we need a specific version here
-#RUN PERL_MM_USE_DEFAULT=1 cpan install Net::MQTT::Simple
-RUN cd /tmp && git clone https://github.com/st0ff3r/Net-MQTT-Simple.git && \
-	cd Net-MQTT-Simple && \
-	perl Makefile.PL && \
-	make && \
-	make install
-
-RUN cd /tmp && git clone https://github.com/DCIT/perl-CryptX.git && \
-	cd perl-CryptX && \
-	git checkout 6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489 && \
-	perl Makefile.PL && \
-	make && \
-	make install
-
-RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
-RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+# Update and install Perl modules
+RUN apt-get update && apt-get install -y \
+libmath-random-secure-perl \
+libstatistics-basic-perl \
+libtime-format-perl \
+libcryptx-perl \
+libnet-mqtt-simple-perl
 
 RUN mkdir -p /var/www/nabovarme/cache
 RUN mkdir -p /var/www/nabovarme/qr

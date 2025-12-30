@@ -7,7 +7,7 @@ services:
         dockerfile: ./perl_modules/Dockerfile
     container_name: perl_modules_builder
     volumes:
-      - perl_debs:/debs
+      - ./perl_modules/debs:/debs
     command: /build/build-all.sh
 
   db:
@@ -52,10 +52,8 @@ services:
     depends_on:
       - db
       - mqtt
-      - perl_modules_builder
     container_name: web
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
@@ -78,15 +76,13 @@ services:
 
   meter_grapher:
     build:
-      context: .
+      context: '.'
       dockerfile: ./meter_grapher/Dockerfile
     depends_on:
       - db
       - redis
-      - perl_modules_builder
     container_name: meter_grapher
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
@@ -97,15 +93,13 @@ services:
 
   mysql_mqtt_command_queue_receive:
     build:
-        context: .
+        context: '.'
         dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
     depends_on:
       - db
       - mqtt
-      - perl_modules_builder
     container_name: mysql_mqtt_command_queue_receive
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
@@ -117,15 +111,13 @@ services:
 
   mysql_mqtt_command_queue_send:
     build:
-        context: .
+        context: '.'
         dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
     depends_on:
       - db
       - mqtt
-      - perl_modules_builder
     container_name: mysql_mqtt_command_queue_send
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
@@ -137,14 +129,11 @@ services:
 
   smsd:
     build:
-        context: .
+        context: '.'
         dockerfile: ./smsd/Dockerfile
     container_name: smsd
-    depends_on:
-      - perl_modules_builder
     privileged: true
     volumes:
-      - perl_debs:/debs
       - ./smstools_spool:/var/spool/sms
       - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
@@ -163,7 +152,7 @@ services:
 
   smsd_watchdog:
     build:
-        context: .
+        context: '.'
         dockerfile: ./smsd_watchdog/Dockerfile
     container_name: smsd_watchdog
     depends_on:
@@ -183,15 +172,13 @@ services:
 
   meter_sms:
     build:
-      context: .
+      context: '.'
       dockerfile: ./meter_sms/Dockerfile
     depends_on:
       - db
       - mqtt
-      - perl_modules_builder
     container_name: meter_sms
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
 #      - ./sms_spool:/var/www/nabovarme/sms_spool
 #      - ./sms/outgoing:/var/spool/sms/outgoing
@@ -208,15 +195,13 @@ services:
 
   meter_cron:
     build:
-      context: .
+      context: '.'
       dockerfile: ./meter_cron/Dockerfile
     depends_on:
       - db
       - mqtt
-      - perl_modules_builder
     container_name: meter_cron
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
@@ -267,13 +252,10 @@ services:
 
   utils:
     build:
-        context: .
+        context: '.'
         dockerfile: ./utils/Dockerfile
     container_name: utils
-    depends_on:
-      - perl_modules_builder
     volumes:
-      - perl_debs:/debs
       - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
@@ -285,4 +267,3 @@ services:
 volumes:
   postfix_spool:
   postfix_mail:
-  perl_debs:
