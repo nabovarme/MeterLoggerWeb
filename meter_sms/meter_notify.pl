@@ -64,8 +64,8 @@ while (1) {
 		my $time_remaining_string    = $est->{time_remaining_hours_string};
 
 		# --- Determine if last_paid_kwh_marker or state needs updating ---
-		my $new_state = $d->{notification_state};
-		my $new_last_paid_kwh_marker = $d->{last_paid_kwh_marker};
+		my $new_state = $est->{notification_state};
+		my $new_last_paid_kwh_marker = $est->{last_paid_kwh_marker};
 		my $update_needed = 0;
 
 		# --- Top-up detection (independent of state) ---

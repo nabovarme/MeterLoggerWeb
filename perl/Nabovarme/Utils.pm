@@ -254,8 +254,8 @@ sub estimate_remaining_energy {
 	my $energy_last_day     = $res->{energy_last_day};
 	my $avg_energy_last_day = $res->{avg_energy_last_day};
 
-	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+	log_debug("$serial: Energy last day=" . (defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
+		", avg_energy_last_day=" . (defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
 
 	# ============================================================
 	# --- Calculate remaining kWh and time ---
@@ -275,7 +275,7 @@ sub estimate_remaining_energy {
 	log_debug("$serial: Meter closed=" . $is_closed);
 
 	my $time_remaining_hours;
-	if (defined $avg_energy_last_day) {
+	if ($avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
