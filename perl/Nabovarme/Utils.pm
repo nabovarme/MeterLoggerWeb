@@ -66,10 +66,10 @@ sub rounded_duration {
 	return $is_negative ? "$result ago" : $result;
 }
 
-# ----------------------------
-# Estimate remaining energy and time left
-# ----------------------------
 # ============================================================
+# Estimate remaining energy and time left, using cached meters_state if possible
+# Recalculates if cache is older than 1 minute
+
 # three methods of estimation:
 # 1) Yearly historical: use multi-year daily samples to compute average consumption per hour
 # 2) Recent samples: use actual difference between last two samples (if available)
@@ -91,6 +91,10 @@ sub estimate_remaining_energy {
 		valve_status                => '',
 		valve_installed             => 0,
 		method                      => undef,
+		close_notification_time     => 604800,
+		notification_state          => 0,
+		last_notification_sent_time => undef,
+		last_paid_kwh_marker        => undef,
 	);
 
 	# Early return if missing DB handle or serial
@@ -98,14 +102,63 @@ sub estimate_remaining_energy {
 
 	my $quoted_serial = $dbh->quote($serial);
 
-	# --- Fetch latest sample and valve_status ---
-	my $latest_energy;
-	my $latest_unix_time;
-	my $valve_status;
-	my $valve_installed;
-	my $sw_version;
-
+	# --- Check cached values (recalculate if older than 1 min) ---
 	my $sth = $dbh->prepare(qq[
+		SELECT kwh_remaining,
+			time_remaining_hours,
+			time_remaining_hours_string,
+			energy_last_day,
+			avg_energy_last_day,
+			latest_energy,
+			paid_kwh,
+			method,
+			close_notification_time,
+			notification_state,
+			last_notification_sent_time,
+			last_paid_kwh_marker,
+			UNIX_TIMESTAMP(last_updated) AS last_updated
+		FROM meters_state
+		WHERE serial = $quoted_serial
+		LIMIT 1
+	]) or log_die("Failed to prepare statement for cached meters_state: $DBI::errstr");
+
+	$sth->execute() or log_die("Failed to execute statement for cached meters_state: $DBI::errstr");
+
+	my ($cached) = $sth->fetchrow_hashref;
+
+	if ($cached) {
+		# Always populate state fields
+		$result{last_paid_kwh_marker}        = $cached->{last_paid_kwh_marker};
+		$result{last_notification_sent_time} = $cached->{last_notification_sent_time};
+		$result{notification_state}          = $cached->{notification_state};
+		$result{close_notification_time}     = $cached->{close_notification_time};
+		
+		# Only return early if cache is fresh
+		my $age_sec = time() - ($cached->{last_updated} // 0);
+		if ($age_sec < 60 && defined $cached->{kwh_remaining}) {
+			# cached < 1 min old AND valid
+			log_debug("$serial: Using cached meters_state (age $age_sec sec, kwh_remaining=$cached->{kwh_remaining})");
+			%result = (
+				%result,  # keep state fields
+				kwh_remaining               => $cached->{kwh_remaining},
+				time_remaining_hours        => $cached->{time_remaining_hours},
+				time_remaining_hours_string => $cached->{time_remaining_hours_string},
+				energy_last_day             => $cached->{energy_last_day},
+				avg_energy_last_day         => $cached->{avg_energy_last_day},
+				latest_energy               => $cached->{latest_energy},
+				paid_kwh                    => $cached->{paid_kwh},
+				method                      => $cached->{method},
+			);
+			return \%result;
+		}
+	}
+
+	# ============================================================
+	# --- Fetch latest sample and valve_status ---
+	# ============================================================
+	my ($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version);
+
+	$sth = $dbh->prepare(qq[
 		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
 		FROM meters m
 		LEFT JOIN samples_cache sc ON m.serial = sc.serial
@@ -114,6 +167,7 @@ sub estimate_remaining_energy {
 		LIMIT 1
 	]) or log_die("Failed to prepare statement for latest sample: $DBI::errstr");
 	$sth->execute() or log_die("Failed to execute statement for latest sample: $DBI::errstr");
+
 	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
 
 	$latest_energy    = 0 unless defined $latest_energy;
@@ -148,11 +202,11 @@ sub estimate_remaining_energy {
 	$paid_kwh ||= 0;
 
 	# --- Populate basic results ---
-	$result{latest_energy}   = sprintf("%.2f", $latest_energy);
+	$result{latest_energy}   = $latest_energy;
 	$result{valve_status}    = $valve_status;
 	$result{valve_installed} = $valve_installed;
-	$result{setup_value}     = sprintf("%.2f", $setup_value);
-	$result{paid_kwh}        = sprintf("%.2f", $paid_kwh);
+	$result{setup_value}     = $setup_value;
+	$result{paid_kwh}        = $paid_kwh;
 
 	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
 	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
@@ -161,8 +215,10 @@ sub estimate_remaining_energy {
 	# --- Try estimation methods in order using unified interface ---
 	# ============================================================
 
+	my $res;
+
 	# Method 1: yearly historical
-	my $res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
+	$res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
 	if (defined $res) {
 		$result{method} = 'yearly_historical';
 		log_debug("$serial: Yearly history returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
@@ -195,44 +251,46 @@ sub estimate_remaining_energy {
 		}
 	}
 
-	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
-	my $avg_energy_last_day = $res ? $res->{avg_energy_last_day} : 0;
+	my $energy_last_day     = $res->{energy_last_day};
+	my $avg_energy_last_day = $res->{avg_energy_last_day};
 
-	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+	log_debug("$serial: Energy last day=" . (defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
+		", avg_energy_last_day=" . (defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
 
 	# ============================================================
 	# --- Calculate remaining kWh and time ---
 	# ============================================================
 
-	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+	my $kwh_remaining;
+	if (defined $latest_energy && defined $setup_value) {
+		$kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+		log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
+	}
+	else {
+		$kwh_remaining = undef;
+		log_debug("$serial: kWh remaining=undef");
+	}
 
-	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
-
-	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
+	my $is_closed = ($valve_status eq 'close') ? 1 : 0;
 	log_debug("$serial: Meter closed=" . $is_closed);
 
 	my $time_remaining_hours;
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		$time_remaining_hours = undef;
-		log_debug("$serial: SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
-	}
-	elsif ($is_closed) {
-		$time_remaining_hours = 0;
-		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=" . MIN_VALID_KWH_PER_HOUR);
-	}
-	elsif ($avg_energy_last_day > 0) {
+	if ($avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
 	else {
 		$time_remaining_hours = undef;
-		log_debug("$serial: avg_energy_last_day=0 => time_remaining_hours=∞");
+		log_debug("$serial: Calculated time_remaining_hours=undef");
 	}
 
-	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
-		? '∞'
-		: rounded_duration($time_remaining_hours * 3600);
+	my $time_remaining_hours_string;
+	if (defined $time_remaining_hours) {
+		$time_remaining_hours_string = rounded_duration($time_remaining_hours * 3600);
+	}
+	else {
+		$time_remaining_hours_string = '∞';
+	}
 	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
 
 	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
@@ -243,11 +301,44 @@ sub estimate_remaining_energy {
 	# --- Final formatting ---
 	# ============================================================
 
-	$result{kwh_remaining}               = sprintf("%.2f", $kwh_remaining);
-	$result{time_remaining_hours}        = defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef;
+	$result{kwh_remaining}               = $kwh_remaining;
+	$result{time_remaining_hours}        = $time_remaining_hours;
 	$result{time_remaining_hours_string} = $time_remaining_hours_string;
-	$result{energy_last_day}             = sprintf("%.2f", $energy_last_day);
-	$result{avg_energy_last_day}         = sprintf("%.2f", $avg_energy_last_day);
+	$result{energy_last_day}             = $energy_last_day;
+	$result{avg_energy_last_day}         = $avg_energy_last_day;
+
+	# ============================================================
+	# --- Update meters_state for recalculated fields only ---
+	# ============================================================
+	my $sql = qq[
+		INSERT INTO meters_state
+		(serial, kwh_remaining, time_remaining_hours, time_remaining_hours_string,
+		 energy_last_day, avg_energy_last_day, latest_energy, paid_kwh, method, last_updated)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))
+		ON DUPLICATE KEY UPDATE
+			kwh_remaining = VALUES(kwh_remaining),
+			time_remaining_hours = VALUES(time_remaining_hours),
+			time_remaining_hours_string = VALUES(time_remaining_hours_string),
+			energy_last_day = VALUES(energy_last_day),
+			avg_energy_last_day = VALUES(avg_energy_last_day),
+			latest_energy = VALUES(latest_energy),
+			paid_kwh = VALUES(paid_kwh),
+			method = VALUES(method),
+			last_updated = UNIX_TIMESTAMP(NOW())
+	];
+
+	$sth = $dbh->prepare($sql);
+	$sth->execute(
+		$serial,
+		$result{kwh_remaining},
+		$result{time_remaining_hours},
+		$result{time_remaining_hours_string},
+		$result{energy_last_day},
+		$result{avg_energy_last_day},
+		$result{latest_energy},
+		$result{paid_kwh},
+		$result{method}
+	) or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
 
 	return \%result;
 }
@@ -349,9 +440,9 @@ sub estimate_from_yearly_history {
 		my $energy_for_duration = $target_energy - $start_energy;
 		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_duration / $duration_hours : 0;
 		log_debug(
-			"$serial: Year offset=$year_offset, duration_hours=" . sprintf("%.2f", $duration_hours)
+			"$serial: Year offset=$year_offset duration_hours=" . sprintf("%.2f", $duration_hours)
 			. ", energy_for_duration=" . sprintf("%.2f", $energy_for_duration)
-			. ", avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour)
+			. " avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour)
 		);
 
 		# --- Skip zero/closed years ---
