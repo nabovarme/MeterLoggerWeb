@@ -10,6 +10,7 @@ use JSON::XS;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::EnergyEstimator;
 
 sub handler {
 	my $r = shift;
@@ -30,7 +31,7 @@ sub handler {
 	$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 	# --- Get remaining energy/time info using utility function ---
-	my $remaining = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
+	my $remaining = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $serial);
 
 	# --- Round numeric values ---
 	my $kwh_remaining = defined $remaining->{kwh_remaining} 
