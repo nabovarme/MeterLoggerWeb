@@ -69,7 +69,8 @@ while (1) {
 		my $update_needed = 0;
 
 		# --- Top-up detection (independent of state) ---
-		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($d->{last_paid_kwh_marker} || 0) + $HYST) {
+		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($est->{last_paid_kwh_marker} || 0) + $HYST) {
+			warn Dumper(($est->{paid_kwh} || 'undef') . ' > ' . ($est->{last_paid_kwh_marker} || 'undef'));
 
 			# Debug log for sending open notice after top-up
 			log_warn(
