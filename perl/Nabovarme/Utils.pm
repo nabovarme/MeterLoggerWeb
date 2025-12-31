@@ -105,18 +105,18 @@ sub estimate_remaining_energy {
 	# --- Check cached values (recalculate if older than 1 min) ---
 	my $sth = $dbh->prepare(qq[
 		SELECT kwh_remaining,
-		       time_remaining_hours,
-		       time_remaining_hours_string,
-		       energy_last_day,
-		       avg_energy_last_day,
-		       latest_energy,
-		       paid_kwh,
-		       method,
-		       close_notification_time,
-		       notification_state,
-		       last_notification_sent_time,
-		       last_paid_kwh_marker,
-		       UNIX_TIMESTAMP(last_updated) AS last_updated
+			time_remaining_hours,
+			time_remaining_hours_string,
+			energy_last_day,
+			avg_energy_last_day,
+			latest_energy,
+			paid_kwh,
+			method,
+			close_notification_time,
+			notification_state,
+			last_notification_sent_time,
+			last_paid_kwh_marker,
+			UNIX_TIMESTAMP(last_updated) AS last_updated
 		FROM meters_state
 		WHERE serial = $quoted_serial
 		LIMIT 1
@@ -200,11 +200,11 @@ sub estimate_remaining_energy {
 	$paid_kwh ||= 0;
 
 	# --- Populate basic results ---
-	$result{latest_energy}   = sprintf("%.2f", $latest_energy);
+	$result{latest_energy}   = $latest_energy;
 	$result{valve_status}    = $valve_status;
 	$result{valve_installed} = $valve_installed;
-	$result{setup_value}     = sprintf("%.2f", $setup_value);
-	$result{paid_kwh}        = sprintf("%.2f", $paid_kwh);
+	$result{setup_value}     = $setup_value;
+	$result{paid_kwh}        = $paid_kwh;
 
 	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
 	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
@@ -297,11 +297,11 @@ sub estimate_remaining_energy {
 	# --- Final formatting ---
 	# ============================================================
 
-	$result{kwh_remaining}               = sprintf("%.2f", $kwh_remaining);
+	$result{kwh_remaining}               = $kwh_remaining;
 	$result{time_remaining_hours}        = defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef;
 	$result{time_remaining_hours_string} = $time_remaining_hours_string;
-	$result{energy_last_day}             = sprintf("%.2f", $energy_last_day);
-	$result{avg_energy_last_day}         = sprintf("%.2f", $avg_energy_last_day);
+	$result{energy_last_day}             = $energy_last_day;
+	$result{avg_energy_last_day}         = $avg_energy_last_day;
 
 	# ============================================================
 	# --- Update meters_state using placeholders ---
@@ -311,7 +311,7 @@ sub estimate_remaining_energy {
 		(serial, kwh_remaining, time_remaining_hours, time_remaining_hours_string,
 		 energy_last_day, avg_energy_last_day, latest_energy, paid_kwh, method,
 		 close_notification_time, notification_state, last_notification_sent_time, last_paid_kwh_marker, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW())
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))
 		ON DUPLICATE KEY UPDATE
 			kwh_remaining = VALUES(kwh_remaining),
 			time_remaining_hours = VALUES(time_remaining_hours),
@@ -325,7 +325,7 @@ sub estimate_remaining_energy {
 			notification_state = VALUES(notification_state),
 			last_notification_sent_time = VALUES(last_notification_sent_time),
 			last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
-			last_updated = UNIX_TIMESTAMP(NOW()))
+			last_updated = UNIX_TIMESTAMP(NOW())
 	];
 
 	$sth = $dbh->prepare($sql);
@@ -340,13 +340,10 @@ sub estimate_remaining_energy {
 		$result{paid_kwh},
 		$result{method},
 		$result{close_notification_time},
-		$result{notification_state},
+		$result{notification_state} || 0,
 		$result{last_notification_sent_time},
 		$result{last_paid_kwh_marker}
 	) or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
-
-	my $sth = $dbh->prepare($sql);
-	$sth->execute() or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
 
 	return \%result;
 }
@@ -448,9 +445,9 @@ sub estimate_from_yearly_history {
 		my $energy_for_duration = $target_energy - $start_energy;
 		my $avg_kwh_hour = $duration_hours > 0 ? $energy_for_duration / $duration_hours : 0;
 		log_debug(
-			"$serial: Year offset=$year_offset, duration_hours=" . sprintf("%.2f", $duration_hours)
+			"$serial: Year offset=$year_offset duration_hours=" . sprintf("%.2f", $duration_hours)
 			. ", energy_for_duration=" . sprintf("%.2f", $energy_for_duration)
-			. ", avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour)
+			. " avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour)
 		);
 
 		# --- Skip zero/closed years ---
