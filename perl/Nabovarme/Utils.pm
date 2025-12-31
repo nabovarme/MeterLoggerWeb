@@ -90,6 +90,7 @@ sub estimate_remaining_energy {
 		setup_value                 => 0,
 		valve_status                => '',
 		valve_installed             => 0,
+		sw_version                  => '',
 		method                      => undef,
 		close_notification_time     => 604800,
 		notification_state          => 0,
@@ -207,6 +208,7 @@ sub estimate_remaining_energy {
 	$result{valve_installed} = $valve_installed;
 	$result{setup_value}     = $setup_value;
 	$result{paid_kwh}        = $paid_kwh;
+	$result{sw_version}      = $sw_version;
 
 	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
 	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
