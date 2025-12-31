@@ -8,6 +8,7 @@ use File::Basename;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::EnergyEstimator;
 
 # === LOCKING ===
 my $script_name = basename($0);
@@ -28,7 +29,7 @@ $sth->execute();
 
 while (my ($serial) = $sth->fetchrow_array) {
 	# Calculate remaining values using Utils
-	my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $serial);
+	my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $serial);
 }
 
 # === UNLOCKING ===

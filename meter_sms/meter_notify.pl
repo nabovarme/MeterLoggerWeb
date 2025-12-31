@@ -8,6 +8,7 @@ use DBI;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::EnergyEstimator;
 
 $| = 1;  # Autoflush STDOUT
 STDOUT->autoflush(1);
@@ -53,7 +54,7 @@ while (1) {
 		my $quoted_serial = $dbh->quote($d->{serial});
 
 		# Get the latest energy estimates
-		my $est = Nabovarme::Utils::estimate_remaining_energy($dbh, $d->{serial});
+		my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $d->{serial});
 
 		$energy_remaining            = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 		$energy_time_remaining_hours = $est->{time_remaining_hours};
