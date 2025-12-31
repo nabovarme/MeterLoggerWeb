@@ -86,7 +86,7 @@ while (1) {
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-				sms_send($est->{sms_notification}, $notification);
+				sms_send($d->{sms_notification}, $notification);
 				log_info("Open notice sent after top-up for serial " . $d->{serial});
 			}
 
@@ -122,7 +122,7 @@ while (1) {
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($est->{sms_notification}, $notification);
+					sms_send($d->{sms_notification}, $notification);
 					log_info("Close warning sent for serial " . $d->{serial});
 				}
 
@@ -152,7 +152,7 @@ while (1) {
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($est->{sms_notification}, $notification);
+					sms_send($d->{sms_notification}, $notification);
 					log_info("Close notice sent for serial " . $d->{serial});
 				}
 
@@ -182,7 +182,7 @@ while (1) {
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($est->{sms_notification}, $notification);
+					sms_send($d->{sms_notification}, $notification);
 					log_info("Open notice sent for serial " . $d->{serial});
 				}
 
