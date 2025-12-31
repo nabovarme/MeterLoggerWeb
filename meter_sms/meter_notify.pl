@@ -36,16 +36,19 @@ if ($dbh = Nabovarme::Db->my_connect) {
 
 while (1) {
 	$sth = $dbh->prepare(qq[
-		SELECT ms.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
-			   m.sw_version, m.email_notification, m.sms_notification,
-			   ms.close_notification_time, ms.notification_state, ms.last_paid_kwh_marker,
-			   ms.last_notification_sent_time
-		FROM meters_state ms
-		JOIN meters m ON ms.serial = m.serial
-		WHERE m.enabled = 1
-		  AND m.valve_installed = 1
-		  AND m.type = 'heat'
-		  AND (m.email_notification OR m.sms_notification)
+		SELECT 
+		m.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
+		m.sw_version, m.email_notification, m.sms_notification,
+		ms.close_notification_time, ms.notification_state, ms.last_paid_kwh_marker,
+		ms.last_notification_sent_time,
+		ms.kwh_remaining, ms.time_remaining_hours, ms.time_remaining_hours_string,
+		ms.energy_last_day, ms.avg_energy_last_day, ms.latest_energy, ms.paid_kwh, ms.method
+	FROM meters m
+	LEFT JOIN meters_state ms ON ms.serial = m.serial
+	WHERE m.enabled = 1
+		AND m.valve_installed = 1
+		AND m.type = 'heat'
+		AND (m.email_notification OR m.sms_notification)
 	]);
 	$sth->execute or log_warn($DBI::errstr);
 
@@ -72,14 +75,14 @@ while (1) {
 			log_warn(
 				"Serial: $d->{serial}",
 				"Top-up detected",
-				"Paid kWh increased: $d->{last_paid_kwh_marker} → $est->{paid_kwh}",
-				sprintf("Energy remaining: %.2f kWh", $energy_remaining),
-				"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A")
+				"Paid kWh increased: " . ($d->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}",
+				"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
+				"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A")
 			);
 
 			# Send the open notice only if it wasn't already sent for this paid_kwh
 			if (!defined $d->{last_notification_sent_time} || ($d->{last_paid_kwh_marker} || 0) != $est->{paid_kwh}) {
-				$notification = $UP_MESSAGE;
+				my $notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
@@ -106,16 +109,16 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 0 → 1",
-					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
-					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
-					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
+					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
+					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
+					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
 				# Send the close warning notification only if not already sent for this state
 				if (!defined $d->{last_notification_sent_time} || $d->{notification_state} != 1) {
-					$notification = $CLOSE_WARNING_MESSAGE;
+					my $notification = $CLOSE_WARNING_MESSAGE;
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
@@ -136,16 +139,16 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 1 → 2",
-					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
-					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
-					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
+					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
+					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
+					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
 				# Send the close notice only if not already sent for this state
 				if (!defined $d->{last_notification_sent_time} || $d->{notification_state} != 2) {
-					$notification = $DOWN_MESSAGE;
+					my $notification = $DOWN_MESSAGE;
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
@@ -166,16 +169,16 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 2 → 0",
-					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
-					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
-					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
+					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
+					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
+					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
 				# Send the open notice only if not already sent for this state
 				if (!defined $d->{last_notification_sent_time} || $d->{notification_state} != 0) {
-					$notification = $UP_MESSAGE;
+					my $notification = $UP_MESSAGE;
 					$notification =~ s/\{serial\}/$d->{serial}/g;
 					$notification =~ s/\{info\}/$d->{info}/g;
 					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
@@ -194,7 +197,7 @@ while (1) {
 			$update_needed = 1;
 		}
 
-		# --- Perform combined DB upsert if needed ---
+		# --- Perform combined DB upsert in meters_state if needed ---
 		if ($update_needed) {
 			my $now = time();
 			$dbh->do(qq[
