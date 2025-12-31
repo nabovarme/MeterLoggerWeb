@@ -88,6 +88,12 @@ sub handler {
 				push @groups, $current_group;
 			}
 
+			# Determine if time remaining should be infinite
+			my $time_remaining_hours_string = $row->{time_remaining_hours_string} || '∞';
+			if (($row->{sw_version} // '') =~ /NO_AUTO_CLOSE/ || !$row->{valve_installed}) {
+				$time_remaining_hours_string = '∞';
+			}
+
 			push @{ $current_group->{meters} }, {
 				serial						=> $row->{serial} || '',
 				info						=> $row->{info} || '',
@@ -114,7 +120,7 @@ sub handler {
 				volume						=> defined $row->{volume} ? int($row->{volume}) : 0,
 				hours						=> $row->{hours} || 0,
 				kwh_remaining				=> defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
-				time_remaining_hours_string	=> $row->{time_remaining_hours_string} || '∞',
+				time_remaining_hours_string	=> $time_remaining_hours_string,
 				energy_last_day				=> $row->{energy_last_day} || 0,
 				avg_energy_last_day			=> $row->{avg_energy_last_day} || 0,
 			};
