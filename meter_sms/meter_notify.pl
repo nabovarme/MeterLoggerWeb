@@ -60,12 +60,6 @@ while (1) {
 		$energy_time_remaining_hours = $est->{time_remaining_hours};
 		my $time_remaining_string    = $est->{time_remaining_hours_string};
 
-		# Calculate paid kWh and average energy used during the last day
-		my $paid_kwh = sprintf("%.2f", $est->{paid_kwh} || 0);
-		my $avg_energy_last_day = sprintf("%.2f", $est->{avg_energy_last_day} || 0);
-		my $energy_remaining_fmt = sprintf("%.2f", $energy_remaining);
-		my $time_remaining_fmt = defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) : "N/A";
-
 		# --- Determine if last_paid_kwh_marker or state needs updating ---
 		my $new_state = $d->{notification_state};
 		my $new_last_paid_kwh_marker = $d->{last_paid_kwh_marker};
@@ -79,8 +73,8 @@ while (1) {
 				"Serial: $d->{serial}",
 				"Top-up detected",
 				"Paid kWh increased: $d->{last_paid_kwh_marker} → $est->{paid_kwh}",
-				"Energy remaining: $energy_remaining_fmt kWh",
-				"Time remaining: $time_remaining_fmt h"
+				sprintf("Energy remaining: %.2f kWh", $energy_remaining),
+				"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A")
 			);
 
 			# Send the open notice only if it wasn't already sent for this paid_kwh
@@ -112,10 +106,10 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 0 → 1",
-					"Energy remaining: $energy_remaining_fmt kWh",
-					"Paid kWh: $paid_kwh kWh",
-					"Avg energy last day: $avg_energy_last_day kWh",
-					"Time remaining: $time_remaining_fmt h",
+					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
+					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
+					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
@@ -142,10 +136,10 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 1 → 2",
-					"Energy remaining: $energy_remaining_fmt kWh",
-					"Paid kWh: $paid_kwh kWh",
-					"Avg energy last day: $avg_energy_last_day kWh",
-					"Time remaining: $time_remaining_fmt h",
+					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
+					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
+					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
@@ -172,10 +166,10 @@ while (1) {
 				log_warn(
 					"Serial: $d->{serial}",
 					"State: 2 → 0",
-					"Energy remaining: $energy_remaining_fmt kWh",
-					"Paid kWh: $paid_kwh kWh",
-					"Avg energy last day: $avg_energy_last_day kWh",
-					"Time remaining: $time_remaining_fmt h",
+					sprintf("Energy remaining: %.2f kWh", $energy_remaining),
+					sprintf("Paid kWh: %.2f kWh", $est->{paid_kwh} || 0),
+					sprintf("Avg energy last day: %.2f kWh", $est->{avg_energy_last_day} || 0),
+					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f h", $energy_time_remaining_hours) : "N/A"),
 					"Notification sent at: " . ($d->{last_notification_sent_time} || 'N/A')
 				);
 
