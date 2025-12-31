@@ -41,12 +41,9 @@ sub handler {
 		? sprintf("%.0f", $remaining->{time_remaining_hours}) + 0 
 		: undef;
 
-	my $time_remaining_hours_string;
+	my $time_remaining_hours_string = $remaining->{time_remaining_hours_string};
 	if  ($remaining->{sw_version} =~ /NO_AUTO_CLOSE/ || !$remaining->{valve_installed}) {
 		$time_remaining_hours_string = '∞';
-	}
-	else {
-		$time_remaining_hours_string = $remaining->{time_remaining_hours_string};
 	}
 
 	my $energy_last_day = defined $remaining->{energy_last_day} 
@@ -94,10 +91,10 @@ sub handler {
 	my $response = {
 		method                      => $remaining->{method},
 		kwh_remaining               => $kwh_remaining,
-		time_remaining_hours        => $time_remaining_hours,
+		time_remaining_hours        => $time_remaining_hours || 0,
 		time_remaining_hours_string => $time_remaining_hours_string,
-		energy_last_day             => $energy_last_day,
-		avg_energy_last_day         => $avg_energy_last_day,
+		energy_last_day             => $energy_last_day || 0,
+		avg_energy_last_day         => $avg_energy_last_day || 0,
 		last_hours                  => $last_hours,
 		last_volume                 => $last_volume,
 		last_energy                 => $last_energy,

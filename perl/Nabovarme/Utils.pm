@@ -276,14 +276,10 @@ sub estimate_remaining_energy {
 	my $is_closed = ($valve_status eq 'close') ? 1 : 0;
 	log_debug("$serial: Meter closed=" . $is_closed);
 
-	my $time_remaining_hours;
+	my $time_remaining_hours = undef;
 	if ($avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
-		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
-	}
-	else {
-		$time_remaining_hours = undef;
-		log_debug("$serial: Calculated time_remaining_hours=undef");
+		log_debug("$serial: Calculated time_remaining_hours=" . (defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : 'undef'));
 	}
 
 	my $time_remaining_hours_string;
