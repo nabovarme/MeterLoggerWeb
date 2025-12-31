@@ -38,11 +38,7 @@ while (1) {
 	$sth = $dbh->prepare(qq[
 		SELECT 
 		m.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
-		m.sw_version, m.email_notification, m.sms_notification,
-		ms.close_notification_time, ms.notification_state, ms.last_paid_kwh_marker,
-		ms.last_notification_sent_time,
-		ms.kwh_remaining, ms.time_remaining_hours, ms.time_remaining_hours_string,
-		ms.energy_last_day, ms.avg_energy_last_day, ms.latest_energy, ms.paid_kwh, ms.method
+		m.sw_version, m.email_notification, m.sms_notification
 	FROM meters m
 	LEFT JOIN meters_state ms ON ms.serial = m.serial
 	WHERE m.enabled = 1
