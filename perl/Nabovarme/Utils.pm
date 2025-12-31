@@ -125,12 +125,21 @@ sub estimate_remaining_energy {
 	$sth->execute() or log_die("Failed to execute statement for cached meters_state: $DBI::errstr");
 
 	my ($cached) = $sth->fetchrow_hashref;
+
 	if ($cached) {
+		# Always populate state fields
+		$result{last_paid_kwh_marker}        = $cached->{last_paid_kwh_marker};
+		$result{last_notification_sent_time} = $cached->{last_notification_sent_time};
+		$result{notification_state}          = $cached->{notification_state};
+		$result{close_notification_time}     = $cached->{close_notification_time};
+		
+		# Only return early if cache is fresh
 		my $age_sec = time() - ($cached->{last_updated} // 0);
-		if ($age_sec < 60) {    # cached < 1 min old
-			log_debug("$serial: Using cached meters_state (age $age_sec sec)");
-			# populate result from cache
+		if ($age_sec < 60 && defined $cached->{kwh_remaining}) {
+			# cached < 1 min old AND valid
+			log_debug("$serial: Using cached meters_state (age $age_sec sec, kwh_remaining=$cached->{kwh_remaining})");
 			%result = (
+				%result,  # keep state fields
 				kwh_remaining               => $cached->{kwh_remaining},
 				time_remaining_hours        => $cached->{time_remaining_hours},
 				time_remaining_hours_string => $cached->{time_remaining_hours_string},
@@ -139,13 +148,6 @@ sub estimate_remaining_energy {
 				latest_energy               => $cached->{latest_energy},
 				paid_kwh                    => $cached->{paid_kwh},
 				method                      => $cached->{method},
-				close_notification_time     => $cached->{close_notification_time},
-				notification_state          => $cached->{notification_state},
-				last_notification_sent_time => $cached->{last_notification_sent_time},
-				last_paid_kwh_marker        => $cached->{last_paid_kwh_marker},
-				valve_status                => '',       # not cached
-				valve_installed             => 0,        # not cached
-				setup_value                 => 0,        # not cached
 			);
 			return \%result;
 		}
@@ -249,8 +251,8 @@ sub estimate_remaining_energy {
 		}
 	}
 
-	my $energy_last_day     = $res ? $res->{energy_last_day}     : 0;
-	my $avg_energy_last_day = $res ? $res->{avg_energy_last_day} : 0;
+	my $energy_last_day     = $res->{energy_last_day};
+	my $avg_energy_last_day = $res->{avg_energy_last_day};
 
 	log_debug("$serial: Energy last day=" . sprintf("%.2f", $energy_last_day) .
 		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
@@ -259,34 +261,36 @@ sub estimate_remaining_energy {
 	# --- Calculate remaining kWh and time ---
 	# ============================================================
 
-	my $kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+	my $kwh_remaining;
+	if (defined $latest_energy && defined $setup_value) {
+		$kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+		log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
+	}
+	else {
+		$kwh_remaining = undef;
+		log_debug("$serial: kWh remaining=undef");
+	}
 
-	log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
-
-	my $is_closed = ($valve_status eq 'close' || $kwh_remaining <= 0) ? 1 : 0;
+	my $is_closed = ($valve_status eq 'close') ? 1 : 0;
 	log_debug("$serial: Meter closed=" . $is_closed);
 
 	my $time_remaining_hours;
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		$time_remaining_hours = undef;
-		log_debug("$serial: SW version NO_AUTO_CLOSE => time_remaining_hours=∞");
-	}
-	elsif ($is_closed) {
-		$time_remaining_hours = 0;
-		log_debug("$serial: Valve closed or no kWh remaining => time_remaining_hours=0");
-	}
-	elsif ($avg_energy_last_day > 0) {
+	if (defined $avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
 	else {
 		$time_remaining_hours = undef;
-		log_debug("$serial: avg_energy_last_day=0 => time_remaining_hours=∞");
+		log_debug("$serial: Calculated time_remaining_hours=undef");
 	}
 
-	my $time_remaining_hours_string = (!defined $time_remaining_hours || $valve_installed == 0)
-		? '∞'
-		: rounded_duration($time_remaining_hours * 3600);
+	my $time_remaining_hours_string;
+	if (defined $time_remaining_hours) {
+		$time_remaining_hours_string = rounded_duration($time_remaining_hours * 3600);
+	}
+	else {
+		$time_remaining_hours_string = '∞';
+	}
 	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
 
 	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
@@ -298,7 +302,7 @@ sub estimate_remaining_energy {
 	# ============================================================
 
 	$result{kwh_remaining}               = $kwh_remaining;
-	$result{time_remaining_hours}        = defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : undef;
+	$result{time_remaining_hours}        = $time_remaining_hours;
 	$result{time_remaining_hours_string} = $time_remaining_hours_string;
 	$result{energy_last_day}             = $energy_last_day;
 	$result{avg_energy_last_day}         = $avg_energy_last_day;
