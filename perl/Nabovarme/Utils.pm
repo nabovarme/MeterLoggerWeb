@@ -308,14 +308,13 @@ sub estimate_remaining_energy {
 	$result{avg_energy_last_day}         = $avg_energy_last_day;
 
 	# ============================================================
-	# --- Update meters_state using placeholders ---
+	# --- Update meters_state for recalculated fields only ---
 	# ============================================================
 	my $sql = qq[
 		INSERT INTO meters_state
 		(serial, kwh_remaining, time_remaining_hours, time_remaining_hours_string,
-		 energy_last_day, avg_energy_last_day, latest_energy, paid_kwh, method,
-		 close_notification_time, notification_state, last_notification_sent_time, last_paid_kwh_marker, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))
+		 energy_last_day, avg_energy_last_day, latest_energy, paid_kwh, method, last_updated)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))
 		ON DUPLICATE KEY UPDATE
 			kwh_remaining = VALUES(kwh_remaining),
 			time_remaining_hours = VALUES(time_remaining_hours),
@@ -325,10 +324,6 @@ sub estimate_remaining_energy {
 			latest_energy = VALUES(latest_energy),
 			paid_kwh = VALUES(paid_kwh),
 			method = VALUES(method),
-			close_notification_time = VALUES(close_notification_time),
-			notification_state = VALUES(notification_state),
-			last_notification_sent_time = VALUES(last_notification_sent_time),
-			last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
 			last_updated = UNIX_TIMESTAMP(NOW())
 	];
 
@@ -342,11 +337,7 @@ sub estimate_remaining_energy {
 		$result{avg_energy_last_day},
 		$result{latest_energy},
 		$result{paid_kwh},
-		$result{method},
-		$result{close_notification_time},
-		$result{notification_state} || 0,
-		$result{last_notification_sent_time},
-		$result{last_paid_kwh_marker}
+		$result{method}
 	) or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
 
 	return \%result;
