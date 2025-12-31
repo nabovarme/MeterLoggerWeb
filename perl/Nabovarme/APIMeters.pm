@@ -16,12 +16,14 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth);
 
+	# Connect to DB
 	if ($dbh = Nabovarme::Db->my_connect) {
 		$r->content_type("application/json; charset=utf-8");
 		$r->headers_out->set('Cache-Control' => 'max-age=60, public');
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
+		# --- Fetch meters and join with meters_state for kwh_remaining/time_remaining_hours_string ---
 		my $sql = q[
 		SELECT
 			mg.`group` AS meter_group,
@@ -30,15 +32,10 @@ sub handler {
 			latest_sc.energy,
 			latest_sc.volume,
 			latest_sc.hours,
-
+			s.kwh_remaining,
+			s.time_remaining_hours_string,
 			ROUND(latest_sc.energy - prev_sc.energy, 2) AS energy_last_day,
 			ROUND((latest_sc.energy - prev_sc.energy) / 24, 2) AS avg_energy_last_day,
-
-			ROUND(
-				IFNULL(paid_kwh_table.paid_kwh, 0) - IFNULL(latest_sc.energy, 0) + m.setup_value,
-				2
-			) AS kwh_remaining,
-
 			latest_sc.unix_time AS last_sample_time
 
 		FROM meters m
@@ -66,10 +63,9 @@ sub handler {
 		) prev_sc ON m.serial = prev_sc.serial
 
 		LEFT JOIN (
-			SELECT serial, SUM(amount / price) AS paid_kwh
-			FROM accounts
-			GROUP BY serial
-		) paid_kwh_table ON m.serial = paid_kwh_table.serial
+			SELECT serial, kwh_remaining, time_remaining_hours_string
+			FROM meters_state
+		) s ON m.serial = s.serial
 
 		WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
 		ORDER BY mg.`id`, m.info;
@@ -118,9 +114,7 @@ sub handler {
 				volume						=> defined $row->{volume} ? int($row->{volume}) : 0,
 				hours						=> $row->{hours} || 0,
 				kwh_remaining				=> defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
-				time_remaining_hours_string	=> (!defined $row->{time_remaining_hours} || $row->{valve_installed} == 0)
-												? '∞'
-												: rounded_duration($row->{time_remaining_hours} * 3600),
+				time_remaining_hours_string	=> $row->{time_remaining_hours_string} || '∞',
 				energy_last_day				=> $row->{energy_last_day} || 0,
 				avg_energy_last_day			=> $row->{avg_energy_last_day} || 0,
 			};
