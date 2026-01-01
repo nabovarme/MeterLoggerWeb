@@ -25,6 +25,7 @@ use File::Spec;
 use Time::HiRes qw(sleep);
 use threads;
 
+use Nabovarme::Db;
 use Nabovarme::Utils;
 
 use constant USER  => 'smsd';
@@ -38,6 +39,11 @@ $Data::Dumper::Quotekeys = 0;
 
 # Get the script basename
 my $script_name = basename($0, ".pl");
+
+# --- Connect to database ---
+my $dbh = Nabovarme::Db->my_connect;
+log_die("DB connection failed", {-no_script_name => 1}) unless $dbh;
+log_info("Connected to DB for SMS logging", {-no_script_name => 1});
 
 # --- Dry run mode ---
 my $dry_run = ($ENV{SMSD_DRY_RUN} || '') =~ /^(1|true|yes)$/i;
@@ -103,6 +109,27 @@ sub save_sms_to_file {
 	return $filename;
 }
 
+# --- Save SMS to db ---
+sub log_sms_to_db {
+	my (%args) = @_;
+	my $direction = $args{direction} or return;  # 'sent' or 'received'
+	my $phone     = $args{phone}     || '';
+	my $message   = $args{message}   || '';
+
+	eval {
+		my $sth = $dbh->prepare(
+			"INSERT INTO sms_messages (direction, phone, message, unix_time)
+			 VALUES (?, ?, ?, ?)"
+		);
+		$sth->execute($direction, $phone, $message, time());
+		log_info("log_sms_to_db called for $phone, direction: $direction", {-no_script_name => 1, -custom_tag => 'SMS'});
+	};
+	if ($@) {
+		log_warn("Failed log_sms_to_db for $phone, direction: $direction, error=$@", {-no_script_name => 1, -custom_tag => 'SMS'});
+	}
+}
+
+
 # --- Send SMS via router ---
 sub send_sms {
 	my ($phone, $message) = @_;
@@ -114,6 +141,13 @@ sub send_sms {
 			phone   => $phone,
 			message => $message,
 			dir     => "/var/spool/sms/sent"
+		);
+		
+		# Log to DB
+		log_sms_to_db(
+			direction => 'sent',
+			phone     => $phone,
+			message   => $message,
 		);
 		return 1;
 	}
@@ -228,6 +262,13 @@ sub send_sms {
 			message => $message,
 			dir     => "/var/spool/sms/sent"
 		);
+		
+		# Log to DB
+		log_sms_to_db(
+			direction => 'sent',
+			phone     => $phone,
+			message   => $message,
+		);
 		return 1;
 	} else {
 		log_warn("SMS gateway returned unexpected response:\n$resp", {-no_script_name => 1, -custom_tag => 'SMS' });
@@ -299,19 +340,19 @@ sub read_sms {
 
 		# 5: Process messages
 		for my $key (grep { /^M\d+$/ } keys %$sms_list) {
-			my $msg   = $sms_list->{$key};
-			my $phone = $msg->{phone} || '';
-			my $date  = $msg->{date}  || '';
-			my $tag   = $msg->{tag}   || '';
-			my $text  = $msg->{msg}   || '';
-			my $read  = $msg->{read}  || 0;
+			my $msg     = $sms_list->{$key};
+			my $phone   = $msg->{phone} || '';
+			my $date    = $msg->{date}  || '';
+			my $tag     = $msg->{tag}   || '';
+			my $message = $msg->{msg}   || '';
+			my $read    = $msg->{read}  || 0;
 
 			log_info("Processing message $key", {-no_script_name => 1, -custom_tag => 'SMS' });
 			log_info("\tFrom: $phone", {-no_script_name => 1, -custom_tag => 'SMS' });
 			log_info("\tDate: $date", {-no_script_name => 1, -custom_tag => 'SMS' });
 			log_info("\tTag:  $tag", {-no_script_name => 1, -custom_tag => 'SMS' });
 			log_info("\tRead: $read", {-no_script_name => 1, -custom_tag => 'SMS' });
-			log_info("\tMessage: $text", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("\tMessage: $message", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 			# 5a: Fetch new authID
 			my $auth_resp = $ua->get(
@@ -353,12 +394,19 @@ sub read_sms {
 			# 5d: Save to spool
 			save_sms_to_file(
 				phone   => $phone,
-				message => $text,
+				message => $message,
 				dir     => $incoming_dir
+			);
+			
+			# Log to DB
+			log_sms_to_db(
+				direction => 'received',
+				phone     => $phone,
+				message   => $message,
 			);
 
 			# 5e: Forward SMS via email
-			forward_sms_email($phone, $text);
+			forward_sms_email($phone, $message);
 		}
 
 		# 6: Logout
@@ -384,15 +432,15 @@ sub read_sms {
 
 # --- Forward SMS via email ---
 sub forward_sms_email {
-	my ($phone, $text) = @_;
-	return if $sent_sms{$text};
+	my ($phone, $message) = @_;
+	return if $sent_sms{$message};
 
 	eval {
 		# Normalize line endings to CRLF for SMTP compliance
-		$text =~ s/\r?\n/\r\n/g;
+		$message =~ s/\r?\n/\r\n/g;
 
 		# Encode UTF-8 flagged string to bytes
-		my $utf8_text = encode('UTF-8', $text)
+		my $utf8_text = encode('UTF-8', $message)
 			or log_die("UTF-8 encode failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
 
 		# Create proper Email::MIME object
@@ -456,7 +504,7 @@ sub forward_sms_email {
 		}
 
 		# Mark as sent to avoid duplicate forwarding
-		$sent_sms{$text} = 1;
+		$sent_sms{$message} = 1;
 	};
 
 	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP' }) if $@;
