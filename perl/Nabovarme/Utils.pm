@@ -38,10 +38,8 @@ sub rounded_duration {
 	my $seconds = shift;
 	return '∞' unless defined $seconds;
 
-	use Data::Dumper; warn Dumper $seconds;
 	# Treat small values near zero (< 1 hour) as 0 days
 	if ($seconds > -3600 && $seconds < 3600) {
-		warn Dumper $seconds;
 		return '0 days';
 	}
 
