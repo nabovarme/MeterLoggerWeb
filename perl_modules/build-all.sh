@@ -17,6 +17,18 @@ CPAN_MODULES=(
 	"JSON::Create"
 	"Redis"
 	"File::chown"
+	"Test2::V0"
+	"Test::Deep"
+	"Math::Random::ISAAC"
+	"Crypt::Random::Source::Factory"
+	"JSON::Create"
+	"IO::Socket::Timeout"
+	"Module::Find"
+	"PerlIO::via::Timeout"
+	"Number::Format"
+	"Exporter::Tiny"
+	"Type::Tiny"
+	"Types::Standard"
 )
 
 echo "Building CPAN modules..."

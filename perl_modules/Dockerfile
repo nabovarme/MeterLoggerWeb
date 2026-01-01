@@ -21,12 +21,25 @@ RUN apt-get update && apt-get install -y \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
+RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::Secure
+RUN PERL_MM_USE_DEFAULT=1 cpan install Statistics::Basic
+RUN PERL_MM_USE_DEFAULT=1 cpan install Time::Format
+RUN PERL_MM_USE_DEFAULT=1 cpan install JSON::Create
+RUN PERL_MM_USE_DEFAULT=1 cpan install Redis
+RUN PERL_MM_USE_DEFAULT=1 cpan install File::chown
 RUN PERL_MM_USE_DEFAULT=1 cpan install Test2::V0
 RUN PERL_MM_USE_DEFAULT=1 cpan install Test::Deep
 RUN PERL_MM_USE_DEFAULT=1 cpan install Math::Random::ISAAC
 RUN PERL_MM_USE_DEFAULT=1 cpan install Crypt::Random::Source::Factory
 RUN PERL_MM_USE_DEFAULT=1 cpan install JSON::Create
 RUN PERL_MM_USE_DEFAULT=1 cpan install IO::Socket::Timeout
+RUN PERL_MM_USE_DEFAULT=1 cpan install Module::Find
+RUN PERL_MM_USE_DEFAULT=1 cpan install PerlIO::via::Timeout
+RUN PERL_MM_USE_DEFAULT=1 cpan install Number::Format
+RUN PERL_MM_USE_DEFAULT=1 cpan install Exporter::Tiny
+RUN PERL_MM_USE_DEFAULT=1 cpan install Type::Tiny
+RUN PERL_MM_USE_DEFAULT=1 cpan install Types::Standard
+
 
 # Set working directory for building
 WORKDIR /build

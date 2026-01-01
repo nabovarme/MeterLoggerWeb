@@ -49,18 +49,16 @@ RUN apt-get update && apt-get install -y \
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs
 COPY ./perl_modules/debs/*.deb /opt/local-debs
-COPY ./perl_modules/debs/Packages.gz /opt/local-debs
 
-# Add a local APT source list
-RUN echo "deb [trusted=yes] file:/opt/local-debs ./" > /etc/apt/sources.list.d/local-debs.list
+# Install all local .deb packages
+RUN for pkg in /opt/local-debs/*.deb; do \
+		echo "Installing $pkg..."; \
+		dpkg -i --force-overwrite "$pkg" || true; \
+	done
 
-# Update and install Perl modules
-RUN apt-get update && apt-get install -y \
-libmath-random-secure-perl \
-libstatistics-basic-perl \
-libtime-format-perl \
-libcryptx-perl \
-libnet-mqtt-simple-perl
+# Fix any missing dependencies from official repos
+RUN apt-get update && \
+	apt-get -f install -y
 
 RUN mkdir -p /var/www/nabovarme/cache
 RUN mkdir -p /var/www/nabovarme/qr
