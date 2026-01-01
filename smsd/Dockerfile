@@ -19,7 +19,10 @@ RUN apt-get update && apt-get install -y \
 	libwww-perl \
 	libjson-perl \
 	libnet-server-mail-perl \
-	libemail-mime-perl
+	libemail-mime-perl \
+	libdbd-mysql-perl \
+	libdbi-perl \
+	libconfig-simple-perl
 
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs
