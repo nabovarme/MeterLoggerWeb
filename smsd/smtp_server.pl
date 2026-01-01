@@ -112,12 +112,13 @@ sub save_sms_to_file {
 # --- Save SMS to db ---
 sub log_sms_to_db {
 	my (%args) = @_;
-	my $direction = $args{direction} or return;  # 'sent' or 'received'
-	my $phone     = $args{phone}     || '';
-	my $message   = $args{message}   || '';
+	my $direction  = $args{direction} or return;  # 'sent' or 'received'
+	my $phone      = $args{phone}     || '';
+	my $message    = $args{dbh_threadmessage}   || '';
+	my $dbh_thread = $args{dbh}       || $dbh;
 
 	eval {
-		my $sth = $dbh->prepare(
+		my $sth = $dbh_thread->prepare(
 			"INSERT INTO sms_messages (direction, phone, message, unix_time)
 			 VALUES (?, ?, ?, ?)"
 		);
@@ -398,11 +399,12 @@ sub read_sms {
 				dir     => $incoming_dir
 			);
 			
-			# Log to DB
+			# Log to DB using thread-safe handle
 			log_sms_to_db(
 				direction => 'received',
 				phone     => $phone,
 				message   => $message,
+				dbh       => $dbh,
 			);
 
 			# 5e: Forward SMS via email
@@ -513,6 +515,10 @@ sub forward_sms_email {
 # --- Background thread to read SMS ---
 unless ($dry_run) {
 	threads->create(sub {
+		# Each thread has its own DB connection
+		my $dbh_thread = Nabovarme::Db->my_connect;
+		log_die("DB connection failed in SMS thread", {-no_script_name => 1}) unless $dbh_thread;
+
 		while (1) {
 			read_sms();
 			sleep(10);
@@ -584,7 +590,7 @@ while (my $client = $socket->accept()) {
 			log_info("✔ SMS to $dest sent successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
 			return 1;
 		} else {
-			log_warn("❌ SMS to $dest failed: $@", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_warn("❌ SMS to $dest failed: $@", {-no_script_name => 1, -custom_tag => 'SMS'});
 			$smtp->reply(421, "SMS gateway temporarily down");
 			return 0;
 		}
