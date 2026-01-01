@@ -43,20 +43,9 @@ sub rounded_duration {
 		my $days = int(($seconds + 43200) / 86400);
 		$result = $days == 1 ? "1 day" : "$days days";
 	}
-	elsif ($seconds >= 3600) {
+	else {
 		my $hours = int(($seconds + 1800) / 3600);
 		$result = $hours == 1 ? "1 hour" : "$hours hours";
-	}
-	elsif ($seconds >= 60) {
-		my $minutes = int(($seconds + 30) / 60);
-		$result = $minutes == 1 ? "1 minute" : "$minutes minutes";
-	}
-	elsif ($seconds == 0) {
-		$result = "0 days";
-	}
-	else {
-		my $secs = int($seconds + 0.5);
-		$result = $secs == 1 ? "1 second" : "$secs seconds";
 	}
 
 	return $is_negative ? "$result ago" : $result;
