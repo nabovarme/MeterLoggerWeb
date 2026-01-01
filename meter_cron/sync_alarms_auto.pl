@@ -62,6 +62,9 @@ sub sync_auto_alarms {
 		while (my $m = $sth_m->fetchrow_hashref) {
 			my $serial = $m->{serial};
 
+			# Skip if serial is missing or empty
+			next unless defined $serial && length $serial;
+
 			# Check if the alarm already exists for this serial and auto_id
 			my ($exists) = $dbh->selectrow_array(
 				"SELECT 1 FROM alarms WHERE serial=? AND auto_id=?",
@@ -112,7 +115,8 @@ sub sync_auto_alarms {
 					$aa->{description} || ''
 				);
 
-				log_info("Created auto-alarm for serial $serial from template $aa->{id}");
+				log_info("Created auto-alarm for serial $serial from template $aa->{id}"); # <---- XXX DEBUG: meter_cron  | Use of uninitialized value $serial in concatenation (.) or string at /etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl line 115, <FH> line 17.
+
 			}
 		}
 

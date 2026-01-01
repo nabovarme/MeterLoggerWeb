@@ -4,7 +4,8 @@ use strict;
 use warnings;
 use utf8;
 use Exporter 'import';
-use POSIX qw(floor);
+use POSIX qw(floor round);
+
 use File::Basename;
 use Net::SMTP;
 use Email::MIME;
@@ -31,24 +32,36 @@ my $script_name = basename($0, ".pl");
 # ----------------------------
 # Format seconds into readable duration
 # ----------------------------
+use POSIX qw(round);
+
 sub rounded_duration {
 	my $seconds = shift;
 	return '∞' unless defined $seconds;
+
+	use Data::Dumper; warn Dumper $seconds;
+	# Treat small values near zero (< 1 hour) as 0 days
+	if ($seconds > -3600 && $seconds < 3600) {
+		warn Dumper $seconds;
+		return '0 days';
+	}
 
 	my $is_negative = $seconds < 0;
 	$seconds = abs($seconds);
 
 	my $result;
 	if ($seconds >= 86400) {
-		my $days = int(($seconds + 43200) / 86400);
+		# Round to nearest day
+		my $days = round($seconds / 86400);
 		$result = $days == 1 ? "1 day" : "$days days";
 	}
 	else {
-		my $hours = int(($seconds + 1800) / 3600);
+		# Round to nearest hour
+		my $hours = round($seconds / 3600);
+		$hours = 1 if $hours < 1; # minimum 1 hour
 		$result = $hours == 1 ? "1 hour" : "$hours hours";
 	}
 
-	return $is_negative ? "$result ago" : $result;
+	return $is_negative ? "$result overdue" : $result;
 }
 
 # ----------------------------
