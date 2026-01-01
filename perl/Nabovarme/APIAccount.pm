@@ -34,20 +34,26 @@ sub handler {
 	my $remaining = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $serial);
 
 	# --- Round numeric values ---
-	my $kwh_remaining = defined $remaining->{kwh_remaining} 
+	my $kwh_remaining = defined $remaining->{kwh_remaining}
 		? sprintf("%.0f", $remaining->{kwh_remaining}) + 0 
 		: undef;
 
-	my $time_remaining_hours = defined $remaining->{time_remaining_hours} 
-		? sprintf("%.0f", $remaining->{time_remaining_hours}) + 0 
-		: undef;
+	my $time_remaining_hours =  $remaining->{time_remaining_hours};
+	if ($remaining->{valve_installed} && ($remaining->{valve_status} eq 'close')) {
+		$time_remaining_hours = 0;
+	}
+	else {
+		$time_remaining_hours = defined $remaining->{time_remaining_hours}
+			? sprintf("%.0f", $remaining->{time_remaining_hours}) + 0 
+			: undef;
+	}
 
 	my $time_remaining_hours_string = $remaining->{time_remaining_hours_string};
 	if  ($remaining->{sw_version} =~ /NO_AUTO_CLOSE/ || !$remaining->{valve_installed}) {
 		$time_remaining_hours_string = '∞';
 	}
 
-	my $energy_last_day = defined $remaining->{energy_last_day} 
+	my $energy_last_day = defined $remaining->{energy_last_day}
 		? sprintf("%.0f", $remaining->{energy_last_day}) + 0 
 		: undef;
 

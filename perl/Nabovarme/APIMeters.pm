@@ -33,6 +33,7 @@ sub handler {
 			latest_sc.volume,
 			latest_sc.hours,
 			s.kwh_remaining,
+			s.time_remaining_hours,
 			s.time_remaining_hours_string,
 			ROUND(latest_sc.energy - prev_sc.energy, 2) AS energy_last_day,
 			ROUND((latest_sc.energy - prev_sc.energy) / 24, 2) AS avg_energy_last_day,
@@ -63,7 +64,7 @@ sub handler {
 		) prev_sc ON m.serial = prev_sc.serial
 
 		LEFT JOIN (
-			SELECT serial, kwh_remaining, time_remaining_hours_string
+			SELECT serial, kwh_remaining, time_remaining_hours, time_remaining_hours_string
 			FROM meters_state
 		) s ON m.serial = s.serial
 
@@ -93,6 +94,16 @@ sub handler {
 			if (($row->{sw_version} // '') =~ /NO_AUTO_CLOSE/ || !$row->{valve_installed}) {
 				$time_remaining_hours_string = '∞';
 			}
+			
+			my $time_remaining_hours =  $row->{time_remaining_hours};
+			if ($row->{valve_installed} && ($row->{valve_status} eq 'close')) {
+				$time_remaining_hours = 0;
+			}
+			else {
+				$time_remaining_hours = defined $row->{time_remaining_hours}
+					? sprintf("%.0f", $row->{time_remaining_hours}) + 0 
+					: undef;
+			}
 
 			push @{ $current_group->{meters} }, {
 				serial						=> $row->{serial} || '',
@@ -120,6 +131,7 @@ sub handler {
 				volume						=> defined $row->{volume} ? int($row->{volume}) : 0,
 				hours						=> $row->{hours} || 0,
 				kwh_remaining				=> defined $row->{kwh_remaining} ? int($row->{kwh_remaining}) : 0,
+				time_remaining_hours		=> $time_remaining_hours,
 				time_remaining_hours_string	=> $time_remaining_hours_string,
 				energy_last_day				=> $row->{energy_last_day} || 0,
 				avg_energy_last_day			=> $row->{avg_energy_last_day} || 0,
