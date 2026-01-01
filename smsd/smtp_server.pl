@@ -81,10 +81,10 @@ my %sent_sms;
 
 # --- Save SMS to file ---
 sub save_sms_to_file {
-	my (%args) = @_;
-	my $phone   = $args{phone}   or log_die("Missing phone", {-no_script_name => 1, -custom_tag => 'SMS' });
-	my $message = $args{message} or log_die("Missing message", {-no_script_name => 1, -custom_tag => 'SMS' });
-	my $dir     = $args{dir}     or log_die("Missing directory", {-no_script_name => 1, -custom_tag => 'SMS' });
+	my ($phone, $message, $dir) = @_;	
+	$phone   or log_die("Missing phone", {-no_script_name => 1, -custom_tag => 'SMS' });
+	$message or log_die("Missing message", {-no_script_name => 1, -custom_tag => 'SMS' });
+	$dir     or log_die("Missing directory", {-no_script_name => 1, -custom_tag => 'SMS' });
 
 	make_path($dir) unless -d $dir;
 
@@ -111,11 +111,12 @@ sub save_sms_to_file {
 
 # --- Save SMS to db ---
 sub log_sms_to_db {
-	my (%args) = @_;
-	my $direction  = $args{direction} or return;  # 'sent' or 'received'
-	my $phone      = $args{phone}     || '';
-	my $message    = $args{dbh_threadmessage}   || '';
-	my $dbh_thread = $args{dbh}       || $dbh;
+	my ($dbh_thread, $direction, $phone, $message) = @_;
+	$dbh_thread ||= $dbh;
+	$phone   ||= '';
+	$message ||= '';
+
+	return unless $direction;  # 'sent' or 'received'
 
 	eval {
 		my $sth = $dbh_thread->prepare(
@@ -130,7 +131,6 @@ sub log_sms_to_db {
 	}
 }
 
-
 # --- Send SMS via router ---
 sub send_sms {
 	my ($phone, $message) = @_;
@@ -139,16 +139,17 @@ sub send_sms {
 	if ($dry_run) {
 		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS'});
 		save_sms_to_file(
-			phone   => $phone,
-			message => $message,
-			dir     => "/var/spool/sms/sent"
+			$phone,
+			$message,
+			"/var/spool/sms/sent"
 		);
 		
 		# Log to DB
 		log_sms_to_db(
-			direction => 'sent',
-			phone     => $phone,
-			message   => $message,
+			$dbh,
+			'sent',
+			$phone,
+			$message
 		);
 		return 1;
 	}
@@ -259,16 +260,17 @@ sub send_sms {
 
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		save_sms_to_file(
-			phone   => $phone,
-			message => $message,
-			dir     => "/var/spool/sms/sent"
+			$phone,
+			$message,
+			"/var/spool/sms/sent"
 		);
 		
 		# Log to DB
 		log_sms_to_db(
-			direction => 'sent',
-			phone     => $phone,
-			message   => $message,
+			$dbh,
+			'sent',
+			$phone,
+			$message
 		);
 		return 1;
 	} else {
@@ -284,6 +286,7 @@ sub send_sms {
 
 # --- Read SMS periodically ---
 sub read_sms {
+	my ($dbh_thread) = @_;
 	return if $sms_busy;
 
 	eval {
@@ -394,17 +397,17 @@ sub read_sms {
 
 			# 5d: Save to spool
 			save_sms_to_file(
-				phone   => $phone,
-				message => $message,
-				dir     => $incoming_dir
+				$phone,
+				$message,
+				$incoming_dir
 			);
 			
 			# Log to DB using thread-safe handle
 			log_sms_to_db(
-				direction => 'received',
-				phone     => $phone,
-				message   => $message,
-				dbh       => $dbh,
+				$dbh_thread,
+				'received',
+				$phone,
+				$message
 			);
 
 			# 5e: Forward SMS via email
@@ -520,7 +523,7 @@ unless ($dry_run) {
 		log_die("DB connection failed in SMS thread", {-no_script_name => 1}) unless $dbh_thread;
 
 		while (1) {
-			read_sms();
+			read_sms($dbh_thread);
 			sleep(10);
 		}
 	})->detach();
