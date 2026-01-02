@@ -19,7 +19,7 @@ log_warn("Starting debug mode...");
 # --- Read messages from environment variables ---
 my $UP_MESSAGE             = $ENV{UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
 my $DOWN_MESSAGE           = $ENV{DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
-my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info} closing soon. {time_remaining} remaining. ({serial})';
+my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining. ({serial})';
 my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
 my $HYST = 0.5;
