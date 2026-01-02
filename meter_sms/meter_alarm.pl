@@ -271,8 +271,11 @@ sub handle_alarm {
 	# Initialize alarm_count if undefined
 	my $count = $alarm->{alarm_count} || 0;
 
-	# Determine if exponential backoff is enabled (DB field)
-	my $use_backoff = $alarm->{exp_backoff_enabled} ? 1 : 0;
+	# Determine if exponential backoff should be used
+	my $use_backoff = 0;
+	if ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) {
+		$use_backoff = 1;  # only allow backoff for repeats < 24h
+	}
 
 	if ($state) {
 		if ($alarm->{alarm_state} == 0) {
@@ -297,11 +300,13 @@ sub handle_alarm {
 			if ($use_backoff) {
 				# Exponential backoff: repeat * 2^(count-1)
 				$interval = $alarm->{repeat} * (2 ** ($count - 1));
+				
+				# Cap at 24h to ensure max 1 SMS per day for small repeats
+				$interval = 86400 if $interval > 86400;
 			} else {
-				# Fixed repeat interval
+				# Fixed repeat interval (repeat >= 24h or backoff disabled)
 				$interval = $alarm->{repeat};
 			}
-			$interval = 86400 if $interval > 86400;  # cap 24h
 
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
 				sms_send($alarm->{sms_notification}, $down_message);
