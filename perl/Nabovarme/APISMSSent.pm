@@ -17,8 +17,7 @@ sub handler {
 	my $r = shift;
 
 	my $admin = Nabovarme::Admin->new;
-	my @serials = $admin->serials_by_cookie($r);
-	use Data::Dumper; warn "APISMSSent: serials allowed for cookie: " . Dumper(\@serials);
+	my @serials = $admin->group_serials_by_cookie($r);
 
 	# If no serials allowed, deny access
 	unless (@serials) {
