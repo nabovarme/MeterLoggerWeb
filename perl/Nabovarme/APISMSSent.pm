@@ -76,7 +76,6 @@ sub handler {
 			  AND unix_time < UNIX_TIMESTAMP()
 			  AND ( ] . join(' OR ', @like_clauses) . q[ )
 			ORDER BY unix_time DESC
-			LIMIT 1000
 		];
 
 		$sth = $dbh->prepare($sql);
