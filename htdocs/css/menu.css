@@ -52,6 +52,13 @@
 	color: black;
 }
 
+.floating-menu a:focus {
+	background-color: #1f2937;
+	color: white;
+	outline: none;
+	box-shadow: 0 0 0 2px #22c55e;
+}
+
 #menu.floating-menu.show {
 	display: flex !important;
 	transform: scale(1);
