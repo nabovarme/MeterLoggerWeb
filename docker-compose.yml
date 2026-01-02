@@ -230,7 +230,9 @@ services:
       TZ: 'Europe/Copenhagen'
 
   openresty:
-    build: ./openresty
+    build:
+        context: '.'
+        dockerfile: ./openresty/Dockerfile
     container_name: openresty
     depends_on:
       - web

@@ -43,10 +43,16 @@ RUN luarocks install lua-resty-http
 RUN luarocks install luafilesystem
 
 # Copy nginx and lua files
-COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
-COPY lua/access_control.lua /usr/local/openresty/lualib/access_control.lua
-COPY lua/rate_limit.lua /usr/local/openresty/lualib/rate_limit.lua
-COPY lua/dnsbl_check.lua /usr/local/openresty/lualib/dnsbl_check.lua
+COPY openresty/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+COPY openresty/lua/access_control.lua /usr/local/openresty/lualib/access_control.lua
+COPY openresty/lua/rate_limit.lua /usr/local/openresty/lualib/rate_limit.lua
+COPY openresty/lua/dnsbl_check.lua /usr/local/openresty/lualib/dnsbl_check.lua
+
+# Create html directory
+RUN mkdir -p /usr/local/openresty/html
+
+# Copy custom 502 page from Apache htdocs
+COPY htdocs/backend_down.html /usr/local/openresty/html/backend_down.html
 
 RUN mkdir /usr/local/openresty/lualib/dnsbl_whitelist
 
