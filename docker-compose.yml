@@ -133,9 +133,6 @@ services:
         dockerfile: ./smsd/Dockerfile
     container_name: smsd
     privileged: true
-    volumes:
-      - ./smstools_spool:/var/spool/sms
-      - /dev/ttyUSB0:/dev/ttyUSB0
     restart: always
     environment:
       DLINK_ROUTER_IP: ${DLINK_ROUTER_IP}
@@ -180,8 +177,6 @@ services:
     container_name: meter_sms
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
-#      - ./sms_spool:/var/www/nabovarme/sms_spool
-#      - ./sms/outgoing:/var/spool/sms/outgoing
     restart: always
     environment:
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
