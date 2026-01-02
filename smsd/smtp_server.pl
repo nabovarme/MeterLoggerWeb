@@ -79,36 +79,6 @@ $ua->default_header("X-Requested-With"  => "XMLHttpRequest");
 my $sms_busy = 0;
 my %sent_sms;
 
-# --- Save SMS to file ---
-sub save_sms_to_file {
-	my ($phone, $message, $dir) = @_;	
-	$phone   or log_die("Missing phone", {-no_script_name => 1, -custom_tag => 'SMS' });
-	$message or log_die("Missing message", {-no_script_name => 1, -custom_tag => 'SMS' });
-	$dir     or log_die("Missing directory", {-no_script_name => 1, -custom_tag => 'SMS' });
-
-	make_path($dir) unless -d $dir;
-
-	# Sanitize phone number for filename (remove non-digits, including +)
-	my $safe_phone = $phone;
-	$safe_phone =~ s/\D//g;
-
-	# Generate a random string like in send_sms()
-	my $message_bytes = encode('UTF-8', $message);
-	my $rand_str      = substr(md5_hex(time() . $phone . $message_bytes), 0, 10);
-	my $filename      = File::Spec->catfile($dir, "${safe_phone}_$rand_str");
-
-	eval {
-		open my $fh, '>:encoding(UTF-8)', $filename or log_die("Failed to open file: $!", {-no_script_name => 1, -custom_tag => 'SMS' });
-		my $timestamp = localtime();
-		print $fh "To: $phone\nSent: $timestamp\n\n$message";
-		close $fh;
-		log_info("Saved message to $filename", {-no_script_name => 1, -custom_tag => 'SMS' });
-	};
-	log_warn("Failed to save SMS to $filename: $@", {-no_script_name => 1, -custom_tag => 'SMS' }) if $@;
-
-	return $filename;
-}
-
 # --- Save SMS to db ---
 sub log_sms_to_db {
 	my ($dbh_thread, $direction, $phone, $message) = @_;
@@ -138,12 +108,7 @@ sub send_sms {
 
 	if ($dry_run) {
 		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS'});
-		save_sms_to_file(
-			$phone,
-			$message,
-			"/var/spool/sms/sent"
-		);
-		
+
 		# Log to DB
 		log_sms_to_db(
 			$dbh,
@@ -259,11 +224,6 @@ sub send_sms {
 	$sms_busy = 0;
 
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
-		save_sms_to_file(
-			$phone,
-			$message,
-			"/var/spool/sms/sent"
-		);
 		
 		# Log to DB
 		log_sms_to_db(
@@ -394,13 +354,6 @@ sub read_sms {
 				next;
 			}
 			log_info("Deleted message tag=$tag successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
-
-			# 5d: Save to spool
-			save_sms_to_file(
-				$phone,
-				$message,
-				$incoming_dir
-			);
 			
 			# Log to DB using thread-safe handle
 			log_sms_to_db(
