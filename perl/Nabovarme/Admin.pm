@@ -3,7 +3,6 @@ package Nabovarme::Admin;
 use strict;
 use warnings;
 use DBI;
-use Data::Dumper;
 use Sys::Syslog;
 
 use Nabovarme::Db;
@@ -89,72 +88,96 @@ sub cookie_is_admin_for_serial {
 	return 0;
 }
 
-sub serials_by_cookie {
+sub group_serials_by_cookie {
 	my ($self, $r) = @_;
 
-	# Get the cookie token
+	# Step 0: Get verified phones for this cookie
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
-	my $passed_cookie_token;
-	if ($passed_cookie) {
-		($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
-	}
+	my ($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/
+		if $passed_cookie;
 
 	unless ($passed_cookie_token) {
-		warn "serials_by_cookie called but no auth_token in Cookie header";
+		warn "group_serials_by_cookie: no auth_token in Cookie header";
 		return ();
 	}
 
-	# Step 1: Get verified users for this cookie
-	my $sth_user = $self->{dbh}->prepare(qq[
-		SELECT DISTINCT users.phone, users.admin_group
-		FROM users
-		JOIN sms_auth ON sms_auth.phone = users.phone
-		WHERE sms_auth.cookie_token = ?
-		  AND sms_auth.auth_state = 'sms_code_verified'
-		  AND users.phone IS NOT NULL
-		  AND users.phone != ''
+	my $sth_phones = $self->{dbh}->prepare(qq[
+		SELECT phone
+		FROM sms_auth
+		WHERE cookie_token = ?
+			AND auth_state = 'sms_code_verified'
+			AND phone IS NOT NULL
+			AND phone != ''
+		ORDER BY unix_time DESC
+		LIMIT 1;
 	]);
-	$sth_user->execute($passed_cookie_token);
+	$sth_phones->execute($passed_cookie_token);
 
 	my @phones;
-	my %admin_groups;
-	while (my $row = $sth_user->fetchrow_hashref) {
+	while (my $row = $sth_phones->fetchrow_hashref) {
 		push @phones, $row->{phone};
-		my @groups = split /\s*,\s*/, $row->{admin_group};
-		$admin_groups{$_} = 1 for @groups;
 	}
+	warn "group_serials_by_cookie: verified phones = " . join(', ', @phones);
 
-	return () unless @phones || keys %admin_groups;
+	return () unless @phones;
 
-	# Step 2: Get serials that match either phone or admin group
+	# Step 1: Serial set 1 – match meters.sms_notification
 	my $sth_meters = $self->{dbh}->prepare(qq[
-		SELECT serial, `group`, sms_notification
+		SELECT serial, sms_notification, `group`
 		FROM meters
-		WHERE 1
+		WHERE sms_notification IS NOT NULL
+		  AND sms_notification != ''
 	]);
 	$sth_meters->execute();
 
-	my @serials;
+	my @serials_set1;
 	while (my $row = $sth_meters->fetchrow_hashref) {
-		my $include = 0;
-
-		# Match original logic: phone is verified
-		if ($row->{sms_notification}) {
-			my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
-			if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
-				$include = 1;
-			}
+		my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
+		if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
+			push @serials_set1, $row->{serial};
 		}
-
-		# Match admin group
-		if (!$include && $admin_groups{ $row->{group} }) {
-			$include = 1;
-		}
-
-		push @serials, $row->{serial} if $include;
 	}
+	warn "group_serials_by_cookie: serials_set1 = " . join(', ', @serials_set1);
 
-	return @serials;
+	# Step 2: Serial set 2 – match meters.group via users.admin_group
+	my %allowed_groups;
+	my $sth_users = $self->{dbh}->prepare(qq[
+		SELECT admin_group
+		FROM users
+		WHERE phone = ?
+		  AND admin_group IS NOT NULL
+		  AND admin_group != ''
+	]);
+
+	for my $phone (@phones) {
+		$sth_users->execute($phone);
+		while (my $row = $sth_users->fetchrow_hashref) {
+			my @groups = split /\s*,\s*/, $row->{admin_group};
+			$allowed_groups{$_} = 1 for @groups;
+		}
+	}
+	warn "group_serials_by_cookie: allowed_groups = " . join(', ', sort keys %allowed_groups);
+
+	my @serials_set2;
+	my $sth_all_meters = $self->{dbh}->prepare(qq[
+		SELECT serial, `group`
+		FROM meters
+	]);
+	$sth_all_meters->execute();
+
+	while (my $row = $sth_all_meters->fetchrow_hashref) {
+		if ($allowed_groups{ $row->{group} }) {
+			push @serials_set2, $row->{serial};
+		}
+	}
+	warn "group_serials_by_cookie: serials_set2 = " . join(', ', @serials_set2);
+
+	# Step 3: Merge and deduplicate
+	my %seen;
+	my @all_serials = grep { !$seen{$_}++ } (@serials_set1, @serials_set2);
+	warn "group_serials_by_cookie: all_serials = " . join(', ', @all_serials);
+
+	return @all_serials;
 }
 
 sub add_payment {
