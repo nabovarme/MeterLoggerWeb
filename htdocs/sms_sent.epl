@@ -1,0 +1,43 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="robots" content="noindex" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MeterLogger Wi-Fi pending</title>
+
+<!-- style and js for burger menu -->
+<script src="/js/menu.js" defer></script>	
+<link rel="stylesheet" href="/css/menu.css">
+<link rel="stylesheet" href="/css/sms_sent.css">
+</head>
+<body>
+<script src="/js/sms_sent.js" defer></script>
+<script src="/js/search_sms_sent.js" defer></script>
+
+<table border="0" align="left" cellpadding="6" cellspacing="0" class="top" id="sms_table">
+	<thead>
+	<tr align="left" valign="top">
+		<th align="left"><span class="default-bold">Direction</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Sender</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Message</span></th>
+	</tr>
+	</thead>
+	<tbody>
+		<!-- rows will be inserted here by JS -->
+	</tbody>
+</table>
+
+<!-- Floating Search UI -->
+<div id="smsSentSearchContainer">
+	<input
+		type="search"
+		id="smsSentSearch"
+		placeholder="Search sms sent..."
+		style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
+	/>
+</div>
+</body>
+</html>
