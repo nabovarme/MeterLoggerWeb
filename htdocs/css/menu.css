@@ -47,6 +47,11 @@
 	color: #ddd;
 }
 
+.floating-menu a .highlight {
+	background-color: yellow;
+	color: black;
+}
+
 #menu.floating-menu.show {
 	display: flex !important;
 	transform: scale(1);
