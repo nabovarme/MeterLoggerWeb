@@ -6,7 +6,7 @@ use Nabovarme::Db;
 use Nabovarme::Admin;
 
 $admin = new Nabovarme::Admin;
-$is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
+$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
 
 if ($dbh = Nabovarme::Db->my_connect) {
 	my $quoted_serial = $dbh->quote($fdat{'serial'});

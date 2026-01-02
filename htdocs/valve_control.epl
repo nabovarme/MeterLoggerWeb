@@ -57,7 +57,7 @@
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
 [-
-	$is_admin = $admin->cookie_is_admin($req_rec, $d->{serial});
+	$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $d->{serial});
 	if ($is_admin && ($fdat{update})) {
 		my $key = 'valve_status_' . $d->{serial};
 		if ($fdat{$key} ne $d->{valve_status}) {
