@@ -23,6 +23,8 @@
 		<th align="left"><span class="default-bold">Sender</span></th>
 		<th>&nbsp;</th>
 		<th align="left"><span class="default-bold">Message</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Time</span></th>
 	</tr>
 	</thead>
 	<tbody>
