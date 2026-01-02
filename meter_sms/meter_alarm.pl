@@ -298,9 +298,12 @@ sub handle_alarm {
 			# Calculate interval
 			my $interval;
 			if ($use_backoff) {
+				# Ensure first interval uses count=1 to avoid halving repeat
+				my $backoff_count = $count || 1;
+
 				# Exponential backoff: repeat * 2^(count-1)
-				$interval = $alarm->{repeat} * (2 ** ($count - 1));
-				
+				$interval = $alarm->{repeat} * (2 ** ($backoff_count - 1));
+
 				# Cap at 24h to ensure max 1 SMS per day for small repeats
 				$interval = 86400 if $interval > 86400;
 			} else {
