@@ -24,6 +24,10 @@ async function loadSMS() {
 				<td align="left">
 					<span class="default">${row.message}</span>
 				</td>
+				<td>&nbsp;</td>
+				<td align="left">
+					<span class="default">${row.time}</span>
+				</td>
 			`;
 			tbody.appendChild(tr);
 		}
