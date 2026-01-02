@@ -198,7 +198,7 @@ sub groups_by_cookie {
 
 	my ($admin_group) = $sth_groups->fetchrow_array;
 
-	unless ($admin_group) {
+	unless (defined $admin_group) {
 		warn "groups_by_cookie: no admin_group for phone $phone";
 		return ();
 	}
