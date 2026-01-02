@@ -245,7 +245,9 @@ function renderPaymentRowsFromAccountData(payments) {
 		const priceStr = (d.type === 'payment' && d.price) 
 			? (parseFloat(d.price || 0).toFixed(2)) + ' kr/kWh' 
 			: '';
-		const dateStr = new Date(d.payment_time * 1000).toLocaleString('da-DA').replace('T', ' ');
+		// Format Unix timestamp as "D.M.YYYY HH:MM" in 24-hour
+		const dateObj = new Date(d.payment_time * 1000); 
+	    const dateStr = `${dateObj.getDate()}.${dateObj.getMonth() + 1}.${dateObj.getFullYear()} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
 
 		row.innerHTML = `
 			<div>${dateStr}</div>
