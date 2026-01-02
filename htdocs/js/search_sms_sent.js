@@ -7,29 +7,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	// --- Refresh logic ---
 	function scheduleRefresh() {
-		// Only schedule if input is empty AND not focused
-		if (input.value.trim() === '' && document.activeElement !== input) {
-			refreshTimeout = setTimeout(() => {
-				location.reload();
-			}, 60000); // 60 seconds
-		}
-	}
+		refreshTimeout = setTimeout(async () => {
+			const query = input.value.toLowerCase();
 
-	function cancelRefresh() {
-		if (refreshTimeout) {
-			clearTimeout(refreshTimeout);
-			refreshTimeout = null;
-		}
-	}
+			// Reload table data
+			if (typeof loadSMS === 'function') {
+				await loadSMS();
+			}
 
-	// Pause refresh while typing/focused
-	input.addEventListener('focus', cancelRefresh);
-	input.addEventListener('blur', scheduleRefresh);
+			// Re-apply filter after reload
+			filterRows(query);
+
+			// Schedule next refresh
+			scheduleRefresh();
+		}, 60000); // 60 seconds
+	}
 
 	// --- Filtering ---
-	function filterRows() {
-		const query = input.value.toLowerCase();
-
+	function filterRows(query = input.value.toLowerCase()) {
 		rows().forEach(row => {
 			const text = row.innerText.toLowerCase();
 			const matchesSearch = text.includes(query);
@@ -52,12 +47,6 @@ document.addEventListener('DOMContentLoaded', function () {
 		clearTimeout(debounceTimeout);
 		debounceTimeout = setTimeout(() => {
 			filterRows();
-
-			if (input.value.trim() !== '') {
-				cancelRefresh(); // stop refresh while searching
-			} else {
-				scheduleRefresh(); // resume if empty
-			}
 		}, 300);
 	});
 

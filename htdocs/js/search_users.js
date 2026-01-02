@@ -1,18 +1,26 @@
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('meterSearch');
 	const table = document.querySelector('table');
-	const rows = table.querySelectorAll('tr.row');
+	const rows = () => table.querySelectorAll('tr.row'); // dynamic rows
 	let debounceTimeout;
 	let refreshTimeout;
 
 	// --- Refresh logic ---
 	function scheduleRefresh() {
-		// Only schedule if input is empty AND not focused
-		if (input.value.trim() === '' && document.activeElement !== input) {
-			refreshTimeout = setTimeout(() => {
-				location.reload();
-			}, 60000); // 60 seconds
-		}
+		refreshTimeout = setTimeout(async () => {
+			const query = input.value.toLowerCase();
+
+			// Reload table data
+			if (typeof loadMeters === 'function') {
+				await loadMeters(); // assumes a function exists to reload table
+			}
+
+			// Re-apply current filter after reload
+			filterRows(query);
+
+			// Schedule next refresh
+			scheduleRefresh();
+		}, 60000); // 60 seconds
 	}
 
 	function cancelRefresh() {
@@ -22,15 +30,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
-	// Pause refresh while typing/focused
-	input.addEventListener('focus', cancelRefresh);
-	input.addEventListener('blur', scheduleRefresh);
-
 	// --- Filtering ---
-	function filterRows() {
-		const query = input.value.toLowerCase();
-
-		rows.forEach(row => {
+	function filterRows(query = input.value.toLowerCase()) {
+		rows().forEach(row => {
 			const text = row.innerText.toLowerCase();
 			const matchesSearch = text.includes(query);
 			row.style.display = matchesSearch ? '' : 'none';
@@ -41,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 
 	function updateRowColors() {
-		const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+		const visibleRows = Array.from(rows()).filter(row => row.style.display !== 'none');
 		visibleRows.forEach((row, index) => {
 			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
 		});
@@ -52,12 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		clearTimeout(debounceTimeout);
 		debounceTimeout = setTimeout(() => {
 			filterRows();
-
-			if (input.value.trim() !== '') {
-				cancelRefresh(); // stop refresh while searching
-			} else {
-				scheduleRefresh(); // resume if empty
-			}
+			// Refresh continues automatically even while typing
 		}, 300);
 	});
 
