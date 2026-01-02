@@ -3,88 +3,92 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Service Unavailable</title>
-	<meta http-equiv="refresh" content="5">
 	<style>
-		/* Full-page reset */
-		html, body {
-			height: 100%;
-			width: 100%;
-			margin: 0;
-			padding: 0;
-			font-family: Verdana, Geneva, sans-serif;
-			background-color: #f9f9f9;
-			color: #333;
-			display: flex;
-			justify-content: center;  /* horizontal centering */
-			align-items: flex-start;  /* align wrapper at top */
-			text-align: center;
-		}
+	html, body {
+		height: 100%;
+		width: 100%;
+		margin: 0;
+		padding: 0;
+		font-family: Verdana, Geneva, sans-serif;
+		background-color: #f9f9f9;
+		color: #333;
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+		text-align: center;
+	}
 
-		/* Page wrapper containing text + spinner */
-		.page-wrapper {
-			display: flex;
-			flex-direction: column;
-			align-items: center;       /* horizontal centering inside wrapper */
-			margin-top: 40px;          /* space from top */
-			width: 100%;
-			max-width: 600px;
-			padding: 0 16px;           /* horizontal padding for small screens */
-			box-sizing: border-box;
-		}
+	.page-wrapper {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin-top: 40px;
+		width: 100%;
+		max-width: 600px;
+		padding: 0 16px;
+		box-sizing: border-box;
+	}
 
-		h1 {
-			font-size: 48px;
-			color: #cc0000;
-			margin-bottom: 16px;
-			line-height: 1.2;
-		}
+	h1 {
+		font-size: 48px;
+		color: #cc0000;
+		margin-bottom: 16px;
+		line-height: 1.2;
+	}
 
-		p {
-			font-size: 18px;
-			margin: 8px 0;
-		}
+	p {
+		font-size: 18px;
+		margin: 8px 0;
+	}
 
-		/* Spinner directly below text */
-		.spinner {
-			width: 150px;
-			height: 150px;
-			border: 16px solid #ccc;
-			border-top-color: #333;
-			border-radius: 50%;
-			animation: spin 2s linear infinite;
-			margin-top: 100px;          /* space between text and spinner */
-		}
+	.spinner {
+		width: 150px;
+		height: 150px;
+		border: 16px solid #ccc;
+		border-top-color: #333;
+		border-radius: 50%;
+		animation: spin 2s linear infinite;
+		margin-top: 100px;
+	}
 
-		@keyframes spin {
-			to { transform: rotate(360deg); }
-		}
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
 
-		/* Responsive adjustments */
-		@media (max-width: 600px) {
-			h1 {
-				font-size: 36px;
-			}
-			p {
-				font-size: 16px;
-			}
-			.spinner {
-				width: 80px;
-				height: 80px;
-				border-width: 6px;
-				margin-top: 50px;
-			}
-			.page-wrapper {
-				margin-top: 20px;
-			}
-		}
+	@media (max-width: 600px) {
+		h1 { font-size: 36px; }
+		p { font-size: 16px; }
+		.spinner { width: 80px; height: 80px; border-width: 6px; margin-top: 50px; }
+		.page-wrapper { margin-top: 20px; }
+	}
 	</style>
 </head>
 <body>
 	<div class="page-wrapper">
 		<h1>Service Unavailable</h1>
 		<p>The backend server is currently down or restarting.</p>
-		<p>This page will automatically refresh every 5 seconds.</p>
+		<p>This page will automatically refresh every 10 seconds.</p>
 		<div class="spinner"></div>
 	</div>
+
+	<script>
+		const wrapper = document.querySelector('.page-wrapper');
+
+		setInterval(() => {
+			fetch(window.location.href, { cache: "no-store" })
+				.then(async response => {
+					if (response.ok) {
+						// Backend is back — replace current page content with actual response
+						const html = await response.text();
+						document.open();
+						document.write(html);
+						document.close();
+					} else {
+						console.log("Server still down, status:", response.status);
+					}
+				})
+				.catch(err => console.log("Server unreachable:", err));
+		}, 10000); // ping every 10 seconds
+	</script>
 </body>
 </html>
