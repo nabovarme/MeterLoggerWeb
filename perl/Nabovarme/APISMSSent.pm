@@ -5,7 +5,7 @@ use warnings;
 use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
+use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE HTTP_FORBIDDEN);
 use HTTP::Date;
 use JSON::XS;
 
@@ -15,15 +15,18 @@ use Nabovarme::Utils;
 
 sub handler {
 	my $r = shift;
-	
+
 	my $admin = Nabovarme::Admin->new;
-	use Data::Dumper; warn Dumper $admin->serials_by_cookie($r);
-#	unless ($admin->cookie_is_sms)) {
-#		$r->status(Apache2::Const::HTTP_FORBIDDEN);
-#		$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
-#		return Apache2::Const::OK;
-#	}
-	
+	my @serials = $admin->serials_by_cookie($r);
+
+	# If no serials allowed, deny access
+	unless (@serials) {
+		$r->status(Apache2::Const::HTTP_FORBIDDEN);
+		$r->content_type("application/json; charset=utf-8");
+		$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
+		return Apache2::Const::OK;
+	}
+
 	my ($dbh, $sth);
 
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -33,7 +36,36 @@ sub handler {
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
-		my $sql = q[
+		# Step 1: get phones for allowed serials
+		my $serials_in = join(',', map { $dbh->quote($_) } @serials);
+		my $sth_phones = $dbh->prepare(qq[
+			SELECT DISTINCT sms_notification
+			FROM meters
+			WHERE serial IN ($serials_in)
+			  AND sms_notification IS NOT NULL
+			  AND sms_notification != ''
+		]);
+		$sth_phones->execute();
+
+		my @phones;
+		while (my $row = $sth_phones->fetchrow_hashref) {
+			# sms_notification may be comma-separated, split and trim
+			push @phones, map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
+		}
+
+		# Deduplicate phones
+		my %seen;
+		@phones = grep { !$seen{$_}++ } @phones;
+
+		unless (@phones) {
+			$r->status(Apache2::Const::HTTP_FORBIDDEN);
+			$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
+			return Apache2::Const::OK;
+		}
+
+		# Step 2: select SMS messages only for allowed phones
+		my $phones_in = join(',', map { $dbh->quote($_) } @phones);
+		my $sql = qq[
 			SELECT
 				direction,
 				phone,
@@ -42,6 +74,7 @@ sub handler {
 			FROM sms_messages
 			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 1 YEAR)
 			  AND unix_time < UNIX_TIMESTAMP()
+			  AND phone IN ($phones_in)
 			ORDER BY unix_time DESC
 			LIMIT 100;
 		];
@@ -54,9 +87,8 @@ sub handler {
 		# Collect encoded rows (JSON strings)
 		my @encoded_rows;
 		while (my $row = $sth->fetchrow_hashref) {
-			# Format ssid=network&pwd=pass
+			# Mask SMS codes
 			$row->{message} =~ s/(SMS Code: )(\d+)/$1 . ('*' x length($2))/e;
-			
 			push @encoded_rows, $json_obj->encode($row);
 		}
 
@@ -67,7 +99,6 @@ sub handler {
 	}
 
 	$r->err_headers_out->set('Retry-After' => '60');
-
 	return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 }
 
