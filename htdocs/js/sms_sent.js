@@ -38,6 +38,3 @@ async function loadSMS() {
 
 // Initial load
 loadSMS();
-
-// Refresh every 60 seconds
-setInterval(loadSMS, 60 * 1000);

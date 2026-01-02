@@ -34,6 +34,3 @@ async function loadWifi() {
 
 // Initial load
 loadWifi();
-
-// Refresh every 60 seconds
-setInterval(loadWifi, 60 * 1000);

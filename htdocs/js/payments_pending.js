@@ -34,6 +34,3 @@ async function loadPayments() {
 
 // Initial load
 loadPayments();
-
-// Refresh every 60 seconds
-setInterval(loadPayments, 60 * 1000);
