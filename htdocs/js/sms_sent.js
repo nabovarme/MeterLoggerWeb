@@ -14,15 +14,15 @@ async function loadSMS() {
 
 			tr.innerHTML = `
 				<td align="left">
-					<span class="default">${row.direction}</span>
-				</td>
-				<td>&nbsp;</td>
-				<td align="left">
 					<span class="default">${row.phone}</span>
 				</td>
 				<td>&nbsp;</td>
 				<td align="left">
 					<span class="default">${row.message}</span>
+				</td>
+				<td>&nbsp;</td>
+				<td align="left">
+					<span class="default">${row.direction}</span>
 				</td>
 				<td>&nbsp;</td>
 				<td align="left">
