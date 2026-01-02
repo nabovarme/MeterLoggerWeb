@@ -43,7 +43,8 @@ sub process_alarms {
 	my $sth = $dbh->prepare(qq[
 		SELECT alarms.id, alarms.serial, meters.info, meters.last_updated,
 			alarms.condition, alarms.last_notification, alarms.alarm_state,
-			alarms.repeat, alarms.snooze, alarms.default_snooze,
+			alarms.repeat, alarms.alarm_count, alarms.exp_backoff_enabled,
+			alarms.snooze, alarms.default_snooze,
 			alarms.snooze_auth_key, alarms.sms_notification,
 			alarms.down_message, alarms.up_message
 		FROM alarms
@@ -267,46 +268,75 @@ sub handle_alarm {
 	my $quoted_id = $dbh->quote($alarm->{id});
 	my $now = time();
 
+	# Initialize alarm_count if undefined
+	my $count = $alarm->{alarm_count} || 0;
+
+	# Determine if exponential backoff is enabled (DB field)
+	my $use_backoff = $alarm->{exp_backoff_enabled} ? 1 : 0;
+
 	if ($state) {
 		if ($alarm->{alarm_state} == 0) {
 			# First time alarm triggered
 			sms_send($alarm->{sms_notification}, $down_message);
+			$count = 1;  # first notification
+
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
 					alarm_state = 1,
-					snooze_auth_key = $quoted_snooze_auth_key
+					snooze_auth_key = $quoted_snooze_auth_key,
+					alarm_count = $count
 				WHERE id = $quoted_id
 			]);
-			log_info("Serial " . $alarm->{serial} . ": down");
+
+			log_info("Serial " . $alarm->{serial} . ": down (count=1)");
+
+		} elsif ($alarm->{repeat}) {
+			# Calculate interval
+			my $interval;
+			if ($use_backoff) {
+				# Exponential backoff: repeat * 2^(count-1)
+				$interval = $alarm->{repeat} * (2 ** ($count - 1));
+			} else {
+				# Fixed repeat interval
+				$interval = $alarm->{repeat};
+			}
+			$interval = 86400 if $interval > 86400;  # cap 24h
+
+			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
+				sms_send($alarm->{sms_notification}, $down_message);
+				$count++;  # increment notification count
+
+				$dbh->do(qq[
+					UPDATE alarms
+					SET last_notification = $now,
+						alarm_state = 1,
+						snooze = 0,
+						snooze_auth_key = $quoted_snooze_auth_key,
+						alarm_count = $count
+					WHERE id = $quoted_id
+				]);
+
+				log_info("Serial " . $alarm->{serial} . ": down repeat (count=$count, interval=$interval sec, backoff=" . ($use_backoff ? "enabled" : "disabled") . ")");
+			}
 		}
-		elsif ($alarm->{repeat} && (($alarm->{last_notification} + $alarm->{repeat} + $alarm->{snooze}) < time())) {
-			# Repeated notification after snooze period
-			sms_send($alarm->{sms_notification}, $down_message);
-			$dbh->do(qq[
-				UPDATE alarms
-				SET last_notification = $now,
-					alarm_state = 1,
-					snooze = 0,
-					snooze_auth_key = $quoted_snooze_auth_key 
-				WHERE id = $quoted_id
-			]);
-			log_info("Serial " . $alarm->{serial} . ": down repeat");
-		}
-	}
-	else {
+
+	} else {
 		if ($alarm->{alarm_state} == 1) {
-			# Condition has cleared — send "back to normal" message
+			# Alarm cleared — reset count
 			sms_send($alarm->{sms_notification}, $up_message);
+
 			$dbh->do(qq[
 				UPDATE alarms
 				SET last_notification = $now,
 					alarm_state = 0,
 					snooze = 0,
-					snooze_auth_key = ''
+					snooze_auth_key = '',
+					alarm_count = 0
 				WHERE id = $quoted_id
 			]);
-			log_info("Serial " . $alarm->{serial} . ": up");
+
+			log_info("Serial " . $alarm->{serial} . ": up (count reset)");
 		}
 	}
 }
