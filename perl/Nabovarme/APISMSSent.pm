@@ -10,10 +10,20 @@ use HTTP::Date;
 use JSON::XS;
 
 use Nabovarme::Db;
+use Nabovarme::Admin;
 use Nabovarme::Utils;
 
 sub handler {
 	my $r = shift;
+	
+	my $admin = Nabovarme::Admin->new;
+	use Data::Dumper; warn Dumper $admin->serials_by_cookie($r);
+#	unless ($admin->cookie_is_sms)) {
+#		$r->status(Apache2::Const::HTTP_FORBIDDEN);
+#		$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
+#		return Apache2::Const::OK;
+#	}
+	
 	my ($dbh, $sth);
 
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -30,6 +40,8 @@ sub handler {
 				message,
 				FROM_UNIXTIME(unix_time) as `time`
 			FROM sms_messages
+			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 1 YEAR)
+			  AND unix_time < UNIX_TIMESTAMP()
 			ORDER BY unix_time DESC
 			LIMIT 100;
 		];

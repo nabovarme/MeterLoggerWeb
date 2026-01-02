@@ -31,6 +31,9 @@ html, body {
 	font-weight: bold;
 	font-size: 120%;
 }
+tr {
+	vertical-align: top;
+}
 tr:nth-child(even) {
 	background: #EEE;
 }

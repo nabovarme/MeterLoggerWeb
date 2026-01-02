@@ -31,7 +31,7 @@
 		# Check admin cookie permission for this serial
 		if ($sth->rows) {
 			$d = $sth->fetchrow_hashref;
-			$is_admin = $admin->cookie_is_admin($req_rec, $d->{serial});
+			$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $d->{serial});
 		}
 
 		# If admin and update flag set, process form input and update alarm

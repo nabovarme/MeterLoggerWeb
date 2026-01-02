@@ -24,7 +24,7 @@ sub new {
 	return bless $self, $class;
 }
 
-sub cookie_is_admin {
+sub cookie_is_admin_for_serial {
 	my ($self, $r, $serial) = @_;
 
 	# capture the real client IP behind proxy once
@@ -87,6 +87,61 @@ sub cookie_is_admin {
 		"\" passed cookie $passed_cookie_token is not logged in as admin - go away!";
 
 	return 0;
+}
+
+sub serials_by_cookie {
+	my ($self, $r) = @_;
+
+	# Get the cookie token
+	my $passed_cookie = $r->headers_in->{Cookie} || '';
+	my $passed_cookie_token;
+	if ($passed_cookie) {
+		($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
+	}
+
+	unless ($passed_cookie_token) {
+		warn "serials_by_cookie called but no auth_token in Cookie header";
+		return ();
+	}
+
+	# Step 1: Get verified phone numbers for this cookie
+	my $sth = $self->{dbh}->prepare(qq[
+		SELECT DISTINCT phone
+		FROM sms_auth
+		WHERE cookie_token = ?
+		  AND auth_state = 'sms_code_verified'
+		  AND phone IS NOT NULL
+		  AND phone != ''
+	]);
+	$sth->execute($passed_cookie_token);
+
+	my @phones;
+	while (my $row = $sth->fetchrow_hashref) {
+		push @phones, $row->{phone};
+	}
+
+	return () unless @phones;
+
+	# Step 2: Map phones to meters.serial
+	my $sth2 = $self->{dbh}->prepare(qq[
+		SELECT serial, sms_notification
+		FROM meters
+		WHERE sms_notification IS NOT NULL
+		  AND sms_notification != ''
+	]);
+	$sth2->execute();
+
+	my @serials;
+	while (my $row = $sth2->fetchrow_hashref) {
+		# Split comma-separated sms_notification and trim spaces
+		my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
+		# If any of the phones match, include this serial
+		if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
+			push @serials, $row->{serial};
+		}
+	}
+
+	return @serials;  # list of serials this cookie is allowed to see
 }
 
 sub add_payment {

@@ -7,7 +7,7 @@
 	use Nabovarme::Utils;
 
 	$admin = new Nabovarme::Admin;
-	$is_admin = $admin->cookie_is_admin($req_rec, $fdat{'serial'});
+	$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
 
 	if ($is_admin && ($fdat{add_state} =~ /add/i)) {
 		$admin->add_payment($fdat{serial}, $fdat{type}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});
