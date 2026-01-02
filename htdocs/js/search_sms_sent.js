@@ -1,15 +1,17 @@
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('smsSentSearch');
 	const table = document.getElementById('sms_table');
-	const rows = () => table.querySelectorAll('tbody tr');
+	const rows = () => table.querySelectorAll('tbody tr'); // dynamic rows
 	let debounceTimeout;
 	let refreshTimeout;
 
+	// --- Refresh logic ---
 	function scheduleRefresh() {
-		if (input.value.trim() === '') {
+		// Only schedule if input is empty AND not focused
+		if (input.value.trim() === '' && document.activeElement !== input) {
 			refreshTimeout = setTimeout(() => {
 				location.reload();
-			}, 60000);
+			}, 60000); // 60 seconds
 		}
 	}
 
@@ -20,6 +22,11 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
+	// Pause refresh while typing/focused
+	input.addEventListener('focus', cancelRefresh);
+	input.addEventListener('blur', scheduleRefresh);
+
+	// --- Filtering ---
 	function filterRows() {
 		const query = input.value.toLowerCase();
 
@@ -40,18 +47,21 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 	}
 
+	// --- Debounced input handler ---
 	input.addEventListener('input', () => {
 		clearTimeout(debounceTimeout);
 		debounceTimeout = setTimeout(() => {
 			filterRows();
+
 			if (input.value.trim() !== '') {
-				cancelRefresh();
+				cancelRefresh(); // stop refresh while searching
 			} else {
-				scheduleRefresh();
+				scheduleRefresh(); // resume if empty
 			}
 		}, 300);
 	});
 
+	// --- Ctrl+F / Alt+F shortcut to focus search ---
 	document.addEventListener('keydown', (e) => {
 		if (
 			e.key.toLowerCase() === 'f' &&
@@ -63,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
+	// --- Initial setup ---
 	input.focus();
 	scheduleRefresh();
 });
