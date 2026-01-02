@@ -70,7 +70,7 @@ sub handler {
 				direction,
 				phone,
 				message,
-				FROM_UNIXTIME(unix_time) AS `time`
+				FROM_UNIXTIME(unix_time, '%e.%c.%Y %H:%i') AS `time`
 			FROM sms_messages
 			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 1 YEAR)
 			  AND unix_time < UNIX_TIMESTAMP()

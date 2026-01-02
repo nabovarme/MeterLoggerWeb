@@ -30,7 +30,7 @@
 	# get all meters
 		if ($dbh = Nabovarme::Db->my_connect) {
 			$sth = $dbh->prepare(qq[
-				SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent, from_unixtime(`unix_time`) AS t
+				SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent, FROM_UNIXTIME(`unix_time`, '%e.%c.%Y %H:%i') AS t
 				FROM sms_auth
 				WHERE `unix_time` >= UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR))
 				ORDER BY `unix_time` DESC]);
