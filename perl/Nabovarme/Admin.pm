@@ -104,44 +104,57 @@ sub serials_by_cookie {
 		return ();
 	}
 
-	# Step 1: Get verified phone numbers for this cookie
-	my $sth = $self->{dbh}->prepare(qq[
-		SELECT DISTINCT phone
-		FROM sms_auth
-		WHERE cookie_token = ?
-		  AND auth_state = 'sms_code_verified'
-		  AND phone IS NOT NULL
-		  AND phone != ''
+	# Step 1: Get verified users for this cookie
+	my $sth_user = $self->{dbh}->prepare(qq[
+		SELECT DISTINCT users.phone, users.admin_group
+		FROM users
+		JOIN sms_auth ON sms_auth.phone = users.phone
+		WHERE sms_auth.cookie_token = ?
+		  AND sms_auth.auth_state = 'sms_code_verified'
+		  AND users.phone IS NOT NULL
+		  AND users.phone != ''
 	]);
-	$sth->execute($passed_cookie_token);
+	$sth_user->execute($passed_cookie_token);
 
 	my @phones;
-	while (my $row = $sth->fetchrow_hashref) {
+	my %admin_groups;
+	while (my $row = $sth_user->fetchrow_hashref) {
 		push @phones, $row->{phone};
+		my @groups = split /\s*,\s*/, $row->{admin_group};
+		$admin_groups{$_} = 1 for @groups;
 	}
 
-	return () unless @phones;
+	return () unless @phones || keys %admin_groups;
 
-	# Step 2: Map phones to meters.serial
-	my $sth2 = $self->{dbh}->prepare(qq[
-		SELECT serial, sms_notification
+	# Step 2: Get serials that match either phone or admin group
+	my $sth_meters = $self->{dbh}->prepare(qq[
+		SELECT serial, `group`, sms_notification
 		FROM meters
-		WHERE sms_notification IS NOT NULL
-		  AND sms_notification != ''
+		WHERE 1
 	]);
-	$sth2->execute();
+	$sth_meters->execute();
 
 	my @serials;
-	while (my $row = $sth2->fetchrow_hashref) {
-		# Split comma-separated sms_notification and trim spaces
-		my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
-		# If any of the phones match, include this serial
-		if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
-			push @serials, $row->{serial};
+	while (my $row = $sth_meters->fetchrow_hashref) {
+		my $include = 0;
+
+		# Match original logic: phone is verified
+		if ($row->{sms_notification}) {
+			my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
+			if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
+				$include = 1;
+			}
 		}
+
+		# Match admin group
+		if (!$include && $admin_groups{ $row->{group} }) {
+			$include = 1;
+		}
+
+		push @serials, $row->{serial} if $include;
 	}
 
-	return @serials;  # list of serials this cookie is allowed to see
+	return @serials;
 }
 
 sub add_payment {
