@@ -1,9 +1,11 @@
 async function loadSMS() {
 	try {
 		const resp = await fetch('/api/sms_sent');
-		if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
-		const data = await resp.json();
+		if (!resp.ok) {
+			throw new Error(`HTTP error! status: ${resp.status}`);
+		}
 
+		const data = await resp.json();
 		const tbody = document.querySelector('#sms_table tbody');
 		tbody.innerHTML = ''; // clear existing rows
 
@@ -13,20 +15,24 @@ async function loadSMS() {
 			tr.valign = 'top';
 
 			// --- Phone link ---
-			const phoneLink = `<a href="#" class="phone-link" data-phone="${row.phone}">${row.phone}</a>`;
+			const phoneLink = `
+				<a 
+					href="#" 
+					class="phone-link" 
+					data-phone="${row.phone}"
+				>
+					${row.phone}
+				</a>
+			`;
 
-			// --- Convert serials in message to links ---
+
+			// --- Convert all "(number)" patterns in message to clickable links ---
 			let messageHTML = row.message;
 
-			// Pattern: "text: ... (<serial>)"
-			const regex = /^(Open notice|Close notice|Close warning):.*\((\d+)\)$/;
-			const match = messageHTML.match(regex);
-			if (match) {
-				const serial = match[2];
-				const serialLink = `<a href="/detail_acc.epl?serial=${serial}">${serial}</a>`;
-				// Replace "(1234567)" with clickable link
-				messageHTML = messageHTML.replace(`(${serial})`, `(${serialLink})`);
-			}
+			// Replace every "(digits)" with "(<a href=...>digits</a>)"
+			messageHTML = messageHTML.replace(/\((\d+)\)/g, (_, serial) => {
+				return `(<a href="/detail_acc.epl?serial=${serial}">${serial}</a>)`;
+			});
 
 			tr.innerHTML = `
 				<td align="left">${phoneLink}</td>
