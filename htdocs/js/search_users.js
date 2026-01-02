@@ -5,9 +5,10 @@ document.addEventListener('DOMContentLoaded', function () {
 	let debounceTimeout;
 	let refreshTimeout;
 
+	// --- Refresh logic ---
 	function scheduleRefresh() {
-		// Only schedule refresh if input is empty (no filter)
-		if (input.value.trim() === '') {
+		// Only schedule if input is empty AND not focused
+		if (input.value.trim() === '' && document.activeElement !== input) {
 			refreshTimeout = setTimeout(() => {
 				location.reload();
 			}, 60000); // 60 seconds
@@ -17,52 +18,50 @@ document.addEventListener('DOMContentLoaded', function () {
 	function cancelRefresh() {
 		if (refreshTimeout) {
 			clearTimeout(refreshTimeout);
+			refreshTimeout = null;
 		}
 	}
 
-	input.addEventListener('input', () => {
-		clearTimeout(debounceTimeout);
-		debounceTimeout = setTimeout(() => {
-			filterRows();
-			// Cancel refresh if filtering
-			if (input.value.trim() !== '') {
-				cancelRefresh();
-			} else {
-				// Schedule refresh again if input cleared
-				scheduleRefresh();
-			}
-		}, 300);
-	});
+	// Pause refresh while typing/focused
+	input.addEventListener('focus', cancelRefresh);
+	input.addEventListener('blur', scheduleRefresh);
 
+	// --- Filtering ---
 	function filterRows() {
 		const query = input.value.toLowerCase();
 
 		rows.forEach(row => {
 			const text = row.innerText.toLowerCase();
 			const matchesSearch = text.includes(query);
-
 			row.style.display = matchesSearch ? '' : 'none';
 		});
 
-		updateRowColors();  // Update row colors after filtering
-
-		// Scroll to top after filtering
+		updateRowColors();
 		window.scrollTo(0, 0);
 	}
 
 	function updateRowColors() {
 		const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-
 		visibleRows.forEach((row, index) => {
 			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
 		});
 	}
 
-	// Initial setup
-	input.focus();
-	scheduleRefresh();
+	// --- Debounced input handler ---
+	input.addEventListener('input', () => {
+		clearTimeout(debounceTimeout);
+		debounceTimeout = setTimeout(() => {
+			filterRows();
 
-	// Ctrl+F or Alt+F focus shortcut
+			if (input.value.trim() !== '') {
+				cancelRefresh(); // stop refresh while searching
+			} else {
+				scheduleRefresh(); // resume if empty
+			}
+		}, 300);
+	});
+
+	// --- Ctrl+F / Alt+F shortcut to focus search ---
 	document.addEventListener('keydown', (e) => {
 		if (
 			e.key.toLowerCase() === 'f' &&
@@ -73,4 +72,8 @@ document.addEventListener('DOMContentLoaded', function () {
 			input.focus();
 		}
 	});
+
+	// --- Initial setup ---
+	input.focus();
+	scheduleRefresh();
 });
