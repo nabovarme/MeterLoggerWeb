@@ -5,11 +5,12 @@ const menuItems = [
 	{ text: "Meters", href: "/index.html" },
 	{ text: "Map", href: "/map" },
 	{ text: "Network", href: "/network.html" },
-	{ text: "Valve control", href: "/valve_control.epl" },
-	{ text: "User log", href: "/users.epl" },
 	{ text: "Payments pending", href: "/payments_pending.html" },
-	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
+	{ text: "SMS sent", href: "/sms_sent.epl" },
 	{ text: "Alarms", href: "/alarms.html" },
+	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
+	{ text: "User log", href: "/users.epl" },
+	{ text: "Valve control", href: "/valve_control.epl" },
 	{ separator: true },
 	{ text: "Logout", href: "/logout" }
 ];
