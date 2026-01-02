@@ -88,96 +88,126 @@ sub cookie_is_admin_for_serial {
 	return 0;
 }
 
-sub group_serials_by_cookie {
+# --- Get the latest verified phone for a cookie ---
+sub phone_by_cookie {
 	my ($self, $r) = @_;
 
-	# Step 0: Get verified phones for this cookie
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
-	my ($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/
-		if $passed_cookie;
+	my ($cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
 
-	unless ($passed_cookie_token) {
-		warn "group_serials_by_cookie: no auth_token in Cookie header";
-		return ();
+	unless ($cookie_token) {
+		warn "phone_by_cookie: no auth_token in Cookie header";
+		return undef;
 	}
 
-	my $sth_phones = $self->{dbh}->prepare(qq[
+	my $sth = $self->{dbh}->prepare(qq[
 		SELECT phone
 		FROM sms_auth
 		WHERE cookie_token = ?
 			AND auth_state = 'sms_code_verified'
-			AND phone IS NOT NULL
-			AND phone != ''
 		ORDER BY unix_time DESC
-		LIMIT 1;
+		LIMIT 1
 	]);
-	$sth_phones->execute($passed_cookie_token);
+	$sth->execute($cookie_token);
 
-	my @phones;
-	while (my $row = $sth_phones->fetchrow_hashref) {
-		push @phones, $row->{phone};
+	my ($phone) = $sth->fetchrow_array;
+
+	if ($phone) {
+		$self->{auth_phone} = $phone;
+		warn "phone_by_cookie: auth_phone = $phone";
+		return $phone;
 	}
-	warn "group_serials_by_cookie: verified phones = " . join(', ', @phones);
 
-	return () unless @phones;
+	warn "phone_by_cookie: no verified phone found for cookie";
+	return undef;
+}
 
-	# Step 1: Serial set 1 – match meters.sms_notification
-	my $sth_meters = $self->{dbh}->prepare(qq[
-		SELECT serial, sms_notification, `group`
+sub phones_by_group {
+	my ($self, $group_id) = @_;
+
+	unless (defined $group_id) {
+		warn "phones_by_group: no group_id provided";
+		return ();
+	}
+
+	my $sth = $self->{dbh}->prepare(qq[
+		SELECT sms_notification
 		FROM meters
-		WHERE sms_notification IS NOT NULL
-		  AND sms_notification != ''
+		WHERE `group` = ?
+			AND sms_notification IS NOT NULL
+			AND sms_notification != ''
 	]);
-	$sth_meters->execute();
+	$sth->execute($group_id);
 
-	my @serials_set1;
-	while (my $row = $sth_meters->fetchrow_hashref) {
-		my @notified_phones = map { s/^\s+|\s+$//gr } split /,/, $row->{sms_notification};
-		if (grep { my $p = $_; grep { $_ eq $p } @phones } @notified_phones) {
-			push @serials_set1, $row->{serial};
+	my %phones;
+	while (my ($sms_notification) = $sth->fetchrow_array) {
+		for my $phone (split /\s*,\s*/, $sms_notification) {
+			$phones{$phone} = 1 if $phone;
 		}
 	}
-	warn "group_serials_by_cookie: serials_set1 = " . join(', ', @serials_set1);
 
-	# Step 2: Serial set 2 – match meters.group via users.admin_group
-	my %allowed_groups;
-	my $sth_users = $self->{dbh}->prepare(qq[
+	my @phones = sort keys %phones;
+
+	warn "phones_by_group($group_id): phones = " . join(', ', @phones);
+
+	return @phones;
+}
+
+sub groups_by_cookie {
+	my ($self, $r) = @_;
+
+	my $passed_cookie = $r->headers_in->{Cookie} || '';
+	my ($cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
+
+	unless ($cookie_token) {
+		warn "groups_by_cookie: no auth_token in Cookie header";
+		return ();
+	}
+
+	# Step 1: get latest verified phone for cookie
+	my $sth_phone = $self->{dbh}->prepare(qq[
+		SELECT phone
+		FROM sms_auth
+		WHERE cookie_token = ?
+			AND auth_state = 'sms_code_verified'
+		ORDER BY unix_time DESC
+		LIMIT 1
+	]);
+	$sth_phone->execute($cookie_token);
+
+	my ($phone) = $sth_phone->fetchrow_array;
+
+	unless ($phone) {
+		warn "groups_by_cookie: no verified phone for cookie";
+		return ();
+	}
+
+	$self->{auth_phone} = $phone;
+	warn "groups_by_cookie: auth_phone = $phone";
+
+	# Step 2: get admin_group for this phone
+	my $sth_groups = $self->{dbh}->prepare(qq[
 		SELECT admin_group
 		FROM users
 		WHERE phone = ?
-		  AND admin_group IS NOT NULL
-		  AND admin_group != ''
+			AND admin_group IS NOT NULL
+			AND admin_group != ''
+		LIMIT 1
 	]);
+	$sth_groups->execute($phone);
 
-	for my $phone (@phones) {
-		$sth_users->execute($phone);
-		while (my $row = $sth_users->fetchrow_hashref) {
-			my @groups = split /\s*,\s*/, $row->{admin_group};
-			$allowed_groups{$_} = 1 for @groups;
-		}
+	my ($admin_group) = $sth_groups->fetchrow_array;
+
+	unless ($admin_group) {
+		warn "groups_by_cookie: no admin_group for phone $phone";
+		return ();
 	}
-	warn "group_serials_by_cookie: allowed_groups = " . join(', ', sort keys %allowed_groups);
 
-	my @serials_set2;
-	my $sth_all_meters = $self->{dbh}->prepare(qq[
-		SELECT serial, `group`
-		FROM meters
-	]);
-	$sth_all_meters->execute();
+	my @groups = split /\s*,\s*/, $admin_group;
 
-	while (my $row = $sth_all_meters->fetchrow_hashref) {
-		if ($allowed_groups{ $row->{group} }) {
-			push @serials_set2, $row->{serial};
-		}
-	}
-	warn "group_serials_by_cookie: serials_set2 = " . join(', ', @serials_set2);
+	warn "groups_by_cookie: groups = " . join(', ', @groups);
 
-	# Step 3: Merge and deduplicate
-	my %seen;
-	my @all_serials = grep { !$seen{$_}++ } (@serials_set1, @serials_set2);
-	warn "group_serials_by_cookie: all_serials = " . join(', ', @all_serials);
-
-	return @all_serials;
+	return @groups;
 }
 
 sub add_payment {
@@ -206,12 +236,6 @@ sub add_payment {
 
 	eval {
 		# insert payment
-		warn qq[
-			INSERT INTO `accounts`
-			(`payment_time`, `serial`, `type`, `info`, `amount`, `price`)
-			VALUES ($quoted_unix_time, $quoted_serial, $quoted_type, $quoted_info, $quoted_amount, $quoted_price)
-		];
-
 		$self->{dbh}->do(qq[
 			INSERT INTO `accounts`
 			(`payment_time`, `serial`, `type`, `info`, `amount`, `price`)
