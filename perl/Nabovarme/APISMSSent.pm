@@ -18,6 +18,7 @@ sub handler {
 
 	my $admin = Nabovarme::Admin->new;
 	my @serials = $admin->serials_by_cookie($r);
+	use Data::Dumper; warn "APISMSSent: serials allowed for cookie: " . Dumper(\@serials);
 
 	# If no serials allowed, deny access
 	unless (@serials) {
@@ -56,6 +57,7 @@ sub handler {
 		# Deduplicate phones
 		my %seen;
 		@phones = grep { !$seen{$_}++ } @phones;
+		warn "APISMSSent: phones used for query: " . join(', ', @phones);
 
 		unless (@phones) {
 			$r->status(Apache2::Const::HTTP_FORBIDDEN);
@@ -63,8 +65,8 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		# Step 2: select SMS messages only for allowed phones
-		my $phones_in = join(',', map { $dbh->quote($_) } @phones);
+		# Step 2: select SMS messages only for allowed phones using wildcards
+		my @like_clauses = map { "phone LIKE " . $dbh->quote("%$_%") } @phones;
 		my $sql = qq[
 			SELECT
 				direction,
@@ -74,10 +76,11 @@ sub handler {
 			FROM sms_messages
 			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 1 YEAR)
 			  AND unix_time < UNIX_TIMESTAMP()
-			  AND phone IN ($phones_in)
+			  AND ( ] . join(' OR ', @like_clauses) . q[ )
 			ORDER BY unix_time DESC
 			LIMIT 100;
 		];
+		warn "APISMSSent: SQL to fetch messages: $sql";
 
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
@@ -92,6 +95,7 @@ sub handler {
 			push @encoded_rows, $json_obj->encode($row);
 		}
 
+		warn "APISMSSent: total SMS messages fetched: " . scalar(@encoded_rows);
 		# Join all encoded JSON objects with commas inside a JSON array
 		$r->print('[' . join(',', @encoded_rows) . ']');
 
