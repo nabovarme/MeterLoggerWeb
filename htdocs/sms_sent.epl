@@ -18,11 +18,11 @@
 <table border="0" align="left" cellpadding="6" cellspacing="0" class="top" id="sms_table">
 	<thead>
 	<tr align="left" valign="top">
-		<th align="left"><span class="default-bold">Direction</span></th>
-		<th>&nbsp;</th>
-		<th align="left"><span class="default-bold">Sender</span></th>
+		<th align="left"><span class="default-bold">Phone</span></th>
 		<th>&nbsp;</th>
 		<th align="left"><span class="default-bold">Message</span></th>
+		<th>&nbsp;</th>
+		<th align="left"><span class="default-bold">Direction</span></th>
 		<th>&nbsp;</th>
 		<th align="left"><span class="default-bold">Time</span></th>
 	</tr>
