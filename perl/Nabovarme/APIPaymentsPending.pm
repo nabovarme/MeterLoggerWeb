@@ -24,7 +24,7 @@ sub handler {
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 		my $sql = q[
-			SELECT meters.`serial`, meters.`info`, command_queue.`param` AS open_until, FROM_UNIXTIME(command_queue.`unix_time`) AS time
+			SELECT meters.`serial`, meters.`info`, command_queue.`param` AS open_until, FROM_UNIXTIME(command_queue.`unix_time`, '%e.%c.%Y %H:%i') AS time
 			FROM meters, command_queue
 			WHERE meters.`serial` = command_queue.`serial`
 			  AND command_queue.`function` like 'open_until%'
