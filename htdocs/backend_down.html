@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Service Unavailable</title>
+	<meta http-equiv="refresh" content="5">
+	<style>
+		/* Full-page reset */
+		html, body {
+			height: 100%;
+			width: 100%;
+			margin: 0;
+			padding: 0;
+			font-family: Verdana, Geneva, sans-serif;
+			background-color: #f9f9f9;
+			color: #333;
+			display: flex;
+			justify-content: center;  /* horizontal centering */
+			align-items: flex-start;  /* align wrapper at top */
+			text-align: center;
+		}
+
+		/* Page wrapper containing text + spinner */
+		.page-wrapper {
+			display: flex;
+			flex-direction: column;
+			align-items: center;       /* horizontal centering inside wrapper */
+			margin-top: 40px;          /* space from top */
+			width: 100%;
+			max-width: 600px;
+			padding: 0 16px;           /* horizontal padding for small screens */
+			box-sizing: border-box;
+		}
+
+		h1 {
+			font-size: 48px;
+			color: #cc0000;
+			margin-bottom: 16px;
+			line-height: 1.2;
+		}
+
+		p {
+			font-size: 18px;
+			margin: 8px 0;
+		}
+
+		/* Spinner directly below text */
+		.spinner {
+			width: 150px;
+			height: 150px;
+			border: 16px solid #ccc;
+			border-top-color: #333;
+			border-radius: 50%;
+			animation: spin 2s linear infinite;
+			margin-top: 100px;          /* space between text and spinner */
+		}
+
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+
+		/* Responsive adjustments */
+		@media (max-width: 600px) {
+			h1 {
+				font-size: 36px;
+			}
+			p {
+				font-size: 16px;
+			}
+			.spinner {
+				width: 80px;
+				height: 80px;
+				border-width: 6px;
+				margin-top: 50px;
+			}
+			.page-wrapper {
+				margin-top: 20px;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="page-wrapper">
+		<h1>Service Unavailable</h1>
+		<p>The backend server is currently down or restarting.</p>
+		<p>This page will automatically refresh every 5 seconds.</p>
+		<div class="spinner"></div>
+	</div>
+</body>
+</html>
