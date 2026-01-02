@@ -6,7 +6,7 @@ const menuItems = [
 	{ text: "Map", href: "/map" },
 	{ text: "Network", href: "/network.html" },
 	{ text: "Payments pending", href: "/payments_pending.html" },
-	{ text: "SMS sent", href: "/sms_sent.epl" },
+	{ text: "SMS sent", href: "/sms_sent.html" },
 	{ text: "Alarms", href: "/alarms.html" },
 	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
 	{ text: "User log", href: "/users.epl" },
