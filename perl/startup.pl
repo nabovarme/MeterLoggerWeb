@@ -12,6 +12,7 @@ use Nabovarme::APIDataAcc;
 use Nabovarme::APIMeters;
 use Nabovarme::APIMetersNetworkTree;
 use Nabovarme::APIAlarms;
+use Nabovarme::APISnooze;
 use Nabovarme::APIPaymentsPending;
 use Nabovarme::APIAccount;
 use Nabovarme::APIWIFIPending;

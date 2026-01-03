@@ -15,7 +15,7 @@ use utf8;
 use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
-use constant SNOOZE_LOCATION => '/snooze.epl';
+use constant SNOOZE_LOCATION => '/api/snooze';
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -29,7 +29,7 @@ sub handler {
 	my $public_access = $r->dir_config('PublicAccess') || '';
 	
 	# Ignore specific URI paths
-	if ($r->uri eq SNOOZE_LOCATION) {
+	if ($r->uri =~ qr/^@{[SNOOZE_LOCATION]}/) {
 		$r->warn("snooze location, we dont handle this: " . $r->uri);
 		return Apache2::Const::OK;
 	}

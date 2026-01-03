@@ -92,7 +92,7 @@ if ($fdat{'auth'}) {
 <BODY>
 	[$ if ($is_authorized && $fdat{'update'}) $]
 	[- $human_delay = human_duration($fdat{'snooze'}); -]
-		<span class="default">Alarm snoozed for [+ $human_delay +].</span><br> <!-- XXX DEBUG: wrong var -->
+		<span class="default">Alarm snoozed for [+ $human_delay +].</span><br>
 
 	[$ elsif ($is_authorized) $]
 		<span class="default">Snooze alarm</span><br>
