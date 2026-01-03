@@ -59,9 +59,6 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	# Log only the original URI
-	$r->warn("url requested: $orig_uri");
-
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 		my $passed_cookie = $r->headers_in->{Cookie} || '';
