@@ -9,9 +9,6 @@
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-	<link rel="stylesheet" href="/css/menu.css">
-	<script src="/js/menu.js" defer></script>
-
 	<link rel="stylesheet" href="leaflet/leaflet.css" />
 	<script src="leaflet/leaflet.js"></script>
 	<style>
@@ -88,6 +85,10 @@
 		font-size: 120%;
 	}
 	</style>
+
+	<link rel="stylesheet" href="/css/menu.css">
+	<script src="/js/menu.js" defer></script>
+	
 	</HEAD>
 	<BODY>
 
