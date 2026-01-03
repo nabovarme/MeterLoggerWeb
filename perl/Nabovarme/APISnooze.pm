@@ -39,8 +39,6 @@ sub handler {
 	# Connect and find alarm by auth
 	if ($auth && ($dbh = Nabovarme::Db->my_connect)) {
 		my $quoted_auth = $dbh->quote($auth);
-
-		use Data::Dumper; warn $r->warn(Dumper $auth);
 		
 		$sth = $dbh->prepare(qq[
 			SELECT * FROM alarms
