@@ -15,7 +15,7 @@ use utf8;
 use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
-use constant SNOOZE_LOCATION => '/api/snooze';
+use constant SNOOZE_LOCATION => '/snooze';
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
