@@ -15,7 +15,6 @@ use utf8;
 use Net::SMTP;
 
 use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
-use constant SNOOZE_LOCATION => '/snooze';
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -24,13 +23,30 @@ use Nabovarme::Utils;
 sub handler {
 	my $r = shift;
 
-	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
+	my $logout_path     = $r->dir_config('LogoutPath') || 'logout';
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
-	my $public_access = $r->dir_config('PublicAccess') || '';
-	
-	# Ignore specific URI paths
-	if ($r->uri =~ qr/^@{[SNOOZE_LOCATION]}/) {
-		$r->warn("snooze location, we dont handle this: " . $r->uri);
+	my $public_access   = $r->dir_config('PublicAccess') || '';
+	my $snooze_page     = $r->dir_config('SnoozePagePath') || '';
+	my $snooze_api      = $r->dir_config('SnoozeAPIPath')  || '';
+
+	# Use original request URI to avoid internal_redirect side effects
+	my $orig_uri = $r->unparsed_uri || $r->uri;
+
+	# Check single user-facing page path
+	if ($snooze_page && $orig_uri =~ m{^\Q$snooze_page\E}) {
+		$r->warn("Request URI '$orig_uri' matched SnoozePagePath '$snooze_page'; SMSAuth allowed for page path.");
+		return Apache2::Const::OK;
+	}
+
+	# Check single user-facing page path
+	if ($snooze_page && $orig_uri =~ m/^$snooze_page/) {
+		$r->warn("Request URI '" . $r->uri . "' matched SnoozePagePath '$snooze_page'; SMSAuth allowed for page path.");
+		return Apache2::Const::OK;
+	}
+
+	# Check single API path
+	if ($snooze_api && $orig_uri =~ m/^$snooze_api/) {
+		$r->warn("Request URI '" . $r->uri . "' matched SnoozeAPIPath '$snooze_page'; SMSAuth allowed for page path.");
 		return Apache2::Const::OK;
 	}
 
@@ -42,18 +58,20 @@ sub handler {
 			}
 		}
 	}
-	
-	if ($r->uri eq $logged_out_path) {
-		$r->warn("we dont handle this: " . $r->uri);
+
+	if ($orig_uri eq $logged_out_path) {
+		$r->warn("we dont handle this: $orig_uri");
 		return Apache2::Const::OK;
 	}
-	
+
+	$r->warn("url requested: $orig_uri");
+
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 		my $passed_cookie = $r->headers_in->{Cookie} || '';
 		if ($passed_cookie) {
 			# Handle logout requests
-			if (index($r->uri, $logout_path) >= 0) {
+			if (index($orig_uri, $logout_path) >= 0) {
 				return logout_handler($r);
 			}
 		}	
