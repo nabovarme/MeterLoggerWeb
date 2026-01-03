@@ -29,10 +29,13 @@
 		}
 	</style>
 	<script>
-		// Read URL query parameter
-		function getQueryParam(name) {
-			const urlParams = new URLSearchParams(window.location.search);
-			return urlParams.get(name);
+		// Read auth token from raw query string (?<auth>)
+		function getAuthFromQuery() {
+			const qs = window.location.search;
+			if (!qs || qs.length < 2) {
+				return null;
+			}
+			return qs.substring(1); // strip leading '?'
 		}
 
 		// Format seconds to human-readable, whole numbers only
@@ -62,8 +65,11 @@
 
 		// Convert seconds to slider value (inverse of sliderToSeconds)
 		function secondsToSlider(seconds) {
-			const minSec = 60;
-			const maxSec = 31536000;
+			// If snooze is 0, map to 0 (leftmost slider position)
+			if (seconds <= 0) return 0;
+
+			const minSec = 60;       // 1 min
+			const maxSec = 31536000; // 1 yr
 			return Math.log(seconds / minSec) / Math.log(maxSec / minSec) * 100;
 		}
 
@@ -73,8 +79,12 @@
 			try {
 				const res = await fetch(url);
 				const data = await res.json();
-				if (data.authorized && data.alarm && data.alarm.snooze) {
-					return data.alarm.snooze; // seconds
+				if (
+					data.authorized &&
+					data.alarm &&
+					typeof data.alarm.snooze === 'number'
+				) {
+					return data.alarm.snooze; // seconds (can be 0)
 				} else {
 					document.getElementById('status').textContent = data.error || "Not found";
 					return 300; // default 5 min
@@ -113,7 +123,7 @@
 
 		// Triggered when slider changes
 		function onSliderChange() {
-			const auth = getQueryParam('auth');
+			const auth = getAuthFromQuery();
 			const slider = document.getElementById('snoozeSlider');
 			const seconds = sliderToSeconds(parseInt(slider.value, 10));
 			document.getElementById('durationDisplay').textContent = formatDuration(seconds);
@@ -121,7 +131,7 @@
 		}
 
 		window.addEventListener('DOMContentLoaded', async () => {
-			const auth = getQueryParam('auth');
+			const auth = getAuthFromQuery();
 			if (!auth) {
 				document.getElementById('status').textContent = "Missing auth key";
 				return;
