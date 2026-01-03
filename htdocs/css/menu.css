@@ -39,7 +39,9 @@
 	text-decoration: none;
 	font-size: 18px;
 	transition: color 0.3s;
+	transition: background-color 0.15s ease, box-shadow 0.15s ease;
 	font-family: Verdana, Geneva, sans-serif;
+	padding: 4px 6px;
 }
 
 .floating-menu a:hover {
@@ -53,10 +55,17 @@
 }
 
 .floating-menu a:focus {
-	background-color: #1f2937;
+	background-color: #111827;
 	color: white;
 	outline: none;
-	box-shadow: 0 0 0 2px #22c55e;
+	box-shadow: none;
+	border-radius: 6px;
+}
+
+.floating-menu a:focus-visible {
+	background-color: #111827;
+	box-shadow: 0 0 0 2px #9ca3af;
+	outline: none;
 }
 
 #menu.floating-menu.show {
