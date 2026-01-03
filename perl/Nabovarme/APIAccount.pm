@@ -25,8 +25,8 @@ sub handler {
 
 	# Disable caching
 	$r->headers_out->set('Pragma' => 'no-cache');
-	$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate');
-
+	$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0');
+	$r->headers_out->set('Expires' => '0');
 	# Allow CORS
 	$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
