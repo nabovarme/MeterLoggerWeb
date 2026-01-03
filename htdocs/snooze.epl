@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=device-width, initial-scale=1.5">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>MeterLogger Snooze alarm</title>
 	<style>
 		body {
@@ -19,6 +19,8 @@
 		}
 		input[type=range] {
 			width: 100%;
+			max-width: 100%;
+			box-sizing: border-box;
 		}
 		#durationDisplay {
 			font-weight: bold;
