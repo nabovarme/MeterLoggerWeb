@@ -38,31 +38,34 @@
 	color: white;
 	text-decoration: none;
 	font-size: 18px;
-	transition: color 0.3s;
-	transition: background-color 0.15s ease, box-shadow 0.15s ease;
 	font-family: Verdana, Geneva, sans-serif;
-	padding: 4px 6px;
+	padding: 8px 12px; /* consistent padding to prevent jumps */
+	border-radius: 6px;
+	transition: color 0.3s, background-color 0.15s ease, box-shadow 0.2s ease;
 }
 
+/* Hover feedback */
 .floating-menu a:hover {
 	text-decoration: underline;
 	color: #ddd;
 }
 
+/* Type-ahead highlight */
 .floating-menu a .highlight {
 	background-color: yellow;
 	color: black;
 }
 
+/* Mouse click: no ring at all */
 .floating-menu a:focus {
-	background-color: #111827;
-	color: white;
 	outline: none;
 	box-shadow: none;
-	border-radius: 6px;
+	background-color: #111827;
 }
 
-.floating-menu a:focus-visible {
+/* Keyboard navigation (tab / arrow keys) */
+.floating-menu a:focus-visible,
+.floating-menu a.keyboard-focus {
 	background-color: #111827;
 	box-shadow: 0 0 0 2px #9ca3af;
 	outline: none;
@@ -73,7 +76,7 @@
 	transform: scale(1);
 	opacity: 1;
 	pointer-events: auto;
-	}
+}
 
 @media (max-width: 600px) {
 	.burger {
@@ -81,12 +84,13 @@
 	}
 
 	.floating-menu a {
-		font-size: 22px; /* Increase from 18px to 22px, or as needed */
-		padding: 8px 0;	/* Optional: more tap-friendly spacing */
+		font-size: 22px;
+		padding: 8px 12px; /* match base padding */
 	}
 
 	.floating-menu {
-		min-width: 180px; /* Optional: make the menu itself wider */
-		top: 100px; /* More vertical space for small screens */
-		right: 20px;   /* Ensure it's still top-right */
+		min-width: 180px;
+		top: 100px;
+		right: 20px;
+	}
 }

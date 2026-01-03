@@ -76,23 +76,33 @@ function insertMenu() {
 		// Arrow navigation
 		if (menuEl.classList.contains("show")) {
 			let index = links.indexOf(active);
+
 			if (e.key === "ArrowDown") {
 				e.preventDefault();
 				index = (index + 1) % links.length;
+
+				links.forEach(link => link.classList.remove("keyboard-focus"));
+				links[index].classList.add("keyboard-focus");
 				links[index].focus();
 				return;
 			}
+
 			if (e.key === "ArrowUp") {
 				e.preventDefault();
 				index = (index - 1 + links.length) % links.length;
+
+				links.forEach(link => link.classList.remove("keyboard-focus"));
+				links[index].classList.add("keyboard-focus");
 				links[index].focus();
 				return;
 			}
+
 			if (e.key === "Escape") {
 				e.preventDefault();
 				closeMenu();
 				return;
 			}
+
 			if (e.key === "Enter" && links.includes(active)) {
 				e.preventDefault();
 				active.click();
