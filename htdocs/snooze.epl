@@ -118,11 +118,10 @@
 				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			});
 
-			// Call API on release
-			slider.addEventListener('change', onSliderChange);
-
-			// Initial API call
-			snoozeAlarm(auth, snooze);
+			// Call API only when slider is changed by the user
+			slider.addEventListener('change', () => {
+				onSliderChange();
+			});
 		});
 	</script>
 </head>
