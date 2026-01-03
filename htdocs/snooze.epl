@@ -54,9 +54,15 @@ if ($fdat{'auth'}) {
 	if ($sth->rows) {
 		if ($d = $sth->fetchrow_hashref) {
 			$is_authorized = 1;
-			$dbh->do(qq[UPDATE alarms SET snooze = ] . $dbh->quote($fdat{'snooze'}) . qq[ WHERE `id` = ] . $d->{id}) || warn $!;
-			$human_delay = human_duration($fdat{'snooze'});
-			warn Dumper $d;
+			$dbh->do(
+				qq[
+					UPDATE alarms
+					SET
+						snooze = ] . $dbh->quote($fdat{'snooze'}) . qq[,
+						alarm_count = 0,
+						last_notification = UNIX_TIMESTAMP()
+					WHERE id = ] . $dbh->quote($d->{id})
+			) || warn $!;
 		}
 	}
 }
