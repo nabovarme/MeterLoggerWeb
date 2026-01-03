@@ -69,6 +69,12 @@ function insertMenu() {
 	document.addEventListener("keydown", function (e) {
 		const active = document.activeElement;
 
+		// If ESC is pressed on a focused input, blur it
+		if (e.key === "Escape" && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) {
+			active.blur();
+			return;
+		}
+		
 		// Ignore typing in input/textarea/contenteditable
 		if (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable) return;
 
