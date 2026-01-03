@@ -40,6 +40,8 @@ sub handler {
 	if ($auth && ($dbh = Nabovarme::Db->my_connect)) {
 		my $quoted_auth = $dbh->quote($auth);
 
+		use Data::Dumper; warn $r->warn(Dumper $auth);
+		
 		$sth = $dbh->prepare(qq[
 			SELECT * FROM alarms
 			WHERE snooze_auth_key LIKE $quoted_auth
