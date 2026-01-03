@@ -7,7 +7,6 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use DBI;
 use utf8;
-use Data::Dumper;
 
 use Nabovarme::Db;
 
@@ -29,7 +28,12 @@ sub handler {
 	# Split into auth and optional snooze
 	my ($auth, $snooze) = split('/', $path);
 
-	warn Dumper($auth, $snooze);
+	# Validate snooze if provided
+	if (defined $snooze && $snooze !~ /^\d+$/) {
+		$response->{error} = "Invalid snooze value: must be a non-negative integer";
+		$r->print(encode_json($response));
+		return Apache2::Const::OK;
+	}
 
 	# Connect and find alarm by auth
 	if ($auth && ($dbh = Nabovarme::Db->my_connect)) {
@@ -47,6 +51,7 @@ sub handler {
 
 			# Update snooze if provided
 			if (defined $snooze) {
+				# Update the alarm's snooze
 				$dbh->do(qq{
 					UPDATE alarms
 					SET
@@ -64,7 +69,11 @@ sub handler {
 			# Return alarm data
 			$response->{alarm} = prepare_alarm_data($d);
 			$response->{alarm}->{snooze_human} = human_duration($d->{snooze});
+		} else {
+			$response->{error} = "Auth key not found";
 		}
+	} else {
+		$response->{error} = "Missing auth key";
 	}
 
 	$r->print(encode_json($response));
@@ -108,7 +117,6 @@ sub prepare_alarm_data {
 	return {
 		id => $alarm->{id} // '',
 		serial => $alarm->{serial} // '',
-		info => $alarm->{info} // '',
 		sms_notification => $alarm->{sms_notification} // '',
 		condition => $alarm->{condition} // '',
 		condition_error => $alarm->{condition_error} // '',
