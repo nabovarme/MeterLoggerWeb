@@ -68,7 +68,12 @@ function insertMenu() {
 	// Global keydown listener
 	document.addEventListener("keydown", function (e) {
 		const active = document.activeElement;
+
+		// Ignore typing in input/textarea/contenteditable
 		if (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable) return;
+
+		// Ignore if any modifier keys are pressed
+		if (e.ctrlKey || e.altKey || e.metaKey) return;
 
 		const menuEl = document.getElementById("menu");
 		const links = Array.from(menuEl.querySelectorAll("a"));
