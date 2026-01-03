@@ -13,8 +13,9 @@
 			margin-bottom: 20px;
 			font-weight: bold;
 		}
+		/* Hide slider initially until first fetch */
 		label {
-			display: block;
+			display: none;
 			margin-top: 20px;
 		}
 		input[type=range] {
@@ -34,25 +35,32 @@
 			return urlParams.get(name);
 		}
 
-		// Format seconds to human-readable whole numbers
+		// Format seconds to human-readable, whole numbers only
 		function formatDuration(seconds) {
-			if (seconds < 3600) return Math.round(seconds / 60) + " min";
-			else if (seconds < 86400) return Math.floor(seconds / 3600) + " hr";
-			else if (seconds < 604800) return Math.floor(seconds / 86400) + " day";
-			else if (seconds < 2678400) return Math.floor(seconds / 604800) + " week";
-			else if (seconds < 31536000) return Math.floor(seconds / 2678400) + " month";
-			else return Math.floor(seconds / 31536000) + " yr";
+			if (seconds < 3600) {
+				return Math.round(seconds / 60) + " min";
+			} else if (seconds < 86400) {
+				return Math.floor(seconds / 3600) + " hr";
+			} else if (seconds < 604800) {
+				return Math.floor(seconds / 86400) + " day";
+			} else if (seconds < 2678400) {
+				return Math.floor(seconds / 604800) + " week";
+			} else if (seconds < 31536000) {
+				return Math.floor(seconds / 2678400) + " month";
+			} else {
+				return Math.floor(seconds / 31536000) + " yr";
+			}
 		}
 
-		// Slider value (0-100) → seconds (non-linear scale)
+		// Convert slider value (0-100) to seconds using non-linear scale
 		function sliderToSeconds(value) {
-			const minSec = 60;         // 1 min
-			const maxSec = 31536000;   // 1 yr
+			const minSec = 60;			// 1 min
+			const maxSec = 31536000;	// 1 yr
 			const scale = value / 100;
 			return Math.round(minSec * Math.pow(maxSec / minSec, scale));
 		}
 
-		// Seconds → slider value (inverse of sliderToSeconds)
+		// Convert seconds to slider value (inverse of sliderToSeconds)
 		function secondsToSlider(seconds) {
 			const minSec = 60;
 			const maxSec = 31536000;
@@ -61,7 +69,7 @@
 
 		// Fetch current snooze without updating
 		async function fetchCurrentSnooze(auth) {
-			const url = '/api/snooze/' + encodeURIComponent(auth); // no snooze
+			const url = '/api/snooze/' + encodeURIComponent(auth); // no snooze appended
 			try {
 				const res = await fetch(url);
 				const data = await res.json();
@@ -78,13 +86,15 @@
 			}
 		}
 
-		// Update snooze via API
+		// Call API to update snooze alarm
 		function snoozeAlarm(auth, snooze) {
 			if (!auth) {
 				document.getElementById('status').textContent = "Missing auth key";
 				return;
 			}
-			const url = '/api/snooze/' + encodeURIComponent(auth) + '/' + encodeURIComponent(snooze);
+
+			let url = '/api/snooze/' + encodeURIComponent(auth) + '/' + encodeURIComponent(snooze);
+
 			fetch(url)
 				.then(res => res.json())
 				.then(data => {
@@ -101,7 +111,7 @@
 				});
 		}
 
-		// Slider change event
+		// Triggered when slider changes
 		function onSliderChange() {
 			const auth = getQueryParam('auth');
 			const slider = document.getElementById('snoozeSlider');
@@ -122,8 +132,12 @@
 
 			// Initialize slider
 			const slider = document.getElementById('snoozeSlider');
+			const label = slider.parentElement; // reference to the <label>
 			slider.value = secondsToSlider(currentSnooze);
 			document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
+
+			// Show slider after fetch
+			label.style.display = "block";
 
 			// Update label live while dragging
 			slider.addEventListener('input', () => {
@@ -131,7 +145,7 @@
 				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			});
 
-			// Only call API when user releases slider
+			// Only call API when slider is released
 			slider.addEventListener('change', onSliderChange);
 		});
 	</script>
