@@ -1,85 +1,139 @@
-﻿<HTML>
-<HEAD>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
 	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=600, initial-scale=2">
-	<TITLE>MeterLogger Snoozed</TITLE>
-	<style type="text/css">
-	.default {
-		font-family: Verdana, Geneva, sans-serif;
-	}
-	.default-small {
-		font-family: Verdana, Geneva, sans-serif;
-		font-size: 50%;
-	}
-	.default-bold {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-	}
-	.default-highlight {
-		font-family: Verdana, Geneva, sans-serif;
-		background-color:#FFFF00;
-	}
+	<meta name="viewport" content="width=device-width, initial-scale=1.5">
+	<title>MeterLogger Snooze alarm</title>
+	<style>
+		body {
+			font-family: Verdana, Geneva, sans-serif;
+			padding: 20px;
+		}
+		#status {
+			margin-bottom: 20px;
+			font-weight: bold;
+		}
+		label {
+			display: block;
+			margin-top: 20px;
+		}
+		input[type=range] {
+			width: 100%;
+		}
+		#durationDisplay {
+			font-weight: bold;
+			margin-left: 10px;
+		}
 	</style>
-	<script type="text/javascript">
+	<script>
+		// Read URL query parameter
+		function getQueryParam(name) {
+			const urlParams = new URLSearchParams(window.location.search);
+			return urlParams.get(name);
+		}
+
+		// Update query parameter in URL without reloading
+		function updateQueryParam(key, value) {
+			const url = new URL(window.location);
+			url.searchParams.set(key, value);
+			window.history.replaceState({}, '', url);
+		}
+
+		// Format seconds to human-readable, whole numbers only
+		function formatDuration(seconds) {
+			if (seconds < 3600) {
+				return Math.round(seconds / 60) + " min";
+			} else if (seconds < 86400) {
+				return Math.floor(seconds / 3600) + " hr";
+			} else if (seconds < 604800) {
+				return Math.floor(seconds / 86400) + " day";
+			} else if (seconds < 2678400) {
+				return Math.floor(seconds / 604800) + " week";
+			} else if (seconds < 31536000) {
+				return Math.floor(seconds / 2678400) + " month";
+			} else {
+				return Math.floor(seconds / 31536000) + " yr";
+			}
+		}
+
+		// Convert slider value (0-100) to seconds using non-linear scale
+		function sliderToSeconds(value) {
+			const minSec = 60;			// 1 min
+			const maxSec = 31536000;	// 1 yr
+			const scale = value / 100;
+			return Math.round(minSec * Math.pow(maxSec / minSec, scale));
+		}
+
+		// Call API to snooze alarm
 		function snoozeAlarm(auth, snooze) {
 			if (!auth) {
-				document.getElementById('status').innerHTML = 'Missing auth key';
+				document.getElementById('status').textContent = "Missing auth key";
 				return;
 			}
 
-			let url = '/api/snooze/' + encodeURIComponent(auth);
-			if (snooze) url += '/' + encodeURIComponent(snooze);
+			let url = '/api/snooze/' + encodeURIComponent(auth) + '/' + encodeURIComponent(snooze);
 
 			fetch(url)
-				.then(response => response.json())
+				.then(res => res.json())
 				.then(data => {
-					console.log(data);
-					let container = document.getElementById('status');
+					const container = document.getElementById('status');
 					if (data.authorized) {
-						if (snooze) {
-							container.innerHTML = 'Alarm snoozed for ' + (data.alarm.snooze_human || '') + '.';
-						} else {
-							container.innerHTML = 'Snooze alarm';
-						}
+						container.textContent = "Alarm snoozed for " + (data.alarm.snooze_human || formatDuration(snooze)) + ".";
 					} else {
-						container.innerHTML = data.error || 'Not found';
+						container.textContent = data.error || "Not found";
 					}
 				})
 				.catch(err => {
 					console.error(err);
-					document.getElementById('status').innerHTML = 'Error contacting server';
+					document.getElementById('status').textContent = "Error contacting server";
 				});
 		}
-	</script>
-</HEAD>
-<BODY>
-	<div id="status" class="default"></div>
 
-	<!-- Form to snooze alarm -->
-	<div class="default">
-		<span></span><br>
-		<form id="snoozeForm" onsubmit="event.preventDefault(); snoozeAlarm(this.auth.value, this.snooze.value);">
-			<select name="snooze">
-				<option value="300">5 min</option>
-				<option value="1800">30 min</option>
-				<option value="3600">1 hour</option>
-				<option value="86400">1 day</option>
-				<option value="604800">1 week</option>
-				<option value="2678400">1 month</option>
-			</select>
-
-			<input type="hidden" name="auth" value="[+ $fdat{auth} +]">
-			<input type="submit" name="update" value="Snooze" style="width: 100px;">
-		</form>
-	</div>
-
-	<script type="text/javascript">
-		// Initial fetch to display current snooze or auth failure
-		if ("[+ $fdat{auth} +]") {
-			snoozeAlarm("[+ $fdat{auth} +]");
-		} else {
-			document.getElementById('status').innerHTML = 'Not found';
+		// Triggered when slider changes
+		function onSliderChange() {
+			const auth = getQueryParam('auth');
+			const slider = document.getElementById('snoozeSlider');
+			const seconds = sliderToSeconds(parseInt(slider.value, 10));
+			document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+			updateQueryParam('snooze', seconds);
+			snoozeAlarm(auth, seconds);
 		}
+
+		window.addEventListener('DOMContentLoaded', () => {
+			const auth = getQueryParam('auth');
+			let snooze = parseInt(getQueryParam('snooze'), 10) || 300;
+
+			const minSec = 60;
+			const maxSec = 31536000;
+			let sliderValue = Math.log(snooze / minSec) / Math.log(maxSec / minSec) * 100;
+			sliderValue = Math.max(0, Math.min(100, sliderValue));
+
+			const slider = document.getElementById('snoozeSlider');
+			slider.value = sliderValue;
+			document.getElementById('durationDisplay').textContent = formatDuration(snooze);
+
+			// Update label while dragging
+			slider.addEventListener('input', () => {
+				const seconds = sliderToSeconds(parseInt(slider.value, 10));
+				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+			});
+
+			// Call API on release
+			slider.addEventListener('change', onSliderChange);
+
+			// Initial API call
+			snoozeAlarm(auth, snooze);
+		});
 	</script>
-</BODY>
-</HTML>
+</head>
+<body>
+
+<div id="status"></div>
+
+<label>
+	Snooze Duration: <span id="durationDisplay"></span>
+	<input type="range" id="snoozeSlider" min="0" max="100" step="1">
+</label>
+
+</body>
+</html>
