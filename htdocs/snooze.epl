@@ -27,7 +27,7 @@
 				return;
 			}
 
-			let url = '/snooze/' + encodeURIComponent(auth);
+			let url = '/api/snooze/' + encodeURIComponent(auth);
 			if (snooze) url += '/' + encodeURIComponent(snooze);
 
 			fetch(url)
