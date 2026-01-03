@@ -1,7 +1,6 @@
 package Nabovarme::SMSAuth;
 
 use strict;
-use Data::Dumper;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::SubRequest ();
@@ -20,6 +19,7 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # Main Apache request handler
+# Main Apache request handler
 sub handler {
 	my $r = shift;
 
@@ -33,27 +33,22 @@ sub handler {
 	my $orig_uri = $r->unparsed_uri || $r->uri;
 
 	# Check single user-facing page path
-	if ($snooze_page && $orig_uri =~ m{^\Q$snooze_page\E}) {
-		$r->warn("Request URI '$orig_uri' matched SnoozePagePath '$snooze_page'; SMSAuth allowed for page path.");
-		return Apache2::Const::OK;
-	}
-
-	# Check single user-facing page path
 	if ($snooze_page && $orig_uri =~ m/^$snooze_page/) {
-		$r->warn("Request URI '" . $r->uri . "' matched SnoozePagePath '$snooze_page'; SMSAuth allowed for page path.");
+		$r->warn("Request URI '$orig_uri' matched SnoozePagePath '$snooze_page'; SMSAuth allowed for page path.");
 		return Apache2::Const::OK;
 	}
 
 	# Check single API path
 	if ($snooze_api && $orig_uri =~ m/^$snooze_api/) {
-		$r->warn("Request URI '" . $r->uri . "' matched SnoozeAPIPath '$snooze_page'; SMSAuth allowed for page path.");
+		$r->warn("Request URI '$orig_uri' matched SnoozeAPIPath '$snooze_page'; SMSAuth allowed for page path.");
 		return Apache2::Const::OK;
 	}
 
+	# Check PublicAccess paths
 	if ($public_access) {
 		foreach (split(/,\s*/, $public_access)) {
 			if ($r->uri eq $_) {
-				$r->warn("we dont handle this: " . $r->uri);
+				$r->warn("we dont handle this: $orig_uri");
 				return Apache2::Const::OK;
 			}
 		}
@@ -64,6 +59,7 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
+	# Log only the original URI
 	$r->warn("url requested: $orig_uri");
 
 	my ($dbh, $sth, $d);

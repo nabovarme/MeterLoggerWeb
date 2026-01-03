@@ -21,15 +21,16 @@ sub handler {
 	my $response = { authorized => 0 };
 	my ($dbh, $sth, $d);
 
-	# Extract path info 
-	my $path = $r->path_info;
-	$path =~ s{^/}{};
-
-	# Split into auth and optional snooze
-	my ($auth, $snooze) = split('/', $path);
+	# Extract into auth and optional snooze
+	my $orig_uri = $r->unparsed_uri || $r->uri;
+	
+	my ($auth, $snooze);
+	if ($orig_uri =~ m{^/api/snooze/([^/]+)(?:/(\d+))?/?$}) {
+		($auth, $snooze) = ($1, $2);
+	}
 
 	# Validate snooze if provided
-	if (defined $snooze && $snooze !~ /^\d+$/) {
+	if (defined $snooze && $snooze < 0) {
 		$response->{error} = "Invalid snooze value: must be a non-negative integer";
 		$r->print(encode_json($response));
 		return Apache2::Const::OK;
