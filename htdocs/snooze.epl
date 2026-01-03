@@ -1,72 +1,4 @@
 ﻿<HTML>
-[- 
-use Time::Format qw( time_format );
-
-use Nabovarme::Db;
-
-$is_authorized = 0;
-
-# Function to convert seconds into human-readable string
-sub human_duration {
-    my $seconds = shift;
-    return '' unless defined $seconds;
-
-    my $value;
-    my $unit;
-
-    if ($seconds < 60) {
-        $value = $seconds;
-        $unit  = 'second';
-    } elsif ($seconds < 3600) {
-        $value = int($seconds / 60);
-        $unit  = 'minute';
-    } elsif ($seconds < 86400) {
-        $value = int($seconds / 3600);
-        $unit  = 'hour';
-    } elsif ($seconds < 604800) {
-        $value = int($seconds / 86400);
-        $unit  = 'day';
-    } elsif ($seconds < 2678400) {
-        $value = int($seconds / 604800);
-        $unit  = 'week';
-    } else {
-        $value = int($seconds / 2678400);
-        $unit  = 'month';
-    }
-
-    # add 's' if value is not 1
-    $unit .= 's' if $value != 1;
-
-    return "$value $unit";
-}
-
-if ($fdat{'auth'}) {
-	if ($dbh = Nabovarme::Db->my_connect) {
-		my $quoted_serial = $dbh->quote($fdat{'serial'});
-		my $quoted_snooze_auth_key = $dbh->quote($fdat{'auth'});
-		warn Dumper(qq[SELECT * FROM alarms \
-			WHERE `serial` LIKE $quoted_serial AND `snooze_auth_key` LIKE $quoted_snooze_auth_key]);
-		$sth = $dbh->prepare(qq[SELECT * FROM alarms \
-			WHERE `serial` LIKE $quoted_serial AND `snooze_auth_key` LIKE $quoted_snooze_auth_key]);
-		$sth->execute;
-	}
-	
-	if ($sth->rows) {
-		if ($d = $sth->fetchrow_hashref) {
-			$is_authorized = 1;
-			$dbh->do(
-				qq[
-					UPDATE alarms
-					SET
-						snooze = ] . $dbh->quote($fdat{'snooze'}) . qq[,
-						alarm_count = 0,
-						last_notification = UNIX_TIMESTAMP()
-					WHERE id = ] . $dbh->quote($d->{id})
-			) || warn $!;
-		}
-	}
-}
--] 
 <HEAD>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=600, initial-scale=2">
@@ -88,15 +20,45 @@ if ($fdat{'auth'}) {
 		background-color:#FFFF00;
 	}
 	</style>
+	<script type="text/javascript">
+		function snoozeAlarm(auth, snooze) {
+			if (!auth) {
+				document.getElementById('status').innerHTML = 'Missing auth key';
+				return;
+			}
+
+			let url = '/snooze/' + encodeURIComponent(auth);
+			if (snooze) url += '/' + encodeURIComponent(snooze);
+
+			fetch(url)
+				.then(response => response.json())
+				.then(data => {
+					console.log(data);
+					let container = document.getElementById('status');
+					if (data.authorized) {
+						if (snooze) {
+							container.innerHTML = 'Alarm snoozed for ' + (data.alarm.snooze_human || '') + '.';
+						} else {
+							container.innerHTML = 'Snooze alarm';
+						}
+					} else {
+						container.innerHTML = data.error || 'Not found';
+					}
+				})
+				.catch(err => {
+					console.error(err);
+					document.getElementById('status').innerHTML = 'Error contacting server';
+				});
+		}
+	</script>
 </HEAD>
 <BODY>
-	[$ if ($is_authorized && $fdat{'update'}) $]
-	[- $human_delay = human_duration($fdat{'snooze'}); -]
-		<span class="default">Alarm snoozed for [+ $human_delay +].</span><br>
+	<div id="status" class="default"></div>
 
-	[$ elsif ($is_authorized) $]
-		<span class="default">Snooze alarm</span><br>
-		<form method="GET" action="">
+	<!-- Form to snooze alarm -->
+	<div class="default">
+		<span></span><br>
+		<form id="snoozeForm" onsubmit="event.preventDefault(); snoozeAlarm(this.auth.value, this.snooze.value);">
 			<select name="snooze">
 				<option value="300">5 min</option>
 				<option value="1800">30 min</option>
@@ -106,13 +68,18 @@ if ($fdat{'auth'}) {
 				<option value="2678400">1 month</option>
 			</select>
 
-			<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 			<input type="hidden" name="auth" value="[+ $fdat{auth} +]">
 			<input type="submit" name="update" value="Snooze" style="width: 100px;">
 		</form>
-	[$ else $]
-		<span class="default">Not found</span>
-	[$ endif $]
-	<br><br>
+	</div>
+
+	<script type="text/javascript">
+		// Initial fetch to display current snooze or auth failure
+		if ("[+ $fdat{auth} +]") {
+			snoozeAlarm("[+ $fdat{auth} +]");
+		} else {
+			document.getElementById('status').innerHTML = 'Not found';
+		}
+	</script>
 </BODY>
 </HTML>
