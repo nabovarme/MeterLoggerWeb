@@ -39,7 +39,7 @@
 	text-decoration: none;
 	font-size: 18px;
 	font-family: Verdana, Geneva, sans-serif;
-	padding: 8px 12px; /* consistent padding to prevent jumps */
+	padding: 4px 6px; /* consistent padding to prevent jumps */
 	border-radius: 6px;
 	transition: color 0.3s, background-color 0.15s ease, box-shadow 0.2s ease;
 }
@@ -85,7 +85,7 @@
 
 	.floating-menu a {
 		font-size: 22px;
-		padding: 8px 12px; /* match base padding */
+		padding: 4px 6px; /* match base padding */
 	}
 
 	.floating-menu {
