@@ -17,6 +17,7 @@
 			margin-bottom: 16px;
 			font-weight: bold;
 			font-size: 1rem;
+			min-height: 2.5em;
 		}
 
 		/* Hide slider initially until first fetch */
@@ -59,6 +60,11 @@
 			cursor: pointer;
 		}
 
+		/* Dim slider when using default value */
+		.default-state input[type=range] {
+			opacity: 0.6;
+		}
+
 		/* Center content on larger screens */
 		@media (min-width: 600px) {
 			body {
@@ -69,6 +75,8 @@
 	</style>
 
 	<script>
+		let snoozeIsDefault = false; // track if the slider is showing default value
+
 		// Read auth token from raw query string (?<auth>)
 		function getAuthFromQuery() {
 			const qs = window.location.search;
@@ -122,6 +130,9 @@
 					let snooze = data.alarm.snooze;
 					if (snooze === 0 && typeof data.alarm.default_snooze === 'number') {
 						snooze = data.alarm.default_snooze;
+						snoozeIsDefault = true; // indicate default
+					} else {
+						snoozeIsDefault = false;
 					}
 					if (snooze <= 0) snooze = 1;
 					return snapToFormatted(snooze);
@@ -172,6 +183,13 @@
 			snoozeAlarm(auth, seconds);
 			slider.value = secondsToSlider(seconds);
 
+			// Remove default state after user interacts
+			if (snoozeIsDefault) {
+				snoozeIsDefault = false;
+				slider.parentElement.classList.remove('default-state');
+				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+			}
+
 			// Light vibration feedback (mobile)
 			if (navigator.vibrate) navigator.vibrate(20);
 		}
@@ -190,14 +208,25 @@
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
+			// Apply default state styling and text if using default
+			if (snoozeIsDefault) {
+				label.classList.add('default-state');
+				document.getElementById('durationDisplay').textContent =
+					formatDuration(currentSnooze) + " (default)";
+			} else {
+				document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
+			}
+
 			slider.value = secondsToSlider(currentSnooze);
-			document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
 			label.style.display = "block";
 
 			slider.addEventListener('input', () => {
 				let seconds = sliderToSeconds(parseInt(slider.value, 10));
 				seconds = snapToFormatted(seconds);
-				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+				document.getElementById('durationDisplay').textContent =
+					snoozeIsDefault
+						? formatDuration(seconds) + " (default)"
+						: formatDuration(seconds);
 			});
 
 			slider.addEventListener('change', onSliderChange);
