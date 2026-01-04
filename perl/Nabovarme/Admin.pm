@@ -130,6 +130,9 @@ sub phones_by_group {
 		return ();
 	}
 
+	my %phones;
+
+	# phones from meters
 	my $sth = $self->{dbh}->prepare(qq[
 		SELECT sms_notification
 		FROM meters
@@ -139,8 +142,24 @@ sub phones_by_group {
 	]);
 	$sth->execute($group_id);
 
-	my %phones;
 	while (my ($sms_notification) = $sth->fetchrow_array) {
+		for my $phone (split /\s*,\s*/, $sms_notification) {
+			$phones{$phone} = 1 if $phone;
+		}
+	}
+
+	# phones from alarms
+	my $sth_alarms = $self->{dbh}->prepare(qq[
+		SELECT a.sms_notification
+		FROM alarms a
+		JOIN meters m ON m.serial = a.serial
+		WHERE m.`group` = ?
+		  AND a.sms_notification IS NOT NULL
+		  AND a.sms_notification != ''
+	]);
+	$sth_alarms->execute($group_id);
+
+	while (my ($sms_notification) = $sth_alarms->fetchrow_array) {
 		for my $phone (split /\s*,\s*/, $sms_notification) {
 			$phones{$phone} = 1 if $phone;
 		}
