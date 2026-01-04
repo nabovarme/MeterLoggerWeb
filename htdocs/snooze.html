@@ -85,14 +85,34 @@
 			return qs.substring(1);
 		}
 
-		// Format seconds to human-readable, whole numbers only
-		function formatDuration(seconds) {
-			if (seconds < 3600) return Math.round(seconds / 60) + " min";
-			if (seconds < 86400) return Math.floor(seconds / 3600) + " hr";
-			if (seconds < 604800) return Math.floor(seconds / 86400) + " day";
-			if (seconds < 2678400) return Math.floor(seconds / 604800) + " week";
-			if (seconds < 31536000) return Math.floor(seconds / 2678400) + " month";
-			return Math.floor(seconds / 31536000) + " yr";
+		// Human-readable duration (mirrors Perl human_duration)
+		function humanDuration(seconds) {
+			if (seconds === undefined || seconds === null) return '';
+
+			let value, unit;
+
+			if (seconds < 60) {
+				value = seconds;
+				unit = 'second';
+			} else if (seconds < 3600) {
+				value = Math.floor(seconds / 60);
+				unit = 'minute';
+			} else if (seconds < 86400) {
+				value = Math.floor(seconds / 3600);
+				unit = 'hour';
+			} else if (seconds < 604800) {
+				value = Math.floor(seconds / 86400);
+				unit = 'day';
+			} else if (seconds < 2678400) {
+				value = Math.floor(seconds / 604800);
+				unit = 'week';
+			} else {
+				value = Math.floor(seconds / 2678400);
+				unit = 'month';
+			}
+
+			if (value !== 1) unit += 's';
+			return `${value} ${unit}`;
 		}
 
 		// Snap seconds to nearest display unit
@@ -166,7 +186,7 @@
 					const container = document.getElementById('status');
 					if (data.authorized) {
 						container.textContent =
-							"Alarm snoozed for " + (data.alarm.snooze_human || formatDuration(snooze)) + ".";
+							"Alarm snoozed for " + (data.alarm.snooze_human || humanDuration(snooze)) + ".";
 					} else {
 						container.textContent = data.error || "Not found";
 					}
@@ -184,7 +204,7 @@
 			let seconds = sliderToSeconds(parseInt(slider.value, 10));
 			seconds = snapToFormatted(seconds);
 
-			document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+			document.getElementById('durationDisplay').textContent = humanDuration(seconds);
 			snoozeAlarm(auth, seconds);
 			slider.value = secondsToSlider(seconds);
 
@@ -192,7 +212,7 @@
 			if (snoozeIsDefault) {
 				snoozeIsDefault = false;
 				slider.parentElement.classList.remove('default-state');
-				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
+				document.getElementById('durationDisplay').textContent = humanDuration(seconds);
 			}
 
 			// Light vibration feedback (mobile)
@@ -217,9 +237,9 @@
 			if (snoozeIsDefault) {
 				label.classList.add('default-state');
 				document.getElementById('durationDisplay').textContent =
-					formatDuration(currentSnooze) + " (default)";
+					humanDuration(currentSnooze) + " (default)";
 			} else {
-				document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
+				document.getElementById('durationDisplay').textContent = humanDuration(currentSnooze);
 			}
 
 			slider.value = secondsToSlider(currentSnooze);
@@ -230,8 +250,8 @@
 				seconds = snapToFormatted(seconds);
 				document.getElementById('durationDisplay').textContent =
 					snoozeIsDefault
-						? formatDuration(seconds) + " (default)"
-						: formatDuration(seconds);
+						? humanDuration(seconds) + " (default)"
+						: humanDuration(seconds);
 			});
 
 			slider.addEventListener('change', onSliderChange);
