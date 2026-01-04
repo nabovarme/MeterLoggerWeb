@@ -16,6 +16,7 @@ use Nabovarme::Utils;
 
 # Constants
 use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
+use constant INITIAL_NO_BACKOFF => 5;   # first N notifications sent without exponential backoff
 
 $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
@@ -297,17 +298,17 @@ sub handle_alarm {
 		} elsif ($alarm->{repeat}) {
 			# Calculate interval
 			my $interval;
-			if ($use_backoff) {
-				# Ensure first interval uses count=1 to avoid halving repeat
-				my $backoff_count = $count || 1;
+			if ($use_backoff && $count >= INITIAL_NO_BACKOFF) {
+				# Apply exponential backoff only after 5 notifications
+				my $backoff_count = $count;
 
 				# Exponential backoff: repeat * 2^(count-1)
-				$interval = $alarm->{repeat} * (2 ** ($backoff_count - 1));
+				$interval = $alarm->{repeat} * (2 ** ($backoff_count - INITIAL_NO_BACKOFF));
 
 				# Cap at 24h to ensure max 1 SMS per day for small repeats
 				$interval = 86400 if $interval > 86400;
 			} else {
-				# Fixed repeat interval (repeat >= 24h or backoff disabled)
+				# Fixed repeat interval (repeat >= 24h or backoff disabled), and fixed repeat for first number of notifications
 				$interval = $alarm->{repeat};
 			}
 
