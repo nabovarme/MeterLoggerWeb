@@ -16,7 +16,7 @@ use Nabovarme::Utils;
 
 # Constants
 use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
-use constant INITIAL_NO_BACKOFF => 5;   # first N notifications sent without exponential backoff
+use constant INITIAL_NO_BACKOFF => 2;   # first N notifications sent without exponential backoff
 
 $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
