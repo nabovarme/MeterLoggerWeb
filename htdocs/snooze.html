@@ -128,11 +128,11 @@
 				}
 
 				document.getElementById('status').textContent = data.error || "Not found";
-				return 1800;
+				return null;
 			} catch (err) {
 				console.error(err);
 				document.getElementById('status').textContent = "Error contacting server";
-				return 1800;
+				return null;
 			}
 		}
 
@@ -185,6 +185,8 @@
 			}
 
 			const currentSnooze = await fetchCurrentSnooze(auth);
+			if (currentSnooze === null) return;
+
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
