@@ -125,7 +125,8 @@ sub prepare_alarm_data {
 		enabled => $alarm->{enabled} // '',
 		repeat => $alarm->{repeat} // '',
 		snooze => $alarm->{snooze} // '',
-		comment => $alarm->{comment} // '',
+		default_snooze => $alarm->{default_snooze} // '',
+		comment => $alarm->{comment} // '',		
 	};
 }
 

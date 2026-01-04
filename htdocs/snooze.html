@@ -79,20 +79,23 @@
 			try {
 				const res = await fetch(url);
 				const data = await res.json();
-				if (
-					data.authorized &&
-					data.alarm &&
-					typeof data.alarm.snooze === 'number'
-				) {
-					return data.alarm.snooze; // seconds (can be 0)
+
+				if (data.authorized && data.alarm && typeof data.alarm.snooze === 'number') {
+					// If snooze is 0, use default_snooze from backend
+					if (data.alarm.snooze === 0 && typeof data.alarm.default_snooze === 'number') {
+						data.alarm.snooze = data.alarm.default_snooze;
+					}
+					// Ensure minimum 1 second for slider
+					if (data.alarm.snooze <= 0) data.alarm.snooze = 1;
+					return data.alarm.snooze;
 				} else {
 					document.getElementById('status').textContent = data.error || "Not found";
-					return 300; // default 5 min
+					return 1800; // default 30 min
 				}
 			} catch (err) {
 				console.error(err);
 				document.getElementById('status').textContent = "Error contacting server";
-				return 300;
+				return 1800; // default 30 min
 			}
 		}
 
@@ -130,6 +133,7 @@
 			snoozeAlarm(auth, seconds);
 		}
 
+		// Initialize slider after fetching current snooze
 		window.addEventListener('DOMContentLoaded', async () => {
 			const auth = getAuthFromQuery();
 			if (!auth) {
@@ -137,12 +141,12 @@
 				return;
 			}
 
-			// Fetch current snooze without updating
-			const currentSnooze = await fetchCurrentSnooze(auth);
+			let currentSnooze = await fetchCurrentSnooze(auth);
 
-			// Initialize slider
 			const slider = document.getElementById('snoozeSlider');
-			const label = slider.parentElement; // reference to the <label>
+			const label = slider.parentElement;
+
+			// Initialize slider (never start at 0)
 			slider.value = secondsToSlider(currentSnooze);
 			document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
 
