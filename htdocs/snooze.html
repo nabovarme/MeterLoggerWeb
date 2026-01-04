@@ -76,6 +76,7 @@
 
 	<script>
 		let snoozeIsDefault = false; // track if the slider is showing default value
+		let minSnoozeSec = 60;       // dynamic minimum based on API repeat value
 
 		// Read auth token from raw query string (?<auth>)
 		function getAuthFromQuery() {
@@ -106,17 +107,15 @@
 
 		// Slider ↔ seconds conversion
 		function sliderToSeconds(value) {
-			const minSec = 60;
 			const maxSec = 31536000;
 			const scale = value / 100;
-			return Math.round(minSec * Math.pow(maxSec / minSec, scale));
+			return Math.round(minSnoozeSec * Math.pow(maxSec / minSnoozeSec, scale));
 		}
 
 		function secondsToSlider(seconds) {
-			if (seconds <= 0) return 0;
-			const minSec = 60;
+			if (seconds <= minSnoozeSec) return 0;
 			const maxSec = 31536000;
-			return Math.log(seconds / minSec) / Math.log(maxSec / minSec) * 100;
+			return Math.log(seconds / minSnoozeSec) / Math.log(maxSec / minSnoozeSec) * 100;
 		}
 
 		// Fetch current snooze
@@ -127,6 +126,11 @@
 				const data = await res.json();
 
 				if (data.authorized && data.alarm && typeof data.alarm.snooze === 'number') {
+					// Use repeat value as minimum snooze
+					if (typeof data.alarm.repeat === 'number' && data.alarm.repeat > 0) {
+						minSnoozeSec = data.alarm.repeat;
+					}
+
 					let snooze = data.alarm.snooze;
 					if (snooze === 0 && typeof data.alarm.default_snooze === 'number') {
 						snooze = data.alarm.default_snooze;
@@ -134,7 +138,8 @@
 					} else {
 						snoozeIsDefault = false;
 					}
-					if (snooze <= 0) snooze = 1;
+
+					if (snooze < minSnoozeSec) snooze = minSnoozeSec;
 					return snapToFormatted(snooze);
 				}
 
