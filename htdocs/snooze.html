@@ -4,76 +4,106 @@
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>MeterLogger Snooze Alarm</title>
+
 	<style>
 		body {
 			font-family: Verdana, Geneva, sans-serif;
-			padding: 20px;
+			padding: 16px;
+			margin: 0;
+			background: #fff;
 		}
+
 		#status {
-			margin-bottom: 20px;
+			margin-bottom: 16px;
 			font-weight: bold;
+			font-size: 1rem;
 		}
+
 		/* Hide slider initially until first fetch */
 		label {
 			display: none;
-			margin-top: 20px;
+			margin-top: 24px;
+			font-size: 1rem;
 		}
+
+		#durationDisplay {
+			display: block;
+			font-weight: bold;
+			font-size: 1.3rem;
+			margin: 8px 0 12px;
+		}
+
 		input[type=range] {
 			width: 100%;
-			max-width: 100%;
+			height: 44px; /* touch-friendly */
+			margin: 8px 0;
 			box-sizing: border-box;
 		}
-		#durationDisplay {
-			font-weight: bold;
-			margin-left: 10px;
+
+		/* WebKit (iOS / Chrome) */
+		input[type=range]::-webkit-slider-thumb {
+			-webkit-appearance: none;
+			height: 28px;
+			width: 28px;
+			border-radius: 50%;
+			background: #007aff;
+			cursor: pointer;
+		}
+
+		/* Firefox */
+		input[type=range]::-moz-range-thumb {
+			height: 28px;
+			width: 28px;
+			border-radius: 50%;
+			background: #007aff;
+			cursor: pointer;
+		}
+
+		/* Center content on larger screens */
+		@media (min-width: 600px) {
+			body {
+				max-width: 500px;
+				margin: auto;
+			}
 		}
 	</style>
+
 	<script>
 		// Read auth token from raw query string (?<auth>)
 		function getAuthFromQuery() {
 			const qs = window.location.search;
-			if (!qs || qs.length < 2) {
-				return null;
-			}
-			return qs.substring(1); // strip leading '?'
+			if (!qs || qs.length < 2) return null;
+			return qs.substring(1);
 		}
 
 		// Format seconds to human-readable, whole numbers only
 		function formatDuration(seconds) {
-			if (seconds < 3600) {
-				return Math.round(seconds / 60) + " min";
-			} else if (seconds < 86400) {
-				return Math.floor(seconds / 3600) + " hr";
-			} else if (seconds < 604800) {
-				return Math.floor(seconds / 86400) + " day";
-			} else if (seconds < 2678400) {
-				return Math.floor(seconds / 604800) + " week";
-			} else if (seconds < 31536000) {
-				return Math.floor(seconds / 2678400) + " month";
-			} else {
-				return Math.floor(seconds / 31536000) + " yr";
-			}
+			if (seconds < 3600) return Math.round(seconds / 60) + " min";
+			if (seconds < 86400) return Math.floor(seconds / 3600) + " hr";
+			if (seconds < 604800) return Math.floor(seconds / 86400) + " day";
+			if (seconds < 2678400) return Math.floor(seconds / 604800) + " week";
+			if (seconds < 31536000) return Math.floor(seconds / 2678400) + " month";
+			return Math.floor(seconds / 31536000) + " yr";
 		}
 
-		// Snap seconds to nearest “display unit” for consistency
+		// Snap seconds to nearest display unit
 		function snapToFormatted(seconds) {
-			if (seconds < 3600) return Math.round(seconds / 60) * 60;             // nearest min
-			if (seconds < 86400) return Math.round(seconds / 3600) * 3600;        // nearest hr
-			if (seconds < 604800) return Math.round(seconds / 86400) * 86400;     // nearest day
-			if (seconds < 2678400) return Math.round(seconds / 604800) * 604800;  // nearest week
-			if (seconds < 31536000) return Math.round(seconds / 2678400) * 2678400;// nearest month
-			return Math.round(seconds / 31536000) * 31536000;                     // nearest year
+			if (seconds < 3600) return Math.round(seconds / 60) * 60;
+			if (seconds < 86400) return Math.round(seconds / 3600) * 3600;
+			if (seconds < 604800) return Math.round(seconds / 86400) * 86400;
+			if (seconds < 2678400) return Math.round(seconds / 604800) * 604800;
+			if (seconds < 31536000) return Math.round(seconds / 2678400) * 2678400;
+			return Math.round(seconds / 31536000) * 31536000;
 		}
 
-		// Convert slider value (0-100) to seconds using non-linear scale
+		// Slider ↔ seconds conversion
 		function sliderToSeconds(value) {
-			const minSec = 60;        // 1 min
-			const maxSec = 31536000;  // 1 yr
+			const minSec = 60;
+			const maxSec = 31536000;
 			const scale = value / 100;
 			return Math.round(minSec * Math.pow(maxSec / minSec, scale));
 		}
 
-		// Convert seconds to slider value (inverse of sliderToSeconds)
 		function secondsToSlider(seconds) {
 			if (seconds <= 0) return 0;
 			const minSec = 60;
@@ -81,7 +111,7 @@
 			return Math.log(seconds / minSec) / Math.log(maxSec / minSec) * 100;
 		}
 
-		// Fetch current snooze without updating
+		// Fetch current snooze
 		async function fetchCurrentSnooze(auth) {
 			const url = '/api/snooze/' + encodeURIComponent(auth);
 			try {
@@ -94,11 +124,11 @@
 						snooze = data.alarm.default_snooze;
 					}
 					if (snooze <= 0) snooze = 1;
-					return snapToFormatted(snooze); // snap to display unit
-				} else {
-					document.getElementById('status').textContent = data.error || "Not found";
-					return 1800; // default 30 min
+					return snapToFormatted(snooze);
 				}
+
+				document.getElementById('status').textContent = data.error || "Not found";
+				return 1800;
 			} catch (err) {
 				console.error(err);
 				document.getElementById('status').textContent = "Error contacting server";
@@ -106,7 +136,7 @@
 			}
 		}
 
-		// Call API to update snooze alarm
+		// Update snooze
 		function snoozeAlarm(auth, snooze) {
 			if (!auth) {
 				document.getElementById('status').textContent = "Missing auth key";
@@ -119,7 +149,8 @@
 				.then(data => {
 					const container = document.getElementById('status');
 					if (data.authorized) {
-						container.textContent = "Alarm snoozed for " + (data.alarm.snooze_human || formatDuration(snooze)) + ".";
+						container.textContent =
+							"Alarm snoozed for " + (data.alarm.snooze_human || formatDuration(snooze)) + ".";
 					} else {
 						container.textContent = data.error || "Not found";
 					}
@@ -130,18 +161,22 @@
 				});
 		}
 
-		// Triggered when slider changes (on release)
+		// Slider release handler
 		function onSliderChange() {
 			const auth = getAuthFromQuery();
 			const slider = document.getElementById('snoozeSlider');
 			let seconds = sliderToSeconds(parseInt(slider.value, 10));
-			seconds = snapToFormatted(seconds); // snap to display unit
+			seconds = snapToFormatted(seconds);
+
 			document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			snoozeAlarm(auth, seconds);
-			slider.value = secondsToSlider(seconds); // update slider to snapped value
+			slider.value = secondsToSlider(seconds);
+
+			// Light vibration feedback (mobile)
+			if (navigator.vibrate) navigator.vibrate(20);
 		}
 
-		// Initialize slider after fetching current snooze
+		// Init
 		window.addEventListener('DOMContentLoaded', async () => {
 			const auth = getAuthFromQuery();
 			if (!auth) {
@@ -149,38 +184,32 @@
 				return;
 			}
 
-			let currentSnooze = await fetchCurrentSnooze(auth);
-
+			const currentSnooze = await fetchCurrentSnooze(auth);
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
-			// Initialize slider
 			slider.value = secondsToSlider(currentSnooze);
 			document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
-
-			// Show slider after fetch
 			label.style.display = "block";
 
-			// Live update label while dragging
 			slider.addEventListener('input', () => {
 				let seconds = sliderToSeconds(parseInt(slider.value, 10));
 				seconds = snapToFormatted(seconds);
 				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			});
 
-			// Call API only on release
 			slider.addEventListener('change', onSliderChange);
 		});
 	</script>
 </head>
+
 <body>
+	<div id="status"></div>
 
-<div id="status"></div>
-
-<label>
-	Snooze Duration: <span id="durationDisplay"></span>
-	<input type="range" id="snoozeSlider" min="0" max="100" step="1">
-</label>
-
+	<label>
+		Snooze Duration
+		<span id="durationDisplay"></span>
+		<input type="range" id="snoozeSlider" min="0" max="100" step="1">
+	</label>
 </body>
 </html>
