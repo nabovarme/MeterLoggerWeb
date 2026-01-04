@@ -212,7 +212,6 @@
 			if (snoozeIsDefault) {
 				snoozeIsDefault = false;
 				slider.parentElement.classList.remove('default-state');
-				document.getElementById('durationDisplay').textContent = humanDuration(seconds);
 			}
 
 			// Light vibration feedback (mobile)
@@ -233,7 +232,7 @@
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
-			// Apply default state styling and text if using default
+			// Show "(default)" only on initial load if using default snooze
 			if (snoozeIsDefault) {
 				label.classList.add('default-state');
 				document.getElementById('durationDisplay').textContent =
@@ -248,10 +247,8 @@
 			slider.addEventListener('input', () => {
 				let seconds = sliderToSeconds(parseInt(slider.value, 10));
 				seconds = snapToFormatted(seconds);
-				document.getElementById('durationDisplay').textContent =
-					snoozeIsDefault
-						? humanDuration(seconds) + " (default)"
-						: humanDuration(seconds);
+				// Always just show human-readable duration while sliding
+				document.getElementById('durationDisplay').textContent = humanDuration(seconds);
 			});
 
 			slider.addEventListener('change', onSliderChange);
