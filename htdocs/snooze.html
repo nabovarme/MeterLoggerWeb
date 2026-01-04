@@ -55,39 +55,46 @@
 			}
 		}
 
+		// Snap seconds to nearest “display unit” for consistency
+		function snapToFormatted(seconds) {
+			if (seconds < 3600) return Math.round(seconds / 60) * 60;             // nearest min
+			if (seconds < 86400) return Math.round(seconds / 3600) * 3600;        // nearest hr
+			if (seconds < 604800) return Math.round(seconds / 86400) * 86400;     // nearest day
+			if (seconds < 2678400) return Math.round(seconds / 604800) * 604800;  // nearest week
+			if (seconds < 31536000) return Math.round(seconds / 2678400) * 2678400;// nearest month
+			return Math.round(seconds / 31536000) * 31536000;                     // nearest year
+		}
+
 		// Convert slider value (0-100) to seconds using non-linear scale
 		function sliderToSeconds(value) {
-			const minSec = 60;			// 1 min
-			const maxSec = 31536000;	// 1 yr
+			const minSec = 60;        // 1 min
+			const maxSec = 31536000;  // 1 yr
 			const scale = value / 100;
 			return Math.round(minSec * Math.pow(maxSec / minSec, scale));
 		}
 
 		// Convert seconds to slider value (inverse of sliderToSeconds)
 		function secondsToSlider(seconds) {
-			// If snooze is 0, map to 0 (leftmost slider position)
 			if (seconds <= 0) return 0;
-
-			const minSec = 60;       // 1 min
-			const maxSec = 31536000; // 1 yr
+			const minSec = 60;
+			const maxSec = 31536000;
 			return Math.log(seconds / minSec) / Math.log(maxSec / minSec) * 100;
 		}
 
 		// Fetch current snooze without updating
 		async function fetchCurrentSnooze(auth) {
-			const url = '/api/snooze/' + encodeURIComponent(auth); // no snooze appended
+			const url = '/api/snooze/' + encodeURIComponent(auth);
 			try {
 				const res = await fetch(url);
 				const data = await res.json();
 
 				if (data.authorized && data.alarm && typeof data.alarm.snooze === 'number') {
-					// If snooze is 0, use default_snooze from backend
-					if (data.alarm.snooze === 0 && typeof data.alarm.default_snooze === 'number') {
-						data.alarm.snooze = data.alarm.default_snooze;
+					let snooze = data.alarm.snooze;
+					if (snooze === 0 && typeof data.alarm.default_snooze === 'number') {
+						snooze = data.alarm.default_snooze;
 					}
-					// Ensure minimum 1 second for slider
-					if (data.alarm.snooze <= 0) data.alarm.snooze = 1;
-					return data.alarm.snooze;
+					if (snooze <= 0) snooze = 1;
+					return snapToFormatted(snooze); // snap to display unit
 				} else {
 					document.getElementById('status').textContent = data.error || "Not found";
 					return 1800; // default 30 min
@@ -95,7 +102,7 @@
 			} catch (err) {
 				console.error(err);
 				document.getElementById('status').textContent = "Error contacting server";
-				return 1800; // default 30 min
+				return 1800;
 			}
 		}
 
@@ -106,8 +113,7 @@
 				return;
 			}
 
-			let url = '/api/snooze/' + encodeURIComponent(auth) + '/' + encodeURIComponent(snooze);
-
+			const url = '/api/snooze/' + encodeURIComponent(auth) + '/' + encodeURIComponent(snooze);
 			fetch(url)
 				.then(res => res.json())
 				.then(data => {
@@ -124,13 +130,15 @@
 				});
 		}
 
-		// Triggered when slider changes
+		// Triggered when slider changes (on release)
 		function onSliderChange() {
 			const auth = getAuthFromQuery();
 			const slider = document.getElementById('snoozeSlider');
-			const seconds = sliderToSeconds(parseInt(slider.value, 10));
+			let seconds = sliderToSeconds(parseInt(slider.value, 10));
+			seconds = snapToFormatted(seconds); // snap to display unit
 			document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			snoozeAlarm(auth, seconds);
+			slider.value = secondsToSlider(seconds); // update slider to snapped value
 		}
 
 		// Initialize slider after fetching current snooze
@@ -146,20 +154,21 @@
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
-			// Initialize slider (never start at 0)
+			// Initialize slider
 			slider.value = secondsToSlider(currentSnooze);
 			document.getElementById('durationDisplay').textContent = formatDuration(currentSnooze);
 
 			// Show slider after fetch
 			label.style.display = "block";
 
-			// Update label live while dragging
+			// Live update label while dragging
 			slider.addEventListener('input', () => {
-				const seconds = sliderToSeconds(parseInt(slider.value, 10));
+				let seconds = sliderToSeconds(parseInt(slider.value, 10));
+				seconds = snapToFormatted(seconds);
 				document.getElementById('durationDisplay').textContent = formatDuration(seconds);
 			});
 
-			// Only call API when slider is released
+			// Call API only on release
 			slider.addEventListener('change', onSliderChange);
 		});
 	</script>
