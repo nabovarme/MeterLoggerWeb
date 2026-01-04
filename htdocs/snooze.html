@@ -232,11 +232,11 @@
 			const slider = document.getElementById('snoozeSlider');
 			const label = slider.parentElement;
 
-			// Show "(default)" only on initial load if using default snooze
+			// Show "(slide to set)" only on initial load if using default snooze
 			if (snoozeIsDefault) {
 				label.classList.add('default-state');
 				document.getElementById('durationDisplay').textContent =
-					humanDuration(currentSnooze) + " (default)";
+					humanDuration(currentSnooze) + " (slide to set)";
 			} else {
 				document.getElementById('durationDisplay').textContent = humanDuration(currentSnooze);
 			}
