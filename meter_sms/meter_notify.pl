@@ -25,7 +25,13 @@ my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in
 my $HYST = 0.5;
 my $CLOSE_THRESHOLD = 1;
 
-my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining_hours, $notification);
+my ($dbh, $sth, $d);
+my $energy_remaining;
+my $energy_time_remaining_hours;
+my $time_remaining_string;
+my $new_state;
+my $notification;
+my $new_last_paid_kwh_marker;
 
 # connect to db
 if ($dbh = Nabovarme::Db->my_connect) {
@@ -55,16 +61,11 @@ while (1) {
 
 		# Get the latest energy estimates
 		my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $d->{serial});
-		log_warn("State: " . ($est->{notification_state} || 0) . ", paid kWh increased: " . ($est->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}");
 
 		$energy_remaining            = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 		$energy_time_remaining_hours = $est->{time_remaining_hours};
-		my $time_remaining_string    = $est->{time_remaining_hours_string};
-
-		# --- Determine if last_paid_kwh_marker or state needs updating ---
-		my $new_state = $est->{notification_state};
-		my $new_last_paid_kwh_marker = $est->{last_paid_kwh_marker};
-		my $update_needed = 0;
+		$time_remaining_string       = $est->{time_remaining_hours_string};
+		$new_state                   = $est->{notification_state};
 
 		# --- Top-up detection (independent of state) ---
 		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($est->{last_paid_kwh_marker} || 0) + $HYST) {
@@ -80,6 +81,7 @@ while (1) {
 
 			# Send the open notice only if it wasn't already sent for this paid_kwh
 			if (!defined $est->{last_notification_sent_time} || ($est->{last_paid_kwh_marker} || 0) != $est->{paid_kwh}) {
+				log_warn("State: " . ($est->{notification_state} || 0) . ", paid kWh increased: " . ($est->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}");
 				my $notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
 				$notification =~ s/\{info\}/$d->{info}/g;
@@ -90,7 +92,6 @@ while (1) {
 
 			# Reset state to 0
 			$new_state = 0;
-			$update_needed = 1;
 
 			# Update last_paid_kwh_marker
 			$new_last_paid_kwh_marker = $est->{paid_kwh};
@@ -126,7 +127,6 @@ while (1) {
 				}
 
 				$new_state = 1;
-				$update_needed = 1;
 			}
 		}
 
@@ -156,7 +156,6 @@ while (1) {
 				}
 
 				$new_state = 2;
-				$update_needed = 1;
 			}
 		}
 
@@ -186,33 +185,22 @@ while (1) {
 				}
 
 				$new_state = 0;
-				$update_needed = 1;
 			}
 		}
 
-		# --- Always update last_paid_kwh_marker if paid kWh increased ---
-#		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($est->{last_paid_kwh_marker} || 0)) {
-#			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
-#			$update_needed = 1;
-#		}
-		$update_needed = 1;
-
-		# --- Perform combined DB upsert in meters_state if needed ---
-		if ($update_needed) {
-			log_warn("updating in db...");
-			$new_last_paid_kwh_marker = $est->{paid_kwh};
-			my $now = time();
-			$dbh->do(qq[
-				INSERT INTO meters_state
-					(serial, close_notification_time, notification_state, last_paid_kwh_marker, last_notification_sent_time)
-				VALUES
-					($quoted_serial, $est->{close_notification_time}, $new_state, $new_last_paid_kwh_marker, $now)
-				ON DUPLICATE KEY UPDATE
-					notification_state = VALUES(notification_state),
-					last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
-					last_notification_sent_time = VALUES(last_notification_sent_time)
-			]) or log_warn("[ERROR] DB upsert failed for serial " . $d->{serial});
-		}
+		# --- Perform combined DB upsert in meters_state ---
+		$new_last_paid_kwh_marker = $est->{paid_kwh};
+		my $now = time();
+		$dbh->do(qq[
+			INSERT INTO meters_state
+				(serial, close_notification_time, notification_state, last_paid_kwh_marker, last_notification_sent_time)
+			VALUES
+				($quoted_serial, $est->{close_notification_time}, $new_state, $new_last_paid_kwh_marker, $now)
+			ON DUPLICATE KEY UPDATE
+				notification_state = VALUES(notification_state),
+				last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
+				last_notification_sent_time = VALUES(last_notification_sent_time)
+		]) or log_warn("[ERROR] DB upsert failed for serial " . $d->{serial});
 	}
 
 	sleep 1;
