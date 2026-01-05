@@ -60,13 +60,13 @@
 .floating-menu a:focus {
 	outline: none;
 	box-shadow: none;
-	background-color: #111827;
+/*	background-color: #111827;*/
 }
 
 /* Keyboard navigation (tab / arrow keys) */
 .floating-menu a:focus-visible,
 .floating-menu a.keyboard-focus {
-	background-color: #111827;
+/*	background-color: #111827;*/
 	box-shadow: 0 0 0 2px #9ca3af;
 	outline: none;
 }
