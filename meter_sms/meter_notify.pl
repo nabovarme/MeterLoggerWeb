@@ -55,6 +55,7 @@ while (1) {
 
 		# Get the latest energy estimates
 		my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $d->{serial});
+		log_warn("State: " . ($est->{notification_state} || 0) . ", paid kWh increased: " . ($est->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}");
 
 		$energy_remaining            = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
 		$energy_time_remaining_hours = $est->{time_remaining_hours};
@@ -93,6 +94,7 @@ while (1) {
 
 			# Update last_paid_kwh_marker
 			$new_last_paid_kwh_marker = $est->{paid_kwh};
+			log_warn("updated last_paid_kwh_marker: " . $est->{paid_kwh});
 		}
 
 		# --- Notifications ---
@@ -189,13 +191,16 @@ while (1) {
 		}
 
 		# --- Always update last_paid_kwh_marker if paid kWh increased ---
-		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($est->{last_paid_kwh_marker} || 0)) {
-			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
-			$update_needed = 1;
-		}
+#		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($est->{last_paid_kwh_marker} || 0)) {
+#			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
+#			$update_needed = 1;
+#		}
+		$update_needed = 1;
 
 		# --- Perform combined DB upsert in meters_state if needed ---
 		if ($update_needed) {
+			log_warn("updating in db...");
+			$new_last_paid_kwh_marker = $est->{paid_kwh};
 			my $now = time();
 			$dbh->do(qq[
 				INSERT INTO meters_state
