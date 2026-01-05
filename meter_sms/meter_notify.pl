@@ -67,19 +67,20 @@ while (1) {
 		my $notification_sent = 0;
 
 		# --- DEBUG LOG ---
-#		log_warn(
-#			"Serial: $serial",
-#			"State: $state",
-#			"Energy remaining: $energy_remaining",
-#			"Time remaining: $time_remaining_string",
-#			"Paid kWh: " . ($d->{paid_kwh} // 0),
-#			"Last paid marker: $last_paid_marker"
-#		);
+		log_debug(
+			"Serial: $serial",
+			"State: $state",
+			"Energy remaining: $energy_remaining",
+			"Time remaining: $time_remaining_string",
+			"Paid kWh: " . ($d->{paid_kwh} // 0),
+			"Last paid marker: $last_paid_marker"
+		);
 
 		# ============================================================
 		# --- TOP-UP CHECK (independent of state machine) ---
 		# ============================================================
 		if (defined $d->{paid_kwh} && $d->{paid_kwh} > $last_paid_marker + $HYST) {
+
 			# Send Open notice SMS (Top-up)
 			my $msg = $UP_MESSAGE;
 			$msg =~ s/\{serial\}/$serial/g;
@@ -95,11 +96,21 @@ while (1) {
 				WHERE serial = ?
 			], undef, $d->{paid_kwh}, $serial);
 
-			# Reset state to 0 if it was 2
-			if ($state == 2) {
-				$state = 0;
-			}
+			# Reset state to 0 initially
+			$state = 0;
 			$notification_sent = 1;
+
+			# --- Immediately check if energy_remaining <= CLOSE_THRESHOLD ---
+			if ($energy_remaining <= $CLOSE_THRESHOLD) {
+				# Send Close warning immediately after top-up
+				$state = 1;
+				my $warning_msg = $CLOSE_WARNING_MESSAGE;
+				$warning_msg =~ s/\{serial\}/$serial/g;
+				$warning_msg =~ s/\{info\}/$info/g;
+				$warning_msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+				sms_send($d->{sms_notification}, $warning_msg);
+				log_info("Close warning sent immediately after top-up for serial $serial (energy <= CLOSE_THRESHOLD)");
+			}
 		}
 
 		# ============================================================
