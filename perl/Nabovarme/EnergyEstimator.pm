@@ -49,6 +49,32 @@ sub estimate_remaining_energy {
 
 	my $quoted_serial = $dbh->quote($serial);
 
+	# ============================================================
+	# --- ALWAYS fetch notification/state fields from DB ---
+	# ============================================================
+	my $sth_state = $dbh->prepare(qq[
+		SELECT notification_state,
+			last_notification_sent_time,
+			last_paid_kwh_marker,
+			close_notification_time,
+			paid_kwh
+		FROM meters_state
+		WHERE serial = $quoted_serial
+		LIMIT 1
+	]) or log_die("Failed to prepare statement for meters_state state fields: $DBI::errstr");
+
+	$sth_state->execute() or log_die("Failed to execute statement for meters_state state fields: $DBI::errstr");
+
+	my ($notification_state, $last_notification_sent_time, $last_paid_kwh_marker, $close_notification_time, $paid_kwh) =
+	    $sth_state->fetchrow_array;
+
+	# Populate result hash (overwrite defaults if DB has values)
+	$result{notification_state}          = $notification_state          if defined $notification_state;
+	$result{last_notification_sent_time} = $last_notification_sent_time if defined $last_notification_sent_time;
+	$result{last_paid_kwh_marker}        = $last_paid_kwh_marker        if defined $last_paid_kwh_marker;
+	$result{close_notification_time}     = $close_notification_time     if defined $close_notification_time;
+	$result{paid_kwh}                    = $paid_kwh                    if defined $paid_kwh;
+
 	# --- Check cached values (recalculate if older than 1 min) ---
 	my $sth = $dbh->prepare(qq[
 		SELECT kwh_remaining,
@@ -74,11 +100,11 @@ sub estimate_remaining_energy {
 	my ($cached) = $sth->fetchrow_hashref;
 
 	if ($cached) {
-		# Always populate state fields
-		$result{last_paid_kwh_marker}        = $cached->{last_paid_kwh_marker};
-		$result{last_notification_sent_time} = $cached->{last_notification_sent_time};
-		$result{notification_state}          = $cached->{notification_state};
-		$result{close_notification_time}     = $cached->{close_notification_time};
+		# Always populate state fields (overwrite defaults if present in cache)
+		$result{last_paid_kwh_marker}        = $cached->{last_paid_kwh_marker}        if defined $cached->{last_paid_kwh_marker};
+		$result{last_notification_sent_time} = $cached->{last_notification_sent_time} if defined $cached->{last_notification_sent_time};
+		$result{notification_state}          = $cached->{notification_state}          if defined $cached->{notification_state};
+		$result{close_notification_time}     = $cached->{close_notification_time}     if defined $cached->{close_notification_time};
 		
 		# Only return early if cache is fresh
 		my $age_sec = time() - ($cached->{last_updated} // 0);
@@ -590,7 +616,6 @@ sub estimate_from_daily_history {
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
-
 
 1;
 
