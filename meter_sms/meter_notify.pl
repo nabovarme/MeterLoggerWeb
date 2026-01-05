@@ -68,9 +68,10 @@ while (1) {
 		$new_state                   = $est->{notification_state};
 
 		# --- Top-up detection (independent of state) ---
+		my $notification_sent = 0;
 		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($est->{last_paid_kwh_marker} || 0) + $HYST) {
 
-			# Debug log for sending open notice after top-up
+			# Debug log for top-up
 			log_warn(
 				"Serial: $d->{serial}",
 				"Top-up detected",
@@ -80,7 +81,10 @@ while (1) {
 			);
 
 			# Send the open notice only if it wasn't already sent for this paid_kwh
-			if (!defined $est->{last_notification_sent_time} || ($est->{last_paid_kwh_marker} || 0) != $est->{paid_kwh}) {
+			# AND the state is not already 0
+			if ((!defined $est->{last_notification_sent_time} || ($est->{last_paid_kwh_marker} || 0) != $est->{paid_kwh})
+				&& $est->{notification_state} != 0) {
+
 				log_warn("State: " . ($est->{notification_state} || 0) . ", paid kWh increased: " . ($est->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}");
 				my $notification = $UP_MESSAGE;
 				$notification =~ s/\{serial\}/$d->{serial}/g;
@@ -88,6 +92,7 @@ while (1) {
 				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
 				sms_send($d->{sms_notification}, $notification);
 				log_info("Open notice sent after top-up for serial " . $d->{serial});
+				$notification_sent = 1;
 			}
 
 			# Reset state to 0
@@ -102,7 +107,7 @@ while (1) {
 		my $close_warning_threshold = $est->{close_notification_time} ? $est->{close_notification_time} / 3600 : $CLOSE_WARNING_TIME;
 
 		# Close warning: transition state from 0 to 1
-		if ($est->{notification_state} == 0) {
+		if ($est->{notification_state} == 0 && !$notification_sent) {
 			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
 
 				# Debug log for sending close warning notification
@@ -131,7 +136,7 @@ while (1) {
 		}
 
 		# Close notice: transition state from 1 to 2
-		elsif ($est->{notification_state} == 1) {
+		elsif ($est->{notification_state} == 1 && !$notification_sent) {
 			if ($energy_remaining <= $CLOSE_THRESHOLD) {
 
 				# Debug log for sending close notice
@@ -160,7 +165,7 @@ while (1) {
 		}
 
 		# Open notice: transition state from 2 to 0
-		elsif ($est->{notification_state} == 2) {
+		elsif ($est->{notification_state} == 2 && !$notification_sent) {
 			if (defined $energy_time_remaining_hours && $energy_remaining > $CLOSE_THRESHOLD) {
 
 				# Debug log for sending open notice
