@@ -8,26 +8,25 @@ use DBI;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
-use Nabovarme::EnergyEstimator;
 
-$| = 1;  # Autoflush STDOUT
+$| = 1;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
-log_warn("Starting debug mode...");
+log_warn("Starting SMS notification script...");
 
-# --- Read messages from environment variables ---
-my $UP_MESSAGE             = $ENV{UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
-my $DOWN_MESSAGE           = $ENV{DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
-my $CLOSE_WARNING_MESSAGE  = $ENV{CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining. ({serial})';
-my $CLOSE_WARNING_TIME     = $ENV{CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
+# --- Environment messages ---
+my $UP_MESSAGE             = $ENV{NOTIFICATION_UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
+my $DOWN_MESSAGE           = $ENV{NOTIFICATION_DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
+my $CLOSE_WARNING_MESSAGE  = $ENV{NOTIFICATION_CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining. ({serial})';
+my $CLOSE_WARNING_TIME     = $ENV{NOTIFICATION_CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
 my $HYST = 0.5;
 my $CLOSE_THRESHOLD = 1;
 
-my ($dbh, $sth, $d, $energy_remaining, $energy_time_remaining_hours, $notification);
+my ($dbh, $sth, $d);
 
-# connect to db
+# --- DB connection ---
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 	log_info("Connected to DB");
@@ -36,178 +35,159 @@ if ($dbh = Nabovarme::Db->my_connect) {
 }
 
 while (1) {
+
+	# --- Fetch meters ---
 	$sth = $dbh->prepare(qq[
 		SELECT 
-		m.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
-		m.sw_version, m.email_notification, m.sms_notification
-	FROM meters m
-	LEFT JOIN meters_state ms ON ms.serial = m.serial
-	WHERE m.enabled = 1
-		AND m.valve_installed = 1
-		AND m.type = 'heat'
-		AND (m.email_notification OR m.sms_notification)
+			m.serial, m.info, m.min_amount, m.valve_status, m.valve_installed,
+			m.sw_version, m.email_notification, m.sms_notification,
+			ms.kwh_remaining, ms.time_remaining_hours,
+			ms.notification_state, ms.paid_kwh, ms.last_paid_kwh_marker,
+			ms.last_notification_sent_time, ms.close_notification_time
+		FROM meters m
+		LEFT JOIN meters_state ms ON ms.serial = m.serial
+		WHERE m.enabled = 1
+			AND m.valve_installed = 1
+			AND m.type = 'heat'
+			AND (m.email_notification OR m.sms_notification)
 	]);
 	$sth->execute or log_warn($DBI::errstr);
 
 	while ($d = $sth->fetchrow_hashref) {
+		my $serial = $d->{serial};
+		my $info   = $d->{info} // '';
 
-		my $quoted_serial = $dbh->quote($d->{serial});
+		my $energy_remaining      = $d->{kwh_remaining} // 0;
+		my $time_remaining_hours  = $d->{time_remaining_hours};
+		my $time_remaining_string = defined $time_remaining_hours ? sprintf("%.2f h", $time_remaining_hours) : '∞';
 
-		# Get the latest energy estimates
-		my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $d->{serial});
+		my $state            = $d->{notification_state} // 0;
+		my $last_paid_marker  = $d->{last_paid_kwh_marker} // 0;
+		my $last_sent_time    = $d->{last_notification_sent_time} // 0;
+		my $notification_sent = 0;
 
-		$energy_remaining            = ($est->{kwh_remaining} || 0) - ($d->{min_amount} || 0);
-		$energy_time_remaining_hours = $est->{time_remaining_hours};
-		my $time_remaining_string    = $est->{time_remaining_hours_string};
+		# --- Close warning threshold in hours ---
+		my $close_warning_threshold = defined $d->{close_notification_time}
+			? $d->{close_notification_time}/3600
+			: $CLOSE_WARNING_TIME;
 
-		# --- Determine if last_paid_kwh_marker or state needs updating ---
-		my $new_state = $est->{notification_state};
-		my $new_last_paid_kwh_marker = $est->{last_paid_kwh_marker};
-		my $update_needed = 0;
+#		log_debug(
+#			"Serial: $serial",
+#			"State: $state",
+#			"Energy remaining: $energy_remaining",
+#			"Time remaining: $time_remaining_string",
+#			"Paid kWh: " . ($d->{paid_kwh} // 0),
+#			"Last paid marker: $last_paid_marker",
+#			"Last notification: " . ($last_sent_time ? scalar localtime($last_sent_time) : 'N/A')
+#		);
 
-		# --- Top-up detection (independent of state) ---
-		if (defined $est->{paid_kwh} && $est->{paid_kwh} > ($est->{last_paid_kwh_marker} || 0) + $HYST) {
+		# ============================================================
+		# --- TOP-UP CHECK ---
+		# ============================================================
+		if (defined $d->{paid_kwh} && $d->{paid_kwh} > $last_paid_marker + $HYST) {
 
-			# Debug log for sending open notice after top-up
-			log_warn(
-				"Serial: $d->{serial}",
-				"Top-up detected",
-				"Paid kWh increased: " . ($est->{last_paid_kwh_marker} || 0) . " → $est->{paid_kwh}",
-				"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
-				"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A")
-			);
+			# Send Open notice SMS only if not already sent for this paid_kwh
+			if (!defined $last_sent_time || $last_paid_marker != $d->{paid_kwh}) {
+				my $msg = $UP_MESSAGE;
+				$msg =~ s/\{serial\}/$serial/g;
+				$msg =~ s/\{info\}/$info/g;
+				$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+				sms_send($d->{sms_notification}, $msg);
+				log_info("Top-up Open notice sent for serial $serial");
 
-			# Send the open notice only if it wasn't already sent for this paid_kwh
-			if (!defined $est->{last_notification_sent_time} || ($est->{last_paid_kwh_marker} || 0) != $est->{paid_kwh}) {
-				my $notification = $UP_MESSAGE;
-				$notification =~ s/\{serial\}/$d->{serial}/g;
-				$notification =~ s/\{info\}/$d->{info}/g;
-				$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-				sms_send($d->{sms_notification}, $notification);
-				log_info("Open notice sent after top-up for serial " . $d->{serial});
+				$last_sent_time = time();
+				$notification_sent = 1;
 			}
 
-			# Reset state to 0
-			$new_state = 0;
-			$update_needed = 1;
-
-			# Update last_paid_kwh_marker
-			$new_last_paid_kwh_marker = $est->{paid_kwh};
-		}
-
-		# --- Notifications ---
-		my $close_warning_threshold = $est->{close_notification_time} ? $est->{close_notification_time} / 3600 : $CLOSE_WARNING_TIME;
-
-		# Close warning: transition state from 0 to 1
-		if ($est->{notification_state} == 0) {
-			if ((defined $energy_time_remaining_hours && $energy_time_remaining_hours < $close_warning_threshold) || ($energy_remaining <= $d->{min_amount})) {
-
-				# Debug log for sending close warning notification
-				log_warn(
-					"Serial: $d->{serial}",
-					"State: 0 → 1",
-					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
-					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
-					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
-					"Notification sent at: " . ($est->{last_notification_sent_time} || 'N/A')
-				);
-
-				# Send the close warning notification only if not already sent for this state
-				if (!defined $est->{last_notification_sent_time} || $est->{notification_state} != 1) {
-					my $notification = $CLOSE_WARNING_MESSAGE;
-					$notification =~ s/\{serial\}/$d->{serial}/g;
-					$notification =~ s/\{info\}/$d->{info}/g;
-					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $notification);
-					log_info("Close warning sent for serial " . $d->{serial});
-				}
-
-				$new_state = 1;
-				$update_needed = 1;
-			}
-		}
-
-		# Close notice: transition state from 1 to 2
-		elsif ($est->{notification_state} == 1) {
-			if ($energy_remaining <= $CLOSE_THRESHOLD) {
-
-				# Debug log for sending close notice
-				log_warn(
-					"Serial: $d->{serial}",
-					"State: 1 → 2",
-					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
-					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
-					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
-					"Notification sent at: " . ($est->{last_notification_sent_time} || 'N/A')
-				);
-
-				# Send the close notice only if not already sent for this state
-				if (!defined $est->{last_notification_sent_time} || $est->{notification_state} != 2) {
-					my $notification = $DOWN_MESSAGE;
-					$notification =~ s/\{serial\}/$d->{serial}/g;
-					$notification =~ s/\{info\}/$d->{info}/g;
-					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $notification);
-					log_info("Close notice sent for serial " . $d->{serial});
-				}
-
-				$new_state = 2;
-				$update_needed = 1;
-			}
-		}
-
-		# Open notice: transition state from 2 to 0
-		elsif ($est->{notification_state} == 2) {
-			if (defined $energy_time_remaining_hours && $energy_remaining > $CLOSE_THRESHOLD) {
-
-				# Debug log for sending open notice
-				log_warn(
-					"Serial: $d->{serial}",
-					"State: 2 → 0",
-					"Energy remaining: " . sprintf("%.2f", $energy_remaining) . " kWh",
-					"Paid kWh: " . sprintf("%.2f", $est->{paid_kwh} || 0) . " kWh",
-					"Avg energy last day: " . sprintf("%.2f", $est->{avg_energy_last_day} || 0) . " kWh",
-					"Time remaining: " . (defined $energy_time_remaining_hours ? sprintf("%.2f", $energy_time_remaining_hours) . " h" : "N/A"),
-					"Notification sent at: " . ($est->{last_notification_sent_time} || 'N/A')
-				);
-
-				# Send the open notice only if not already sent for this state
-				if (!defined $est->{last_notification_sent_time} || $est->{notification_state} != 0) {
-					my $notification = $UP_MESSAGE;
-					$notification =~ s/\{serial\}/$d->{serial}/g;
-					$notification =~ s/\{info\}/$d->{info}/g;
-					$notification =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $notification);
-					log_info("Open notice sent for serial " . $d->{serial});
-				}
-
-				$new_state = 0;
-				$update_needed = 1;
-			}
-		}
-
-		# --- Always update last_paid_kwh_marker if paid kWh increased ---
-		if (!defined $new_last_paid_kwh_marker || ($est->{paid_kwh} || 0) > ($est->{last_paid_kwh_marker} || 0)) {
-			$new_last_paid_kwh_marker = $est->{paid_kwh} || 0;
-			$update_needed = 1;
-		}
-
-		# --- Perform combined DB upsert in meters_state if needed ---
-		if ($update_needed) {
-			my $now = time();
+			# Update last_paid_kwh_marker in DB
 			$dbh->do(qq[
-				INSERT INTO meters_state
-					(serial, close_notification_time, notification_state, last_paid_kwh_marker, last_notification_sent_time)
-				VALUES
-					($quoted_serial, $est->{close_notification_time}, $new_state, $new_last_paid_kwh_marker, $now)
-				ON DUPLICATE KEY UPDATE
-					notification_state = VALUES(notification_state),
-					last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
-					last_notification_sent_time = VALUES(last_notification_sent_time)
-			]) or log_warn("[ERROR] DB upsert failed for serial " . $d->{serial});
+				UPDATE meters_state
+				SET last_paid_kwh_marker = ?
+				WHERE serial = ?
+			], undef, $d->{paid_kwh}, $serial);
+
+			# Reset state to 0 after top-up
+			$state = 0;
+
+			# --- Immediately check low energy after top-up ---
+			if ($energy_remaining <= $CLOSE_THRESHOLD && !$notification_sent) {
+				$state = 1;
+				my $warn_msg = $CLOSE_WARNING_MESSAGE;
+				$warn_msg =~ s/\{serial\}/$serial/g;
+				$warn_msg =~ s/\{info\}/$info/g;
+				$warn_msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+				sms_send($d->{sms_notification}, $warn_msg);
+				log_info("Close warning sent immediately after top-up for serial $serial");
+				$last_sent_time = time();
+				$notification_sent = 1;
+			}
 		}
+
+		# ============================================================
+		# --- STATE MACHINE ---
+		# ============================================================
+		if (!$notification_sent) {
+			if ($state == 0) {
+				if ($energy_remaining <= $CLOSE_THRESHOLD) {
+					$state = 2;
+					my $msg = $DOWN_MESSAGE;
+					$msg =~ s/\{serial\}/$serial/g;
+					$msg =~ s/\{info\}/$info/g;
+					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+					sms_send($d->{sms_notification}, $msg);
+					log_info("Close notice sent (state 0 → 2) for serial $serial");
+					$last_sent_time = time();
+				}
+				elsif (defined $time_remaining_hours && $time_remaining_hours < $close_warning_threshold) {
+					$state = 1;
+					my $msg = $CLOSE_WARNING_MESSAGE;
+					$msg =~ s/\{serial\}/$serial/g;
+					$msg =~ s/\{info\}/$info/g;
+					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+					sms_send($d->{sms_notification}, $msg);
+					log_info("Close warning sent (state 0 → 1) for serial $serial");
+					$last_sent_time = time();
+				}
+			}
+			elsif ($state == 1) {
+				if ($energy_remaining <= $CLOSE_THRESHOLD) {
+					$state = 2;
+					my $msg = $DOWN_MESSAGE;
+					$msg =~ s/\{serial\}/$serial/g;
+					$msg =~ s/\{info\}/$info/g;
+					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
+					sms_send($d->{sms_notification}, $msg);
+					log_info("Close notice sent (state 1 → 2) for serial $serial");
+					$last_sent_time = time();
+				}
+				elsif (defined $time_remaining_hours && $time_remaining_hours >= $close_warning_threshold) {
+					$state = 0;
+					log_info("State reverted to 0 (state 1 → 0) for serial $serial");
+				}
+			}
+			elsif ($state == 2) {
+				if ($energy_remaining > $CLOSE_THRESHOLD + $HYST) {
+					$state = 0;
+					log_info("State reverted to 0 (state 2 → 0) for serial $serial");
+				}
+			}
+		}
+
+		# ============================================================
+		# --- Update meters_state in DB ---
+		# ============================================================
+		my $quoted_serial = $dbh->quote($serial);
+		my $now = time();
+		$dbh->do(qq[
+			INSERT INTO meters_state
+				(serial, close_notification_time, notification_state, last_notification_sent_time, last_paid_kwh_marker)
+			VALUES
+				($quoted_serial, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+				notification_state = VALUES(notification_state),
+				last_notification_sent_time = VALUES(last_notification_sent_time),
+				last_paid_kwh_marker = VALUES(last_paid_kwh_marker)
+		], undef, $d->{close_notification_time} // $CLOSE_WARNING_TIME*3600, $state, $last_sent_time, $d->{paid_kwh});
 	}
 
 	sleep 1;
