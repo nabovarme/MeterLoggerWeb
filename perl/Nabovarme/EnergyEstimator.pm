@@ -31,14 +31,14 @@ sub estimate_remaining_energy {
 		time_remaining_hours_string => '∞',
 		energy_last_day             => 0,
 		avg_energy_last_day         => 0,
-		latest_energy               => 0,
+		latest_energy_reading       => 0,
 		paid_kwh                    => 0,
 		setup_value                 => 0,
 		valve_status                => '',
 		valve_installed             => 0,
 		sw_version                  => '',
 		method                      => undef,
-		close_notification_time     => 604800,
+		close_warning_threshold     => 604800,
 		notification_state          => 0,
 		last_notification_sent_time => undef,
 		last_paid_kwh_marker        => undef,
@@ -56,7 +56,7 @@ sub estimate_remaining_energy {
 		SELECT notification_state,
 			last_notification_sent_time,
 			last_paid_kwh_marker,
-			close_notification_time,
+			close_warning_threshold,
 			paid_kwh
 		FROM meters_state
 		WHERE serial = $quoted_serial
@@ -65,14 +65,14 @@ sub estimate_remaining_energy {
 
 	$sth_state->execute() or log_die("Failed to execute statement for meters_state state fields: $DBI::errstr");
 
-	my ($notification_state, $last_notification_sent_time, $last_paid_kwh_marker, $close_notification_time, $paid_kwh) =
+	my ($notification_state, $last_notification_sent_time, $last_paid_kwh_marker, $close_warning_threshold, $paid_kwh) =
 	    $sth_state->fetchrow_array;
 
 	# Populate result hash (overwrite defaults if DB has values)
 	$result{notification_state}          = $notification_state          if defined $notification_state;
 	$result{last_notification_sent_time} = $last_notification_sent_time if defined $last_notification_sent_time;
 	$result{last_paid_kwh_marker}        = $last_paid_kwh_marker        if defined $last_paid_kwh_marker;
-	$result{close_notification_time}     = $close_notification_time     if defined $close_notification_time;
+	$result{close_warning_threshold}     = $close_warning_threshold     if defined $close_warning_threshold;
 	$result{paid_kwh}                    = $paid_kwh                    if defined $paid_kwh;
 
 	# --- Check cached values (recalculate if older than 1 min) ---
@@ -82,10 +82,10 @@ sub estimate_remaining_energy {
 			time_remaining_hours_string,
 			energy_last_day,
 			avg_energy_last_day,
-			latest_energy,
+			latest_energy_reading,
 			paid_kwh,
 			method,
-			close_notification_time,
+			close_warning_threshold,
 			notification_state,
 			last_notification_sent_time,
 			last_paid_kwh_marker,
@@ -104,7 +104,7 @@ sub estimate_remaining_energy {
 		$result{last_paid_kwh_marker}        = $cached->{last_paid_kwh_marker}        if defined $cached->{last_paid_kwh_marker};
 		$result{last_notification_sent_time} = $cached->{last_notification_sent_time} if defined $cached->{last_notification_sent_time};
 		$result{notification_state}          = $cached->{notification_state}          if defined $cached->{notification_state};
-		$result{close_notification_time}     = $cached->{close_notification_time}     if defined $cached->{close_notification_time};
+		$result{close_warning_threshold}     = $cached->{close_warning_threshold}     if defined $cached->{close_warning_threshold};
 		
 		# Only return early if cache is fresh
 		my $age_sec = time() - ($cached->{last_updated} // 0);
@@ -120,7 +120,7 @@ sub estimate_remaining_energy {
 					time_remaining_hours_string => $cached->{time_remaining_hours_string},
 					energy_last_day             => $cached->{energy_last_day},
 					avg_energy_last_day         => $cached->{avg_energy_last_day},
-					latest_energy               => $cached->{latest_energy},
+					latest_energy_reading       => $cached->{latest_energy_reading},
 					paid_kwh                    => $cached->{paid_kwh},
 					method                      => $cached->{method},
 				);
@@ -132,7 +132,7 @@ sub estimate_remaining_energy {
 	# ============================================================
 	# --- Fetch latest sample and valve_status ---
 	# ============================================================
-	my ($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version);
+	my ($latest_energy_reading, $latest_unix_time, $valve_status, $valve_installed, $sw_version);
 
 	$sth = $dbh->prepare(qq[
 		SELECT sc.energy, sc.unix_time, m.valve_status, m.valve_installed, m.sw_version
@@ -144,15 +144,15 @@ sub estimate_remaining_energy {
 	]) or log_die("Failed to prepare statement for latest sample: $DBI::errstr");
 	$sth->execute() or log_die("Failed to execute statement for latest sample: $DBI::errstr");
 
-	($latest_energy, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
+	($latest_energy_reading, $latest_unix_time, $valve_status, $valve_installed, $sw_version) = $sth->fetchrow_array;
 
-	$latest_energy    = 0 unless defined $latest_energy;
-	$latest_unix_time = time() unless defined $latest_unix_time;
+	$latest_energy_reading = 0 unless defined $latest_energy_reading;
+	$latest_unix_time      = time() unless defined $latest_unix_time;
 	$valve_status     ||= '';
 	$valve_installed  ||= 0;
 	$sw_version       ||= '';
 
-	log_debug("$serial: Latest sample fetched: latest_energy=" . sprintf("%.2f", $latest_energy) .
+	log_debug("$serial: Latest sample fetched: latest_energy_reading=" . sprintf("%.2f", $latest_energy_reading) .
 		", valve_status=" . $valve_status .
 		", valve_installed=" . $valve_installed .
 		", sw_version=" . $sw_version);
@@ -178,7 +178,7 @@ sub estimate_remaining_energy {
 	$paid_kwh ||= 0;
 
 	# --- Populate basic results ---
-	$result{latest_energy}   = $latest_energy;
+	$result{latest_energy_reading}   = $latest_energy_reading;
 	$result{valve_status}    = $valve_status;
 	$result{valve_installed} = $valve_installed;
 	$result{setup_value}     = $setup_value;
@@ -195,7 +195,7 @@ sub estimate_remaining_energy {
 	my $res;
 
 	# Method 1: yearly historical
-	$res = estimate_from_yearly_history($dbh, $serial, $latest_energy, $setup_value, $paid_kwh);
+	$res = estimate_from_yearly_history($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh);
 	if (defined $res) {
 		$result{method} = 'yearly_historical';
 		log_debug("$serial: Yearly history returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
@@ -206,7 +206,7 @@ sub estimate_remaining_energy {
 
 	# Method 2: recent samples
 	unless (defined $res) {
-		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time);
+		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh, $latest_unix_time);
 		if (defined $res) {
 			$result{method} = 'recent_samples';
 			log_debug("$serial: Recent samples returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
@@ -239,8 +239,8 @@ sub estimate_remaining_energy {
 	# ============================================================
 
 	my $kwh_remaining;
-	if (defined $latest_energy && defined $setup_value) {
-		$kwh_remaining = $paid_kwh - $latest_energy + $setup_value;
+	if (defined $latest_energy_reading && defined $setup_value) {
+		$kwh_remaining = $paid_kwh - $latest_energy_reading + $setup_value;
 		log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
 	}
 	else {
@@ -266,7 +266,7 @@ sub estimate_remaining_energy {
 	}
 	log_debug("$serial: Time remaining string=" . $time_remaining_hours_string);
 
-	log_debug("$serial: Summary: latest_energy=" . sprintf("%.2f", $latest_energy) .
+	log_debug("$serial: Summary: latest_energy_reading=" . sprintf("%.2f", $latest_energy_reading) .
 		", kwh_remaining=" . sprintf("%.2f", $kwh_remaining) .
 		", time_remaining_hours_string=" . $time_remaining_hours_string);
 
@@ -286,7 +286,7 @@ sub estimate_remaining_energy {
 	my $sql = qq[
 		INSERT INTO meters_state
 		(serial, kwh_remaining, time_remaining_hours, time_remaining_hours_string,
-		 energy_last_day, avg_energy_last_day, latest_energy, paid_kwh, method, last_updated)
+		 energy_last_day, avg_energy_last_day, latest_energy_reading, paid_kwh, method, last_updated)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(NOW()))
 		ON DUPLICATE KEY UPDATE
 			kwh_remaining = VALUES(kwh_remaining),
@@ -294,7 +294,7 @@ sub estimate_remaining_energy {
 			time_remaining_hours_string = VALUES(time_remaining_hours_string),
 			energy_last_day = VALUES(energy_last_day),
 			avg_energy_last_day = VALUES(avg_energy_last_day),
-			latest_energy = VALUES(latest_energy),
+			latest_energy_reading = VALUES(latest_energy_reading),
 			paid_kwh = VALUES(paid_kwh),
 			method = VALUES(method),
 			last_updated = UNIX_TIMESTAMP(NOW())
@@ -308,7 +308,7 @@ sub estimate_remaining_energy {
 		$result{time_remaining_hours_string},
 		$result{energy_last_day},
 		$result{avg_energy_last_day},
-		$result{latest_energy},
+		$result{latest_energy_reading},
 		$result{paid_kwh},
 		$result{method}
 	) or log_warn("Failed to update meters_state for $serial: $DBI::errstr");
@@ -322,15 +322,15 @@ sub estimate_remaining_energy {
 # Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
 # ============================================================
 sub estimate_from_yearly_history {
-	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh) = @_;
+	my ($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh) = @_;
 
 	# --- Quote serial for SQL ---
 	my $quoted_serial = $dbh->quote($serial);
 
 	# --- Calculate available kWh today ---
-	my $available_kwh = $paid_kwh + $setup_value - $latest_energy;
+	my $available_kwh = $paid_kwh + $setup_value - $latest_energy_reading;
 
-	log_debug("$serial: Available kWh today calculation: paid=$paid_kwh + setup=$setup_value - latest_energy=$latest_energy => available_kwh=$available_kwh");
+	log_debug("$serial: Available kWh today calculation: paid=$paid_kwh + setup=$setup_value - latest_energy_reading=$latest_energy_reading => available_kwh=$available_kwh");
 
 	return undef unless defined $available_kwh && $available_kwh > 0;
 
@@ -487,7 +487,7 @@ sub estimate_from_yearly_history {
 # Returns ($energy_last_day, $avg_energy_last_day) or (undef, undef)
 # ============================================================
 sub estimate_from_recent_samples {
-	my ($dbh, $serial, $latest_energy, $setup_value, $paid_kwh, $latest_unix_time) = @_;
+	my ($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh, $latest_unix_time) = @_;
 
 	# --- Quote serial for SQL ---
 	my $quoted_serial = $dbh->quote($serial);   # QUOTED SERIAL
@@ -534,12 +534,12 @@ sub estimate_from_recent_samples {
 	$recent_unix_time = $latest_unix_time unless defined $recent_unix_time;
 
 	log_debug("$serial: Sample at start of period: $recent_unix_time => " . sprintf("%.2f", $recent_energy) . " kWh");
-	log_debug("$serial: Sample at end of period:   $latest_unix_time => " . sprintf("%.2f", $latest_energy) . " kWh");
+	log_debug("$serial: Sample at end of period:   $latest_unix_time => " . sprintf("%.2f", $latest_energy_reading) . " kWh");
 
 	# --- Decide if we should use fallback or real samples ---
 	my $prev_energy           = $recent_energy;
 	my $prev_kwh_remaining    = $setup_value + $paid_kwh - $recent_energy;
-	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy;
+	my $current_kwh_remaining = $setup_value + $paid_kwh - $latest_energy_reading;
 
 	my $use_fallback = 0;
 
@@ -547,7 +547,7 @@ sub estimate_from_recent_samples {
 		log_debug("$serial: No previous sample => using fallback");
 		$use_fallback = 1;
 	}
-	elsif ($latest_energy < $recent_energy) {
+	elsif ($latest_energy_reading < $recent_energy) {
 		log_debug("$serial: kWh decreased (meter reset/opened) => using fallback");
 		$use_fallback = 1;
 	}
@@ -570,7 +570,7 @@ sub estimate_from_recent_samples {
 	return undef if $use_fallback;
 
 	# --- Compute energy and average over the period ---
-	my $energy_last_day = $latest_energy - $prev_energy;
+	my $energy_last_day = $latest_energy_reading - $prev_energy;
 	my $hours_diff      = ($latest_unix_time - $recent_unix_time) / 3600;
 	if ($hours_diff <= 0) {
 		log_debug("$serial: Hours difference <= 0, cannot compute average => using fallback");
