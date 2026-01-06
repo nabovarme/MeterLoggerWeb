@@ -228,8 +228,8 @@ sub estimate_remaining_energy {
 		}
 	}
 
-	my $energy_last_day     = $res->{energy_last_day};
 	my $avg_energy_last_day = $res->{avg_energy_last_day};
+	my $energy_last_day     = $avg_energy_last_day;
 
 	log_debug("$serial: Energy last day=" . (defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
 		", avg_energy_last_day=" . (defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
@@ -475,12 +475,10 @@ sub estimate_from_yearly_history {
 	$avg_energy_last_day += $_ for @final_avgs;
 	$avg_energy_last_day /= @final_avgs;
 
-	my $energy_last_day = $avg_energy_last_day;
+	log_debug("$serial: Final estimate: avg_energy_last_day=" . sprintf("%.4f", $avg_energy_last_day));
 
-	log_debug("$serial: Final estimate: energy_last_day=" . sprintf("%.4f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.4f", $avg_energy_last_day));
-
-	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
+	# Return only avg_energy_last_day; main function will use it for energy_last_day as well
+	return { avg_energy_last_day => $avg_energy_last_day };
 }
 
 # ============================================================
