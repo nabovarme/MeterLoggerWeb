@@ -44,7 +44,7 @@ while (1) {
 			m.sw_version, m.email_notification, m.sms_notification,
 			ms.kwh_remaining, ms.time_remaining_hours,
 			ms.notification_state, ms.paid_kwh, ms.last_paid_kwh_marker,
-			ms.last_notification_sent_time, ms.close_notification_time
+			ms.last_notification_sent_time, ms.close_warning_threshold
 		FROM meters m
 		LEFT JOIN meters_state ms ON ms.serial = m.serial
 		WHERE m.enabled = 1
@@ -68,8 +68,8 @@ while (1) {
 		my $notification_sent = 0;
 
 		# --- Close warning threshold in hours ---
-		my $close_warning_threshold = defined $d->{close_notification_time}
-			? $d->{close_notification_time}/3600
+		my $close_warning_threshold = defined $d->{close_warning_threshold}
+			? $d->{close_warning_threshold}/3600
 			: $CLOSE_WARNING_TIME;
 
 #		log_debug(
@@ -163,7 +163,7 @@ while (1) {
 		my $quoted_serial = $dbh->quote($serial);
 		$dbh->do(qq[
 			INSERT INTO meters_state
-				(serial, close_notification_time, notification_state, last_notification_sent_time, last_paid_kwh_marker)
+				(serial, close_warning_threshold, notification_state, last_notification_sent_time, last_paid_kwh_marker)
 			VALUES
 				($quoted_serial, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
@@ -171,7 +171,7 @@ while (1) {
 				last_notification_sent_time = VALUES(last_notification_sent_time),
 				last_paid_kwh_marker = VALUES(last_paid_kwh_marker)
 		], undef,
-			$d->{close_notification_time} // $CLOSE_WARNING_TIME*3600,
+			$d->{close_warning_threshold} // $CLOSE_WARNING_TIME*3600,
 			$state,
 			$last_sent_time,
 			$d->{paid_kwh}
