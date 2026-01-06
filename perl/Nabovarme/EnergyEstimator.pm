@@ -19,7 +19,7 @@ binmode(STDOUT, ":encoding(UTF-8)");
 binmode(STDERR, ":encoding(UTF-8)");
 
 # Minimum kWh/h to identify zero/closed years or closed valves
-use constant MIN_VALID_KWH_PER_HOUR => 0.05;
+use constant MIN_VALID_AVG_KWH_PER_HOUR => 0.05;
 
 sub estimate_remaining_energy {
 	my ($dbh, $serial, $force_recalculate) = @_;
@@ -409,7 +409,7 @@ sub estimate_from_yearly_history {
 		my $avg_kwh_per_day = $available_kwh / $days;
 
 		# --- Skip zero/closed years based on daily average ---
-		if ($avg_kwh_per_day < MIN_VALID_KWH_PER_HOUR * 24) {  # convert to kWh/day
+		if ($avg_kwh_per_day < MIN_VALID_AVG_KWH_PER_HOUR) {
 			$zero_years++;
 			log_debug("$serial: Year offset=$year_offset avg_kwh_per_day=" . sprintf("%.2f", $avg_kwh_per_day) . " considered zero/closed, skipping");
 			next;
