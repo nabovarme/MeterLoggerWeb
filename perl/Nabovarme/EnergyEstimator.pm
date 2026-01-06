@@ -22,7 +22,7 @@ binmode(STDERR, ":encoding(UTF-8)");
 use constant MIN_VALID_KWH_PER_HOUR => 0.05;
 
 sub estimate_remaining_energy {
-	my ($dbh, $serial) = @_;
+	my ($dbh, $serial, $force_recalculate) = @_;
 
 	# --- Initialize result hash with defaults ---
 	my %result = (
@@ -108,21 +108,24 @@ sub estimate_remaining_energy {
 		
 		# Only return early if cache is fresh
 		my $age_sec = time() - ($cached->{last_updated} // 0);
-		if ($age_sec < 60 && defined $cached->{kwh_remaining}) {
-			# cached < 1 min old AND valid
-			log_debug("$serial: Using cached meters_state (age $age_sec sec, kwh_remaining=$cached->{kwh_remaining})");
-			%result = (
-				%result,  # keep state fields
-				kwh_remaining               => $cached->{kwh_remaining},
-				time_remaining_hours        => $cached->{time_remaining_hours},
-				time_remaining_hours_string => $cached->{time_remaining_hours_string},
-				energy_last_day             => $cached->{energy_last_day},
-				avg_energy_last_day         => $cached->{avg_energy_last_day},
-				latest_energy               => $cached->{latest_energy},
-				paid_kwh                    => $cached->{paid_kwh},
-				method                      => $cached->{method},
-			);
-			return \%result;
+		
+		unless ($force_recalculate) {
+			if ($age_sec < 60 && defined $cached->{kwh_remaining}) {
+				# cached < 1 min old AND valid
+				log_debug("$serial: Using cached meters_state (age $age_sec sec, kwh_remaining=$cached->{kwh_remaining})");
+				%result = (
+					%result,  # keep state fields
+					kwh_remaining               => $cached->{kwh_remaining},
+					time_remaining_hours        => $cached->{time_remaining_hours},
+					time_remaining_hours_string => $cached->{time_remaining_hours_string},
+					energy_last_day             => $cached->{energy_last_day},
+					avg_energy_last_day         => $cached->{avg_energy_last_day},
+					latest_energy               => $cached->{latest_energy},
+					paid_kwh                    => $cached->{paid_kwh},
+					method                      => $cached->{method},
+				);
+				return \%result;
+			}
 		}
 	}
 

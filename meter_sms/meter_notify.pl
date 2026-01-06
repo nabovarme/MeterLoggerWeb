@@ -8,6 +8,7 @@ use DBI;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::EnergyEstimator;
 
 $| = 1;
 STDOUT->autoflush(1);
@@ -16,8 +17,8 @@ STDERR->autoflush(1);
 log_warn("Starting SMS notification script...");
 
 # --- Environment messages ---
-my $UP_MESSAGE             = $ENV{NOTIFICATION_UP_MESSAGE}             || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
-my $DOWN_MESSAGE           = $ENV{NOTIFICATION_DOWN_MESSAGE}           || 'Close notice: {info} closed. ({serial})';
+my $OPEN_MESSAGE           = $ENV{NOTIFICATION_OPEN_MESSAGE}           || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
+my $CLOSE_MESSAGE          = $ENV{NOTIFICATION_CLOSE_MESSAGE}          || 'Close notice: {info} closed. ({serial})';
 my $CLOSE_WARNING_MESSAGE  = $ENV{NOTIFICATION_CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining. ({serial})';
 my $CLOSE_WARNING_TIME     = $ENV{NOTIFICATION_CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
@@ -88,11 +89,7 @@ while (1) {
 
 			# Send Open notice SMS only if not already sent for this paid_kwh
 			if (!defined $last_sent_time || $last_paid_marker != $d->{paid_kwh}) {
-				my $msg = $UP_MESSAGE;
-				$msg =~ s/\{serial\}/$serial/g;
-				$msg =~ s/\{info\}/$info/g;
-				$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
-				sms_send($d->{sms_notification}, $msg);
+				sms_send($serial, 'OPEN');
 				log_info("Top-up Open notice sent for serial $serial");
 
 				$last_sent_time = time();
@@ -112,11 +109,7 @@ while (1) {
 			# --- Immediately check low energy after top-up ---
 			if ($energy_remaining <= $CLOSE_THRESHOLD && !$notification_sent) {
 				$state = 1;
-				my $warn_msg = $CLOSE_WARNING_MESSAGE;
-				$warn_msg =~ s/\{serial\}/$serial/g;
-				$warn_msg =~ s/\{info\}/$info/g;
-				$warn_msg =~ s/\{time_remaining\}/$time_remaining_string/g;
-				sms_send($d->{sms_notification}, $warn_msg);
+				sms_send($serial, 'CLOSE_WARNING');
 				log_info("Close warning sent immediately after top-up for serial $serial");
 				$last_sent_time = time();
 				$notification_sent = 1;
@@ -133,21 +126,13 @@ while (1) {
 			if ($state == 0) {
 				if ($energy_remaining <= $CLOSE_THRESHOLD) {
 					$state = 2;
-					my $msg = $DOWN_MESSAGE;
-					$msg =~ s/\{serial\}/$serial/g;
-					$msg =~ s/\{info\}/$info/g;
-					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $msg);
+					sms_send($serial, 'CLOSE');
 					log_info("Close notice sent (state 0 → 2) for serial $serial");
 					$last_sent_time = time();
 				}
 				elsif (defined $time_remaining_hours && $time_remaining_hours < $close_warning_threshold) {
 					$state = 1;
-					my $msg = $CLOSE_WARNING_MESSAGE;
-					$msg =~ s/\{serial\}/$serial/g;
-					$msg =~ s/\{info\}/$info/g;
-					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $msg);
+					sms_send($serial, 'CLOSE_WARNING');
 					log_info("Close warning sent (state 0 → 1) for serial $serial");
 					$last_sent_time = time();
 				}
@@ -155,11 +140,7 @@ while (1) {
 			elsif ($state == 1) {
 				if ($energy_remaining <= $CLOSE_THRESHOLD) {
 					$state = 2;
-					my $msg = $DOWN_MESSAGE;
-					$msg =~ s/\{serial\}/$serial/g;
-					$msg =~ s/\{info\}/$info/g;
-					$msg =~ s/\{time_remaining\}/$time_remaining_string/g;
-					sms_send($d->{sms_notification}, $msg);
+					sms_send($serial, 'CLOSE');
 					log_info("Close notice sent (state 1 → 2) for serial $serial");
 					$last_sent_time = time();
 				}
@@ -202,10 +183,49 @@ while (1) {
 
 # --- helper to send SMS ---
 sub sms_send {
-	my ($sms_notification, $message) = @_;
-	return unless $sms_notification;
+	my ($serial, $type) = @_;
+	return unless $serial;
 
-	my @numbers = ($sms_notification =~ /(\d+)(?:,\s?)*/g);
+	# --- Lookup the meter from DB ---
+	my $sth = $dbh->prepare(qq[
+		SELECT *
+		FROM meters
+		WHERE serial = ?
+		  AND (sms_notification IS NOT NULL AND sms_notification != '')
+		LIMIT 1
+	]) or log_die("Failed to prepare statement for meter lookup: $DBI::errstr");
+	$sth->execute($serial) or log_die("Failed to execute statement for meter lookup: $DBI::errstr");
+
+	my $d = $sth->fetchrow_hashref;
+	unless ($d) {
+		log_warn("No SMS-enabled meter found for serial $serial");
+		return;
+	}
+
+	return unless $d->{sms_notification};
+
+	# --- Choose message template based on type ---
+	my %messages = (
+		OPEN          => $OPEN_MESSAGE,
+		CLOSE         => $CLOSE_MESSAGE,
+		CLOSE_WARNING => $CLOSE_WARNING_MESSAGE,
+	);
+	my $message_template = $messages{$type};
+	return unless $message_template;
+
+	# --- Force recalc of time_remaining ---
+	my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $serial, 1);
+	my $time_remaining_string = $est->{time_remaining_hours_string} // '∞';
+	my $info                  = $d->{info} // '';
+
+	# --- Substitute placeholders ---
+	my $message = $message_template;
+	$message =~ s/\{serial\}/$serial/g;
+	$message =~ s/\{info\}/$info/g;
+	$message =~ s/\{time_remaining\}/$time_remaining_string/g;
+
+	# --- Send SMS to all numbers ---
+	my @numbers = ($d->{sms_notification} =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
 		log_info("Sending SMS to 45$num: $message", { -custom_tag => 'SMS' });
 		my $ok = send_notification($num, $message);
