@@ -171,7 +171,7 @@ sub estimate_remaining_energy {
 		WHERE serial = $quoted_serial
 	]) or log_die("$serial: Failed to prepare statement for paid_kwh: $DBI::errstr");
 	$sth->execute() or log_die("$serial: Failed to execute statement for paid_kwh: $DBI::errstr");
-	my $paid_kwh = $sth->fetchrow_array;
+	$paid_kwh = $sth->fetchrow_array;
 	$paid_kwh ||= 0;
 
 	# --- Populate basic results ---
@@ -323,9 +323,6 @@ sub estimate_from_yearly_history {
 
 	# --- Quote serial for SQL ---
 	my $quoted_serial = $dbh->quote($serial);
-
-	my @yearly_avgs;
-	my $zero_years = 0;
 
 	# --- Find earliest sample ---
 	my $sth = $dbh->prepare(qq[
