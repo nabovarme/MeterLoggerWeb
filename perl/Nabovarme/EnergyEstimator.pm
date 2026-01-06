@@ -327,6 +327,10 @@ sub estimate_from_yearly_history {
 	# --- Quote serial for SQL ---
 	my $quoted_serial = $dbh->quote($serial);
 
+	# --- Calculate available kWh today ---
+	my $available_kwh = $paid_kwh + $setup_value - $latest_energy;
+	return undef unless defined $available_kwh && $available_kwh > 0;
+
 	# --- Find earliest sample ---
 	my $sth = $dbh->prepare(qq[
 		SELECT MIN(unix_time)
@@ -351,14 +355,14 @@ sub estimate_from_yearly_history {
 	return undef if $years_back < 1;
 
 	# ============================================================
-	# --- Compute yearly averages ---
+	# --- Compute daily averages based on available kWh ---
 	# ============================================================
 	my @yearly_avgs;
 	my $zero_years = 0;
 
 	for my $year_offset (1 .. $years_back) {
 
-		# --- Fetch start energy for this year offset ---
+		# --- Fetch start sample for this year offset (latest sample ≤ same date last year) ---
 		$sth = $dbh->prepare(qq[
 			SELECT energy, unix_time
 			FROM samples_daily
@@ -375,46 +379,44 @@ sub estimate_from_yearly_history {
 
 		next unless defined $start_energy && defined $start_time;
 
-		# --- Find end energy for this year (latest sample in that year) ---
+		# --- Fetch daily samples from start_time forward ---
 		$sth = $dbh->prepare(qq[
-			SELECT energy, unix_time
+			SELECT unix_time, effect
 			FROM samples_daily
 			WHERE serial = $quoted_serial
 			  AND unix_time >= $start_time
-			  AND unix_time < UNIX_TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL ($year_offset-1) YEAR))
-			ORDER BY unix_time DESC
-			LIMIT 1
-		]) or log_die("$serial: Failed to prepare statement for end_energy: $DBI::errstr");
-		$sth->execute() or log_die("$serial: Failed to execute statement for end_energy: $DBI::errstr");
-		my ($end_energy, $end_time) = $sth->fetchrow_array;
+			ORDER BY unix_time ASC
+		]) or log_die("$serial: Failed to prepare statement for daily samples: $DBI::errstr");
+		$sth->execute() or log_die("$serial: Failed to execute statement for daily samples: $DBI::errstr");
 
-		if (!defined $end_energy || !defined $end_time) {
-			log_debug("$serial: Year offset=$year_offset end_time or end_energy=undef, skipping");
-			next;
+		# --- Sum daily effects until available_kwh is consumed ---
+		my $sum_kwh = 0;
+		my $days = 0;
+		while (my ($sample_time, $effect) = $sth->fetchrow_array) {
+			$effect ||= 0;
+			$sum_kwh += $effect;
+			$days++;
+			last if $sum_kwh >= $available_kwh;
 		}
 
-		log_debug("$serial: Year offset=$year_offset end_energy=" . sprintf("%.2f", $end_energy) .
-			", end_time=$end_time");
-
-		my $energy_for_duration = $end_energy - $start_energy;
-		my $duration_hours = ($end_time - $start_time) / 3600;
-
-		if ($duration_hours <= 0) {
-			log_debug("$serial: Year offset=$year_offset duration_hours <= 0, skipping");
-			next;
-		}
-
-		my $avg_kwh_hour = $energy_for_duration / $duration_hours;
-
-		# --- Skip zero/closed years ---
-		if ($avg_kwh_hour < MIN_VALID_KWH_PER_HOUR) {
+		# --- Skip year if no days found ---
+		if ($days == 0) {
 			$zero_years++;
-			log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour) . " considered zero/closed, skipping");
+			log_debug("$serial: Year offset=$year_offset has no daily samples after start_time, skipping");
 			next;
 		}
 
-		push @yearly_avgs, $avg_kwh_hour;
-		log_debug("$serial: Year offset=$year_offset avg_kwh_hour=" . sprintf("%.2f", $avg_kwh_hour));
+		my $avg_kwh_per_day = $available_kwh / $days;
+
+		# --- Skip zero/closed years based on daily average ---
+		if ($avg_kwh_per_day < MIN_VALID_KWH_PER_HOUR * 24) {  # convert to kWh/day
+			$zero_years++;
+			log_debug("$serial: Year offset=$year_offset avg_kwh_per_day=" . sprintf("%.2f", $avg_kwh_per_day) . " considered zero/closed, skipping");
+			next;
+		}
+
+		push @yearly_avgs, $avg_kwh_per_day;
+		log_debug("$serial: Year offset=$year_offset: days=$days, avg_kwh_per_day=" . sprintf("%.2f", $avg_kwh_per_day));
 	}
 
 	log_debug("$serial: Skipped $zero_years zero/closed years");
@@ -442,7 +444,7 @@ sub estimate_from_yearly_history {
 	for my $avg (@yearly_avgs) {
 		if ($avg < $lower_limit || $avg > $upper_limit) {
 			$outlier_years++;
-			log_debug("$serial: avg_kwh_hour=" . sprintf("%.2f", $avg) . " is outlier, skipping");
+			log_debug("$serial: avg_kwh_per_day=" . sprintf("%.2f", $avg) . " is outlier, skipping");
 			next;
 		}
 		push @final_avgs, $avg;
