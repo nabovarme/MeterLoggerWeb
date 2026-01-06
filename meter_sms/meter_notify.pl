@@ -59,7 +59,7 @@ while (1) {
 
 		my $energy_remaining      = $d->{kwh_remaining} // 0;
 		my $time_remaining_hours  = $d->{time_remaining_hours};
-		my $time_remaining_string = defined $time_remaining_hours ? sprintf("%.2f h", $time_remaining_hours) : '∞';
+		my $time_remaining_string = $d->{time_remaining_hours_string} // '∞';
 
 		my $state             = $d->{notification_state} // 0;
 		my $last_paid_marker  = $d->{last_paid_kwh_marker} // 0;
