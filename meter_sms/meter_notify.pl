@@ -121,6 +121,9 @@ while (1) {
 				$last_sent_time = time();
 				$notification_sent = 1;
 			}
+
+			# --- skip state machine since we've already handled notifications ---
+			next;
 		}
 
 		# ============================================================
