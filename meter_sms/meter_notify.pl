@@ -61,7 +61,7 @@ while (1) {
 		my $time_remaining_hours  = $d->{time_remaining_hours};
 		my $time_remaining_string = defined $time_remaining_hours ? sprintf("%.2f h", $time_remaining_hours) : '∞';
 
-		my $state            = $d->{notification_state} // 0;
+		my $state             = $d->{notification_state} // 0;
 		my $last_paid_marker  = $d->{last_paid_kwh_marker} // 0;
 		my $last_sent_time    = $d->{last_notification_sent_time} // 0;
 		my $notification_sent = 0;
@@ -177,7 +177,6 @@ while (1) {
 		# --- Update meters_state in DB ---
 		# ============================================================
 		my $quoted_serial = $dbh->quote($serial);
-		my $now = time();
 		$dbh->do(qq[
 			INSERT INTO meters_state
 				(serial, close_notification_time, notification_state, last_notification_sent_time, last_paid_kwh_marker)
@@ -187,7 +186,12 @@ while (1) {
 				notification_state = VALUES(notification_state),
 				last_notification_sent_time = VALUES(last_notification_sent_time),
 				last_paid_kwh_marker = VALUES(last_paid_kwh_marker)
-		], undef, $d->{close_notification_time} // $CLOSE_WARNING_TIME*3600, $state, $last_sent_time, $d->{paid_kwh});
+		], undef,
+			$d->{close_notification_time} // $CLOSE_WARNING_TIME*3600,
+			$state,
+			$last_sent_time,
+			$d->{paid_kwh}
+		);
 	}
 
 	sleep 1;
