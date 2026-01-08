@@ -134,6 +134,7 @@ services:
     container_name: smsd
     privileged: true
     restart: always
+    stop_grace_period: 30s
     environment:
       DLINK_ROUTER_IP: ${DLINK_ROUTER_IP}
       DLINK_ROUTER_USER: ${DLINK_ROUTER_USER}
