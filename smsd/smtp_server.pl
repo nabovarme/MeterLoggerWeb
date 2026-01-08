@@ -68,6 +68,44 @@ my @to_list = split /[\s,]+/, $to_email;
 my $sms_busy :shared = 0;
 my %sent_sms;
 
+# --- Shared globals to track the current active session for logout ---
+my $current_qsess :shared;   # current router session ID
+my $current_ua;               # current LWP::UserAgent
+
+# --- Handle Docker / SIGTERM / Ctrl+C ---
+$SIG{INT}  = \&cleanup_and_exit;
+$SIG{TERM} = \&cleanup_and_exit;
+
+sub cleanup_and_exit {
+	log_info("Caught termination signal, attempting logout...", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+
+	if ($current_qsess && $current_ua) {
+		eval {
+			my $logout_json = qq({"logout":"$current_qsess"});
+			my $logout = $current_ua->post(
+				"http://$router/login.cgi",
+				Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
+				Content      => $logout_json,
+				Referer      => "http://$router/controlPanel.html",
+				Origin       => "http://$router"
+			);
+			log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line,
+				{-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		};
+		if ($@) {
+			log_warn("Logout during signal handling failed: $@", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		}
+	}
+
+	# Unlock SMS if it was busy
+	{
+		lock($sms_busy);
+		$sms_busy = 0;
+	}
+
+	exit 0;
+}
+
 # --- Initialize HTTP client for SMS with cookies and headers ---
 sub make_ua {
 	my $cookie_jar = HTTP::Cookies->new;
@@ -199,6 +237,14 @@ sub send_sms {
 		}
 		log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
+
+	# Track global session for signal handling
+	{
+		lock($current_qsess);
+		$current_qsess = $qsess;
+	}
+	$current_ua = $ua;
+
 	log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
@@ -277,6 +323,13 @@ sub send_sms {
 	);
 	log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
+	# Clear global session after proper logout
+	{
+		lock($current_qsess);
+		$current_qsess = undef;
+	}
+	$current_ua = undef;
+
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		# Log to DB
 		log_sms_to_db(
@@ -348,6 +401,14 @@ sub read_sms {
 			log_warn("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 			die "qSessId not found";
 		}
+
+		# Track global session for signal handling
+		{
+			lock($current_qsess);
+			$current_qsess = $qsess;
+		}
+		$current_ua = $ua;
+
 		log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 		$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
@@ -457,6 +518,13 @@ sub read_sms {
 			Origin       => "http://$router"
 		);
 		log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
+		# Clear global session after proper logout
+		{
+			lock($current_qsess);
+			$current_qsess = undef;
+		}
+		$current_ua = undef;
 
 		return $sms_list;
 	};
