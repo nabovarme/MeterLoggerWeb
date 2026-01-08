@@ -24,6 +24,7 @@ use File::Path qw(make_path);
 use File::Spec;
 use Time::HiRes qw(sleep);
 use threads;
+use threads::shared;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -63,21 +64,27 @@ my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable",
 
 my @to_list = split /[\s,]+/, $to_email;
 
-# --- Initialize HTTP client for SMS with cookies and headers ---
-my $cookie_jar = HTTP::Cookies->new;
-my $ua = LWP::UserAgent->new(
-	agent      => "Mozilla/5.0",
-	cookie_jar => $cookie_jar,
-	timeout    => 30,
-);
-$ua->default_header("Accept"            => "application/json, text/javascript, */*; q=0.01");
-$ua->default_header("Accept-Language"   => "en-GB,en;q=0.9");
-$ua->default_header("Connection"        => "keep-alive");
-$ua->default_header("X-Requested-With"  => "XMLHttpRequest");
-
 # --- Global flag to prevent concurrent send_sms/read_sms ---
-my $sms_busy = 0;
+my $sms_busy :shared = 0;
 my %sent_sms;
+
+# --- Initialize HTTP client for SMS with cookies and headers ---
+sub make_ua {
+	my $cookie_jar = HTTP::Cookies->new;
+
+	my $ua = LWP::UserAgent->new(
+		agent      => "Mozilla/5.0",
+		cookie_jar => $cookie_jar,
+		timeout    => 30,
+	);
+
+	$ua->default_header("Accept"            => "application/json, text/javascript, */*; q=0.01");
+	$ua->default_header("Accept-Language"   => "en-GB,en;q=0.9");
+	$ua->default_header("Connection"        => "keep-alive");
+	$ua->default_header("X-Requested-With"  => "XMLHttpRequest");
+
+	return ($ua, $cookie_jar);
+}
 
 # --- Save SMS to db ---
 sub log_sms_to_db {
@@ -104,7 +111,21 @@ sub log_sms_to_db {
 # --- Send SMS via router ---
 sub send_sms {
 	my ($phone, $message) = @_;
-	log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' }) unless $phone && $message;
+
+	# Lock other SMS actions
+	{
+		lock($sms_busy);
+		return if $sms_busy;
+		$sms_busy = 1;
+	}
+
+	unless ($phone && $message) {
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
+		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
 
 	if ($dry_run) {
 		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
@@ -116,10 +137,14 @@ sub send_sms {
 			$phone,
 			$message
 		);
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
 		return 1;
 	}
 
-	$sms_busy = 1;  # Lock other SMS actions
+	my ($ua, $cookie_jar) = make_ua();
 
 	# 1: Ensure message is flagged as UTF-8 internally
 	unless (is_utf8($message)) {
@@ -134,7 +159,10 @@ sub send_sms {
 	my $init = $ua->get("http://$router/index.html");
 	unless ($init->is_success) {
 		log_warn("HTTP GET failed: " . $init->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-		$sms_busy = 0;
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
 		log_die("Failed to init session", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 	log_info("Session initialized successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
@@ -149,15 +177,28 @@ sub send_sms {
 		Referer      => "http://$router/index.html",
 		Origin       => "http://$router"
 	);
-	log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT' }) unless $login->is_success;
+	unless ($login->is_success) {
+		log_warn("Login failed: " . $login->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
+		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
 
 	log_info("Login HTTP response code: " . $login->code, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	log_info("Login Set-Cookie: " . ($login->header("Set-Cookie") || ''), {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	# 4: Extract session ID from login response
 	my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-	log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS OUT' }) unless $qsess;
-
+	unless ($qsess) {
+		log_warn("qSessId not found in login response", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
+		log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
 	log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
@@ -166,12 +207,25 @@ sub send_sms {
 	# 5: Retrieve authorization ID (authID)
 	log_info("Fetching authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $auth_resp = $ua->get("http://$router/data.ria?token=1", Referer => "http://$router/controlPanel.html");
-	log_die("Failed to get authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' }) unless $auth_resp->is_success;
+	unless ($auth_resp->is_success) {
+		log_warn("Failed to get authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
+		log_die("Failed to get authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
 
 	my $authID = $auth_resp->decoded_content;
 	$authID =~ s/\s+//g;
-	log_die("Empty authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' }) unless $authID;
-
+	unless ($authID) {
+		log_warn("Empty authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
+		log_die("Empty authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
 	log_info("authID obtained: $authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	# 6: Send SMS
@@ -202,7 +256,10 @@ sub send_sms {
 	unless ($sms->is_success) {
 		log_warn("SMS POST failed: " . $sms->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		log_warn("Response content: " . $sms->decoded_content, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-		$sms_busy = 0;
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
 		log_die("SMS HTTP failed: " . $sms->code, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
@@ -220,9 +277,6 @@ sub send_sms {
 	);
 	log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
-	# 8: Verify SMS sent successfully
-	$sms_busy = 0;
-
 	if ($resp =~ /"cmd_status":"Done"/ && $resp =~ /"msgSuccess":"1"/) {
 		# Log to DB
 		log_sms_to_db(
@@ -231,6 +285,10 @@ sub send_sms {
 			$phone,
 			$message
 		);
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
 		return 1;
 	} else {
 		log_warn("SMS gateway returned unexpected response:\n$resp", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
@@ -239,6 +297,10 @@ sub send_sms {
 			log_debug(JSON->new->utf8->pretty->canonical->encode($decoded), {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		} or log_warn("Response was not valid JSON", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
+		{
+			lock($sms_busy);
+			$sms_busy = 0;
+		}
 		log_die("SMS gateway error: $resp", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 }
@@ -246,15 +308,24 @@ sub send_sms {
 # --- Read SMS periodically ---
 sub read_sms {
 	my ($dbh_thread) = @_;
-	return if $sms_busy;
+
+	# Lock other SMS actions
+	{
+		lock($sms_busy);
+		return if $sms_busy;
+		$sms_busy = 1;
+	}
+
+	my ($ua, $cookie_jar) = make_ua();
 
 	eval {
-		$sms_busy = 1;
-
-		# 1: Initialize session
+		# Initialize session
 		log_info("Initializing session with router $router", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $init = $ua->get("http://$router/index.html");
-		log_die("Failed to init session", {-no_script_name => 1, -custom_tag => 'SMS IN' }) unless $init->is_success;
+		unless ($init->is_success) {
+			log_warn("Failed to init session: " . $init->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+			die "Session init failed";
+		}
 		log_info("Session initialized successfully", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 		# 2: Login to router
@@ -267,11 +338,18 @@ sub read_sms {
 			Referer      => "http://$router/index.html",
 			Origin       => "http://$router"
 		);
-		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS IN' }) unless $login->is_success;
+		unless ($login->is_success) {
+			log_warn("Login failed: " . $login->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+			die "Login failed";
+		}
 
 		my ($qsess) = $login->header("Set-Cookie") =~ /qSessId=([^;]+)/;
-		log_die("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS IN' }) unless $qsess;
+		unless ($qsess) {
+			log_warn("qSessId not found", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+			die "qSessId not found";
+		}
 		log_info("qSessId obtained: $qsess", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
 		$cookie_jar->set_cookie(0, "qSessId",     $qsess, "/", $router);
 		$cookie_jar->set_cookie(0, "DWRLOGGEDID", $qsess, "/", $router);
 
@@ -285,7 +363,10 @@ sub read_sms {
 			Referer            => "http://$router/controlPanel.html",
 			'X-Requested-With' => 'XMLHttpRequest'
 		);
-		log_die("SMS read request failed: " . $resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' }) unless $resp->is_success;
+		unless ($resp->is_success) {
+			log_warn("SMS read request failed: " . $resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+			die "SMS read request failed";
+		}
 
 		# 4: Parse JSON response
 		my $content = $resp->decoded_content;
@@ -293,8 +374,7 @@ sub read_sms {
 		eval { $sms_list = JSON->new->utf8->decode($content) };
 		if ($@) {
 			log_warn("Failed to decode SMS JSON: $@\n$content", {-no_script_name => 1, -custom_tag => 'SMS IN' });
-			$sms_busy = 0;
-			return;
+			die "JSON decode failed";
 		}
 		log_info("Received " . ($sms_list->{total} || 0) . " messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
@@ -353,7 +433,7 @@ sub read_sms {
 				next;
 			}
 			log_info("Deleted message tag=$tag successfully", {-no_script_name => 1, -custom_tag => 'SMS IN' });
-			
+
 			# Log to DB using thread-safe handle
 			log_sms_to_db(
 				$dbh_thread,
@@ -378,11 +458,14 @@ sub read_sms {
 		);
 		log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
-		$sms_busy = 0;
 		return $sms_list;
 	};
 	if ($@) {
 		log_warn("Error in read_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+	}
+
+	{
+		lock($sms_busy);
 		$sms_busy = 0;
 	}
 }
@@ -515,6 +598,7 @@ while (my $client = $socket->accept()) {
 
 		# Extract subject
 		my $subject = $mime->header('Subject') || '';
+
 		# Extract decoded text/plain body
 		my $body;
 		for my $part ($mime->parts) {
@@ -524,7 +608,7 @@ while (my $client = $socket->accept()) {
 			}
 		}
 		$body //= $mime->body;  # fallback if no parts
-		
+
 		# Combine subject + body
 		my $message = join(" ", grep { defined $_ && length($_) } ($subject, $body));
 
@@ -535,7 +619,7 @@ while (my $client = $socket->accept()) {
 		} else {
 			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS'});
 		}
-		
+
 		my $dest = $session->{_sms_to};
 
 		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS' });
