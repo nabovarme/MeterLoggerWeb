@@ -77,7 +77,7 @@ $SIG{INT}  = \&cleanup_and_exit;
 $SIG{TERM} = \&cleanup_and_exit;
 
 sub cleanup_and_exit {
-	log_info("Caught termination signal, attempting logout...", {-no_script_name => 1});
+	log_info("Caught termination signal, attempting logout...", {-no_script_name => 1, -custom_tag => 'EXIT' });
 
 	if ($current_qsess && $current_ua) {
 		eval {
@@ -90,10 +90,10 @@ sub cleanup_and_exit {
 				Origin       => "http://$router"
 			);
 			log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line,
-				{-no_script_name => 1});
+				{-no_script_name => 1, -custom_tag => 'EXIT' });
 		};
 		if ($@) {
-			log_warn("Logout during signal handling failed: $@", {-no_script_name => 1});
+			log_warn("Logout during signal handling failed: $@", {-no_script_name => 1, -custom_tag => 'EXIT' });
 		}
 	}
 
