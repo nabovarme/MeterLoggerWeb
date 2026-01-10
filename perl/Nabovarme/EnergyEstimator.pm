@@ -255,17 +255,19 @@ sub estimate_remaining_energy {
 	if ($avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
 
-		# --- Adjust time_remaining_hours for time since last measurement ---
-		my $time_since_last_measurement_hours = ($latest_unix_time)
-			? (time() - $latest_unix_time) / 3600
-			: 0;
+		# --- Adjust time_remaining_hours for time since last measurement only if meter is open ---
+		unless ($is_closed) {
+			my $time_since_last_measurement_hours = ($latest_unix_time)
+				? (time() - $latest_unix_time) / 3600
+				: 0;
 
-		if ($time_since_last_measurement_hours > 0) {
-			$time_remaining_hours -= $time_since_last_measurement_hours;
-			log_debug(
-				"$serial: Adjusted time_remaining_hours for $time_since_last_measurement_hours hours since last measurement: " .
-				sprintf("%.2f", $time_remaining_hours)
-			);
+			if ($time_since_last_measurement_hours > 0) {
+				$time_remaining_hours -= $time_since_last_measurement_hours;
+				log_debug(
+					"$serial: Adjusted time_remaining_hours for $time_since_last_measurement_hours hours since last measurement: " .
+					sprintf("%.2f", $time_remaining_hours)
+				);
+			}
 		}
 
 		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
