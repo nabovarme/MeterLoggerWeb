@@ -35,6 +35,19 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	log_die("Can't connect to DB: $!");
 }
 
+my $shutdown_requested = 0;
+
+# Catch TERM and INT signals (Docker bruger TERM)
+$SIG{TERM} = sub {
+	log_info("SIGTERM received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
+
+$SIG{INT} = sub {
+	log_info("SIGINT received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
+
 while (1) {
 
 	# --- Fetch meters ---
@@ -178,6 +191,7 @@ while (1) {
 		);
 	}
 
+	last if $shutdown_requested;
 	sleep 1;
 }
 
