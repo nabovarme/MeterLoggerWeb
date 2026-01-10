@@ -41,6 +41,19 @@ sub handler {
 		while (my $row = $sth->fetchrow_hashref) {
 			# Format open_until with 2 decimals, then force numeric context
 			$row->{open_until} = sprintf("%.2f", $row->{open_until}) + 0;
+
+			# --- Fetch raw time_remaining_hours from meters_state ---
+			my ($time_remaining_hours) = $dbh->selectrow_array(
+				qq[
+					SELECT time_remaining_hours
+					FROM meters_state
+					WHERE serial = ?
+				],
+				undef,
+				$row->{serial}
+			);
+			$row->{time_remaining_hours} = $time_remaining_hours;
+
 			push @encoded_rows, $json_obj->encode($row);
 		}
 

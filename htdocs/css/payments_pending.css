@@ -31,6 +31,17 @@ html, body {
 	font-weight: bold;
 	font-size: 120%;
 }
+
+/* Highlight critical (time <= 0) rows */
+.time-zero {
+	background-color: #ffe0e0 !important; /* red */
+}
+
+/* Highlight warning (time <= 3 days) rows */
+.time-low {
+	background-color: #fff5cc !important; /* light yellow */
+}
+
 tr:nth-child(even) {
 	background: #EEE;
 }
@@ -62,3 +73,5 @@ tr:nth-child(odd) {
 	max-width: 400px;
 	box-sizing: border-box;
 }
+
+
