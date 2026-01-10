@@ -13,6 +13,9 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` like $quoted_serial]);
 	$sth->execute;
 
+	# URL encode & and =
+	$fdat{'ssid'} =~ s/&/%26/g;
+	$fdat{'ssid'} =~ s/=/%3d/g;
 	my $param = 'ssid=' . $fdat{'ssid'} . '&' . 'pwd=' . $fdat{'password'};
 	my $quoted_param = $dbh->quote($param);
 	if ($is_admin && ($fdat{state} =~ /update/i)) {
