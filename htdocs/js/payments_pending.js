@@ -12,6 +12,15 @@ async function loadPayments() {
 			tr.align = 'left';
 			tr.valign = 'top';
 
+			// --- Assign classes based on time_remaining_hours ---
+			if (row.time_remaining_hours !== null && row.time_remaining_hours !== undefined) {
+				if (row.time_remaining_hours <= 0) {
+					tr.classList.add('time-zero'); // red
+				} else if (row.time_remaining_hours <= 3 * 24) { // 3 days in hours
+					tr.classList.add('time-low'); // yellow
+				}
+			}
+
 			tr.innerHTML = `
 				<td align="left">
 					<a href="detail_acc.epl?serial=${encodeURIComponent(row.serial || '')}">
