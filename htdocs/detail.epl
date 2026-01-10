@@ -21,11 +21,6 @@ if ($meter_info_sth->rows) {
 		<meta name="robots" content="noindex">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>[+ $info +] MeterLogger</title>
-
-		<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
-		<meta http-equiv="Pragma" content="no-cache" />
-		<meta http-equiv="Expires" content="0" />
-
 		<script type="text/javascript">
 			var meter_serial = "[+ $fdat{'serial'} +]"
 		</script>
