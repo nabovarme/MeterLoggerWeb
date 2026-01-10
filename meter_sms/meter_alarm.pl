@@ -27,6 +27,9 @@ my $script_name = basename($0 . ".pl");
 # key: serial, value: timestamp
 my %valve_close_time;
 
+# Flag to handle graceful shutdown
+my $shutdown_requested = 0;
+
 # Connect to MySQL database
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
@@ -36,8 +39,22 @@ log_info("Connected to DB");
 # Main loop: run every 60 seconds
 while (1) {
 	process_alarms();
+
+	# Exit loop gracefully if shutdown requested
+	last if $shutdown_requested;
+
 	sleep 60;
 }
+
+# Catch TERM and INT signals (Docker stop / Ctrl+C)
+$SIG{TERM} = sub {
+	log_info("SIGTERM received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
+$SIG{INT} = sub {
+	log_info("SIGINT received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
 
 # Fetch all enabled alarms and evaluate each one
 sub process_alarms {
