@@ -67,6 +67,7 @@ RUN chown www-data:www-data /var/www/nabovarme/qr
 
 RUN a2enmod expires
 RUN a2enmod remoteip
+RUN a2enmod headers
 
 COPY ./htdocs /var/www/nabovarme
 COPY ./000-default.conf /etc/apache2/sites-available/
