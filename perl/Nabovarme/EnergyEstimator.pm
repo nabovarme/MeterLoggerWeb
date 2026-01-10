@@ -251,18 +251,24 @@ sub estimate_remaining_energy {
 	my $is_closed = ($valve_status eq 'close') ? 1 : 0;
 	log_debug("$serial: Meter closed=" . $is_closed);
 
-	# --- Adjust kWh_remaining for time since last measurement ---
-	my $time_since_last_measurement_hours = ($latest_unix_time) ? (time() - $latest_unix_time) / 3600 : 0;
-	if (defined $avg_energy_last_day && $time_since_last_measurement_hours > 0) {
-		my $kwh_estimated_used = $avg_energy_last_day * $time_since_last_measurement_hours;
-		$kwh_remaining -= $kwh_estimated_used;
-		log_debug("$serial: Adjusted kWh_remaining for $time_since_last_measurement_hours hours since last measurement: " . sprintf("%.2f", $kwh_remaining));
-	}
-
 	my $time_remaining_hours = undef;
 	if ($avg_energy_last_day) {
 		$time_remaining_hours = $kwh_remaining / $avg_energy_last_day;
-		log_debug("$serial: Calculated time_remaining_hours=" . (defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : 'undef'));
+
+		# --- Adjust time_remaining_hours for time since last measurement ---
+		my $time_since_last_measurement_hours = ($latest_unix_time)
+			? (time() - $latest_unix_time) / 3600
+			: 0;
+
+		if ($time_since_last_measurement_hours > 0) {
+			$time_remaining_hours -= $time_since_last_measurement_hours;
+			log_debug(
+				"$serial: Adjusted time_remaining_hours for $time_since_last_measurement_hours hours since last measurement: " .
+				sprintf("%.2f", $time_remaining_hours)
+			);
+		}
+
+		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
 	}
 
 	my $time_remaining_hours_string;
