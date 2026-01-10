@@ -41,6 +41,38 @@ sub handler {
 		while (my $row = $sth->fetchrow_hashref) {
 			# Format open_until with 2 decimals, then force numeric context
 			$row->{open_until} = sprintf("%.2f", $row->{open_until}) + 0;
+
+			# --- Fetch time_remaining_hours and last_updated from meters_state ---
+			my ($time_remaining_hours, $last_updated) = $dbh->selectrow_array(
+				qq[
+					SELECT ms.time_remaining_hours, m.last_updated
+					FROM meters_state ms
+					JOIN meters m ON m.serial = ms.serial
+					WHERE ms.serial = ?
+				],
+				undef,
+				$row->{serial}
+			);
+
+			if (defined $time_remaining_hours && defined $last_updated) {
+				# Calculate hours since last update
+				my $hours_since_update = (time() - $last_updated) / 3600;
+
+				# Adjust time_remaining_hours for offline period
+				my $adjusted_hours = $time_remaining_hours - $hours_since_update;
+				$row->{time_remaining_hours_offline_compensated} = sprintf("%.2f", $adjusted_hours) + 0;
+
+				# --- Debug logging ---
+				log_warn(
+					"$row->{serial}: raw time_remaining_hours=$time_remaining_hours, " .
+					"last_updated=$last_updated, hours_since_update=$hours_since_update, " .
+					"time_remaining_hours_offline_compensated=" . $row->{time_remaining_hours_offline_compensated}
+				);
+			} else {
+				$row->{time_remaining_hours_offline_compensated} = undef;
+				log_warn("$row->{serial}: time_remaining_hours or last_updated undefined, cannot compensate");
+			}
+
 			push @encoded_rows, $json_obj->encode($row);
 		}
 
