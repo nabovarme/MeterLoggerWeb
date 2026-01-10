@@ -23,6 +23,9 @@ sub handler {
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
+		# Fetch warning threshold from environment (default 3 days in hours)
+		my $close_warning_hours = $ENV{NOTIFICATION_CLOSE_WARNING_TIME} // (3*24);
+
 		my $sql = q[
 			SELECT meters.`serial`, meters.`info`, command_queue.`param` AS open_until, FROM_UNIXTIME(command_queue.`unix_time`, '%e.%c.%Y %H:%i') AS time
 			FROM meters, command_queue
@@ -54,11 +57,16 @@ sub handler {
 			);
 			$row->{time_remaining_hours} = $time_remaining_hours;
 
-			push @encoded_rows, $json_obj->encode($row);
+			push @encoded_rows, $row;
 		}
 
 		# Join all encoded JSON objects with commas inside a JSON array
-		$r->print('[' . join(',', @encoded_rows) . ']');
+		my $output = {
+			close_warning_threshold_hours => $close_warning_hours,
+			meters => \@encoded_rows,
+		};
+
+		$r->print($json_obj->encode($output));
 
 		return Apache2::Const::OK;
 	}
