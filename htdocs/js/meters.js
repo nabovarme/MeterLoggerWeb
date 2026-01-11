@@ -1,4 +1,5 @@
 let allMetersData = []; // global, preserved
+let currentLinkIndex = -1; // index for keyboard navigation
 
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('meterSearch');
@@ -123,6 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderMeters(filteredData);
 		container.scrollTop = 0;
+
+		// Reset keyboard navigation efter filter
+		currentLinkIndex = -1;
 	}
 
 	// Debounce utility
@@ -133,6 +137,27 @@ document.addEventListener('DOMContentLoaded', () => {
 			timeoutId = setTimeout(() => fn(...args), delay);
 		};
 	}
+
+	// Keyboard navigation using Arrow Up / Arrow Down
+	function getVisibleSerialLinks() {
+		return Array.from(document.querySelectorAll('.meter-row a'))
+			.filter(link => link.offsetParent !== null); // only visible links
+	}
+
+	document.addEventListener('keydown', (e) => {
+		const links = getVisibleSerialLinks();
+		if (!links.length) return;
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			currentLinkIndex = (currentLinkIndex + 1) % links.length;
+			links[currentLinkIndex].focus();
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			currentLinkIndex = (currentLinkIndex - 1 + links.length) % links.length;
+			links[currentLinkIndex].focus();
+		}
+	});
 
 	// Initialize app
 	async function init() {
