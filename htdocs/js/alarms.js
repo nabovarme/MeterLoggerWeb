@@ -1,4 +1,5 @@
 let allAlarmsData = []; // global, preserved
+let currentLinkIndex = -1; // index for keyboard navigation
 
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmSearch');
@@ -141,6 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		// Scroll container to top after rendering filtered alarms
 		container.scrollTop = 0;
+
+		// Reset keyboard navigation
+		currentLinkIndex = -1;
 	}
 
 	// Debounce utility
@@ -151,6 +155,27 @@ document.addEventListener('DOMContentLoaded', () => {
 			timeoutId = setTimeout(() => fn(...args), delay);
 		};
 	}
+
+	// Keyboard navigation using Arrow Up / Arrow Down
+	function getVisibleAlarmLinks() {
+		return Array.from(document.querySelectorAll('.alarm-row a, .alarm-info a'))
+			.filter(link => link.offsetParent !== null); // only visible links
+	}
+
+	document.addEventListener('keydown', (e) => {
+		const links = getVisibleAlarmLinks();
+		if (!links.length) return;
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			currentLinkIndex = (currentLinkIndex + 1) % links.length;
+			links[currentLinkIndex].focus();
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			currentLinkIndex = (currentLinkIndex - 1 + links.length) % links.length;
+			links[currentLinkIndex].focus();
+		}
+	});
 
 	// Initialize app
 	async function init() {
