@@ -41,8 +41,10 @@ sub handler {
 		my $quoted_auth = $dbh->quote($auth);
 		
 		$sth = $dbh->prepare(qq{
-			SELECT * FROM alarms
-			WHERE snooze_auth_key = $quoted_auth
+			SELECT a.*, m.info
+			FROM alarms a
+			LEFT JOIN meters m ON m.serial = a.serial
+			WHERE a.snooze_auth_key = $quoted_auth
 			LIMIT 1
 		});
 		$sth->execute;
@@ -118,6 +120,7 @@ sub prepare_alarm_data {
 	return {
 		id => $alarm->{id} // '',
 		serial => $alarm->{serial} // '',
+		info => $alarm->{info} // '',
 		sms_notification => $alarm->{sms_notification} // '',
 		condition => $alarm->{condition} // '',
 		condition_error => $alarm->{condition_error} // '',

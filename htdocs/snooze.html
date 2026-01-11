@@ -89,7 +89,8 @@
 		function humanDuration(seconds) {
 			if (seconds === undefined || seconds === null) return '';
 
-			let value, unit;
+			let value;
+			let unit;
 
 			if (seconds < 60) {
 				value = seconds;
@@ -146,6 +147,11 @@
 				const data = await res.json();
 
 				if (data.authorized && data.alarm && typeof data.alarm.snooze === 'number') {
+					// Show alarm info at the very top
+					const infoContainer = document.getElementById('alarmInfo');
+					infoContainer.innerHTML =
+						`<div><strong>${data.alarm.info || ''} (${data.alarm.serial || ''}), ${data.alarm.comment || ''}</strong></div>`;
+
 					// Use repeat value as minimum snooze
 					if (typeof data.alarm.repeat === 'number' && data.alarm.repeat > 0) {
 						minSnoozeSec = data.alarm.repeat;
@@ -163,7 +169,7 @@
 					return snapToFormatted(snooze);
 				}
 
-				document.getElementById('status').textContent = data.error || "Not found";
+				document.getElementById('status').textContent = data.error || "Alarm not found";
 				return null;
 			} catch (err) {
 				console.error(err);
@@ -188,7 +194,7 @@
 						container.textContent =
 							"Alarm snoozed for " + (data.alarm.snooze_human || humanDuration(snooze)) + ".";
 					} else {
-						container.textContent = data.error || "Not found";
+						container.textContent = data.error || "Alarm not found";
 					}
 				})
 				.catch(err => {
@@ -222,7 +228,7 @@
 		window.addEventListener('DOMContentLoaded', async () => {
 			const auth = getAuthFromQuery();
 			if (!auth) {
-				document.getElementById('status').textContent = "Missing auth key";
+				document.getElementById('status').textContent = "Alarm not found";
 				return;
 			}
 
@@ -257,6 +263,8 @@
 </head>
 
 <body>
+	<div id="alarmInfo"></div>
+
 	<div id="status"></div>
 
 	<label>
