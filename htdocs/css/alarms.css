@@ -100,6 +100,12 @@ html, body {
 	color: #ff0000;
 }
 
+/* Keyboard focus styling for links inside alarm rows/info */
+.alarm-row a:focus,
+.alarm-info a:focus {
+	outline: auto; /* use default focus style */
+}
+
 /* Floating search bar at the bottom */
 #alarmSearchContainer {
 	position: fixed;
@@ -132,4 +138,9 @@ html, body {
 	display: flex;
 	align-items: center;
 	gap: 5px;
+}
+
+/* Optional: add smooth scrolling when focusing links */
+html {
+	scroll-behavior: smooth;
 }
