@@ -46,10 +46,10 @@ html, body {
 	grid-template-columns:
 		minmax(100px, 120px)        /* Serial */
 		minmax(140px, 1fr)          /* Info receiver */
-		minmax(100px, 150px)         /* Energy */
-		minmax(100px, 150px)         /* Volume */
-		minmax(100px, 150px)         /* Hours */
-		minmax(150px, 200px)         /* Remaining */
+		minmax(100px, 150px)        /* Energy */
+		minmax(100px, 150px)        /* Volume */
+		minmax(100px, 150px)        /* Hours */
+		minmax(150px, 200px)        /* Remaining */
 		minmax(100px, 150px);       /* Time left */
 	gap: 6px;
 	padding: 6px;
@@ -103,6 +103,12 @@ html, body {
 	color: #ff0000;
 }
 
+/* Keyboard focus styling for links inside meter rows */
+.meter-row a:focus,
+.meter-info a:focus {
+	outline: auto; /* use default focus style */
+}
+
 /* Floating search bar at the bottom */
 #meterSearchContainer {
 	position: fixed;
@@ -135,4 +141,9 @@ html, body {
 	display: flex;
 	align-items: center;
 	gap: 5px;
+}
+
+/* Optional: add smooth scrolling when focusing links */
+html {
+	scroll-behavior: smooth;
 }
