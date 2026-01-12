@@ -161,10 +161,9 @@ while (1) {
 					log_info("Close notice sent (state 1 → 2) for serial $serial");
 					$last_sent_time = time();
 				}
-				# --- Revert to normal ---
-				elsif ($energy_remaining > $CLOSE_THRESHOLD
-					&& defined $time_remaining_hours
-					&& $time_remaining_hours >= $close_warning_threshold)
+				# --- Revert to normal (only if energy has increased above last warning marker) ---
+				elsif (defined $d->{last_close_warning_kwh_marker}
+					&& $energy_remaining > $d->{last_close_warning_kwh_marker})
 				{
 					$state = 0;
 					log_info("State reverted to 0 (state 1 → 0) for serial $serial");
