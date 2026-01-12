@@ -57,7 +57,8 @@ while (1) {
 			m.sw_version, m.email_notification, m.sms_notification,
 			ms.kwh_remaining, ms.time_remaining_hours,
 			ms.notification_state, ms.paid_kwh, ms.last_paid_kwh_marker,
-			ms.last_notification_sent_time, ms.close_warning_threshold
+			ms.last_notification_sent_time, ms.close_warning_threshold,
+			ms.last_close_warning_kwh_marker
 		FROM meters m
 		LEFT JOIN meters_state ms ON ms.serial = m.serial
 		WHERE m.enabled = 1
@@ -99,7 +100,6 @@ while (1) {
 		# --- TOP-UP CHECK ---
 		# ============================================================
 		if (defined $d->{paid_kwh} && $d->{paid_kwh} > $last_paid_marker + $HYST) {
-
 			# Send Open notice SMS only if not already sent for this paid_kwh
 			if (!defined $last_sent_time || $last_paid_marker != $d->{paid_kwh}) {
 				sms_send($serial, 'OPEN');
@@ -128,35 +128,49 @@ while (1) {
 		# ============================================================
 		if (!$notification_sent) {
 			if ($state == 0) {
+				# --- CLOSE ---
 				if ($energy_remaining <= $CLOSE_THRESHOLD) {
 					$state = 2;
 					sms_send($serial, 'CLOSE');
 					log_info("Close notice sent (state 0 → 2) for serial $serial");
 					$last_sent_time = time();
 				}
-				elsif (defined $time_remaining_hours && $time_remaining_hours < $close_warning_threshold) {
+				# --- CLOSE_WARNING ---
+				elsif (defined $time_remaining_hours
+					&& $time_remaining_hours < $close_warning_threshold
+					&& (!defined $d->{last_close_warning_kwh_marker}
+						|| $d->{last_close_warning_kwh_marker} != $d->{paid_kwh}))
+				{
 					$state = 1;
 					sms_send($serial, 'CLOSE_WARNING');
 					log_info("Close warning sent (state 0 → 1) for serial $serial");
 					$last_sent_time = time();
+					$d->{last_close_warning_kwh_marker} = $d->{paid_kwh};
 				}
 			}
 			elsif ($state == 1) {
+				# --- CLOSE ---
 				if ($energy_remaining <= $CLOSE_THRESHOLD) {
 					$state = 2;
 					sms_send($serial, 'CLOSE');
 					log_info("Close notice sent (state 1 → 2) for serial $serial");
 					$last_sent_time = time();
 				}
+				# --- Revert to normal ---
 				elsif (defined $time_remaining_hours && $time_remaining_hours >= $close_warning_threshold) {
 					$state = 0;
 					log_info("State reverted to 0 (state 1 → 0) for serial $serial");
+					# Reset warning marker
+					$d->{last_close_warning_kwh_marker} = undef;
 				}
 			}
 			elsif ($state == 2) {
+				# --- Revert to normal ---
 				if ($energy_remaining > $CLOSE_THRESHOLD + $HYST) {
 					$state = 0;
 					log_info("State reverted to 0 (state 2 → 0) for serial $serial");
+					# Reset warning marker
+					$d->{last_close_warning_kwh_marker} = undef;
 				}
 			}
 		}
@@ -167,18 +181,21 @@ while (1) {
 		my $quoted_serial = $dbh->quote($serial);
 		$dbh->do(qq[
 			INSERT INTO meters_state
-				(serial, close_warning_threshold, notification_state, last_notification_sent_time, last_paid_kwh_marker)
+				(serial, close_warning_threshold, notification_state,
+				 last_notification_sent_time, last_paid_kwh_marker, last_close_warning_kwh_marker)
 			VALUES
-				($quoted_serial, ?, ?, ?, ?)
+				($quoted_serial, ?, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 				notification_state = VALUES(notification_state),
 				last_notification_sent_time = VALUES(last_notification_sent_time),
-				last_paid_kwh_marker = VALUES(last_paid_kwh_marker)
+				last_paid_kwh_marker = VALUES(last_paid_kwh_marker),
+				last_close_warning_kwh_marker = VALUES(last_close_warning_kwh_marker)
 		], undef,
 			$d->{close_warning_threshold} // $CLOSE_WARNING_TIME*3600,
 			$state,
 			$last_sent_time,
-			$d->{paid_kwh}
+			$d->{paid_kwh},
+			$d->{last_close_warning_kwh_marker}
 		);
 	}
 
