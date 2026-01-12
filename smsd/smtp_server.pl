@@ -631,7 +631,7 @@ unless ($dry_run) {
 		}
 	})->detach();
 } else {
-	log_info("DRY RUN: SMS reading thread skipped", {-no_script_name => 1, -custom_tag => 'SMS'});
+	log_info("DRY RUN: SMS reading thread skipped", {-no_script_name => 1, -custom_tag => 'SMS IN'});
 }
 
 # --- SMTP server ---
@@ -682,22 +682,22 @@ while (my $client = $socket->accept()) {
 
 		# Ensure Perl UTF-8
 		unless (is_utf8($message)) {
-			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name => 1, -custom_tag => 'SMS'});
+			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 			$message = decode('UTF-8', $message);
 		} else {
-			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS'});
+			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 
 		my $dest = $session->{_sms_to};
 
-		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS' });
+		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		my $ok = eval { send_sms($dest, $message) };
 
 		if ($ok) {
-			log_info("✔ SMS to $dest sent successfully", {-no_script_name => 1, -custom_tag => 'SMS' });
+			log_info("✔ SMS to $dest sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 			return 1;
 		} else {
-			log_warn("❌ SMS to $dest failed: $@", {-no_script_name => 1, -custom_tag => 'SMS'});
+			log_warn("❌ SMS to $dest failed: $@", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 			$smtp->reply(421, "SMS gateway temporarily down");
 			return 0;
 		}
