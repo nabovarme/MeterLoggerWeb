@@ -139,13 +139,14 @@ while (1) {
 				elsif (defined $time_remaining_hours
 					&& $time_remaining_hours < $close_warning_threshold
 					&& (!defined $d->{last_close_warning_kwh_marker}
-						|| $d->{last_close_warning_kwh_marker} != $d->{paid_kwh}))
+						|| $energy_remaining > $d->{last_close_warning_kwh_marker}))
 				{
 					$state = 1;
 					sms_send($serial, 'CLOSE_WARNING');
 					log_info("Close warning sent (state 0 → 1) for serial $serial");
 					$last_sent_time = time();
-					$d->{last_close_warning_kwh_marker} = $d->{paid_kwh};
+					# Set the marker to the current energy level to avoid duplicate warnings
+					$d->{last_close_warning_kwh_marker} = $energy_remaining;
 				}
 			}
 			elsif ($state == 1) {
@@ -157,10 +158,13 @@ while (1) {
 					$last_sent_time = time();
 				}
 				# --- Revert to normal ---
-				elsif (defined $time_remaining_hours && $time_remaining_hours >= $close_warning_threshold) {
+				elsif ($energy_remaining > $CLOSE_THRESHOLD
+					&& defined $time_remaining_hours
+					&& $time_remaining_hours >= $close_warning_threshold)
+				{
 					$state = 0;
 					log_info("State reverted to 0 (state 1 → 0) for serial $serial");
-					# Reset warning marker
+					# Reset warning marker – ready for next warning cycle
 					$d->{last_close_warning_kwh_marker} = undef;
 				}
 			}
@@ -169,7 +173,7 @@ while (1) {
 				if ($energy_remaining > $CLOSE_THRESHOLD + $HYST) {
 					$state = 0;
 					log_info("State reverted to 0 (state 2 → 0) for serial $serial");
-					# Reset warning marker
+					# Reset warning marker – ready for next warning cycle
 					$d->{last_close_warning_kwh_marker} = undef;
 				}
 			}
