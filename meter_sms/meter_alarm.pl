@@ -10,6 +10,8 @@ use DBI;
 use Statistics::Basic qw(:all);	 # for computing medians
 use Math::Random::Secure qw(rand);      # for generating secure random keys
 use File::Basename;
+use Storable qw(store retrieve);
+use File::Path qw(make_path);
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -23,9 +25,25 @@ $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0 . ".pl");
 
+# --- File-backed state for valve closures ---
+my $STATE_DIR        = '/var/run/app_state';
+my $VALVE_STATE_FILE = "$STATE_DIR/valve_close_time.dat";
+
+# ensure state directory exists
+make_path($STATE_DIR) unless -d $STATE_DIR;
+
 # Keep track of when each valve was first seen as "closed"
 # key: serial, value: timestamp
 my %valve_close_time;
+# load previous state if it exists
+if (-f $VALVE_STATE_FILE) {
+	eval {
+		%valve_close_time = %{ retrieve($VALVE_STATE_FILE) };
+	};
+	if ($@) {
+		warn "Failed to load valve close state file: $@";
+	}
+}
 
 # Flag to handle graceful shutdown
 my $shutdown_requested = 0;
@@ -173,6 +191,9 @@ sub check_delayed_valve_closed {
 	# If valve not installed or currently open, reset timer and return 0
 	unless ($valve_installed && $status =~ /close/i) {
 		delete $valve_close_time{$serial};
+		# --- persist state to file ---
+		eval { store \%valve_close_time, $VALVE_STATE_FILE };
+		if ($@) { warn "Failed to save valve close state file: $@"; }
 		return 0;
 	}
 
@@ -182,13 +203,15 @@ sub check_delayed_valve_closed {
 	# Start timer if this is the first detection of closure
 	if (!exists $valve_close_time{$serial}) {
 		$valve_close_time{$serial} = $now;
+		# --- persist state to file ---
+		eval { store \%valve_close_time, $VALVE_STATE_FILE };
+		if ($@) { warn "Failed to save valve close state file: $@"; }
 		return undef;  # Grace period: skip evaluation/SMS
 	}
 
 	# Return 1 only if valve has been closed long enough
 	return ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) ? 1 : undef;
 }
-
 
 # Replaces $variables in a string with values from meter/sample data
 sub interpolate_variables {
