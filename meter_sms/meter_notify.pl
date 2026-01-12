@@ -25,6 +25,10 @@ my $CLOSE_WARNING_TIME     = $ENV{NOTIFICATION_CLOSE_WARNING_TIME}     || 3 * 24
 my $HYST = 0.5;
 my $CLOSE_THRESHOLD = 1;
 
+# --- Spam protection (max SMS per phone number per hour) ---
+my $SMS_MAX_PER_HOUR = 5;   # maximum SMS per phone number per hour
+my %sms_timestamps;         # hash: phone_number => array of epoch times
+
 my ($dbh, $sth, $d);
 
 # --- DB connection ---
@@ -253,9 +257,23 @@ sub sms_send {
 	# --- Send SMS to all numbers ---
 	my @numbers = ($d->{sms_notification} =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
+		my $now = time();
+
+		# --- Remove timestamps older than 1 hour for this number ---
+		$sms_timestamps{$num} = [ grep { $_ > $now - 3600 } @{ $sms_timestamps{$num} // [] } ];
+
+		# --- Check hourly limit per number ---
+		if ( @{ $sms_timestamps{$num} } >= $SMS_MAX_PER_HOUR ) {
+			log_warn("SMS hourly limit reached ($SMS_MAX_PER_HOUR) for 45$num. Skipping $type SMS", { -custom_tag => 'SMS' });
+			next;
+		}
+
 		log_info("Sending SMS to 45$num: $message", { -custom_tag => 'SMS' });
 		my $ok = send_notification($num, $message);
-		unless ($ok) {
+
+		if ($ok) {
+			push @{ $sms_timestamps{$num} }, $now;
+		} else {
 			log_warn("Failed to send SMS to 45$num", { -custom_tag => 'SMS' });
 		}
 	}
