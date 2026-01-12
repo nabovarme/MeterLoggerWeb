@@ -5,6 +5,8 @@ use warnings;
 use utf8;
 use Data::Dumper;
 use DBI;
+use Storable qw(store retrieve);
+use File::Path qw(make_path);
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -27,7 +29,22 @@ my $CLOSE_THRESHOLD = 1;
 
 # --- Spam protection (max SMS per phone number per hour) ---
 my $SMS_MAX_PER_HOUR = 5;   # maximum SMS per phone number per hour
+my $STATE_DIR        = '/var/run/app_state';
+my $SMS_STATE_FILE   = "$STATE_DIR/sms_timestamps.dat";
 my %sms_timestamps;         # hash: phone_number => array of epoch times
+
+# ensure state directory exists
+make_path($STATE_DIR) unless -d $STATE_DIR;
+
+# load previous state if it exists
+if (-f $SMS_STATE_FILE) {
+	eval {
+		%sms_timestamps = %{ retrieve($SMS_STATE_FILE) };
+	};
+	if ($@) {
+		warn "Failed to load SMS state file: $@";
+	}
+}
 
 my ($dbh, $sth, $d);
 
@@ -89,16 +106,6 @@ while (1) {
 		my $close_warning_threshold = defined $d->{close_warning_threshold}
 			? $d->{close_warning_threshold}/3600
 			: $CLOSE_WARNING_TIME;
-
-#		log_debug(
-#			"Serial: $serial",
-#			"State: $state",
-#			"Energy remaining: $energy_remaining",
-#			"Time remaining: $time_remaining_string",
-#			"Paid kWh: " . ($d->{paid_kwh} // 0),
-#			"Last paid marker: $last_paid_marker",
-#			"Last notification: " . ($last_sent_time ? scalar localtime($last_sent_time) : 'N/A')
-#		);
 
 		# ============================================================
 		# --- TOP-UP CHECK ---
@@ -272,6 +279,14 @@ sub sms_send {
 
 		if ($ok) {
 			push @{ $sms_timestamps{$num} }, $now;
+
+			# --- persist state to file after each successful SMS ---
+			eval {
+				store \%sms_timestamps, $SMS_STATE_FILE;
+			};
+			if ($@) {
+				log_warn("Failed to save SMS state file: $@");
+			}
 		} else {
 			log_warn("Failed to send SMS to 45$num", { -custom_tag => 'SMS' });
 		}
