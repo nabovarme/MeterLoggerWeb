@@ -178,6 +178,7 @@ services:
     container_name: meter_sms
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
+      - meter_sms_state:/var/run/app_state
     restart: always
     stop_grace_period: 30s
     environment:
@@ -266,3 +267,4 @@ services:
 volumes:
   postfix_spool:
   postfix_mail:
+  meter_sms_state:
