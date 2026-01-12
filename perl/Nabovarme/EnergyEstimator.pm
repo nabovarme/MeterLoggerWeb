@@ -152,7 +152,8 @@ sub estimate_remaining_energy {
 	$valve_installed  ||= 0;
 	$sw_version       ||= '';
 
-	log_debug("$serial: Latest sample fetched: latest_energy_reading=" . sprintf("%.2f", $latest_energy_reading) .
+	log_debug("$serial: Latest sample fetched: latest_energy_reading=" .
+		(defined $latest_energy_reading ? sprintf("%.2f", $latest_energy_reading) : 'undef') .
 		", valve_status=" . $valve_status .
 		", valve_installed=" . $valve_installed .
 		", sw_version=" . $sw_version);
@@ -185,8 +186,8 @@ sub estimate_remaining_energy {
 	$result{paid_kwh}        = $paid_kwh;
 	$result{sw_version}      = $sw_version;
 
-	log_debug("$serial: Setup value=" . sprintf("%.2f", $setup_value));
-	log_debug("$serial: Paid kWh=" . sprintf("%.2f", $paid_kwh));
+	log_debug("$serial: Setup value=" . (defined $setup_value ? sprintf("%.2f", $setup_value) : 'undef'));
+	log_debug("$serial: Paid kWh=" . (defined $paid_kwh ? sprintf("%.2f", $paid_kwh) : 'undef'));
 
 	# ============================================================
 	# --- Try estimation methods in order using unified interface ---
@@ -198,8 +199,10 @@ sub estimate_remaining_energy {
 	$res = estimate_from_yearly_history($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh);
 	if (defined $res) {
 		$result{method} = 'yearly_historical';
-		log_debug("$serial: Yearly history returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
-			", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+		log_debug("$serial: Yearly history returned: energy_last_day=" .
+			(defined $res->{energy_last_day} ? sprintf("%.2f", $res->{energy_last_day}) : 'undef') .
+			", avg_energy_last_day=" .
+			(defined $res->{avg_energy_last_day} ? sprintf("%.2f", $res->{avg_energy_last_day}) : 'undef'));
 	} else {
 		log_debug("$serial: Yearly history returned undef");
 	}
@@ -209,8 +212,10 @@ sub estimate_remaining_energy {
 		$res = estimate_from_recent_samples($dbh, $serial, $latest_energy_reading, $setup_value, $paid_kwh, $latest_unix_time);
 		if (defined $res) {
 			$result{method} = 'recent_samples';
-			log_debug("$serial: Recent samples returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
-				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+			log_debug("$serial: Recent samples returned: energy_last_day=" .
+				(defined $res->{energy_last_day} ? sprintf("%.2f", $res->{energy_last_day}) : 'undef') .
+				", avg_energy_last_day=" .
+				(defined $res->{avg_energy_last_day} ? sprintf("%.2f", $res->{avg_energy_last_day}) : 'undef'));
 		} else {
 			log_debug("$serial: Recent samples returned undef");
 		}
@@ -221,8 +226,10 @@ sub estimate_remaining_energy {
 		$res = estimate_from_daily_history($dbh, $serial);
 		if (defined $res) {
 			$result{method} = 'fallback_daily';
-			log_debug("$serial: Fallback daily returned: energy_last_day=" . sprintf("%.2f", $res->{energy_last_day}) .
-				", avg_energy_last_day=" . sprintf("%.2f", $res->{avg_energy_last_day}));
+			log_debug("$serial: Fallback daily returned: energy_last_day=" .
+				(defined $res->{energy_last_day} ? sprintf("%.2f", $res->{energy_last_day}) : 'undef') .
+				", avg_energy_last_day=" .
+				(defined $res->{avg_energy_last_day} ? sprintf("%.2f", $res->{avg_energy_last_day}) : 'undef'));
 		} else {
 			log_debug("$serial: Fallback daily returned undef");
 		}
@@ -231,8 +238,10 @@ sub estimate_remaining_energy {
 	my $avg_energy_last_day = $res->{avg_energy_last_day};
 	my $energy_last_day     = $avg_energy_last_day;
 
-	log_debug("$serial: Energy last day=" . (defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
-		", avg_energy_last_day=" . (defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
+	log_debug("$serial: Energy last day=" .
+		(defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
+		", avg_energy_last_day=" .
+		(defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
 
 	# ============================================================
 	# --- Calculate remaining kWh and time ---
@@ -241,7 +250,7 @@ sub estimate_remaining_energy {
 	my $kwh_remaining;
 	if (defined $latest_energy_reading && defined $setup_value) {
 		$kwh_remaining = $paid_kwh - $latest_energy_reading + $setup_value;
-		log_debug("$serial: kWh remaining=" . sprintf("%.2f", $kwh_remaining));
+		log_debug("$serial: kWh remaining=" . (defined $kwh_remaining ? sprintf("%.2f", $kwh_remaining) : 'undef'));
 	}
 	else {
 		$kwh_remaining = undef;
@@ -265,12 +274,13 @@ sub estimate_remaining_energy {
 				$time_remaining_hours -= $time_since_last_measurement_hours;
 				log_debug(
 					"$serial: Adjusted time_remaining_hours for $time_since_last_measurement_hours hours since last measurement: " .
-					sprintf("%.2f", $time_remaining_hours)
+					(defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : 'undef')
 				);
 			}
 		}
 
-		log_debug("$serial: Calculated time_remaining_hours=" . sprintf("%.2f", $time_remaining_hours));
+		log_debug("$serial: Calculated time_remaining_hours=" .
+			(defined $time_remaining_hours ? sprintf("%.2f", $time_remaining_hours) : 'undef'));
 	}
 
 	my $time_remaining_hours_string;
@@ -382,7 +392,9 @@ sub estimate_from_yearly_history {
 	for my $year_offset (1 .. $years_back) {
 
 		log_debug("$serial: ------------------------------------------------------------");
-		log_debug("$serial: Year offset=$year_offset measuring how long $available_kwh kWh lasted");
+		log_debug("$serial: Year offset=$year_offset start_energy=" .
+			(defined $start_energy ? sprintf('%.2f', $start_energy) : 'undef') .
+			", start_time=" . $start_time);
 
 		# --- Fetch start sample for this year offset (same date last year) ---
 		$sth = $dbh->prepare(qq[
@@ -473,7 +485,7 @@ sub estimate_from_yearly_history {
 	for my $avg (@yearly_avgs) {
 		if ($avg < $lower_limit || $avg > $upper_limit) {
 			$outlier_years++;
-			log_debug("$serial: avg_kwh_per_day=" . sprintf("%.4f", $avg) . " is outlier, skipping");
+			log_debug("$serial: avg_kwh_per_day=" . (defined $avg ? sprintf("%.4f", $avg) : 'undef') . " is outlier, skipping");
 			next;
 		}
 		push @final_avgs, $avg;
@@ -491,7 +503,8 @@ sub estimate_from_yearly_history {
 	$avg_energy_last_day += $_ for @final_avgs;
 	$avg_energy_last_day /= @final_avgs;
 
-	log_debug("$serial: Final estimate: avg_energy_last_day=" . sprintf("%.4f", $avg_energy_last_day));
+	log_debug("$serial: Final estimate: avg_energy_last_day=" .
+		(defined $avg_energy_last_day ? sprintf("%.4f", $avg_energy_last_day) : 'undef'));
 
 	# Return only avg_energy_last_day; main function will use it for energy_last_day as well
 	return { avg_energy_last_day => $avg_energy_last_day };
@@ -549,8 +562,10 @@ sub estimate_from_recent_samples {
 	$recent_energy    = 0 unless defined $recent_energy;
 	$recent_unix_time = $latest_unix_time unless defined $recent_unix_time;
 
-	log_debug("$serial: Sample at start of period: $recent_unix_time => " . sprintf("%.2f", $recent_energy) . " kWh");
-	log_debug("$serial: Sample at end of period:   $latest_unix_time => " . sprintf("%.2f", $latest_energy_reading) . " kWh");
+	log_debug("$serial: Sample at start of period: $recent_unix_time => " .
+		(defined $recent_energy ? sprintf("%.2f", $recent_energy) : 'undef') . " kWh");
+	log_debug("$serial: Sample at end of period:   $latest_unix_time => " .
+		(defined $latest_energy_reading ? sprintf("%.2f", $latest_energy_reading) : 'undef') . " kWh");
 
 	# --- Decide if we should use fallback or real samples ---
 	my $prev_energy           = $recent_energy;
@@ -580,7 +595,8 @@ sub estimate_from_recent_samples {
 	}
 
 	$prev_energy = $use_fallback ? 0 : $recent_energy;
-	log_debug("$serial: Previous energy used=" . sprintf("%.2f", $prev_energy));
+	log_debug("$serial: Previous energy used=" .
+		(defined $prev_energy ? sprintf("%.2f", $prev_energy) : 'undef'));
 
 	# --- If we need to fallback, return undef to let main function use fallback method ---
 	return undef if $use_fallback;
@@ -594,7 +610,8 @@ sub estimate_from_recent_samples {
 	}
 
 	my $avg_energy_last_day = $energy_last_day / $hours_diff;
-	log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+	log_debug("$serial: Calculated avg_energy_last_day using actual hours_diff=$hours_diff, avg_energy_last_day=" .
+		(defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
@@ -623,7 +640,8 @@ sub estimate_from_daily_history {
 	my ($avg_daily_usage, $years_count) = $sth->fetchrow_array;
 	$avg_daily_usage ||= 0;
 
-	log_debug("$serial: Fallback: avg_daily_usage=" . sprintf("%.2f", $avg_daily_usage) .
+	log_debug("$serial: Fallback: avg_daily_usage=" .
+		(defined $avg_daily_usage ? sprintf("%.2f", $avg_daily_usage) : 'undef') .
 		" from $years_count previous years");
 
 	return undef if $avg_daily_usage <= 0;
@@ -631,8 +649,10 @@ sub estimate_from_daily_history {
 	my $energy_last_day     = $avg_daily_usage;
 	my $avg_energy_last_day = $avg_daily_usage;
 
-	log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" . sprintf("%.2f", $energy_last_day) .
-		", avg_energy_last_day=" . sprintf("%.2f", $avg_energy_last_day));
+	log_debug("$serial: Using fallback from samples_daily.effect, energy_last_day=" .
+		(defined $energy_last_day ? sprintf("%.2f", $energy_last_day) : 'undef') .
+		", avg_energy_last_day=" .
+		(defined $avg_energy_last_day ? sprintf("%.2f", $avg_energy_last_day) : 'undef'));
 
 	return { energy_last_day => $energy_last_day, avg_energy_last_day => $avg_energy_last_day };
 }
