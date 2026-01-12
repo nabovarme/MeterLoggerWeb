@@ -119,15 +119,6 @@ while (1) {
 			# Reset state to 0 after top-up
 			$state = 0;
 
-			# --- Immediately check low energy after top-up ---
-			if ($energy_remaining <= $CLOSE_THRESHOLD && !$notification_sent) {
-				$state = 1;
-				sms_send($serial, 'CLOSE_WARNING');
-				log_info("Close warning sent immediately after top-up for serial $serial");
-				$last_sent_time = time();
-				$notification_sent = 1;
-			}
-
 			# --- skip state machine since we've already handled notifications ---
 			next;
 		}
