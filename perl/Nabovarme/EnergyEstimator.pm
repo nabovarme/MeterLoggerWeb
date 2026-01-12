@@ -392,9 +392,8 @@ sub estimate_from_yearly_history {
 	for my $year_offset (1 .. $years_back) {
 
 		log_debug("$serial: ------------------------------------------------------------");
-		log_debug("$serial: Year offset=$year_offset start_energy=" .
-			(defined $start_energy ? sprintf('%.2f', $start_energy) : 'undef') .
-			", start_time=" . $start_time);
+		log_debug("$serial: Year offset=$year_offset measuring how long " .
+			(defined $available_kwh ? sprintf("%.2f", $available_kwh) : 'undef') . " kWh lasted");
 
 		# --- Fetch start sample for this year offset (same date last year) ---
 		$sth = $dbh->prepare(qq[
