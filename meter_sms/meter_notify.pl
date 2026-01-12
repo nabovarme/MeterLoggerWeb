@@ -107,6 +107,9 @@ while (1) {
 
 				$last_sent_time = time();
 				$notification_sent = 1;
+
+				# Optional: reset warning marker so CLOSE_WARNING can be sent immediately if needed
+				$d->{last_close_warning_kwh_marker} = undef;
 			}
 
 			# Update last_paid_kwh_marker in DB
@@ -118,9 +121,6 @@ while (1) {
 
 			# Reset state to 0 after top-up
 			$state = 0;
-
-			# --- skip state machine since we've already handled notifications ---
-			next;
 		}
 
 		# ============================================================
