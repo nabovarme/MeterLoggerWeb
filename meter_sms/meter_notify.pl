@@ -119,7 +119,7 @@ while (1) {
 				$last_sent_time = time();
 				$notification_sent = 1;
 
-				# Optional: reset warning marker so CLOSE_WARNING can be sent immediately if needed
+				# Reset warning marker so CLOSE_WARNING can be sent immediately if needed
 				$d->{last_close_warning_kwh_marker} = undef;
 			}
 
