@@ -145,6 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	document.addEventListener('keydown', (e) => {
+		const menuEl = document.getElementById('menu');
+
+		// If the menu is open, don't navigate meters
+		if (menuEl && menuEl.classList.contains('show')) return;
+
 		const links = getVisibleSerialLinks();
 		if (!links.length) return;
 
