@@ -1,4 +1,8 @@
-// List of menu items
+// Global type-ahead variables
+let typeAheadBuffer = "";
+let typeAheadTimer;
+
+// Global menu items
 const menuItems = [
 	{ text: "Meters", href: "/index.html" },
 	{ text: "Map", href: "/map" },
@@ -13,20 +17,15 @@ const menuItems = [
 	{ text: "Logout", href: "/logout" }
 ];
 
-let typeAheadBuffer = "";
-let typeAheadTimer;
-
 // Insert burger menu and floating menu
 function insertMenu() {
 	const burger = document.createElement("button");
 	burger.className = "burger";
 
-	// Hamburger icon text
 	burger.setAttribute("aria-label", "Toggle menu");
 	burger.setAttribute("aria-expanded", "false");
 	burger.innerText = "☰";
 
-	// Toggle menu visibility on burger click
 	burger.onclick = toggleMenu;
 
 	const menu = document.createElement("nav");
@@ -34,7 +33,6 @@ function insertMenu() {
 	menu.className = "floating-menu";
 	menu.setAttribute("aria-hidden", "true");
 
-	// Build menu items
 	menuItems.forEach(item => {
 		if (item.separator) {
 			const hr = document.createElement("hr");
@@ -46,7 +44,7 @@ function insertMenu() {
 		} else {
 			const a = document.createElement("a");
 			a.href = item.href;
-			a.dataset.text = item.text; // keep original text for highlighting
+			a.dataset.text = item.text;
 			a.innerHTML = item.text;
 			a.tabIndex = -1;
 			a.addEventListener("click", () => closeMenu());
@@ -54,7 +52,6 @@ function insertMenu() {
 		}
 	});
 
-	// Append burger and menu to the document body
 	document.body.appendChild(burger);
 	document.body.appendChild(menu);
 
@@ -74,11 +71,11 @@ function insertMenu() {
 			active.blur();
 			return;
 		}
-		
+
 		// Ignore typing in input/textarea/contenteditable
 		if (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable) return;
 
-		// Ignore if any modifier keys are pressed
+		// Ignore if modifier keys are pressed
 		if (e.ctrlKey || e.altKey || e.metaKey) return;
 
 		const menuEl = document.getElementById("menu");
@@ -126,35 +123,39 @@ function insertMenu() {
 
 		e.preventDefault();
 
-		// Open menu automatically
-		if (!menuEl.classList.contains("show")) toggleMenu();
+		// Open menu if closed
+		const wasClosed = !menuEl.classList.contains("show");
+		if (wasClosed) toggleMenu();
 
 		// Update type-ahead buffer
 		typeAheadBuffer += e.key.toLowerCase();
 		clearTimeout(typeAheadTimer);
 		typeAheadTimer = setTimeout(() => {
 			typeAheadBuffer = "";
-			// Reset highlights
 			links.forEach(link => {
 				link.innerHTML = link.dataset.text;
 			});
 		}, 800);
 
-		// Find matching item
-		let matched = links.find(link => link.dataset.text.toLowerCase().startsWith(typeAheadBuffer));
-
-		// Wrap-around: if no match, start from top
-		if (!matched) {
-			matched = links.find(link => link.dataset.text.toLowerCase().startsWith(typeAheadBuffer));
+		// Remove previous type-ahead highlight, but keep focus on newly matched item
+		const prevFocused = links.find(link => link.classList.contains("keyboard-focus"));
+		if (prevFocused) {
+			prevFocused.classList.remove("keyboard-focus");
 		}
 
+		// Find matching item
+		const matched = links.find(link => link.dataset.text.toLowerCase().startsWith(typeAheadBuffer));
+
 		if (matched) {
+			// Highlight and focus matched item
 			matched.focus();
-			// Highlight matched portion
+			matched.classList.add("keyboard-focus");
+
 			const original = matched.dataset.text;
 			const matchLength = typeAheadBuffer.length;
 			matched.innerHTML = `<span class="highlight">${original.slice(0, matchLength)}</span>${original.slice(matchLength)}`;
-			// Reset other links
+
+			// Reset other links' highlights
 			links.forEach(link => {
 				if (link !== matched) link.innerHTML = link.dataset.text;
 			});
@@ -174,12 +175,11 @@ function toggleMenu() {
 
 	menuEl.querySelectorAll("a").forEach(link => {
 		link.tabIndex = isOpen ? 0 : -1;
+		link.classList.remove("keyboard-focus");
+		link.innerHTML = link.dataset.text;
 	});
 
-	if (isOpen) {
-		const links = Array.from(menuEl.querySelectorAll("a"));
-		if (links.length) links[0].focus();
-	}
+	// Do not auto-focus any link to prevent preselection
 }
 
 // Close menu
@@ -194,7 +194,8 @@ function closeMenu() {
 
 	menuEl.querySelectorAll("a").forEach(link => {
 		link.tabIndex = -1;
-		link.innerHTML = link.dataset.text; // reset highlight
+		link.innerHTML = link.dataset.text;
+		link.classList.remove("keyboard-focus");
 	});
 }
 
