@@ -60,6 +60,10 @@ my %service_up :shared;       # Track if container is currently up
 my %has_error :shared;        # Track if container has ever reported error
 my %boot_done :shared;        # Track if first boot completed
 
+# ---- Persistent error tracking ----
+my %persistent_count :shared;          # counts consecutive occurrences per pattern
+my $PERSIST_THRESHOLD = 3;             # occurrences before sending alert
+
 # ---- Clear dedupe on recovery ----
 sub clear_dedupe {
 	my ($container) = @_;
@@ -69,6 +73,10 @@ sub clear_dedupe {
 	}
 	foreach my $key (keys %error_history) {
 		delete $error_history{$key} if $key =~ /^\Q$container\E:/;
+	}
+	lock(%persistent_count);
+	foreach my $key (keys %persistent_count) {
+		delete $persistent_count{$key} if $key =~ /^\Q$container\E:/;
 	}
 	log_info("Dedup reset", {-no_script_name => 1, -custom_tag => $container });
 }
@@ -248,12 +256,22 @@ sub watch_container {
 			# Remove any prepending [XXX] or [XXX] [YYY]
 			$line =~ s/^(?:\[[^\]]+\]\s*){1,2}//;
 
-			# Check for errors
+			# Check for errors with persistent tracking
 			foreach my $pattern (@{ $error_patterns{$container} || [] }) {
+
 				if ($line =~ $pattern) {
-					log_info("Detected error in line $line", {-no_script_name => 1, -custom_tag => $container });
-					send_email("$container: $line", $container, $pattern);
+					lock(%persistent_count);
+					$persistent_count{"$container:$pattern"}++;
+					
+					if ($persistent_count{"$container:$pattern"} >= $PERSIST_THRESHOLD) {
+						log_info("Persistent error detected in line $line", {-no_script_name => 1, -custom_tag => $container });
+						send_email("$container: $line", $container, $pattern);
+						$persistent_count{"$container:$pattern"} = 0;  # reset after sending
+					}
 					last;
+				} else {
+					lock(%persistent_count);
+					$persistent_count{"$container:$pattern"} = 0;  # reset if line doesn't match
 				}
 			}
 
