@@ -179,6 +179,7 @@ sub send_sms {
 			lock($sms_busy);
 			$sms_busy = 0;
 		}
+		sleep 20;
 		return 1;
 	}
 
