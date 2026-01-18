@@ -10,12 +10,11 @@ use Email::MIME;
 my @queue;
 open my $pq, "-|", "postqueue -p" or die "Cannot run postqueue: $!";
 while (<$pq>) {
-	# Example line: 3F2A912345*  sender@example.com
 	if (/^([A-F0-9]+)\*?\s+(\S+)\s+/) {
 		push @queue, {
 			id	 => $1,
 			from   => $2,
-			loaded => 0,  # lazy loading flag
+			loaded => 0,
 			subject => '',
 			to	  => '',
 			date	=> '',
@@ -33,7 +32,8 @@ cbreak();
 keypad(stdscr, 1);
 
 my $sel = 0;
-my $max_y = getmaxy(stdscr) - 2;  # for scrolling
+my $scroll = 0;
+my $max_y = getmaxy(stdscr) - 2;
 
 sub load_headers {
 	my ($msg) = @_;
@@ -55,10 +55,9 @@ sub load_headers {
 # -----------------------------
 # Step 3: Main loop
 # -----------------------------
-my $scroll = 0;
 while (1) {
 	clear();
-	printw("Postfix Queue Viewer (j/k: navigate, d: delete, q: quit)\n");
+	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit)\n");
 	printw("--------------------------------------------------------------------------------\n");
 
 	my $end = $scroll + $max_y;
@@ -66,7 +65,7 @@ while (1) {
 
 	for my $i ($scroll .. $end) {
 		my $msg = $queue[$i];
-		load_headers($msg);  # lazy-load headers
+		load_headers($msg);
 
 		my $prefix = ($i == $sel) ? "> " : "  ";
 		printw(sprintf "%s%-8s %-25.25s %-25.25s %-30.30s\n",
@@ -75,20 +74,21 @@ while (1) {
 
 	my $ch = getch();
 	if ($ch eq 'q') { last; }
-	elsif ($ch eq 'j') {
-		$sel++ if $sel < $#queue;
-		$scroll++ if $sel > $scroll + $max_y;
-	}
-	elsif ($ch eq 'k') {
-		$sel-- if $sel > 0;
-		$scroll-- if $sel < $scroll;
-	}
 	elsif ($ch eq 'd') {
 		my $qid = $queue[$sel]{id};
 		system("sudo postsuper -d $qid");
 		splice(@queue, $sel, 1);
 		$sel = 0 if $sel > $#queue;
 		$scroll = 0 if $scroll > $sel;
+	}
+	# Arrow key handling
+	elsif ($ch eq Curses::KEY_DOWN) {
+		$sel++ if $sel < $#queue;
+		$scroll++ if $sel > $scroll + $max_y;
+	}
+	elsif ($ch eq Curses::KEY_UP) {
+		$sel-- if $sel > 0;
+		$scroll-- if $sel < $scroll;
 	}
 }
 
