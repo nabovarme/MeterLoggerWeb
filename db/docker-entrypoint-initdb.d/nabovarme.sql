@@ -306,7 +306,6 @@ CREATE TABLE `meters` (
   `ping_response_time` varchar(32) DEFAULT NULL,
   `ping_average_packet_loss` varchar(32) DEFAULT NULL,
   `disconnect_count` int(11) DEFAULT NULL,
-  `time_remaining_hours` float DEFAULT NULL,
   `comment` longtext DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `serial_idx` (`serial`)
