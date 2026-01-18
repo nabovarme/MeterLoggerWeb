@@ -217,7 +217,9 @@ services:
       TZ: 'Europe/Copenhagen'
 
   postfix:
-    image: boky/postfix
+    build:
+      context: postfix/
+      dockerfile: Dockerfile
     container_name: postfix
     ports:
       - "0.0.0.0:25:25"
