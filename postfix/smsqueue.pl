@@ -46,6 +46,12 @@ my $last_refresh = time();
 timeout(500);	# non-blocking getch for auto-refresh
 
 # -----------------------------
+# Sorting state
+# -----------------------------
+my $sort_mode  = 'time';  # 'time' or 'subject'
+my $sort_order = 1;       # 1 = ascending, -1 = descending
+
+# -----------------------------
 # Lazy-load headers
 # -----------------------------
 sub load_headers {
@@ -58,14 +64,11 @@ sub load_headers {
 
 	my $email = eval { Email::MIME->new($raw) };
 	if ($email) {
-		# header_str already returns UTF-8 flagged string
+		# header_str returns UTF-8 flagged string
 		$msg->{subject} = $email->header_str("Subject") // "";
-
-		# To and Date
-		$msg->{to}   = $email->header_str("To") // "";
-		$msg->{date} = $email->header("Date") // "";
-
-		$msg->{loaded} = 1;
+		$msg->{to}      = $email->header_str("To") // "";
+		$msg->{date}    = $email->header("Date") // "";
+		$msg->{loaded}  = 1;
 	}
 }
 
@@ -90,8 +93,34 @@ while (1) {
 		$last_refresh = time();
 	}
 
+	# -----------------------------
+	# Sort queue
+	# -----------------------------
+	my $sel_id = $queue[$sel]{id} if $sel <= $#queue;
+
+	if ($sort_mode eq 'subject') {
+		@queue = sort {
+			$sort_order * (lc($a->{subject}) cmp lc($b->{subject}))
+		} @queue;
+	} else {
+		@queue = sort {
+			$sort_order * ($a->{date} cmp $b->{date})
+		} @queue;
+	}
+
+	# Restore selection
+	for my $i (0..$#queue) {
+		if ($queue[$i]{id} eq $sel_id) {
+			$sel = $i;
+			last;
+		}
+	}
+
+	# -----------------------------
+	# Draw UI
+	# -----------------------------
 	clear();
-	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, auto-refresh every 10s)\n");
+	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, t: sort time, s: sort subject)\n");
 	printw("--------------------------------------------------------------------------------\n");
 
 	my $end = $scroll + $max_y;
@@ -109,6 +138,9 @@ while (1) {
 			$prefix, $msg->{id}, $msg->{date}, $to_short, $msg->{subject});
 	}
 
+	# -----------------------------
+	# Handle input
+	# -----------------------------
 	my $ch = getch();
 	if (defined $ch) {
 		if ($ch eq 'q') { last; }
@@ -136,6 +168,16 @@ while (1) {
 		elsif ($ch eq Curses::KEY_UP) {
 			$sel-- if $sel > 0;
 			$scroll-- if $sel < $scroll;
+		}
+
+		# Sort toggles
+		elsif ($ch eq 't') {
+			if ($sort_mode eq 'time') { $sort_order *= -1; }
+			else { $sort_mode = 'time'; $sort_order = 1; }
+		}
+		elsif ($ch eq 's') {
+			if ($sort_mode eq 'subject') { $sort_order *= -1; }
+			else { $sort_mode = 'subject'; $sort_order = 1; }
 		}
 	}
 }
