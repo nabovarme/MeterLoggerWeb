@@ -66,8 +66,11 @@ sub load_headers {
 	if ($email) {
 		# header_str returns UTF-8 flagged string
 		$msg->{subject} = $email->header_str("Subject") // "";
+
+		# To and Date
 		$msg->{to}      = $email->header_str("To") // "";
 		$msg->{date}    = $email->header("Date") // "";
+
 		$msg->{loaded}  = 1;
 	}
 }
@@ -76,8 +79,15 @@ sub load_headers {
 # Main loop
 # -----------------------------
 while (1) {
+
+	# -----------------------------
 	# Auto-refresh every 10 seconds
+	# -----------------------------
 	if (time() - $last_refresh >= 10) {
+		# Remember currently selected message ID
+		my $sel_id = $queue[$sel]{id} if $sel <= $#queue;
+
+		# Refresh queue
 		my %old_ids = map { $_->{id} => $_ } @queue;
 		@queue = get_queue_list();
 		foreach my $msg (@queue) {
@@ -88,8 +98,23 @@ while (1) {
 				$msg->{loaded}  = $old_ids{$msg->{id}}->{loaded};
 			}
 		}
-		$sel = 0 if $sel > $#queue;
+
+		# Restore selection to same message
+		if ($sel_id) {
+			my $found = 0;
+			for my $i (0..$#queue) {
+				if ($queue[$i]{id} eq $sel_id) {
+					$sel = $i;
+					$found = 1;
+					last;
+				}
+			}
+			$sel = 0 unless $found;
+		}
+
+		# Keep scroll sane
 		$scroll = 0 if $scroll > $sel;
+
 		$last_refresh = time();
 	}
 
@@ -99,20 +124,18 @@ while (1) {
 	my $sel_id = $queue[$sel]{id} if $sel <= $#queue;
 
 	if ($sort_mode eq 'subject') {
-		@queue = sort {
-			$sort_order * (lc($a->{subject}) cmp lc($b->{subject}))
-		} @queue;
+		@queue = sort { $sort_order * (lc($a->{subject}) cmp lc($b->{subject})) } @queue;
 	} else {
-		@queue = sort {
-			$sort_order * ($a->{date} cmp $b->{date})
-		} @queue;
+		@queue = sort { $sort_order * ($a->{date} cmp $b->{date}) } @queue;
 	}
 
-	# Restore selection
-	for my $i (0..$#queue) {
-		if ($queue[$i]{id} eq $sel_id) {
-			$sel = $i;
-			last;
+	# Restore selection after sort
+	if ($sel_id) {
+		for my $i (0..$#queue) {
+			if ($queue[$i]{id} eq $sel_id) {
+				$sel = $i;
+				last;
+			}
 		}
 	}
 
