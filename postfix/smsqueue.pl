@@ -19,7 +19,6 @@ sub get_queue_list {
 			push @list, {
 				id      => $1,
 				from    => $2,
-				loaded  => 0,
 				subject => '',
 				to      => '',
 				date    => '',
@@ -30,20 +29,24 @@ sub get_queue_list {
 	return @list;
 }
 
-my @queue = get_queue_list();
+# -----------------------------
+# Load headers for all messages
+# -----------------------------
+sub load_all_headers {
+	my ($queue_ref) = @_;
+	for my $msg (@$queue_ref) {
+		open my $pc, "-|", "/usr/sbin/postcat -q $msg->{id}" or next;
+		my $raw = do { local $/; <$pc> };
+		close $pc;
 
-# -----------------------------
-# Initialize Curses
-# -----------------------------
-initscr();
-noecho();
-cbreak();
-keypad(stdscr, 1);
-my $sel = 0;
-my $scroll = 0;
-my $max_y = getmaxy(stdscr) - 2;
-my $last_refresh = time();
-timeout(500);	# non-blocking getch for auto-refresh
+		my $email = eval { Email::MIME->new($raw) };
+		next unless $email;
+
+		$msg->{subject} = $email->header_str("Subject") // "";
+		$msg->{to}      = $email->header_str("To")      // "";
+		$msg->{date}    = $email->header("Date")        // "";
+	}
+}
 
 # -----------------------------
 # Sorting state
@@ -52,28 +55,34 @@ my $sort_mode  = 'time';  # 'time' or 'subject'
 my $sort_order = 1;       # 1 = ascending, -1 = descending
 
 # -----------------------------
-# Lazy-load headers
+# Initial queue load and sort
 # -----------------------------
-sub load_headers {
-	my ($msg) = @_;
-	return if $msg->{loaded};
+my @queue = get_queue_list();
+load_all_headers(\@queue);
 
-	open my $pc, "-|", "/usr/sbin/postcat -q $msg->{id}" or return;
-	my $raw = do { local $/; <$pc> };
-	close $pc;
-
-	my $email = eval { Email::MIME->new($raw) };
-	if ($email) {
-		# header_str returns UTF-8 flagged string
-		$msg->{subject} = $email->header_str("Subject") // "";
-
-		# To and Date
-		$msg->{to}      = $email->header_str("To") // "";
-		$msg->{date}    = $email->header("Date") // "";
-
-		$msg->{loaded}  = 1;
-	}
+if ($sort_mode eq 'subject') {
+	@queue = sort { $sort_order * (lc($a->{subject}) cmp lc($b->{subject})) } @queue;
+} else {
+	@queue = sort { $sort_order * ($a->{date} cmp $b->{date}) } @queue;
 }
+
+# Select first row after sort
+my $sel = 0;
+
+# Scroll first row to top
+my $scroll = 0;
+
+# -----------------------------
+# Initialize Curses
+# -----------------------------
+initscr();
+noecho();
+cbreak();
+keypad(stdscr, 1);
+my $header_lines = 2;
+my $max_y = getmaxy(stdscr) - $header_lines;
+my $last_refresh = time();
+timeout(500);  # non-blocking getch
 
 # -----------------------------
 # Main loop
@@ -84,22 +93,13 @@ while (1) {
 	# Auto-refresh every 10 seconds
 	# -----------------------------
 	if (time() - $last_refresh >= 10) {
-		# Remember currently selected message ID
 		my $sel_id = $queue[$sel]{id} if $sel <= $#queue;
 
-		# Refresh queue
 		my %old_ids = map { $_->{id} => $_ } @queue;
 		@queue = get_queue_list();
-		foreach my $msg (@queue) {
-			if (exists $old_ids{$msg->{id}}) {
-				$msg->{subject} = $old_ids{$msg->{id}}->{subject};
-				$msg->{to}      = $old_ids{$msg->{id}}->{to};
-				$msg->{date}    = $old_ids{$msg->{id}}->{date};
-				$msg->{loaded}  = $old_ids{$msg->{id}}->{loaded};
-			}
-		}
+		load_all_headers(\@queue);
 
-		# Restore selection to same message
+		# Restore selection
 		if ($sel_id) {
 			my $found = 0;
 			for my $i (0..$#queue) {
@@ -113,7 +113,7 @@ while (1) {
 		}
 
 		# Keep scroll sane
-		$scroll = 0 if $scroll > $sel;
+		$scroll = $sel if $scroll > $sel;
 
 		$last_refresh = time();
 	}
@@ -146,20 +146,27 @@ while (1) {
 	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, t: sort time, s: sort subject)\n");
 	printw("--------------------------------------------------------------------------------\n");
 
-	my $end = $scroll + $max_y;
+	my $end = $scroll + $max_y - 1;
 	$end = $#queue if $end > $#queue;
 
 	for my $i ($scroll .. $end) {
 		my $msg = $queue[$i];
-		load_headers($msg);
-
-		# Show only the part before @ in the To field
 		my $to_short = $msg->{to} =~ /^(.*?)@/ ? $1 : $msg->{to};
 
-		my $prefix = ($i == $sel) ? "> " : "  ";
-		printw(sprintf "%s%-8s %-25.25s %-25.25s %-30.30s\n",
-			$prefix, $msg->{id}, $msg->{date}, $to_short, $msg->{subject});
+		move($i - $scroll + $header_lines, 0);
+
+		if ($i == $sel) {
+			attron(A_REVERSE);
+			printw(sprintf "%-8s %-25.25s %-25.25s %-30.30s",
+				$msg->{id}, $msg->{date}, $to_short, $msg->{subject});
+			attroff(A_REVERSE);
+		} else {
+			printw(sprintf "%-8s %-25.25s %-25.25s %-30.30s",
+				$msg->{id}, $msg->{date}, $to_short, $msg->{subject});
+		}
 	}
+
+	refresh();
 
 	# -----------------------------
 	# Handle input
@@ -168,14 +175,14 @@ while (1) {
 	if (defined $ch) {
 		if ($ch eq 'q') { last; }
 
-		# Delete selected mail
 		elsif ($ch eq 'd') {
 			my $qid = $queue[$sel]{id};
 			my $ret = system("/usr/sbin/postsuper -d $qid");
 			if ($ret == 0) {
 				splice(@queue, $sel, 1);
 				$sel = 0 if $sel > $#queue;
-				$scroll = 0 if $scroll > $sel;
+				$scroll = $sel;
+				$scroll = 0 if $scroll < 0;
 			} else {
 				move($max_y + 3, 0);
 				printw("Failed to delete mail $qid. Ensure sudo/root privileges.");
@@ -183,17 +190,15 @@ while (1) {
 			}
 		}
 
-		# Arrow key navigation
 		elsif ($ch eq Curses::KEY_DOWN) {
 			$sel++ if $sel < $#queue;
-			$scroll++ if $sel > $scroll + $max_y;
+			$scroll++ if $sel > $scroll + $max_y - 1;
 		}
 		elsif ($ch eq Curses::KEY_UP) {
 			$sel-- if $sel > 0;
 			$scroll-- if $sel < $scroll;
 		}
 
-		# Sort toggles
 		elsif ($ch eq 't') {
 			if ($sort_mode eq 'time') { $sort_order *= -1; }
 			else { $sort_mode = 'time'; $sort_order = 1; }
