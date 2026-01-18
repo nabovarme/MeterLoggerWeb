@@ -93,9 +93,13 @@ while (1) {
 	for my $i ($scroll .. $end) {
 		my $msg = $queue[$i];
 		load_headers($msg);
+
+		# Show only the part before @ in the To field
+		my $to_short = $msg->{to} =~ /^(.*?)@/ ? $1 : $msg->{to};
+
 		my $prefix = ($i == $sel) ? "> " : "  ";
 		printw(sprintf "%s%-8s %-25.25s %-25.25s %-30.30s\n",
-			$prefix, $msg->{id}, $msg->{date}, $msg->{to}, $msg->{subject});
+			$prefix, $msg->{id}, $msg->{date}, $to_short, $msg->{subject});
 	}
 
 	my $ch = getch();
