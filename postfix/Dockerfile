@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
 		aptitude \
 		joe
 
-COPY ./delete_sms.pl /usr/local/bin/
+COPY ./smsqueue.pl /usr/local/bin/
 
 RUN chmod +x /usr/local/bin/*
 
