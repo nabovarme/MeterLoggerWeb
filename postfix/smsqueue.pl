@@ -5,6 +5,7 @@ use utf8;
 use open qw(:std :utf8);
 use Curses;
 use Email::MIME;
+use Encode qw(decode is_utf8);
 use Time::HiRes qw(time);
 
 # -----------------------------
@@ -57,13 +58,13 @@ sub load_headers {
 
 	my $email = eval { Email::MIME->new($raw) };
 	if ($email) {
-		# Decode subject using header_str (handles RFC 2047 / UTF-8)
+		# header_str already returns UTF-8 flagged string
 		$msg->{subject} = $email->header_str("Subject") // "";
 
 		# To and Date
-		my $to = $email->header_str("To") // "";
-		$msg->{to}   = $to;
+		$msg->{to}   = $email->header_str("To") // "";
 		$msg->{date} = $email->header("Date") // "";
+
 		$msg->{loaded} = 1;
 	}
 }
