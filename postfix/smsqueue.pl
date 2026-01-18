@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use utf8;
+use open qw(:std :utf8);
 use Curses;
 use Email::MIME;
 use Time::HiRes qw(time);
@@ -49,16 +51,20 @@ sub load_headers {
 	my ($msg) = @_;
 	return if $msg->{loaded};
 
-	open my $pc, "-|", "postcat -q $msg->{id}" or return;
+	open my $pc, "-|", "/usr/sbin/postcat -q $msg->{id}" or return;
 	my $raw = do { local $/; <$pc> };
 	close $pc;
 
 	my $email = eval { Email::MIME->new($raw) };
 	if ($email) {
-		$msg->{subject} = $email->header("Subject") // "";
-		$msg->{to}      = $email->header("To")      // "";
-		$msg->{date}    = $email->header("Date")    // "";
-		$msg->{loaded}  = 1;
+		# Decode subject using header_str (handles RFC 2047 / UTF-8)
+		$msg->{subject} = $email->header_str("Subject") // "";
+
+		# To and Date
+		my $to = $email->header_str("To") // "";
+		$msg->{to}   = $to;
+		$msg->{date} = $email->header("Date") // "";
+		$msg->{loaded} = 1;
 	}
 }
 
@@ -105,6 +111,8 @@ while (1) {
 	my $ch = getch();
 	if (defined $ch) {
 		if ($ch eq 'q') { last; }
+
+		# Delete selected mail
 		elsif ($ch eq 'd') {
 			my $qid = $queue[$sel]{id};
 			my $ret = system("/usr/sbin/postsuper -d $qid");
@@ -118,6 +126,8 @@ while (1) {
 				getch();
 			}
 		}
+
+		# Arrow key navigation
 		elsif ($ch eq Curses::KEY_DOWN) {
 			$sel++ if $sel < $#queue;
 			$scroll++ if $sel > $scroll + $max_y;
