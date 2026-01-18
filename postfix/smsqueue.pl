@@ -162,8 +162,10 @@ while (1) {
 	# Draw UI
 	# -----------------------------
 	clear();
+	my $win_width = getmaxx(stdscr);
+
 	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, t: sort time, s: sort subject, o: sort to)\n");
-	printw("--------------------------------------------------------------------------------\n");
+	printw("-" x $win_width . "\n");
 
 	my $end = $scroll + $max_y - 1;
 	$end = $#queue if $end > $#queue;
@@ -174,17 +176,26 @@ while (1) {
 
 		move($i - $scroll + $header_lines, 0);
 
+		# Calculate column widths
+		my $id_w      = 8;
+		my $date_w    = 25;
+		my $to_w      = 25;
+		my $subject_w = $win_width - ($id_w + $date_w + $to_w + 4);  # 4 spaces for gaps
+
+		my $line = sprintf "%-*.*s %-*.*s %-*.*s %-*.*s",
+			$id_w, $id_w, $msg->{id},
+			$date_w, $date_w, $msg->{date},
+			$to_w, $to_w, $to_short,
+			$subject_w, $subject_w, $msg->{subject};
+
 		if ($i == $sel) {
 			attron(A_REVERSE);
-			printw(sprintf "%-8s %-25.25s %-25.25s %-30.30s",
-				$msg->{id}, $msg->{date}, $to_short, $msg->{subject});
+			printw($line);
 			attroff(A_REVERSE);
 		} else {
-			printw(sprintf "%-8s %-25.25s %-25.25s %-30.30s",
-				$msg->{id}, $msg->{date}, $to_short, $msg->{subject});
+			printw($line);
 		}
 	}
-
 	refresh();
 
 	# -----------------------------
