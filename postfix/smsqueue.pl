@@ -51,7 +51,7 @@ sub load_all_headers {
 # -----------------------------
 # Sorting state
 # -----------------------------
-my $sort_mode  = 'time';  # 'time' or 'subject'
+my $sort_mode  = 'time';  # 'time', 'subject', or 'to'
 my $sort_order = 1;       # 1 = ascending, -1 = descending
 
 # -----------------------------
@@ -62,8 +62,18 @@ load_all_headers(\@queue);
 
 if ($sort_mode eq 'subject') {
 	@queue = sort { $sort_order * (lc($a->{subject}) cmp lc($b->{subject})) } @queue;
-} else {
+}
+elsif ($sort_mode eq 'time') {
 	@queue = sort { $sort_order * ($a->{date} cmp $b->{date}) } @queue;
+}
+elsif ($sort_mode eq 'to') {
+	@queue = sort {
+		my ($ato) = $a->{to} =~ /^(.*?)@/;
+		my ($bto) = $b->{to} =~ /^(.*?)@/;
+		$ato ||= '';
+		$bto ||= '';
+		$sort_order * (lc($ato) cmp lc($bto))
+	} @queue;
 }
 
 # Select first row after sort
@@ -95,7 +105,6 @@ while (1) {
 	if (time() - $last_refresh >= 10) {
 		my $sel_id = $queue[$sel]{id} if $sel <= $#queue;
 
-		my %old_ids = map { $_->{id} => $_ } @queue;
 		@queue = get_queue_list();
 		load_all_headers(\@queue);
 
@@ -125,8 +134,18 @@ while (1) {
 
 	if ($sort_mode eq 'subject') {
 		@queue = sort { $sort_order * (lc($a->{subject}) cmp lc($b->{subject})) } @queue;
-	} else {
+	}
+	elsif ($sort_mode eq 'time') {
 		@queue = sort { $sort_order * ($a->{date} cmp $b->{date}) } @queue;
+	}
+	elsif ($sort_mode eq 'to') {
+		@queue = sort {
+			my ($ato) = $a->{to} =~ /^(.*?)@/;
+			my ($bto) = $b->{to} =~ /^(.*?)@/;
+			$ato ||= '';
+			$bto ||= '';
+			$sort_order * (lc($ato) cmp lc($bto))
+		} @queue;
 	}
 
 	# Restore selection after sort
@@ -143,7 +162,7 @@ while (1) {
 	# Draw UI
 	# -----------------------------
 	clear();
-	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, t: sort time, s: sort subject)\n");
+	printw("Postfix Queue Viewer (Arrow keys: navigate, d: delete, q: quit, t: sort time, s: sort subject, o: sort to)\n");
 	printw("--------------------------------------------------------------------------------\n");
 
 	my $end = $scroll + $max_y - 1;
@@ -213,6 +232,10 @@ while (1) {
 		elsif ($ch eq 's') {
 			if ($sort_mode eq 'subject') { $sort_order *= -1; }
 			else { $sort_mode = 'subject'; $sort_order = 1; }
+		}
+		elsif ($ch eq 'o') {
+			if ($sort_mode eq 'to') { $sort_order *= -1; }
+			else { $sort_mode = 'to'; $sort_order = 1; }
 		}
 	}
 }
