@@ -180,8 +180,15 @@ while (1) {
 			my $ret = system("/usr/sbin/postsuper -d $qid");
 			if ($ret == 0) {
 				splice(@queue, $sel, 1);
-				$sel = 0 if $sel > $#queue;
-				$scroll = $sel;
+
+				# Adjust selection if last row was deleted
+				$sel-- if $sel > $#queue;
+
+				# Adjust scroll only if selection goes out of view
+				$scroll-- if $sel < $scroll;
+				$scroll++ if $sel > $scroll + $max_y - 1;
+
+				# Ensure scroll is not negative
 				$scroll = 0 if $scroll < 0;
 			} else {
 				move($max_y + 3, 0);
