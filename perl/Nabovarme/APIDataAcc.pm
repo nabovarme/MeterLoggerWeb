@@ -11,6 +11,18 @@ use Fcntl qw(:flock);
 
 use Nabovarme::Db;
 
+sub kwh_remaining_at {
+	my ($t, $steps_ref) = @_;
+	my $last = undef;
+
+	for my $pt (sort { $a <=> $b } keys %$steps_ref) {
+		last if $pt > $t;
+		$last = $steps_ref->{$pt};
+	}
+
+	return $last;
+}
+
 sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $d);
@@ -32,6 +44,29 @@ sub handler {
 
 		# Quote serial to prevent SQL injection
 		$quoted_serial = $dbh->quote($serial);
+
+		# --- Fetch account data for kWh remaining overlay ---
+		my %kwh_at_time;
+		my $current_kwh = 0;
+
+		my $acc_sth = $dbh->prepare(qq[
+			SELECT
+				id,
+				payment_time,
+				type,
+				amount,
+				price
+			FROM accounts
+			WHERE serial LIKE $quoted_serial
+			ORDER BY payment_time ASC
+		]);
+		$acc_sth->execute;
+
+		while (my $a = $acc_sth->fetchrow_hashref) {
+			$current_kwh += $a->{amount} / $a->{price};
+			$kwh_at_time{ $a->{payment_time} } = int($current_kwh + 0.5);
+		}
+		warn Dumper %kwh_at_time;
 
 		# --- Option: acc_coarse (daily energy, first sample of each day) ---
 		if ($option =~ /coarse/) {
@@ -69,9 +104,16 @@ sub handler {
 			$r->headers_out->set('Cache-Control'	=> 'public, max-age=60');
 			$r->headers_out->set('Expires'			=> HTTP::Date::time2str(time + 60));
 
-			$r->print("Date,Energy\n");
+			$r->print("Date,Energy,KwhRemaining\n");
 			while ($d = $sth->fetchrow_hashref) {
-				$r->print("$d->{unix_time}," . ($d->{energy} - $setup_value) . "\n");
+				my $kwh = kwh_remaining_at($d->{unix_time}, \%kwh_at_time);
+				$kwh = '' unless defined $kwh;
+
+				$r->print(
+					"$d->{unix_time}," .
+					($d->{energy} - $setup_value) . "," .
+					$kwh . "\n"
+				);
 			}
 		}
 
@@ -105,9 +147,15 @@ sub handler {
 				open(my $fh, '>', $cache_file) or warn "Cannot open cache file $cache_file: $!";
 				flock($fh, LOCK_EX) or return Apache2::Const::SERVER_ERROR;
 
-				print $fh "Date,Energy\n";
+				print $fh "Date,Energy,KwhRemaining\n";
 				while ($d = $sth->fetchrow_hashref) {
-					print $fh "$d->{unix_time}," . ($d->{energy} - $setup_value) . "\n";
+					my $kwh = kwh_remaining_at($d->{unix_time}, \%kwh_at_time);
+					$kwh = '' unless defined $kwh;
+
+					print $fh
+						"$d->{unix_time}," .
+						($d->{energy} - $setup_value) . "," .
+						$kwh . "\n";
 				}
 				close($fh);
 			}
@@ -142,7 +190,7 @@ sub handler {
 
 			$r->print("Date,Temperature,Return temperature,Temperature diff.,Flow,Effect\n");
 			while ($d = $sth->fetchrow_hashref) {
-				$r->print(join(',', 
+				$r->print(join(',',
 					$d->{unix_time},
 					$d->{flow_temp},
 					$d->{return_flow_temp},
