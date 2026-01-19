@@ -66,7 +66,6 @@ sub handler {
 			$current_kwh += $a->{amount} / $a->{price};
 			$kwh_at_time{ $a->{payment_time} } = int($current_kwh + 0.5);
 		}
-		warn Dumper %kwh_at_time;
 
 		# --- Option: acc_coarse (daily energy, first sample of each day) ---
 		if ($option =~ /coarse/) {
