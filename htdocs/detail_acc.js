@@ -88,7 +88,7 @@
  */
 
 // Colors for graph
-var colorSets = [['#999999'], null];
+var colorSets = [['#999999', '#2c7be5'], null];
 
 // Graph instance
 var g;
@@ -98,7 +98,7 @@ var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
 var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
 var accountUrl = '/api/account/' + meter_serial;
 
-// ✅ Cache for full account data JSON
+// Cache for full account data JSON
 var accountData = null;
 
 /*----------------
@@ -122,10 +122,8 @@ function formatDate(d) {
 	const pad = (n) => (n < 10 ? '0' + n : n);
 	const now = new Date();
 	if (d.getTime() < now.getTime() - (1000 * 86400)) {
-		// If older than 1 day, show full date + time
 		return `Time: ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 	} else {
-		// Otherwise, show only time
 		return `Time: ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 	}
 }
@@ -155,14 +153,12 @@ function mergeCsv(csv1, csv2) {
  * UI update functions
  *---------------------*/
 
-// Updates the stats based on selected time range in graph
 function updateConsumptionFromGraphRange() {
 	if (!g || !g.rawData_) return;
 
 	const range = g.xAxisRange();
 	let minY = null, maxY = null;
 
-	// Find minY at start of range
 	for (let i = 0; i < g.rawData_.length; i++) {
 		const ts = g.rawData_[i][0];
 		const val = parseFloat(g.rawData_[i][1]);
@@ -172,7 +168,6 @@ function updateConsumptionFromGraphRange() {
 		}
 	}
 
-	// Find maxY at end of range
 	for (let i = g.rawData_.length - 1; i >= 0; i--) {
 		const ts = g.rawData_[i][0];
 		const val = parseFloat(g.rawData_[i][1]);
@@ -192,7 +187,6 @@ function updateConsumptionFromGraphRange() {
 		'<span class="default">' +
 		consumption.toFixed(0) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
 
-	// 👇 Filter payments table
 	filterPaymentsBySelectedGraphRange(g);
 }
 
@@ -205,10 +199,9 @@ function updateLastReadingStats() {
 
 function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
-		// Round kwh_remaining to the nearest integer
 		const kwhRemainingInt = Math.round(accountData.kwh_remaining);
 		document.getElementById("kwh_remaining").innerHTML =
-			parseFloat(kwhRemainingInt).toFixed(0) + " kWh remaining, " +
+			kwhRemainingInt + " kWh remaining, " +
 			accountData.time_remaining_hours_string + " at " +
 			parseFloat(accountData.avg_energy_last_day).toFixed(2) + " kW/h";
 	}
