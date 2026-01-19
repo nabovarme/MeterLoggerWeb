@@ -428,9 +428,8 @@ function fetchAndUpdateGraph() {
 			const now = Date.now();
 			const oneYearAgo = now - 365 * 24 * 3600 * 1000;
 
-
+			// Initial graph setup
 			if (!g) {
-				// Initial graph setup
 				g = new Dygraph(
 					document.getElementById("div_dygraph"),
 					coarseCsvMs,
@@ -475,6 +474,38 @@ function fetchAndUpdateGraph() {
 							strokeWidth: 2,
 							strokeBorderWidth: 1,
 						},
+						// --------------------------
+						// Custom legend formatter
+						// --------------------------
+						legendFormatter: function(data) {
+							if (!data.x) return '';
+
+							let html = 'Time: ' + formatDate(new Date(data.x)) + '<br>';
+
+							data.series.forEach(s => {
+								if (!s.isVisible) return;
+
+								let value = s.y;
+								let label = s.label;
+								let color = s.color; // label color only
+
+								// Special handling for kWh remaining
+								if (label === 'KwhRemaining') {
+									const energySeries = data.series.find(x => x.label === 'Energy');
+									if (energySeries && energySeries.y != null && value != null) {
+										value = value - energySeries.y; // subtract energy
+										label = 'kWh remaining';
+									}
+								}
+
+								// Bold only if the series is currently highlighted
+								const boldValue = s.isHighlighted ? 'font-weight:bold;' : '';
+								html += `<span style="color:${color}"><b>${label}</b></span>: <span style="${boldValue}">${value != null ? value.toFixed(0) + ' kWh' : 'N/A'}</span><br>`;
+							});
+
+							return html;
+						},
+						// --------------------------
 						zoomCallback: function(minX, maxX, yRanges) {
 							updateConsumptionFromGraphRange();
 							filterPaymentsBySelectedGraphRange(g);
