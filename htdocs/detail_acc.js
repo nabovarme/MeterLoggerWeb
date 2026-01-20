@@ -421,6 +421,8 @@ function fetchAndRenderAccountInfo(graph) {
 function fetchAndUpdateGraph() {
 	const currentRange = g ? g.xAxisRange() : null;
 
+	const container = document.getElementById("div_dygraph");
+
 	return fetch(dataUrlCoarse)
 		.then(r => r.text())
 		.then(coarseCsv => {
@@ -431,7 +433,7 @@ function fetchAndUpdateGraph() {
 			// Initial graph setup
 			if (!g) {
 				g = new Dygraph(
-					document.getElementById("div_dygraph"),
+					container,
 					coarseCsvMs,
 					{
 						colors: colorSets[0],
@@ -511,13 +513,17 @@ function fetchAndUpdateGraph() {
 							filterPaymentsBySelectedGraphRange(g);
 						},
 						drawCallback: (graph) => {
-							const range = graph.xAxisRange();
 							updateConsumptionFromGraphRange();
 							filterPaymentsBySelectedGraphRange(graph);
 							bindAnnotationEventsAndIds(graph);
 						}
 					}
 				);
+
+				// --------------------------
+				// Enable legend on touch
+				// --------------------------
+				enableTouchLegend(g, container);
 			} else {
 				// Update data and nudge window forward 1 minute
 				g.updateOptions({ file: coarseCsvMs });
@@ -555,6 +561,63 @@ function fetchAndUpdateGraph() {
 			const spinner = document.getElementById("graph_spinner");
 			if (spinner) spinner.style.display = "none";
 		});
+}
+
+// --------------------------
+// Enable legend on touch
+// --------------------------
+function enableTouchLegend(graph, container) {
+	if (!container || !graph) return;
+
+	let isTouchLegend = false;
+
+	container.addEventListener('touchstart', function(e) {
+		if (e.touches.length !== 1) return;
+		const touch = e.touches[0];
+		const rect = container.getBoundingClientRect();
+		const canvasX = touch.clientX - rect.left;
+
+		// Find closest row by x-value
+		let closestRow = 0;
+		let minDiff = Infinity;
+		for (let i = 0; i < graph.numRows(); i++) {
+			const rowX = graph.getValue(i, 0);
+			const diff = Math.abs(rowX - graph.toDataXCoord(canvasX));
+			if (diff < minDiff) {
+				minDiff = diff;
+				closestRow = i;
+			}
+		}
+
+		graph.setSelection(closestRow);
+		isTouchLegend = true;
+		e.preventDefault(); // prevent pan while dragging
+	}, { passive: false });
+
+	container.addEventListener('touchmove', function(e) {
+		if (!isTouchLegend || e.touches.length !== 1) return;
+		const touch = e.touches[0];
+		const rect = container.getBoundingClientRect();
+		const canvasX = touch.clientX - rect.left;
+
+		let closestRow = 0;
+		let minDiff = Infinity;
+		for (let i = 0; i < graph.numRows(); i++) {
+			const rowX = graph.getValue(i, 0);
+			const diff = Math.abs(rowX - graph.toDataXCoord(canvasX));
+			if (diff < minDiff) {
+				minDiff = diff;
+				closestRow = i;
+			}
+		}
+
+		graph.setSelection(closestRow);
+		e.preventDefault();
+	}, { passive: false });
+
+	container.addEventListener('touchend', function() {
+		isTouchLegend = false;
+	});
 }
 
 // INITIAL call
