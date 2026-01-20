@@ -496,7 +496,7 @@ function fetchAndUpdateGraph() {
 									const energySeries = data.series.find(x => x.label === 'Energy');
 									if (energySeries && energySeries.y != null && value != null) {
 										value = value - energySeries.y; // subtract energy
-										label = 'kWh remaining';
+										label = 'Remaining';
 									}
 								}
 
