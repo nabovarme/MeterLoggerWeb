@@ -1,134 +1,38 @@
-/*
- * Energy Detail Dashboard Script
- *
- * This script powers the interactive energy usage detail view. It performs the following functions:
- *
- * - Initializes a Dygraph instance using coarse data from the backend.
- * - Loads and merges higher-resolution (fine) CSV data into the graph.
- * - Fetches account data (e.g. last energy reading, volume, remaining kWh) from the API and updates the UI.
- * - Displays time-aligned annotations (e.g. payments, memberships) on the graph.
- * - Enables hover and click behavior on annotations to highlight and scroll to corresponding payment rows.
- * - Calculates and displays consumption statistics (total kWh and average kW/h) for the currently selected graph range.
- * - Dynamically renders a payment history table and filters it based on the visible time window in the graph.
- * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
+// -------------------------
+// Energy Detail Dashboard (ECharts Version)
+// -------------------------
 
-                   ┌────────────────────────────────────┐
-                   │ Start                              │
-                   │ fetchAndUpdateGraph()              │
-                   └────────────┬───────────────────────┘
-                                │
-                                ▼
-                ┌────────────────────────────────────┐
-                │ Fetch Coarse CSV                   │
-                │ fetch(dataUrlCoarse)               │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Convert CSV timestamps             │
-                │ convertCsvSecondsToMs()            │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Init or Update Dygraph             │
-                │ new Dygraph(...)                   │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Fetch Account Info                 │
-                │ fetch(accountUrl)                  │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Update UI Stats                            │
-                │ updateRemainingKwhInfo(),                  │
-                │ updateLastReadingStats()                   │
-                └────────────┬───────────────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Create & Set Graph Annotations             │
-                │ graph.setAnnotations(),                    │
-                │ snapToNearestTimestamp()                   │
-                └────────────┬───────────────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Bind Annotation Events                     │
-                │ bindAnnotationEventsAndIds(),              │
-                │ handleAnnotationClick(), etc.              │
-                └────────────┬───────────────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Fetch Fine CSV                     │
-                │ fetch(dataUrlFine)                 │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Merge Coarse + Fine CSV            │
-                │ mergeCsv()                         │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────┐
-                │ Update Dygraph with Merged Data    │
-                │ g.updateOptions()                  │
-                └────────────┬───────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Calculate Consumption for Range            │
-                │ updateConsumptionFromGraphRange()          │
-                └────────────┬───────────────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Filter Payment Table by Graph Range        │
-                │ filterPaymentsBySelectedGraphRange()       │
-                └────────────┬───────────────────────────────┘
-                             ▼
-                ┌────────────────────────────────────────────┐
-                │ Repeat Every 60 Seconds                    │
-                │ setInterval(fetchAndUpdateGraph, 60000)    │
-                └────────────────────────────────────────────┘
- */
-
-// Colors for graph
-var colorSets = [['#999999', '#2c7be5'], null];
+// Colors
+const colorSets = ['#999999', '#2c7be5'];
 
 // Graph instance
-var g;
+let chart;
 
-// Data and account API URLs
-var dataUrlCoarse = '/api/data_acc/' + meter_serial + '/coarse';
-var dataUrlFine = '/api/data_acc/' + meter_serial + '/fine';
-var accountUrl = '/api/account/' + meter_serial;
+// Data and API URLs
+const dataUrlCoarse = `/api/data_acc/${meter_serial}/coarse`;
+const dataUrlFine = `/api/data_acc/${meter_serial}/fine`;
+const accountUrl = `/api/account/${meter_serial}`;
 
-// Cache for full account data JSON
-var accountData = null;
+// Cached account data
+let accountData = null;
 
-/*----------------
- * Helper functions
- *---------------*/
+// ----------------------
+// Helper functions
+// ----------------------
 
-// Helper to convert CSV timestamps from seconds to milliseconds (Dygraph expects ms)
+// Convert CSV timestamps from seconds → milliseconds
 function convertCsvSecondsToMs(csv) {
 	const lines = csv.trim().split("\n");
 	const header = lines[0];
-	const convertedLines = lines.slice(1).map(line => {
+	const converted = lines.slice(1).map(line => {
 		const parts = line.split(",");
 		parts[0] = (parseInt(parts[0], 10) * 1000).toString();
 		return parts.join(",");
 	});
-	return [header, ...convertedLines].join("\n");
+	return [header, ...converted].join("\n");
 }
 
-// Formats timestamps for display in labels
-function formatDate(d) {
-	const pad = (n) => (n < 10 ? '0' + n : n);
-	const now = new Date();
-	if (d.getTime() < now.getTime() - (1000 * 86400)) {
-		return `Time: ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-	} else {
-		return `Time: ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-	}
-}
-
-// Merges two CSV strings by timestamp, keeping unique and sorted entries
+// Merge two CSV strings by timestamp
 function mergeCsv(csv1, csv2) {
 	const lines1 = csv1.trim().split("\n");
 	const lines2 = csv2.trim().split("\n");
@@ -138,56 +42,56 @@ function mergeCsv(csv1, csv2) {
 
 	const uniqueRows = new Map();
 	for (const line of allLines) {
-		const timestamp = line.split(",")[0];
-		uniqueRows.set(timestamp, line);
+		const ts = line.split(",")[0];
+		uniqueRows.set(ts, line);
 	}
 
-	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) => {
-		return parseInt(a.split(",")[0], 10) - parseInt(b.split(",")[0], 10);
-	});
+	const sortedRows = Array.from(uniqueRows.values()).sort((a, b) =>
+		parseInt(a.split(",")[0], 10) - parseInt(b.split(",")[0], 10)
+	);
 
 	return [header].concat(sortedRows).join("\n");
 }
 
-/*----------------------
- * UI update functions
- *---------------------*/
+// Parse CSV → array of {time, energy, remaining}
+function parseCsv(csv) {
+	const lines = csv.trim().split("\n");
+	const header = lines[0].split(",");
+	const data = lines.slice(1).map(line => {
+		const parts = line.split(",");
+		return {
+			time: parseInt(parts[0], 10),
+			energy: parseFloat(parts[1]),
+			remaining: parts[2] !== '' ? parseFloat(parts[2]) : null
+		};
+	});
+	return data;
+}
 
-function updateConsumptionFromGraphRange() {
-	if (!g || !g.rawData_) return;
+// Format time nicely
+function formatDate(ms) {
+	const d = new Date(ms);
+	return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
 
-	const range = g.xAxisRange();
-	let minY = null, maxY = null;
+// ----------------------
+// UI update functions
+// ----------------------
+function updateConsumptionFromRange(start, end, data) {
+	const inRange = data.filter(d => d.time >= start && d.time <= end);
+	if (!inRange.length) return;
 
-	for (let i = 0; i < g.rawData_.length; i++) {
-		const ts = g.rawData_[i][0];
-		const val = parseFloat(g.rawData_[i][1]);
-		if (ts >= range[0]) {
-			minY = val;
-			break;
-		}
-	}
+	const minY = inRange[0].energy;
+	const maxY = inRange[inRange.length-1].energy;
 
-	for (let i = g.rawData_.length - 1; i >= 0; i--) {
-		const ts = g.rawData_[i][0];
-		const val = parseFloat(g.rawData_[i][1]);
-		if (ts <= range[1]) {
-			maxY = val;
-			break;
-		}
-	}
-
-	if (minY == null || maxY == null) return;
-
-	const consumption = (maxY - minY);
-	const avg = consumption / ((range[1] - range[0]) / (1000 * 3600));
+	const consumption = maxY - minY;
+	const avg = consumption / ((end - start) / (1000*3600));
 
 	document.getElementById('consumption_in_range').innerHTML =
-		'<span class="default-bold">Consumption for selected period </span>' +
-		'<span class="default">' +
-		consumption.toFixed(0) + ' kWh, at ' + avg.toFixed(2) + ' kW/h</span>';
+		`<span class="default-bold">Consumption for selected period </span>` +
+		`<span class="default">${consumption.toFixed(0)} kWh, at ${avg.toFixed(2)} kW/h</span>`;
 
-	filterPaymentsBySelectedGraphRange(g);
+	filterPaymentsBySelectedGraphRange(start, end);
 }
 
 function updateLastReadingStats() {
@@ -201,13 +105,10 @@ function updateRemainingKwhInfo() {
 	if (accountData && accountData.kwh_remaining != null) {
 		const kwhRemainingInt = Math.round(accountData.kwh_remaining);
 		document.getElementById("kwh_remaining").innerHTML =
-			kwhRemainingInt + " kWh remaining, " +
-			accountData.time_remaining_hours_string + " at " +
-			parseFloat(accountData.avg_energy_last_day).toFixed(2) + " kW/h";
+			`${kwhRemainingInt} kWh remaining, ${accountData.time_remaining_hours_string} at ${parseFloat(accountData.avg_energy_last_day).toFixed(2)} kW/h`;
 	}
 }
 
-// Renders the payment rows in the table
 function renderPaymentRowsFromAccountData(payments) {
 	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
@@ -219,12 +120,7 @@ function renderPaymentRowsFromAccountData(payments) {
 
 	const header = document.createElement('div');
 	header.className = 'payment-row payment-header';
-	header.innerHTML = `
-		<div>Date</div>
-		<div>Info</div>
-		<div>Amount</div>
-		<div>Price</div>
-	`;
+	header.innerHTML = `<div>Date</div><div>Info</div><div>Amount</div><div>Price</div>`;
 	container.appendChild(header);
 
 	payments.forEach(d => {
@@ -234,394 +130,131 @@ function renderPaymentRowsFromAccountData(payments) {
 		row.setAttribute('data-payment-time', d.payment_time);
 
 		const kWh = (d.type === 'payment' && d.price) ? Math.round(d.amount / d.price) + ' kWh' : '';
-		const amountStr = (parseFloat(d.amount || 0).toFixed(2)) + ' kr';
-		const priceStr = (d.type === 'payment' && d.price) 
-			? (parseFloat(d.price || 0).toFixed(2)) + ' kr/kWh' 
-			: '';
-		// Format Unix timestamp as "D.M.YYYY HH:MM" in 24-hour
-		const dateObj = new Date(d.payment_time * 1000); 
-	    const dateStr = `${dateObj.getDate()}.${dateObj.getMonth() + 1}.${dateObj.getFullYear()} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
+		const amountStr = parseFloat(d.amount || 0).toFixed(2) + ' kr';
+		const priceStr = (d.type === 'payment' && d.price) ? parseFloat(d.price || 0).toFixed(2) + ' kr/kWh' : '';
 
-		row.innerHTML = `
-			<div>${dateStr}</div>
-			<div>${kWh} ${d.info || ''}</div>
-			<div>${amountStr}</div>
-			<div>${priceStr}</div>
-		`;
+		const dateObj = new Date(d.payment_time*1000);
+		const dateStr = `${dateObj.getDate()}.${dateObj.getMonth()+1}.${dateObj.getFullYear()} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}`;
 
+		row.innerHTML = `<div>${dateStr}</div><div>${kWh} ${d.info || ''}</div><div>${amountStr}</div><div>${priceStr}</div>`;
 		container.appendChild(row);
 	});
 }
 
-/*-----------------------
- * Annotation functions
- *----------------------*/
-
-function handleAnnotationHoverIn(e) {
-	const el = e.currentTarget;
-	const annotationId = el.dataset.annotationId;
-	if (!annotationId) return;
-	const row = document.getElementById(annotationId);
-	if (row) row.classList.add('highlight');
-	const title = el.getAttribute('title') || '';
-	const lines = title.split('\n');
-	if (lines.length > 1) {
-		el.setAttribute('data-original-title', title);
-		el.setAttribute('title', lines.slice(1).join('\n'));
-	}
-}
-
-function handleAnnotationHoverOut(e) {
-	const el = e.currentTarget;
-	const annotationId = el.dataset.annotationId;
-	if (!annotationId) return;
-	const row = document.getElementById(annotationId);
-	if (row) row.classList.remove('highlight');
-	const original = el.getAttribute('data-original-title');
-	if (original) {
-		el.setAttribute('title', original);
-		el.removeAttribute('data-original-title');
-	}
-}
-
-function handleAnnotationClick(e) {
-	const el = e.currentTarget;
-	const annotationId = el.dataset.annotationId;
-	if (!annotationId) return;
-	const row = document.getElementById(annotationId);
-	if (row) {
-		row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		row.classList.add('highlight-clicked');
-		setTimeout(() => row.classList.remove('highlight-clicked'), 2000);
-	}
-}
-
-function initAnnotationHoverListeners() {
-	const annotations = document.querySelectorAll('.dygraph-annotation');
-	annotations.forEach(el => {
-		el.removeEventListener('mouseenter', handleAnnotationHoverIn);
-		el.removeEventListener('mouseleave', handleAnnotationHoverOut);
-		el.removeEventListener('click', handleAnnotationClick);
-		el.addEventListener('mouseenter', handleAnnotationHoverIn);
-		el.addEventListener('mouseleave', handleAnnotationHoverOut);
-		el.addEventListener('click', handleAnnotationClick);
-	});
-}
-
-// Binds DOM elements to corresponding payment rows via annotation IDs
-function bindAnnotationEventsAndIds(graph) {
-	setTimeout(() => {
-		if (!graph || !graph.annotations_) return;
-		const annotations = document.querySelectorAll('.dygraph-annotation');
-		annotations.forEach(el => {
-			const title = el.getAttribute('title');
-			const lines = title.split("\n");
-			const idLine = lines[0];
-			if (!idLine.startsWith("#")) return;
-			const rawId = idLine.substring(1);
-			const annotationId = `payment-${rawId}`;
-			el.dataset.annotationId = annotationId;
-		});
-		initAnnotationHoverListeners();
-	}, 0);
-}
-
-function filterPaymentsBySelectedGraphRange(graph) {
-	const [start, end] = graph.xAxisRange();
+function filterPaymentsBySelectedGraphRange(start, end) {
 	const rows = document.querySelectorAll('#payments_table .payment-row:not(.payment-header):not(.empty)');
 	rows.forEach(row => {
-		const ts = parseInt(row.getAttribute('data-payment-time')) * 1000;
+		const ts = parseInt(row.getAttribute('data-payment-time'))*1000;
 		row.style.display = (ts >= start && ts <= end) ? '' : 'none';
 	});
 }
 
-/*------------------------
- * Data fetching and main flow
- *-----------------------*/
+// ----------------------
+// Fetch & render account info
+// ----------------------
+async function fetchAndRenderAccountInfo(data) {
+	try {
+		const res = await fetch(accountUrl);
+		const acct = await res.json();
+		accountData = acct;
 
-// Fetches account data, updates UI, sets graph annotations and renders payment table
-function fetchAndRenderAccountInfo(graph) {
-	return fetch(accountUrl)
-		.then(r => r.json())
-		.then(data => {
-			accountData = data;
-			updateRemainingKwhInfo();
-			updateLastReadingStats();
+		updateRemainingKwhInfo();
+		updateLastReadingStats();
 
-			if (graph && graph.rawData_ && graph.rawData_.length > 0) {
-				const labels = graph.getLabels();
-				const seriesName = labels[1];
-				const dataTimestamps = graph.rawData_.map(row => row[0]);
-
-				// Snaps timestamp to closest timestamp in graph data for annotation positioning
-				function snapToNearestTimestamp(target, timestamps) {
-					let closest = timestamps[0];
-					let minDiff = Math.abs(target - closest);
-					for (let ts of timestamps) {
-						let diff = Math.abs(target - ts);
-						if (diff < minDiff) {
-							closest = ts;
-							minDiff = diff;
-						}
-					}
-					return closest;
-				}
-
-				const markerAnnotations = data.account.map(entry => {
-					let xVal = entry.payment_time * 1000;
-					xVal = snapToNearestTimestamp(xVal, dataTimestamps);
-
-					const typeMap = {
-						payment: 'P',
-						membership: 'M',
-						charge: 'C',
-					};
-					const shortText = typeMap[entry.type] || '|';
-
-					return {
-						x: xVal,
-						shortText: shortText,
-						text: `#${entry.id}\n${entry.info}\n${entry.amount} kr`,
-						series: seriesName,
-						cssClass: 'custom-marker',
-						annotationId: `payment-${entry.id}`
-					};
-				}).filter(a => a !== null);
-
-				graph.setAnnotations(markerAnnotations);
-				bindAnnotationEventsAndIds(graph);
-				renderPaymentRowsFromAccountData(data.account);
-				filterPaymentsBySelectedGraphRange(graph);
-			}
-
-			renderPaymentRowsFromAccountData(data.account);
-
-			if (graph) {
-				setTimeout(() => {
-					filterPaymentsBySelectedGraphRange(graph); // ensure filter happens after table DOM exists
-				}, 0);
-			}
-
-			return data;
-		})
-		.catch(err => {
-			console.warn('Failed to refresh account data and UI:', err);
-			if (graph) graph.setAnnotations([]);
-			
-			const errorEl = document.getElementById("error_message");
-			if (errorEl) {
-				errorEl.innerText = "⚠️ Unable to fetch latest account data.";
-				errorEl.style.display = "block";
-			}
-		});
+		renderPaymentRowsFromAccountData(acct.account);
+		return acct;
+	} catch (err) {
+		console.warn('Failed to fetch account data', err);
+	}
 }
 
-// --- MAIN FETCH AND UPDATE FUNCTION ---
-
-function fetchAndUpdateGraph() {
-	const currentRange = g ? g.xAxisRange() : null;
-
+// ----------------------
+// Main fetch & update function
+// ----------------------
+async function fetchAndUpdateGraph() {
 	const container = document.getElementById("div_dygraph");
+	const spinner = document.getElementById("graph_spinner");
+	if (spinner) spinner.style.display = "block";
 
-	return fetch(dataUrlCoarse)
-		.then(r => r.text())
-		.then(coarseCsv => {
-			const coarseCsvMs = convertCsvSecondsToMs(coarseCsv);
-			const now = Date.now();
-			const oneYearAgo = now - 365 * 24 * 3600 * 1000;
+	try {
+		// --- Coarse CSV ---
+		let coarseCsv = await (await fetch(dataUrlCoarse)).text();
+		coarseCsv = convertCsvSecondsToMs(coarseCsv);
 
-			// Initial graph setup
-			if (!g) {
-				g = new Dygraph(
-					container,
-					coarseCsvMs,
-					{
-						colors: colorSets[0],
-						strokeWidth: 1.5,
-						animatedZooms: false,
-						showLabelsOnHighlight: true,
-						labelsDivStyles: {
-							'font-family': 'Verdana, Geneva, sans-serif',
-							'text-align': 'left',
-							'background': 'none'
-						},
-						labelsSeparateLines: true,
-						labelsDivWidth: 700,
-						showRangeSelector: true,
-						xAxisHeight: 40,
-						dateWindow: [oneYearAgo, now],
-						interactionModel: Dygraph.defaultInteractionModel,
-						axes: {
-							x: {
-								valueFormatter: function(x) {
-									return formatDate(new Date(x));
-								},
-								axisLabelFormatter: function(x) {
-									const d = new Date(x);
-									return d.toLocaleString('da-DA', {
-										day: '2-digit',
-										month: '2-digit',
-										year: 'numeric',
-										hour: '2-digit',
-										minute: '2-digit'
-									}).replace('T', ' ');
-								},
-								pixelsPerLabel: 80
-							}
-						},
-						maxNumberWidth: 12,
-						highlightSeriesOpts: {
-							pointSize: 6,
-							highlightCircleSize: 6,
-							strokeWidth: 2,
-							strokeBorderWidth: 1,
-						},
-						// --------------------------
-						// Custom legend formatter
-						// --------------------------
-						legendFormatter: function(data) {
-							if (!data.x) return '';
+		// --- Parse Coarse ---
+		let data = parseCsv(coarseCsv);
 
-							let html = 'Time: ' + formatDate(new Date(data.x)) + '<br>';
+		// --- Fetch & render account ---
+		await fetchAndRenderAccountInfo(data);
 
-							data.series.forEach(s => {
-								if (!s.isVisible) return;
+		// --- Fine CSV ---
+		let fineCsv = await (await fetch(dataUrlFine)).text();
+		fineCsv = convertCsvSecondsToMs(fineCsv);
 
-								let value = s.y;
-								let label = s.label;
-								let color = s.color; // label color only
+		// --- Merge CSVs ---
+		const mergedCsv = mergeCsv(coarseCsv, fineCsv);
+		data = parseCsv(mergedCsv);
 
-								// Special handling for kWh remaining
-								if (label === 'KwhRemaining') {
-									const energySeries = data.series.find(x => x.label === 'Energy');
-									if (energySeries && energySeries.y != null && value != null) {
-										value = value - energySeries.y; // subtract energy
-										label = 'Remaining';
-									}
-								}
-
-								// Bold only if the series is currently highlighted
-								const boldValue = s.isHighlighted ? 'font-weight:bold;' : '';
-								html += `<span style="color:${color}"><b>${label}</b></span>: <span style="${boldValue}">${value != null ? value.toFixed(0) + ' kWh' : 'N/A'}</span><br>`;
-							});
-
-							return html;
-						},
-						// --------------------------
-						zoomCallback: function(minX, maxX, yRanges) {
-							updateConsumptionFromGraphRange();
-							filterPaymentsBySelectedGraphRange(g);
-						},
-						drawCallback: (graph) => {
-							updateConsumptionFromGraphRange();
-							filterPaymentsBySelectedGraphRange(graph);
-							bindAnnotationEventsAndIds(graph);
-						}
-					}
-				);
-
-				// --------------------------
-				// Enable legend on touch
-				// --------------------------
-				enableTouchLegend(g, container);
-			} else {
-				// Update data and nudge window forward 1 minute
-				g.updateOptions({ file: coarseCsvMs });
-				if (currentRange) {
-					g.updateOptions({
-						dateWindow: [currentRange[0] + 60000, currentRange[1] + 60000]
-					});
+		// --- Build ECharts option ---
+		const option = {
+			tooltip: {
+				trigger: 'axis',
+				formatter: params => {
+					const p = params[0];
+					const date = formatDate(p.data[0]);
+					const energy = p.data[1];
+					const remaining = p.data[2] != null ? p.data[2] : 'N/A';
+					return `Time: ${date}<br>Energy: ${energy} kWh<br>Remaining: ${remaining} kWh`;
 				}
-			}
+			},
+			legend: { data: ['Energy', 'Remaining'] },
+			xAxis: { type: 'time' },
+			yAxis: { type: 'value', name: 'kWh' },
+			dataZoom: [
+				{ type: 'slider', xAxisIndex: 0 },
+				{ type: 'inside', xAxisIndex: 0 }
+			],
+			series: [
+				{
+					name: 'Energy',
+					type: 'line',
+					showSymbol: false,
+					data: data.map(d => [d.time, d.energy, d.remaining])
+				},
+				{
+					name: 'Remaining',
+					type: 'line',
+					step: 'start',
+					showSymbol: false,
+					data: data.map(d => [d.time, d.remaining])
+				}
+			]
+		};
 
-			updateConsumptionFromGraphRange();
+		// --- Init or update chart ---
+		if (!chart) {
+			chart = echarts.init(container);
+			chart.setOption(option);
 
-			return fetchAndRenderAccountInfo(g);
-		})
-		.then(() => {
-			// ✅ Hide spinner after graph + annotations + table are ready
-			const spinner = document.getElementById("graph_spinner");
-			if (spinner) spinner.style.display = "none";
-			
-			// ✅ Start fine data fetch here
-			return fetch(dataUrlFine);
-		})
-		.then(r => r.text())
-		.then(fineCsv => {
-			const fineCsvMs = convertCsvSecondsToMs(fineCsv);
-			const mergedCsv = mergeCsv(g.file_, fineCsvMs);
-			g.updateOptions({ file: mergedCsv });
-			updateConsumptionFromGraphRange();
-		})
-		.catch(error => {
-			console.error("Error during graph update:", error);
-		})
-		.finally(() => {
-			// ✅ Always hide spinner no matter what
-			const spinner = document.getElementById("graph_spinner");
-			if (spinner) spinner.style.display = "none";
-		});
-}
-
-// --------------------------
-// Enable legend on touch
-// --------------------------
-function enableTouchLegend(graph, container) {
-	if (!container || !graph) return;
-
-	let isTouchLegend = false;
-
-	container.addEventListener('touchstart', function(e) {
-		if (e.touches.length !== 1) return;
-		const touch = e.touches[0];
-		const rect = container.getBoundingClientRect();
-		const canvasX = touch.clientX - rect.left;
-
-		// Find closest row by x-value
-		let closestRow = 0;
-		let minDiff = Infinity;
-		for (let i = 0; i < graph.numRows(); i++) {
-			const rowX = graph.getValue(i, 0);
-			const diff = Math.abs(rowX - graph.toDataXCoord(canvasX));
-			if (diff < minDiff) {
-				minDiff = diff;
-				closestRow = i;
-			}
+			// Zoom/brush listener to update consumption and table
+			chart.on('dataZoom', params => {
+				const axis = chart.getModel().getComponent('xAxis', 0);
+				const start = axis.scale.getExtent()[0];
+				const end = axis.scale.getExtent()[1];
+				updateConsumptionFromRange(start, end, data);
+			});
+		} else {
+			chart.setOption(option, { notMerge: true });
 		}
 
-		graph.setSelection(closestRow);
-		isTouchLegend = true;
-		e.preventDefault(); // prevent pan while dragging
-	}, { passive: false });
-
-	container.addEventListener('touchmove', function(e) {
-		if (!isTouchLegend || e.touches.length !== 1) return;
-		const touch = e.touches[0];
-		const rect = container.getBoundingClientRect();
-		const canvasX = touch.clientX - rect.left;
-
-		let closestRow = 0;
-		let minDiff = Infinity;
-		for (let i = 0; i < graph.numRows(); i++) {
-			const rowX = graph.getValue(i, 0);
-			const diff = Math.abs(rowX - graph.toDataXCoord(canvasX));
-			if (diff < minDiff) {
-				minDiff = diff;
-				closestRow = i;
-			}
-		}
-
-		graph.setSelection(closestRow);
-		e.preventDefault();
-	}, { passive: false });
-
-	container.addEventListener('touchend', function() {
-		isTouchLegend = false;
-	});
+	} catch (err) {
+		console.error('Error updating graph', err);
+	} finally {
+		if (spinner) spinner.style.display = "none";
+	}
 }
 
-// INITIAL call
+// Initial load
 fetchAndUpdateGraph();
-
-// PERIODIC updates every 60 seconds
+// Refresh every 60s
 setInterval(fetchAndUpdateGraph, 60000);
