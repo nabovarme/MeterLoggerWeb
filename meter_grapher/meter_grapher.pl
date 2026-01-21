@@ -7,6 +7,7 @@ use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
 use Config::Simple;
+use Encode qw(decode FB_CROAK FB_DEFAULT);
 
 use Nabovarme::Db;
 use Nabovarme::Crypto;
@@ -476,8 +477,8 @@ sub v2_mqtt_scan_result_handler {
 	if (defined $message) {	
 		# parse message
 		$message =~ s/&$//;
-	
-		my ($key, $value, $unit);
+
+		my ($key, $value);
 		my @key_value_list = split(/&/, $message);
 		my $key_value; 
 		foreach $key_value (@key_value_list) {
@@ -485,9 +486,15 @@ sub v2_mqtt_scan_result_handler {
 				$mqtt_data->{$key} = $value;
 			}
 		}		
+
+		# store raw SSID for Wi-Fi connection
+		my $ssid_raw = $mqtt_data->{ssid};
+		my $ssid = decode_ssid($ssid_raw);
+
 		# save to db
 		my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (
 			`serial`,
+			`ssid_raw`,
 			`ssid`,
 			`bssid`,
 			`rssi`,
@@ -501,18 +508,19 @@ sub v2_mqtt_scan_result_handler {
 			`wps`,
 			`unix_time`
 			) VALUES (] . 
-			$dbh->quote($meter_serial) . ',' . 
-			$dbh->quote($mqtt_data->{ssid}) . ',' . 
-			$dbh->quote($mqtt_data->{bssid}) . ',' . 
-			$dbh->quote($mqtt_data->{rssi}) . ',' . 
-			$dbh->quote($mqtt_data->{channel}) . ',' . 
-			$dbh->quote($mqtt_data->{auth_mode}) . ',' . 
-			$dbh->quote($mqtt_data->{pairwise_cipher}) . ',' . 
-			$dbh->quote($mqtt_data->{group_cipher}) . ',' . 
-			$dbh->quote($mqtt_data->{phy_11b}) . ',' . 
-			$dbh->quote($mqtt_data->{phy_11g}) . ',' . 
-			$dbh->quote($mqtt_data->{phy_11n}) . ',' . 
-			$dbh->quote($mqtt_data->{wps}) . ',' . 
+			$dbh->quote($meter_serial) . ',' .
+			$dbh->quote($ssid_raw) . ',' .
+			$dbh->quote($ssid) . ',' .
+			$dbh->quote($mqtt_data->{bssid}) . ',' .
+			$dbh->quote($mqtt_data->{rssi}) . ',' .
+			$dbh->quote($mqtt_data->{channel}) . ',' .
+			$dbh->quote($mqtt_data->{auth_mode}) . ',' .
+			$dbh->quote($mqtt_data->{pairwise_cipher}) . ',' .
+			$dbh->quote($mqtt_data->{group_cipher}) . ',' .
+			$dbh->quote($mqtt_data->{phy_11b}) . ',' .
+			$dbh->quote($mqtt_data->{phy_11g}) . ',' .
+			$dbh->quote($mqtt_data->{phy_11n}) . ',' .
+			$dbh->quote($mqtt_data->{wps}) . ',' .
 			'UNIX_TIMESTAMP()' . qq[)]);
 		$sth->execute;
 		if ($sth->err) {
@@ -717,6 +725,29 @@ sub mqtt_network_quality_handler {
 		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
+}
+
+sub decode_ssid {
+	my ($raw) = @_;
+
+	return undef unless defined $raw;
+
+	my $ssid;
+
+	# 1) Try strict UTF-8
+	eval {
+		$ssid = decode('UTF-8', $raw, FB_CROAK);
+	};
+
+	# 2) Fallback to Latin-1 (never fails)
+	if ($@) {
+		$ssid = decode('ISO-8859-1', $raw, FB_DEFAULT);
+	}
+
+	# 3) Remove control characters
+	$ssid =~ s/[\x00-\x1F\x7F]//g;
+
+	return $ssid;
 }
 
 __END__
