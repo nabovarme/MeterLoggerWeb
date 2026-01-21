@@ -524,6 +524,7 @@ CREATE TABLE `wifi_scan` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) DEFAULT NULL,
   `ssid` varchar(64) DEFAULT NULL,
+  `ssid_raw` varbinary(64) DEFAULT NULL,
   `bssid` varchar(64) DEFAULT NULL,
   `rssi` int(11) DEFAULT NULL,
   `channel` int(11) DEFAULT NULL,
