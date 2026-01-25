@@ -83,11 +83,11 @@ sub cleanup_and_exit {
 		eval {
 			my $logout_json = qq({"logout":"$current_qsess"});
 			my $logout = $current_ua->post(
-				"http://$router/login.cgi",
+				"https://$router/login.cgi",
 				Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 				Content      => $logout_json,
-				Referer      => "http://$router/controlPanel.html",
-				Origin       => "http://$router"
+				Referer      => "https://$router/controlPanel.html",
+				Origin       => "https://$router"
 			);
 			log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line,
 				{-no_script_name => 1, -custom_tag => 'EXIT' });
@@ -114,6 +114,10 @@ sub make_ua {
 		agent      => "Mozilla/5.0",
 		cookie_jar => $cookie_jar,
 		timeout    => 30,
+		ssl_opts => {
+			verify_hostname => 0,
+			SSL_verify_mode => 0x00,
+		}
 	);
 
 	$ua->default_header("Accept"            => "application/json, text/javascript, */*; q=0.01");
@@ -195,7 +199,7 @@ sub send_sms {
 
 	# 2: Initialize session
 	log_info("Initializing session with router $router", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	my $init = $ua->get("http://$router/index.html");
+	my $init = $ua->get("https://$router/index.html");
 	unless ($init->is_success) {
 		log_warn("HTTP GET failed: " . $init->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		{
@@ -210,11 +214,11 @@ sub send_sms {
 	log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $md5pass = md5_hex($password);
 	my $login = $ua->post(
-		"http://$router/login.cgi",
+		"https://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 		Content      => "uname=$username&passwd=$md5pass",
-		Referer      => "http://$router/index.html",
-		Origin       => "http://$router"
+		Referer      => "https://$router/index.html",
+		Origin       => "https://$router"
 	);
 	unless ($login->is_success) {
 		log_warn("Login failed: " . $login->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
@@ -253,7 +257,7 @@ sub send_sms {
 
 	# 5: Retrieve authorization ID (authID)
 	log_info("Fetching authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	my $auth_resp = $ua->get("http://$router/data.ria?token=1", Referer => "http://$router/controlPanel.html");
+	my $auth_resp = $ua->get("https://$router/data.ria?token=1", Referer => "https://$router/controlPanel.html");
 	unless ($auth_resp->is_success) {
 		log_warn("Failed to get authID", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		{
@@ -293,11 +297,11 @@ sub send_sms {
 	my $json = encode_json($payload);
 
 	my $sms = $ua->post(
-		"http://$router/webpost.cgi",
+		"https://$router/webpost.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 		Content      => $json,
-		Referer      => "http://$router/controlPanel.html",
-		Origin       => "http://$router"
+		Referer      => "https://$router/controlPanel.html",
+		Origin       => "https://$router"
 	);
 
 	unless ($sms->is_success) {
@@ -316,11 +320,11 @@ sub send_sms {
 	log_info("Logging out session $qsess", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $logout_json = qq({"logout":"$qsess"});
 	my $logout = $ua->post(
-		"http://$router/login.cgi",
+		"https://$router/login.cgi",
 		Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 		Content      => $logout_json,
-		Referer      => "http://$router/controlPanel.html",
-		Origin       => "http://$router"
+		Referer      => "https://$router/controlPanel.html",
+		Origin       => "https://$router"
 	);
 	log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
@@ -375,7 +379,7 @@ sub read_sms {
 	eval {
 		# Initialize session
 		log_info("Initializing session with router $router", {-no_script_name => 1, -custom_tag => 'SMS IN' });
-		my $init = $ua->get("http://$router/index.html");
+		my $init = $ua->get("https://$router/index.html");
 		unless ($init->is_success) {
 			log_warn("Failed to init session: " . $init->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
 			die "Session init failed";
@@ -386,11 +390,11 @@ sub read_sms {
 		log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $md5pass = md5_hex($password);
 		my $login = $ua->post(
-			"http://$router/login.cgi",
+			"https://$router/login.cgi",
 			Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 			Content      => "uname=$username&passwd=$md5pass",
-			Referer      => "http://$router/index.html",
-			Origin       => "http://$router"
+			Referer      => "https://$router/index.html",
+			Origin       => "https://$router"
 		);
 		unless ($login->is_success) {
 			log_warn("Login failed: " . $login->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
@@ -418,11 +422,11 @@ sub read_sms {
 		# 3: Get SMS from inbox
 		log_info("Fetching inbox messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $timestamp = int(time() * 1000);
-		my $url = "http://$router/data.ria?CfgType=sms_action&cont=inbox&index=0&_=$timestamp";
+		my $url = "https://$router/data.ria?CfgType=sms_action&cont=inbox&index=0&_=$timestamp";
 
 		my $resp = $ua->get(
 			$url,
-			Referer            => "http://$router/controlPanel.html",
+			Referer            => "https://$router/controlPanel.html",
 			'X-Requested-With' => 'XMLHttpRequest'
 		);
 		unless ($resp->is_success) {
@@ -461,8 +465,8 @@ sub read_sms {
 
 			# 5a: Fetch new authID
 			my $auth_resp = $ua->get(
-				"http://$router/data.ria?token=1",
-				Referer => "http://$router/controlPanel.html"
+				"https://$router/data.ria?token=1",
+				Referer => "https://$router/controlPanel.html"
 			);
 			unless ($auth_resp->is_success) {
 				log_warn("Failed to get authID for tag=$tag", {-no_script_name => 1, -custom_tag => 'SMS IN' });
@@ -483,11 +487,11 @@ sub read_sms {
 			# 5c: Delete message
 			my $del_payload = qq({"CfgType":"sms_action","type":"inbox","cmd":"del","tag":"$tag","authID":"$authID"});
 			my $del = $ua->post(
-				"http://$router/webpost.cgi",
+				"https://$router/webpost.cgi",
 				Content_Type      => "application/x-www-form-urlencoded; charset=UTF-8",
 				Content           => $del_payload,
-				Referer           => "http://$router/controlPanel.html",
-				Origin            => "http://$router",
+				Referer           => "https://$router/controlPanel.html",
+				Origin            => "https://$router",
 				'X-Requested-With'=> 'XMLHttpRequest'
 			);
 			unless ($del->is_success) {
@@ -512,11 +516,11 @@ sub read_sms {
 		log_info("Logging out session $qsess", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $logout_json = qq({"logout":"$qsess"});
 		my $logout = $ua->post(
-			"http://$router/login.cgi",
+			"https://$router/login.cgi",
 			Content_Type => "application/x-www-form-urlencoded; charset=UTF-8",
 			Content      => $logout_json,
-			Referer      => "http://$router/controlPanel.html",
-			Origin       => "http://$router"
+			Referer      => "https://$router/controlPanel.html",
+			Origin       => "https://$router"
 		);
 		log_info($logout->is_success ? "Logout successful" : "Logout failed: " . $logout->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
