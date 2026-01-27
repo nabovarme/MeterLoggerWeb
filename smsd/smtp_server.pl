@@ -207,12 +207,14 @@ sub send_sms {
 	log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	my $payload = {
-		number  => $phone =~ /^\+/ ? $phone : '+' . $phone,
-		message => $message,
+		data => {
+			number => ($phone =~ /^\+/ ? $phone : '+' . $phone),
+			message => $message,
+		}
 	};
 
 	my $sms_resp = $ua->post(
-		"https://$router/api/sms/send",
+		"https://$router/api/messages/actions/send",
 		Content_Type => "application/json",
 		Authorization => "Bearer $session_id",
 		Content      => encode_json($payload)
@@ -293,7 +295,7 @@ sub read_sms {
 		# --- Fetch inbox ---
 		log_info("Fetching inbox messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $resp = $ua->get(
-			"https://$router/api/sms/inbox",
+			"https://$router/api/messages/status",
 			Authorization => "Bearer $session_id"
 		);
 		unless ($resp->is_success) {
@@ -301,7 +303,7 @@ sub read_sms {
 			die "SMS read failed";
 		}
 
-		my $sms_list = decode_json($resp->decoded_content);
+		my $sms_list = decode_json($resp->decoded_content)->{data} || [];
 		log_info("Received " . scalar(@$sms_list) . " messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 		my $incoming_dir = "/var/spool/sms/incoming";
@@ -319,11 +321,12 @@ sub read_sms {
 			log_info("\tMessage: $message", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 			# --- Delete message ---
+			my $del_payload = { data => { ids => [$id] } };
 			my $del_resp = $ua->post(
-				"https://$router/api/sms/delete",
+				"https://$router/api/messages/actions/remove_messages",
 				Content_Type => "application/json",
 				Authorization => "Bearer $session_id",
-				Content      => encode_json({ id => $id })
+				Content      => encode_json($del_payload)
 			);
 			unless ($del_resp->is_success) {
 				log_warn("DELETE FAILED for SMS ID=$id, status=" . $del_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
