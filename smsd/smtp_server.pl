@@ -193,13 +193,14 @@ sub send_sms {
 		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
+	# --- Extract token ---
 	my $login_data = decode_json($login_resp->decoded_content);
-	my $session_id = $login_data->{session_id} or log_die("No session_id returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	my $token = $login_data->{data}->{token} or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 	# Track global session for signal handling
 	{
 		lock($current_qsess);
-		$current_qsess = $session_id;
+		$current_qsess = $token;
 	}
 	$current_ua = $ua;
 
@@ -216,7 +217,7 @@ sub send_sms {
 	my $sms_resp = $ua->post(
 		"https://$router/api/messages/actions/send",
 		Content_Type => "application/json",
-		Authorization => "Bearer $session_id",
+		Authorization => "Bearer $token",
 		Content      => encode_json($payload)
 	);
 
@@ -233,10 +234,10 @@ sub send_sms {
 	log_sms_to_db($dbh, 'sent', $phone, $message);
 
 	# --- Logout ---
-	log_info("Logging out session $session_id", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $logout_resp = $ua->post(
 		"https://$router/logout",
-		Authorization => "Bearer $session_id"
+		Authorization => "Bearer $token"
 	);
 	log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
@@ -282,13 +283,14 @@ sub read_sms {
 			die "Login failed";
 		}
 
+		# --- Extract token ---
 		my $login_data = decode_json($login_resp->decoded_content);
-		my $session_id = $login_data->{session_id} or die "No session_id returned";
+		my $token = $login_data->{data}->{token} or die "No token returned";
 
 		# Track global session
 		{
 			lock($current_qsess);
-			$current_qsess = $session_id;
+			$current_qsess = $token;
 		}
 		$current_ua = $ua;
 
@@ -296,7 +298,7 @@ sub read_sms {
 		log_info("Fetching inbox messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $resp = $ua->get(
 			"https://$router/api/messages/status",
-			Authorization => "Bearer $session_id"
+			Authorization => "Bearer $token"
 		);
 		unless ($resp->is_success) {
 			log_warn("SMS read request failed: " . $resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
