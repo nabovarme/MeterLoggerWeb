@@ -179,9 +179,9 @@ sub send_sms {
 	# --- Login to RUT901 ---
 	log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $login_resp = $ua->post(
-		"https://$router/login",
+		"https://$router/api/login",
 		Content_Type => "application/json",
-		Content      => encode_json({ username => $username, password => $password })
+		Content      => encode_json({ data => { username => $username, password => $password } })
 	);
 
 	unless ($login_resp->is_success) {
@@ -272,9 +272,9 @@ sub read_sms {
 		# --- Login ---
 		log_info("Logging in for SMS read", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $login_resp = $ua->post(
-			"https://$router/login",
+			"https://$router/api/login",
 			Content_Type => "application/json",
-			Content      => encode_json({ username => $username, password => $password })
+			Content      => encode_json({ data => { username => $username, password => $password } })
 		);
 
 		unless ($login_resp->is_success) {
