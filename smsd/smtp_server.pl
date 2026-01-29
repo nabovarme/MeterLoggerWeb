@@ -96,6 +96,7 @@ sub cleanup_and_exit {
 	{
 		lock($sms_busy);
 		$sms_busy = 0;
+		cond_broadcast($sms_busy);
 	}
 
 	exit 0;
@@ -152,6 +153,7 @@ sub send_sms {
 		{
 			lock($sms_busy);
 			$sms_busy = 0;
+			cond_broadcast($sms_busy);
 		}
 		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
@@ -169,6 +171,7 @@ sub send_sms {
 		{
 			lock($sms_busy);
 			$sms_busy = 0;
+			cond_broadcast($sms_busy);
 		}
 		sleep 20;
 		return 1;
@@ -191,6 +194,7 @@ sub send_sms {
 		{
 			lock($sms_busy);
 			$sms_busy = 0;
+			cond_broadcast($sms_busy);
 		}
 		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 	}
@@ -277,6 +281,7 @@ sub send_sms {
 	{
 		lock($sms_busy);
 		$sms_busy = 0;
+		cond_broadcast($sms_busy);
 	}
 
 	return $success;
@@ -289,7 +294,9 @@ sub read_sms {
 	# Lock other SMS actions
 	{
 		lock($sms_busy);
-		return if $sms_busy;
+		while ($sms_busy) {
+			cond_wait($sms_busy);  # wait until unlocked
+		}
 		$sms_busy = 1;
 	}
 
@@ -428,6 +435,7 @@ sub read_sms {
 	{
 		lock($sms_busy);
 		$sms_busy = 0;
+		cond_broadcast($sms_busy);
 	}
 }
 
