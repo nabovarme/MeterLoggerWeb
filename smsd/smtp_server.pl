@@ -180,83 +180,82 @@ sub send_sms {
 	my $ua = make_ua();
 
 	# --- Login to RUT901 ---
-	log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	my $login_resp = $ua->post(
-		"https://$router/api/login",
-		Content_Type => "application/json",
-		Content      => encode_json({ username => $username, password => $password })
-	);
-
-	unless ($login_resp->is_success) {
-		my $resp_content = $login_resp->decoded_content // '';
-		log_warn("❌ Login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
-			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
-		{
-			lock($sms_busy);
-			$sms_busy = 0;
-			cond_broadcast($sms_busy);
-		}
-		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
-	}
-
-	# --- Extract token ---
-	my $login_data = decode_json($login_resp->decoded_content);
-	my $token = $login_data->{data}->{token} or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-
-	# Track global session for signal handling
-	{
-		lock($current_qsess);
-		$current_qsess = $token;
-	}
-	$current_ua = $ua;
-
-	# --- Prepare SMS payload ---
-	my $payload = {
-		data => {
-			number  => ($phone =~ /^\+/ ? $phone : '+' . $phone),
-			message => $message,
-			modem   => "1-1"
-		}
-	};
-
-	# --- Send SMS ---
-	log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	my $sms_resp = $ua->post(
-		"https://$router/api/messages/actions/send",
-		Content_Type  => "application/json",
-		Authorization => "Bearer $token",
-		Content       => encode_json($payload)
-	);
-
 	my $success = 0;
+	eval {
+		log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		my $login_resp = $ua->post(
+			"https://$router/api/login",
+			Content_Type => "application/json",
+			Content      => encode_json({ username => $username, password => $password })
+		);
 
-	# --- Check response ---
-	if ($sms_resp->is_success) {
-
-		my $resp_json = decode_json($sms_resp->decoded_content);
-
-		if ($resp_json->{success}) {
-			# --- Log success to DB ---
-			log_sms_to_db($dbh, 'sent', $phone, $message);
-			log_info("✔ SMS to $phone sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
-			$success = 1;
-		} else {
-			# --- API-level failure ---
-			my $error_msg = $resp_json->{errors}[0]{error} // 'Unknown error';
-			log_warn("❌ SMS to $phone failed: $error_msg", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		unless ($login_resp->is_success) {
+			my $resp_content = $login_resp->decoded_content // '';
+			log_warn("❌ Login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+			{
+				lock($sms_busy);
+				$sms_busy = 0;
+				cond_broadcast($sms_busy);
+			}
+			log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 
-	} else {
-		# --- HTTP-level failure ---
-		my $http_error = $sms_resp->status_line;
-		my $resp_content = $sms_resp->decoded_content // '';
-		log_warn("❌ HTTP request failed for SMS to $phone: $http_error | Content: $resp_content",
-			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
-	}
+		# --- Extract token ---
+		my $login_data = decode_json($login_resp->decoded_content);
+		my $token = $login_data->{data}->{token} or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
-	# --- Logout ---
-	log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	eval {
+		# Track global session for signal handling
+		{
+			lock($current_qsess);
+			$current_qsess = $token;
+		}
+		$current_ua = $ua;
+
+		# --- Prepare SMS payload ---
+		my $payload = {
+			data => {
+				number  => ($phone =~ /^\+/ ? $phone : '+' . $phone),
+				message => $message,
+				modem   => "1-1"
+			}
+		};
+
+		# --- Send SMS ---
+		log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		my $sms_resp = $ua->post(
+			"https://$router/api/messages/actions/send",
+			Content_Type  => "application/json",
+			Authorization => "Bearer $token",
+			Content       => encode_json($payload)
+		);
+
+		# --- Check response ---
+		if ($sms_resp->is_success) {
+
+			my $resp_json = decode_json($sms_resp->decoded_content);
+
+			if ($resp_json->{success}) {
+				# --- Log success to DB ---
+				log_sms_to_db($dbh, 'sent', $phone, $message);
+				log_info("✔ SMS to $phone sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+				$success = 1;
+			} else {
+				# --- API-level failure ---
+				my $error_msg = $resp_json->{errors}[0]{error} // 'Unknown error';
+				log_warn("❌ SMS to $phone failed: $error_msg", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+			}
+
+		} else {
+			# --- HTTP-level failure ---
+			my $http_error = $sms_resp->status_line;
+			my $resp_content = $sms_resp->decoded_content // '';
+			log_warn("❌ HTTP request failed for SMS to $phone: $http_error | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		}
+
+		# --- Logout ---
+		log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		my $logout_resp = $ua->post(
 			"https://$router/logout",
 			Authorization => "Bearer $token"
@@ -269,6 +268,10 @@ sub send_sms {
 			log_info("Logout successful", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 	};
+	if ($@) {
+		log_warn("Error in send_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	}
+	
 
 	# Clear global session after proper logout
 	{
