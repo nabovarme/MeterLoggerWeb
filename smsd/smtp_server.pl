@@ -578,7 +578,6 @@ while (my $client = $socket->accept()) {
 
 		my $dest = $session->{_sms_to};
 
-		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 		my $ok = send_sms($dest, $message);
 
 		if ($ok) {
