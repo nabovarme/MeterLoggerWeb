@@ -181,7 +181,7 @@ sub send_sms {
 	my $login_resp = $ua->post(
 		"https://$router/api/login",
 		Content_Type => "application/json",
-		Content      => encode_json({ data => { username => $username, password => $password } })
+		Content      => encode_json({ username => $username, password => $password })
 	);
 
 	unless ($login_resp->is_success) {
@@ -211,6 +211,7 @@ sub send_sms {
 		data => {
 			number => ($phone =~ /^\+/ ? $phone : '+' . $phone),
 			message => $message,
+			modem   => "1-1"
 		}
 	};
 
@@ -220,6 +221,7 @@ sub send_sms {
 		Authorization => "Bearer $token",
 		Content      => encode_json($payload)
 	);
+	print Dumper $sms_resp;
 
 	unless ($sms_resp->is_success) {
 		log_warn("SMS send failed: " . $sms_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
@@ -275,7 +277,7 @@ sub read_sms {
 		my $login_resp = $ua->post(
 			"https://$router/api/login",
 			Content_Type => "application/json",
-			Content      => encode_json({ data => { username => $username, password => $password } })
+			Content      => encode_json({ username => $username, password => $password })
 		);
 
 		unless ($login_resp->is_success) {
@@ -327,7 +329,7 @@ sub read_sms {
 			my $del_resp = $ua->post(
 				"https://$router/api/messages/actions/remove_messages",
 				Content_Type => "application/json",
-				Authorization => "Bearer $session_id",
+				Authorization => "Bearer $token",
 				Content      => encode_json($del_payload)
 			);
 			unless ($del_resp->is_success) {
@@ -349,10 +351,10 @@ sub read_sms {
 		}
 
 		# --- Logout ---
-		log_info("Logging out session $session_id", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+		log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 		my $logout_resp = $ua->post(
 			"https://$router/logout",
-			Authorization => "Bearer $session_id"
+			Authorization => "Bearer $token"
 		);
 		log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
