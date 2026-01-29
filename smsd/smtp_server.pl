@@ -329,7 +329,6 @@ sub read_sms {
 				log_warn("Login API error: $err", {-no_script_name => 1, -custom_tag => 'SMS IN'});
 				die "Login API failed: $err";
 			}
-
 		} else {
 			my $resp_content = $login_resp->decoded_content // '';
 			log_warn("❌ SMS read login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
@@ -365,36 +364,46 @@ sub read_sms {
 		my $sms_list = $sms_list_json->{data} || [];
 		log_info("Received " . scalar(@$sms_list) . " messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
-		my $incoming_dir = "/var/spool/sms/incoming";
-		make_path($incoming_dir) unless -d $incoming_dir;
-
 		for my $msg (@$sms_list) {
-			my $phone   = $msg->{number}  || '';
-			my $date    = $msg->{date}    || '';
-			my $id      = $msg->{id}      || '';
-			my $message = $msg->{message} || '';
+			my $phone    = $msg->{sender}   || '';
+			my $date     = $msg->{date}     || '';
+			my $id       = $msg->{id};
+			my $modem_id = $msg->{modem_id};
+			my $message  = $msg->{message}  || '';
 
 			log_info("Processing message ID=$id", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 			log_info("\tFrom: $phone", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 			log_info("\tDate: $date", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 			log_info("\tMessage: $message", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
+			unless (defined $id && defined $modem_id) {
+				log_warn("Skipping delete: missing sms_id or modem_id (id=$id, modem_id=$modem_id)",
+					{-no_script_name => 1, -custom_tag => 'SMS IN'});
+				next;
+			}
+
 			# --- Delete message ---
-			my $del_payload = { data => { ids => [$id] } };
+			my $del_payload = {
+				data => {
+					modem_id => $modem_id,
+					sms_id   => [ "$id" ],
+				}
+			};
+
 			my $del_resp = $ua->post(
 				"https://$router/api/messages/actions/remove_messages",
-				Content_Type => "application/json",
+				Content_Type  => "application/json",
 				Authorization => "Bearer $token",
-				Content      => encode_json($del_payload)
+				Content       => encode_json($del_payload)
 			);
 
 			if ($del_resp->is_success) {
-				log_info("Deleted message ID=$id successfully", 
-					{-no_script_name => 1, -custom_tag => 'SMS IN' });
+				log_info("Deleted message ID=$id successfully",
+					{-no_script_name => 1, -custom_tag => 'SMS IN'});
 			} else {
 				my $resp_content = $del_resp->decoded_content // '';
-				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: " 
-				         . $del_resp->status_line 
+				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: "
+				         . $del_resp->status_line
 				         . " | Content: $resp_content",
 				         {-no_script_name => 1, -custom_tag => 'SMS IN'});
 				next;
@@ -418,6 +427,7 @@ sub read_sms {
 			"https://$router/logout",
 			Authorization => "Bearer $token"
 		);
+
 		unless ($logout_resp->is_success) {
 			my $resp_content = $logout_resp->decoded_content // '';
 			log_warn("Logout failed: " . $logout_resp->status_line . " | Content: $resp_content",
