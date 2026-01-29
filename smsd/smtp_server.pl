@@ -185,12 +185,14 @@ sub send_sms {
 	);
 
 	unless ($login_resp->is_success) {
-		log_warn("Login failed: " . $login_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		my $resp_content = $login_resp->decoded_content // '';
+		log_warn("❌ Login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
+			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		{
 			lock($sms_busy);
 			$sms_busy = 0;
 		}
-		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 	}
 
 	# --- Extract token ---
@@ -243,7 +245,9 @@ sub send_sms {
 	} else {
 		# --- HTTP-level failure ---
 		my $http_error = $sms_resp->status_line;
-		log_warn("❌ HTTP request failed for SMS to $phone: $http_error", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		my $resp_content = $sms_resp->decoded_content // '';
+		log_warn("❌ HTTP request failed for SMS to $phone: $http_error | Content: $resp_content",
+			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
 	}
 
 	# --- Logout ---
@@ -253,8 +257,13 @@ sub send_sms {
 			"https://$router/logout",
 			Authorization => "Bearer $token"
 		);
-		log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line,
-			{-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		unless ($logout_resp->is_success) {
+			my $resp_content = $logout_resp->decoded_content // '';
+			log_warn("Logout failed: " . $logout_resp->status_line . " | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		} else {
+			log_info("Logout successful", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		}
 	};
 
 	# Clear global session after proper logout
@@ -307,9 +316,10 @@ sub read_sms {
 			}
 
 		} else {
-			my $err = "Login HTTP failed: " . $login_resp->status_line;
-			log_warn($err, {-no_script_name => 1, -custom_tag => 'SMS IN'});
-			die $err;
+			my $resp_content = $login_resp->decoded_content // '';
+			log_warn("❌ SMS read login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS IN'});
+			die "SMS read login HTTP failed: " . $login_resp->status_line;
 		}
 
 		# --- Extract token ---
@@ -330,9 +340,10 @@ sub read_sms {
 		);
 
 		unless ($resp->is_success) {
-			my $err = "SMS read HTTP failed: " . $resp->status_line;
-			log_warn($err, {-no_script_name => 1, -custom_tag => 'SMS IN'});
-			die $err;
+			my $resp_content = $resp->decoded_content // '';
+			log_warn("❌ SMS read HTTP failed: " . $resp->status_line . " | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS IN'});
+			die "SMS read HTTP failed: " . $resp->status_line;
 		}
 
 		my $sms_list_json = decode_json($resp->decoded_content);
@@ -363,10 +374,14 @@ sub read_sms {
 			);
 
 			if ($del_resp->is_success) {
-				log_info("Deleted message ID=$id successfully", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+				log_info("Deleted message ID=$id successfully", 
+					{-no_script_name => 1, -custom_tag => 'SMS IN' });
 			} else {
-				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: " . $del_resp->status_line,
-					{-no_script_name => 1, -custom_tag => 'SMS IN'});
+				my $resp_content = $del_resp->decoded_content // '';
+				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: " 
+				         . $del_resp->status_line 
+				         . " | Content: $resp_content",
+				         {-no_script_name => 1, -custom_tag => 'SMS IN'});
 				next;
 			}
 
@@ -388,7 +403,13 @@ sub read_sms {
 			"https://$router/logout",
 			Authorization => "Bearer $token"
 		);
-		log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+		unless ($logout_resp->is_success) {
+			my $resp_content = $logout_resp->decoded_content // '';
+			log_warn("Logout failed: " . $logout_resp->status_line . " | Content: $resp_content",
+				{-no_script_name => 1, -custom_tag => 'SMS IN'});
+		} else {
+			log_info("Logout successful", {-no_script_name => 1, -custom_tag => 'SMS IN'});
+		}
 
 		# Clear global session after proper logout
 		{
@@ -558,7 +579,7 @@ while (my $client = $socket->accept()) {
 		my $dest = $session->{_sms_to};
 
 		log_info("Sending SMS to $dest ...", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-		my $ok = eval { send_sms($dest, $message) };
+		my $ok = send_sms($dest, $message);
 
 		if ($ok) {
 			log_info("✔ SMS to $dest sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
