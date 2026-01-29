@@ -144,7 +144,7 @@ sub send_sms {
 	# Lock other SMS actions
 	{
 		lock($sms_busy);
-		return if $sms_busy;
+		return 0 if $sms_busy;
 		$sms_busy = 1;
 	}
 
@@ -204,44 +204,58 @@ sub send_sms {
 	}
 	$current_ua = $ua;
 
-	# --- Send SMS ---
-	log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-
+	# --- Prepare SMS payload ---
 	my $payload = {
 		data => {
-			number => ($phone =~ /^\+/ ? $phone : '+' . $phone),
+			number  => ($phone =~ /^\+/ ? $phone : '+' . $phone),
 			message => $message,
 			modem   => "1-1"
 		}
 	};
 
+	# --- Send SMS ---
+	log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	my $sms_resp = $ua->post(
 		"https://$router/api/messages/actions/send",
-		Content_Type => "application/json",
+		Content_Type  => "application/json",
 		Authorization => "Bearer $token",
-		Content      => encode_json($payload)
+		Content       => encode_json($payload)
 	);
-	print Dumper $sms_resp;
 
-	unless ($sms_resp->is_success) {
-		log_warn("SMS send failed: " . $sms_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-		log_warn("Response content: " . $sms_resp->decoded_content, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-		{
-			lock($sms_busy);
-			$sms_busy = 0;
+	my $success = 0;
+
+	# --- Check response ---
+	if ($sms_resp->is_success) {
+
+		my $resp_json = decode_json($sms_resp->decoded_content);
+
+		if ($resp_json->{success}) {
+			# --- Log success to DB ---
+			log_sms_to_db($dbh, 'sent', $phone, $message);
+			log_info("✔ SMS to $phone sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+			$success = 1;
+		} else {
+			# --- API-level failure ---
+			my $error_msg = $resp_json->{errors}[0]{error} // 'Unknown error';
+			log_warn("❌ SMS to $phone failed: $error_msg", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
-		log_die("SMS HTTP failed", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	}
 
-	log_sms_to_db($dbh, 'sent', $phone, $message);
+	} else {
+		# --- HTTP-level failure ---
+		my $http_error = $sms_resp->status_line;
+		log_warn("❌ HTTP request failed for SMS to $phone: $http_error", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+	}
 
 	# --- Logout ---
 	log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
-	my $logout_resp = $ua->post(
-		"https://$router/logout",
-		Authorization => "Bearer $token"
-	);
-	log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	eval {
+		my $logout_resp = $ua->post(
+			"https://$router/logout",
+			Authorization => "Bearer $token"
+		);
+		log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line,
+			{-no_script_name => 1, -custom_tag => 'SMS OUT' });
+	};
 
 	# Clear global session after proper logout
 	{
@@ -250,12 +264,13 @@ sub send_sms {
 	}
 	$current_ua = undef;
 
+	# Unlock SMS
 	{
 		lock($sms_busy);
 		$sms_busy = 0;
 	}
 
-	return 1;
+	return $success;
 }
 
 # --- Read SMS periodically ---
@@ -280,14 +295,25 @@ sub read_sms {
 			Content      => encode_json({ username => $username, password => $password })
 		);
 
-		unless ($login_resp->is_success) {
-			log_warn("Login failed: " . $login_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
-			die "Login failed";
+		my $login_data;
+		if ($login_resp->is_success) {
+			$login_data = decode_json($login_resp->decoded_content);
+
+			# --- Check API-level login success ---
+			unless ($login_data->{success}) {
+				my $err = $login_data->{errors}[0]{error} // 'Unknown login error';
+				log_warn("Login API error: $err", {-no_script_name => 1, -custom_tag => 'SMS IN'});
+				die "Login API failed: $err";
+			}
+
+		} else {
+			my $err = "Login HTTP failed: " . $login_resp->status_line;
+			log_warn($err, {-no_script_name => 1, -custom_tag => 'SMS IN'});
+			die $err;
 		}
 
 		# --- Extract token ---
-		my $login_data = decode_json($login_resp->decoded_content);
-		my $token = $login_data->{data}->{token} or die "No token returned";
+		my $token = $login_data->{data}->{token} or die "No token returned from login";
 
 		# Track global session
 		{
@@ -302,12 +328,15 @@ sub read_sms {
 			"https://$router/api/messages/status",
 			Authorization => "Bearer $token"
 		);
+
 		unless ($resp->is_success) {
-			log_warn("SMS read request failed: " . $resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
-			die "SMS read failed";
+			my $err = "SMS read HTTP failed: " . $resp->status_line;
+			log_warn($err, {-no_script_name => 1, -custom_tag => 'SMS IN'});
+			die $err;
 		}
 
-		my $sms_list = decode_json($resp->decoded_content)->{data} || [];
+		my $sms_list_json = decode_json($resp->decoded_content);
+		my $sms_list = $sms_list_json->{data} || [];
 		log_info("Received " . scalar(@$sms_list) . " messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 		my $incoming_dir = "/var/spool/sms/incoming";
@@ -332,13 +361,16 @@ sub read_sms {
 				Authorization => "Bearer $token",
 				Content      => encode_json($del_payload)
 			);
-			unless ($del_resp->is_success) {
-				log_warn("DELETE FAILED for SMS ID=$id, status=" . $del_resp->status_line, {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
+			if ($del_resp->is_success) {
+				log_info("Deleted message ID=$id successfully", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+			} else {
+				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: " . $del_resp->status_line,
+					{-no_script_name => 1, -custom_tag => 'SMS IN'});
 				next;
 			}
-			log_info("Deleted message ID=$id successfully", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 
-			# Log to DB
+			# --- Log received message to DB ---
 			log_sms_to_db(
 				$dbh_thread,
 				'received',
@@ -367,6 +399,7 @@ sub read_sms {
 
 		return $sms_list;
 	};
+
 	if ($@) {
 		log_warn("Error in read_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 	}
