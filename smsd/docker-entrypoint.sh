@@ -1,16 +1,13 @@
 #!/bin/bash
 set -e
 
-# Start Perl server in foreground
-/smtp_server.pl &
-perl_pid=$!
-
-# Trap signals and forward to Perl
+# Forward signals to the Perl process
 _term() {
   echo "Caught SIGTERM, forwarding to Perl..."
   kill -TERM "$perl_pid" 2>/dev/null
 }
+
 trap _term SIGTERM SIGINT
 
-# Wait for Perl to exit
-wait "$perl_pid"
+# Run Perl server in the foreground
+exec perl /smtp_server.pl

@@ -31,7 +31,12 @@ use Nabovarme::Utils;
 use constant USER  => 'smsd';
 use constant GROUP => 'smsd';
 
-$| = 1;  # Autoflush STDOUT
+$| = 1;  # autoflush STDOUT
+
+# Also flush STDERR
+select STDERR;
+$| = 1;
+select STDOUT;
 
 $Data::Dumper::Useqq = 0;
 $Data::Dumper::Terse = 1;
