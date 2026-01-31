@@ -1,2 +1,0 @@
-[mysqld]
-innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE}
