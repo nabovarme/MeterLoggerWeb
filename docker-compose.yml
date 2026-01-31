@@ -10,18 +10,33 @@ services:
       - ./perl_modules/debs:/debs
     command: /build/build-all.sh
 
+  db-config:
+    image: busybox
+    container_name: db-config
+    command: >
+      sh -c "
+        mkdir -p /out &&
+        echo '[mysqld]' > /out/99-custom.cnf &&
+        echo 'innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE:-1G}' >> /out/99-custom.cnf
+      "
+    volumes:
+      - ./db/conf.d:/out
+    environment:
+      INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
+
   db:
     image: mariadb:10.5
     container_name: db
+    depends_on:
+      - db-config
     ports:
       - "127.0.0.1:3306:3306"
     volumes:
       - ./db/db_data:/var/lib/mysql:delegated
-      - ./db/my.cnf.template:/etc/mysql/my.cnf.template:ro
-      - ./db/docker-entrypoint-initdb.d/:/docker-entrypoint-initdb.d/:ro
+      - ./db/conf.d:/etc/mysql/conf.d:ro
     restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
     environment:
@@ -29,8 +44,7 @@ services:
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
-      INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
-      TZ: 'Europe/Copenhagen'
+      TZ: Europe/Copenhagen
 
   mqtt:
     image: eclipse-mosquitto:latest
