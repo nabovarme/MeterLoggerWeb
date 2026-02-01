@@ -4,17 +4,19 @@ use warnings;
 
 use HTTP::Daemon;
 use HTTP::Status;
+use HTTP::Response;
+use HTTP::Headers;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
 my $PORT = $ENV{'EXPORTER_PORT'} || 9100;
 
-log_info("starting sms prometheus exporter");
+log_info("starting SMS Prometheus exporter");
 
-# --- DB ---
+# --- DB connection ---
 my $dbh = Nabovarme::Db->my_connect
-  or log_die("can't connect to db");
+	or log_die("can't connect to db");
 
 $dbh->{'mysql_auto_reconnect'} = 1;
 log_info("connected to db");
@@ -22,7 +24,7 @@ log_info("connected to db");
 sub get_sms_totals {
 	my %totals = (
 		sent     => 0,
-		received => 0
+		received => 0,
 	);
 
 	my $sth = $dbh->prepare(q{
@@ -30,20 +32,18 @@ sub get_sms_totals {
 		FROM sms_messages
 		GROUP BY direction
 	});
-
 	$sth->execute();
 	while (my ($direction, $count) = $sth->fetchrow_array) {
 		$totals{$direction} = $count;
 	}
-
 	return \%totals;
 }
 
 # --- HTTP server ---
 my $d = HTTP::Daemon->new(
 	LocalPort => $PORT,
-	Reuse	 => 1,
-) or log_die("cannot start http server");
+	Reuse     => 1,
+) or log_die("cannot start HTTP server");
 
 log_info("listening on " . $d->url . "metrics");
 
@@ -64,13 +64,18 @@ sms_messages_sent_total $totals->{sent}
 sms_messages_received_total $totals->{received}
 EOF
 
-			$c->send_response(
-				HTTP::Response->new(RC_OK, "OK", undef, $metrics)
+			my $headers = HTTP::Headers->new(
+				'Content-Type' => 'text/plain; version=0.0.4; charset=utf-8'
 			);
-		}
-		else {
+
+			$c->send_response(
+				HTTP::Response->new(RC_OK, "OK", $headers, $metrics)
+			);
+
+		} else {
 			$c->send_error(RC_NOT_FOUND);
 		}
+
 	}
 	$c->close;
 }
