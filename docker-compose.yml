@@ -280,6 +280,25 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
 
+  prometheus_exporter:
+    build:
+      context: '.'
+      dockerfile: ./prometheus_exporter/Dockerfile
+    container_name: prometheus_exporter
+    depends_on:
+      - db
+    ports:
+      - "0.0.0.0:9100:9100"
+    volumes:
+      - ./Nabovarme.conf:/etc/Nabovarme.conf
+    environment:
+      METERLOGGER_DB_HOST: db
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      TZ: Europe/Copenhagen
+      EXPORTER_PORT: 9100
+    restart: always
+
 volumes:
   postfix_spool:
   postfix_mail:
