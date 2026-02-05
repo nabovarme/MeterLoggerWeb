@@ -288,7 +288,7 @@ services:
     depends_on:
       - db
     ports:
-      - "0.0.0.0:9100:9100"
+      - "0.0.0.0:9101:9101"
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     environment:
@@ -296,7 +296,7 @@ services:
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: Europe/Copenhagen
-      EXPORTER_PORT: 9100
+      EXPORTER_PORT: 9101
     restart: always
 
 volumes:

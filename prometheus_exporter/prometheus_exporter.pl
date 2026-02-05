@@ -10,7 +10,7 @@ use HTTP::Headers;
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
-my $PORT = $ENV{'EXPORTER_PORT'} || 9100;
+my $PORT = $ENV{'EXPORTER_PORT'} || 9101;
 
 log_info("starting SMS Prometheus exporter");
 

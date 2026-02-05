@@ -47,9 +47,9 @@ COPY ./prometheus_exporter/prometheus_exporter.pl /usr/local/bin/prometheus_expo
 RUN chmod +x /usr/local/bin/prometheus_exporter.pl
 
 ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
-ENV EXPORTER_PORT=9100
+ENV EXPORTER_PORT=9101
 
-EXPOSE 9100
+EXPOSE 9101
 
 USER exporter
 
