@@ -279,6 +279,7 @@ services:
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
+    restart: always
 
   prometheus_exporter:
     build:
