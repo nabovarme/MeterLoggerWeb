@@ -34,6 +34,7 @@ services:
     volumes:
       - ./db/db_data:/var/lib/mysql:delegated
       - ./db/conf.d:/etc/mysql/conf.d:ro
+      - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
