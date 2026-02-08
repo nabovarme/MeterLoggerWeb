@@ -83,7 +83,7 @@ services:
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/ || exit 1"]
+      test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
       interval: 15s
       timeout: 5s
       retries: 5
