@@ -44,7 +44,8 @@ RUN apt-get update && apt-get install -y \
 	texlive-latex-extra \
 	texlive-fonts-extra \
 	qrencode \
-	imagemagick
+	imagemagick \
+	curl
 
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs
