@@ -59,12 +59,19 @@ services:
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 1883"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
     build: '.'
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: web
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -75,6 +82,11 @@ services:
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: 'Europe/Copenhagen'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   certbot:
     container_name: certbot
@@ -92,9 +104,12 @@ services:
       context: '.'
       dockerfile: ./meter_grapher/Dockerfile
     depends_on:
-      - db
-      - redis
-      - mqtt
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: meter_grapher
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -110,8 +125,10 @@ services:
         context: '.'
         dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: mysql_mqtt_command_queue_receive
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -128,8 +145,10 @@ services:
         context: '.'
         dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: mysql_mqtt_command_queue_send
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -187,8 +206,10 @@ services:
       context: '.'
       dockerfile: ./meter_sms/Dockerfile
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: meter_sms
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -210,8 +231,10 @@ services:
       context: '.'
       dockerfile: ./meter_cron/Dockerfile
     depends_on:
-      - db
-      - mqtt
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
     container_name: meter_cron
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -229,6 +252,11 @@ services:
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postfix:
     build:
@@ -254,7 +282,8 @@ services:
         dockerfile: ./openresty/Dockerfile
     container_name: openresty
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
@@ -287,7 +316,8 @@ services:
       dockerfile: ./prometheus_exporter/Dockerfile
     container_name: prometheus_exporter
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "${PROM_EXPORTER_PORT:-9101}:9101"
     volumes:
@@ -299,6 +329,11 @@ services:
       TZ: Europe/Copenhagen
       EXPORTER_PORT: 9101
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9101/metrics || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postfix_spool:
