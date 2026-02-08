@@ -30,7 +30,7 @@ services:
     depends_on:
       - db-config
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
     volumes:
       - ./db/db_data:/var/lib/mysql:delegated
       - ./db/conf.d:/etc/mysql/conf.d:ro
@@ -51,9 +51,7 @@ services:
     image: eclipse-mosquitto:latest
     container_name: mqtt
     ports:
-      - "1883:1883"
-    depends_on:
-      - meter_grapher
+      - "${MQTT_PORT:-1883}:1883"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
       - ./mosquitto_data:/mosquitto/data
@@ -96,6 +94,7 @@ services:
     depends_on:
       - db
       - redis
+      - mqtt
     container_name: meter_grapher
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
@@ -237,7 +236,7 @@ services:
       dockerfile: Dockerfile
     container_name: postfix
     ports:
-      - "0.0.0.0:25:25"
+      - "${POSTFIX_PORT:-25}:25"
     volumes:
       - ./postfix/postfix_custom_config:/docker-init.db/   # keep your custom config
       - postfix_spool:/var/spool/postfix                  # Docker volume for spool
@@ -257,8 +256,8 @@ services:
     depends_on:
       - web
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./certbot/etc:/etc/letsencrypt
       - ./certbot/var:/var/www/certbot
@@ -290,7 +289,7 @@ services:
     depends_on:
       - db
     ports:
-      - "0.0.0.0:9101:9101"
+      - "${PROM_EXPORTER_PORT:-9101}:9101"
     volumes:
       - ./Nabovarme.conf:/etc/Nabovarme.conf
     environment:
