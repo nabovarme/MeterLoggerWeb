@@ -164,6 +164,9 @@ services:
     build:
         context: '.'
         dockerfile: ./smsd/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
     container_name: smsd
     privileged: true
     restart: always
