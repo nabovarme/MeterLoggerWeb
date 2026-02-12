@@ -23,45 +23,34 @@ my $queue_name = 'mqtt';
 
 warn("starting...\n");
 
-my $protocol_version;
-my $unix_time;
-my $meter_serial;
-my $sw_version;
-my $valve_status;
-my $uptime;
-my $ssid;
-my $rssi;
-my $wifi_status;
-my $ap_status;
-my $reset_reason;
-
 my $mqtt = Net::MQTT::Simple->new($config->param('mqtt_host'));
 
 my $mqtt_data = undef;
 
 # start mqtt run loop
-$mqtt->run(	q[/sample/v2/#] => \&v2_mqtt_handler,
-	q[/version/v2/#] => \&v2_mqtt_handler,
-	q[/status/v2/#] => \&v2_mqtt_handler,
-	q[/uptime/v2/#] => \&v2_mqtt_handler,
-	q[/ssid/v2/#] => \&v2_mqtt_handler,
-	q[/rssi/v2/#] => \&v2_mqtt_handler,
-	q[/wifi_status/v2/#] => \&v2_mqtt_handler,
-	q[/ap_status/v2/#] => \&v2_mqtt_handler,
-	q[/reset_reason/v2/#] => \&v2_mqtt_handler,
-	q[/scan_result/v2/#] => \&v2_mqtt_handler,
-	q[/offline/v1/#] => \&v2_mqtt_handler,
-	q[/flash_id/v2/#] => \&v2_mqtt_handler,
-	q[/flash_size/v2/#] => \&v2_mqtt_handler,
-	q[/flash_error/v2/#] => \&v2_mqtt_handler,
-	q[/reset_reason/v2/#] => \&v2_mqtt_handler,
-	q[/network_quality/v2/#] => \&v2_mqtt_handler
+$mqtt->run(	q[/sample/v2/#] => \&mqtt_handler,
+	q[/version/v2/#] => \&mqtt_handler,
+	q[/status/v2/#] => \&mqtt_handler,
+	q[/uptime/v2/#] => \&mqtt_handler,
+	q[/ssid/v2/#] => \&mqtt_handler,
+	q[/rssi/v2/#] => \&mqtt_handler,
+	q[/wifi_status/v2/#] => \&mqtt_handler,
+	q[/ap_status/v2/#] => \&mqtt_handler,
+	q[/reset_reason/v2/#] => \&mqtt_handler,
+	q[/scan_result/v2/#] => \&mqtt_handler,
+	q[/offline/v1/#] => \&mqtt_handler,
+	q[/chip_id/v2/#] => \&mqtt_handler,
+	q[/flash_id/v2/#] => \&mqtt_handler,
+	q[/flash_size/v2/#] => \&mqtt_handler,
+	q[/flash_error/v2/#] => \&mqtt_handler,
+	q[/reset_reason/v2/#] => \&mqtt_handler,
+	q[/network_quality/v2/#] => \&mqtt_handler
 );
 
 # end of main
 
 
-sub v2_mqtt_handler {
+sub mqtt_handler {
 	my ($topic, $message) = @_;
 
 	# Create the next id
