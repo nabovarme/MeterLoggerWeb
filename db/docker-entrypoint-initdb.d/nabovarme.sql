@@ -301,6 +301,7 @@ CREATE TABLE `meters` (
   `ap_status` varchar(32) DEFAULT NULL,
   `location_lat` decimal(12,8) DEFAULT NULL,
   `location_long` decimal(12,8) DEFAULT NULL,
+  `chip_id` varchar(32) DEFAULT NULL,
   `flash_id` varchar(32) DEFAULT NULL,
   `flash_size` varchar(32) DEFAULT NULL,
   `ping_response_time` varchar(32) DEFAULT NULL,
