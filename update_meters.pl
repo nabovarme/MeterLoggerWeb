@@ -12,7 +12,7 @@ use Nabovarme::Utils;
 use constant RPC_TIMEOUT => 300;	# 5 minutes
 
 $SIG{HUP} = \&get_version_and_status;
-$SIG{USR1} = \&get_wifi_scan_results;
+$SIG{USR1} = \&get_wifi_scan_results_and_daily;
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -125,7 +125,7 @@ sub get_version_and_status {
 	}
 }
 
-sub get_wifi_scan_results {
+sub get_wifi_scan_results_and_daily {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 	
@@ -135,6 +135,14 @@ sub get_wifi_scan_results {
 
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'scan',
+								param => '1',
+								callback => undef,
+								timeout => RPC_TIMEOUT
+							});
+
+		# send chip_id
+		$nabovarme_mqtt->call({	serial => $d->{serial},
+								function => 'chip_id',
 								param => '1',
 								callback => undef,
 								timeout => RPC_TIMEOUT
