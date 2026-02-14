@@ -14,10 +14,11 @@ use Nabovarme::Utils;
 use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
 # Load configuration
-print "Loading configuration from " . CONFIG_FILE . "\n";
-my $config = new Config::Simple(CONFIG_FILE) || log_die("ERROR: Failed to load config: " . Config::Simple->error());
-my $api_key = $config->param('google_api_key');
-my $url = $config->param('google_geolocation_api_url');
+my $api_key = $ENV{'GOOGLE_API_KEY'} 
+	or log_die("ERROR: GOOGLE_API_KEY environment variable not set");
+
+my $url     = $ENV{'GOOGLE_GEOLOCATION_API_URL'} 
+	or log_die("ERROR: GOOGLE_GEOLOCATION_API_URL environment variable not set");
 
 # Database connection
 log_info("Connecting to the database...");
