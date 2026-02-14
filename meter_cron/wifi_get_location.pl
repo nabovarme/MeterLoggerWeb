@@ -34,11 +34,11 @@ sub process_meters {
 
 	# Fetch meters
 	if ($ARGV[0]) {
-			$sth = $dbh->prepare(qq[
-				SELECT `serial`, `info`
-				FROM meters
-				WHERE `serial` LIKE ] . $dbh->quote($ARGV[0])
-			);
+		$sth = $dbh->prepare(qq[
+			SELECT `serial`, `info`
+			FROM meters
+			WHERE `serial` LIKE ] . $dbh->quote($ARGV[0])
+		);
 	}
 	else {
 		$sth = $dbh->prepare(qq[SELECT `serial`, `info` FROM meters]);
@@ -85,7 +85,7 @@ sub fetch_wifi_data {
 		while (my $wifi = $sth->fetchrow_hashref) {
 			push @wifi_data, {
 				macAddress	  => $wifi->{bssid},
-				signalStrength  => $wifi->{rssi},
+				signalStrength  => int($wifi->{rssi}),
 				channel		 => $wifi->{channel},
 			};
 		}
@@ -118,9 +118,11 @@ sub send_geolocation_request {
 	
 	log_info("Sending geolocation request...");
 	my $req = HTTP::Request->new(POST => $url . $api_key);
+
+	$req->header('Content-Type'   => 'application/json');
+	$req->header('Content-Length' => length($json_request));
 	$req->content($json_request);
-	$req->header('content-type' => 'application/json');
-	
+
 	my $ua = LWP::UserAgent->new;
 	my $response = $ua->request($req);
 	
@@ -129,6 +131,7 @@ sub send_geolocation_request {
 		return $response;
 	} else {
 		log_info("ERROR: Geolocation request failed: " . $response->status_line);
+		log_info("ERROR BODY: " . $response->decoded_content);
 		return undef;
 	}
 }
