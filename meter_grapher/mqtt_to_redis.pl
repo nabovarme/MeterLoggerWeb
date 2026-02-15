@@ -10,10 +10,10 @@ use Redis;
 
 # --- Config from environment ---
 my $mqtt_host = $ENV{'MQTT_HOST'}
-    or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
+	or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
 
 my $mqtt_port = $ENV{'MQTT_PORT'}
-    or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
+	or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
 
 my $redis_host = $ENV{'REDIS_HOST'}
 	or log_die("ERROR: REDIS_HOST environment variable not set", {-no_script_name => 1});

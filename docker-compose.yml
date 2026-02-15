@@ -1,5 +1,3 @@
-#version: '3'
-
 services:
   perl_modules_builder:
     build:
@@ -16,13 +14,26 @@ services:
     command: >
       sh -c "
         mkdir -p /out &&
+        # write mariadb server config
         echo '[mysqld]' > /out/99-custom.cnf &&
-        echo 'innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE:-1G}' >> /out/99-custom.cnf
+        echo 'innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE:-1G}' >> /out/99-custom.cnf &&
+        # write client config for other containers to read DB connection
+        echo '[client]' > /out/99-client.cnf &&
+        echo 'user=${METERLOGGER_DB_USER}' >> /out/99-client.cnf &&
+        echo 'password=${METERLOGGER_DB_PASSWORD}' >> /out/99-client.cnf &&
+        echo 'host=${METERLOGGER_DB_HOST}' >> /out/99-client.cnf &&
+        echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
+        echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
       "
     volumes:
       - ./db/conf.d:/out
     environment:
       INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
 
   db:
     image: mariadb:10.5
@@ -37,7 +48,7 @@ services:
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "sh", "-c", "mysql --protocol=tcp -e 'SELECT 1'"]
       timeout: 20s
       retries: 10
     environment:
@@ -74,15 +85,10 @@ services:
         condition: service_healthy
     container_name: web
     volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
-      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       TZ: 'Europe/Copenhagen'
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
@@ -113,13 +119,10 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_grapher
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
@@ -137,14 +140,10 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_receive
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
-      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
@@ -160,14 +159,10 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_send
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
-      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
@@ -181,15 +176,12 @@ services:
       db:
         condition: service_healthy
     container_name: smsd
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     privileged: true
     restart: always
     stop_grace_period: 30s
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       RUT901_ROUTER_IP: ${RUT901_ROUTER_IP}
       RUT901_ROUTER_USER: ${RUT901_ROUTER_USER}
       RUT901_ROUTER_PASS: ${RUT901_ROUTER_PASS}
@@ -234,14 +226,10 @@ services:
     container_name: meter_sms
     volumes:
       - meter_sms_state:/var/run/app_state
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     stop_grace_period: 30s
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
       CLOSE_MESSAGE: ${NOTIFICATION_CLOSE_MESSAGE}
       CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}
@@ -258,13 +246,10 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_cron
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
@@ -292,9 +277,9 @@ services:
     ports:
       - "${POSTFIX_PORT:-25}:25"
     volumes:
-      - ./postfix/postfix_custom_config:/docker-init.db/   # keep your custom config
-      - postfix_spool:/var/spool/postfix                  # Docker volume for spool
-      - postfix_mail:/var/mail                             # Docker volume for delivered mail
+      - ./postfix/postfix_custom_config:/docker-init.db/
+      - postfix_spool:/var/spool/postfix
+      - postfix_mail:/var/mail
     restart: always
     environment:
       HOSTNAME: meterlogger
@@ -329,10 +314,8 @@ services:
     volumes:
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
     restart: always
@@ -342,18 +325,14 @@ services:
       context: '.'
       dockerfile: ./prometheus_exporter/Dockerfile
     container_name: prometheus_exporter
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "${PROM_EXPORTER_PORT:-9101}:9101"
     environment:
-      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
-      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
-      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
-      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
-      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
-      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
       REDIS_HOST: ${REDIS_HOST}
