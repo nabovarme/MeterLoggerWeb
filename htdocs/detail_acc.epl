@@ -52,11 +52,11 @@
 			<!-- >
 				<div class="watermark">BETA-TEST</div>
 			< -->
-			<span class="default-bold">
+			<span class="default-header">
 				[+ $info +]
 			</span>
 			<span class="default">
-				<a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a>
+				Consumption <a href="detail.epl?serial=[+ $fdat{'serial'} +]">Details</a>
 			</span>
 			<span class="default-small">
 				<a href="/qr/[+ $fdat{'serial'} +]">QR</a>
@@ -161,6 +161,24 @@
 		</form>
 			[$ endif $]
 		[$ endif $]
+		<script>
+			document.addEventListener("keydown", function(e) {
+				const active = document.activeElement;
+
+				// Ignore typing in inputs
+				if (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable) return;
+
+				const menu = document.getElementById("menu");
+
+				// Only when menu is NOT visible
+				if ((e.key === "d" || e.key === "D") && (!menu || !menu.classList.contains("show"))) {
+					e.preventDefault();
+					e.stopImmediatePropagation(); // block menu.js
+
+					window.location.href = "detail.epl?serial=" + meter_serial;
+				}
+			}, true);
+		</script>
 		<script src="detail_acc.js"></script>
 	</BODY>
 </HTML>

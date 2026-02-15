@@ -61,6 +61,11 @@ html, body {
 	font-weight: bold;
 }
 
+.default-header {
+	font-size: 120%;
+	font-weight: bold;
+}
+
 .default-highlight {
 	font-family: Verdana, Geneva, sans-serif;
 	background-color: #FFFF00;
