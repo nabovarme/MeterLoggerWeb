@@ -4,19 +4,21 @@ use strict;
 use warnings;
 use DBI;
 use Sys::Syslog;
-use Config::Simple;
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
+# Database configuration from environment
+my $db_host		= $ENV{'METERLOGGER_DB_HOST'}		or die "METERLOGGER_DB_HOST not set";
+my $db_user		= $ENV{'METERLOGGER_DB_USER'}		or die "METERLOGGER_DB_USER not set";
+my $db_password	= $ENV{'METERLOGGER_DB_PASSWORD'}	or die "METERLOGGER_DB_PASSWORD not set";
+my $METERLOGGER_DB_PORT		= $ENV{'METERLOGGER_DB_PORT'}					or die "METERLOGGER_DB_PORT not set";
+my $METERLOGGER_DB_NAME		= $ENV{'METERLOGGER_DB_NAME'}					or die "METERLOGGER_DB_NAME not set";
 
-my $config = new Config::Simple(CONFIG_FILE) || die $!;
-
-my $dbi = 'DBI:mysql:database=' . $config->param('db_name') . ';host=' . $config->param('db_host') . ';port=' . $config->param('db_port');
+my $dbi = "DBI:mysql:database=$METERLOGGER_DB_NAME;host=$db_host;port=$METERLOGGER_DB_PORT";
 
 sub my_connect {
 	my $dbh = DBI->connect(
 		$dbi,
-		$config->param('db_username'),
-		$config->param('db_password'),
+		$db_user,
+		$db_password,
 		{ mysql_auto_reconnect => 1, mysql_enable_utf8 => 1 }
 	);
 	

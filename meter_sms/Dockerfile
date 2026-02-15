@@ -69,7 +69,6 @@ RUN chown www-data:www-data /var/www/nabovarme
 COPY ./meter_sms/smtp_send_test.pl /
 
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 
 COPY ./meter_sms/meter_notify.pl /etc/apache2/perl/Nabovarme/bin/meter_notify.pl
 COPY ./meter_sms/meter_alarm.pl /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl

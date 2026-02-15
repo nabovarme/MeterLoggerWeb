@@ -3,7 +3,6 @@
 use strict;
 use Data::Dumper;
 use DBI;
-use Config;
 use Time::HiRes qw(usleep);
 use POSIX ":sys_wait_h";
 use Fcntl qw(:flock);

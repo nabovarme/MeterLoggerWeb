@@ -1,6 +1,5 @@
  [- 
 	# Load required Perl modules
-	use Config;
 	use Time::Duration;
 
 	# Load internal application modules

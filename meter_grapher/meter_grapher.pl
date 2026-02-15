@@ -6,23 +6,21 @@ use Redis;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config::Simple;
 use Encode qw(decode FB_CROAK FB_DEFAULT);
 
 use Nabovarme::Db;
 use Nabovarme::Crypto;
 use Nabovarme::Utils;
 
-use constant CONFIG_FILE => '/etc/Nabovarme.conf';
-
 $SIG{INT} = \&sig_int_handler;
-
-my $config = new Config::Simple(CONFIG_FILE) || log_die(Config::Simple->error(), {-no_script_name => 1});
 
 log_info("starting...", {-no_script_name => 1});
 
-my $redis_host = $config->param('redis_host') || '127.0.0.1';
-my $redis_port = $config->param('redis_port') || '6379';
+my $redis_host = $ENV{'REDIS_HOST'}
+	or log_die("ERROR: REDIS_HOST environment variable not set", {-no_script_name => 1});
+
+my $redis_port = $ENV{'REDIS_PORT'}
+	or log_die("ERROR: REDIS_PORT environment variable not set", {-no_script_name => 1});
 my $redis = Redis->new(
 	server => "$redis_host:$redis_port",
 );

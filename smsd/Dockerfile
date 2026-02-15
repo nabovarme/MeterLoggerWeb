@@ -45,7 +45,6 @@ RUN groupadd -r smsd && useradd -r -g smsd -m -s /bin/bash smsd
 
 # Copy scripts
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 
 COPY ./smsd/smtp_server.pl .
 COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh

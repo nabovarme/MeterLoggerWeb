@@ -40,7 +40,6 @@ RUN groupadd -r exporter && useradd -r -g exporter -m -s /bin/bash exporter
 
 # Perl libs + config
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 
 # Exporter script
 COPY ./prometheus_exporter/prometheus_exporter.pl /usr/local/bin/prometheus_exporter.pl

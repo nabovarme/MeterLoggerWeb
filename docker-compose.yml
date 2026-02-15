@@ -30,7 +30,7 @@ services:
     depends_on:
       - db-config
     ports:
-      - "127.0.0.1:${DB_PORT:-3306}:3306"
+      - "127.0.0.1:${METERLOGGER_DB_PORT:-3306}:3306"
     volumes:
       - ./db/db_data:/var/lib/mysql:delegated
       - ./db/conf.d:/etc/mysql/conf.d:ro
@@ -74,13 +74,15 @@ services:
         condition: service_healthy
     container_name: web
     volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
       TZ: 'Europe/Copenhagen'
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
@@ -111,13 +113,18 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_grapher
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       TZ: 'Europe/Copenhagen'
 
   mysql_mqtt_command_queue_receive:
@@ -130,13 +137,16 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_receive
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
 
@@ -150,13 +160,16 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_send
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
 
@@ -172,6 +185,11 @@ services:
     restart: always
     stop_grace_period: 30s
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
+      METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
+      METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       RUT901_ROUTER_IP: ${RUT901_ROUTER_IP}
       RUT901_ROUTER_USER: ${RUT901_ROUTER_USER}
       RUT901_ROUTER_PASS: ${RUT901_ROUTER_PASS}
@@ -215,12 +233,13 @@ services:
         condition: service_healthy
     container_name: meter_sms
     volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
       - meter_sms_state:/var/run/app_state
     restart: always
     stop_grace_period: 30s
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
@@ -239,13 +258,15 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_cron
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
     restart: always
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       GOOGLE_GEOLOCATION_API_URL: ${GOOGLE_GEOLOCATION_API_URL}
       TZ: 'Europe/Copenhagen'
@@ -306,11 +327,12 @@ services:
         dockerfile: ./utils/Dockerfile
     container_name: utils
     volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
     environment:
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
       METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
     restart: always
@@ -325,12 +347,17 @@ services:
         condition: service_healthy
     ports:
       - "${PROM_EXPORTER_PORT:-9101}:9101"
-    volumes:
-      - ./Nabovarme.conf:/etc/Nabovarme.conf
     environment:
-      METERLOGGER_DB_HOST: db
+      METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
+      METERLOGGER_DB_HOST: ${METERLOGGER_DB_HOST}
+      METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
       EXPORTER_PORT: 9101
     restart: always

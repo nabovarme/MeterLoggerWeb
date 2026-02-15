@@ -7,25 +7,23 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Config::Simple;
 use Time::HiRes qw( gettimeofday tv_interval );
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
-# --- Constants ---
-use constant CONFIG_FILE       => '/etc/Nabovarme.conf';
-use constant CACHE_DEFAULT_SEC => 3600;        # default 1 hour
-
 $| = 1;  # Autoflush STDOUT
 
-# --- Config ---
-my $config = new Config::Simple(CONFIG_FILE)
-	or log_die(Config::Simple->error(), {-no_script_name => 1});
-my $mqtt_host = $config->param('mqtt_host');
-my $mqtt_port = $config->param('mqtt_port');
+# --- Config from environment ---
+my $mqtt_host = $ENV{'MQTT_HOST'}
+    or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
 
-my $config_cached_time = $config->param('cached_time') || CACHE_DEFAULT_SEC;
+my $mqtt_port = $ENV{'MQTT_PORT'}
+    or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
+
+# Optional cache override (falls back to default)
+my $config_cached_time = $ENV{'CRYPTO_KEY_CACHE_TIME'} // 3600;   # default 1 hour
+
 
 $SIG{INT} = \&sig_int_handler;
 
