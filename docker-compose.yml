@@ -81,8 +81,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      mqtt:
-        condition: service_healthy
     container_name: web
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
