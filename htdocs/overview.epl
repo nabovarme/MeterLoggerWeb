@@ -2,7 +2,6 @@
 	use DBI;
 	use Net::MQTT::Simple "loppen.christiania.org";
 
-	use Config;
 	use Nabovarme::Db;
 	
 -]

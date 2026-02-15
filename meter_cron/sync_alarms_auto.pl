@@ -6,7 +6,6 @@
 
 use strict;
 use DBI;
-use Config;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;

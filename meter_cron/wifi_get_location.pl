@@ -6,12 +6,9 @@ use Data::Dumper;
 use LWP::UserAgent;
 use JSON::Create 'create_json';
 use JSON::Parse 'parse_json';
-use Config::Simple;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
-
-use constant CONFIG_FILE => '/etc/Nabovarme.conf';
 
 # Load configuration
 my $api_key = $ENV{'GOOGLE_API_KEY'} 

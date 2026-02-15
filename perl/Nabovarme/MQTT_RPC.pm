@@ -8,8 +8,6 @@ use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
-
 sub new {
 	my $type = shift;
 	my $self = {};

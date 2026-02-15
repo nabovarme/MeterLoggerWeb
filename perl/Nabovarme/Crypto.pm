@@ -10,10 +10,8 @@ use Sys::Syslog;
 
 use Nabovarme::Db;
 
-use constant CONFIG_FILE => qw (/etc/Nabovarme.conf );
-
-my $config = new Config::Simple(CONFIG_FILE) || die $!;
-my $config_cached_time = $config->param('cached_time') || 3600; # default 1 hour
+# --- Config from environment ---
+my $config_cached_time = $ENV{'CRYPTO_KEY_CACHE_TIME'} // 3600;   # default 1 hour
 
 sub new {
 	my $class = shift;

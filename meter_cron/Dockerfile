@@ -50,7 +50,6 @@ RUN apt-get update && \
 USER root
 
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 COPY ./meter_cron/crontab /etc/
 
 RUN chmod 0644 /etc/crontab && \

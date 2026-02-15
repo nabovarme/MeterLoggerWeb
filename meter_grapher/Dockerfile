@@ -46,7 +46,6 @@ RUN apt-get update && \
 USER root
 
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 
 COPY ./meter_grapher/mqtt_to_redis.pl /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl
 COPY ./meter_grapher/meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl

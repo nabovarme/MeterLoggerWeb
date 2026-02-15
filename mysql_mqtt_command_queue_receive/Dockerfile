@@ -47,7 +47,6 @@ RUN apt-get update && \
 USER root
 
 COPY ./perl /etc/apache2/perl
-COPY ./Nabovarme.conf /etc/
 
 COPY ./mysql_mqtt_command_queue_receive/mysql_mqtt_command_queue_receive.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
 

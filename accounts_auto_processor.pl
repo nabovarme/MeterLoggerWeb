@@ -6,7 +6,6 @@ use Date::Language;
 use Time::Local;
 use Sys::Syslog;
 use DBI;
-use Config;
 
 use Nabovarme::Db;
 
