@@ -125,7 +125,7 @@ if ($meter_info_sth->rows) {
 					if (!menu || !menu.classList.contains("show")) {
 
 						// Redirect 'c' key to consumption details (existing behavior)
-						if (e.key === "c" || e.key === "C") {
+						if (e.key === "c" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
 							e.preventDefault();
 							e.stopImmediatePropagation(); // block menu.js
 
@@ -133,7 +133,7 @@ if ($meter_info_sth->rows) {
 						}
 
 						// Toggle checkboxes with keys 1–5
-						if (e.key >= "1" && e.key <= "5") {
+						if (e.key >= "1" && e.key <= "5" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
 							e.preventDefault();
 							e.stopImmediatePropagation();
 							const index = parseInt(e.key) - 1; // Map key '1'->0, '2'->1, etc.

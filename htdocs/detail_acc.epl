@@ -171,7 +171,7 @@
 				const menu = document.getElementById("menu");
 
 				// Only when menu is NOT visible
-				if ((e.key === "d" || e.key === "D") && (!menu || !menu.classList.contains("show"))) {
+				if (e.key.toLowerCase() === "d" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					e.preventDefault();
 					e.stopImmediatePropagation(); // block menu.js
 
