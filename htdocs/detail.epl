@@ -122,11 +122,27 @@ if ($meter_info_sth->rows) {
 					const menu = document.getElementById("menu");
 
 					// Only when menu is NOT visible
-					if ((e.key === "c" || e.key === "C") && (!menu || !menu.classList.contains("show"))) {
-						e.preventDefault();
-						e.stopImmediatePropagation(); // block menu.js
+					if (!menu || !menu.classList.contains("show")) {
 
-						window.location.href = "detail_acc.epl?serial=" + meter_serial;
+						// Redirect 'c' key to consumption details (existing behavior)
+						if (e.key === "c" || e.key === "C") {
+							e.preventDefault();
+							e.stopImmediatePropagation(); // block menu.js
+
+							window.location.href = "detail_acc.epl?serial=" + meter_serial;
+						}
+
+						// Toggle checkboxes with keys 1–5
+						if (e.key >= "1" && e.key <= "5") {
+							e.preventDefault();
+							e.stopImmediatePropagation();
+							const index = parseInt(e.key) - 1; // Map key '1'->0, '2'->1, etc.
+							const checkbox = document.getElementById(index);
+							if (checkbox) {
+								checkbox.checked = !checkbox.checked;
+								change(checkbox); // Call your existing function
+							}
+						}
 					}
 				}, true);
 			</script>
