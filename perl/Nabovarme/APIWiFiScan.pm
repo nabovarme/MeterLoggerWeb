@@ -42,54 +42,42 @@ sub handler {
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
-		# Get latest scan timestamp for this meter (uses serial_unix_time_idx)
-		my $latest_sql = q[
-			SELECT unix_time
+		# Calculate timestamp for one week ago
+		my $week_ago = time - 7*24*60*60;
+
+		# Get distinct APs seen in the last week
+		my $sql = q[
+			SELECT
+				ssid,
+				bssid,
+				MAX(rssi) AS rssi,
+				MAX(channel) AS channel,
+				MAX(auth_mode) AS auth_mode,
+				MAX(pairwise_cipher) AS pairwise_cipher,
+				MAX(group_cipher) AS group_cipher,
+				MAX(phy_11b) AS phy_11b,
+				MAX(phy_11g) AS phy_11g,
+				MAX(phy_11n) AS phy_11n,
+				MAX(wps) AS wps
 			FROM wifi_scan
 			WHERE serial = ?
-			ORDER BY unix_time DESC
-			LIMIT 1
+			  AND unix_time >= ?
+			GROUP BY bssid, ssid
+			ORDER BY rssi DESC
+			LIMIT 50
 		];
 
-		$sth = $dbh->prepare($latest_sql);
-		$sth->execute($serial);
-
-		my ($latest) = $sth->fetchrow_array;
+		$sth = $dbh->prepare($sql);
+		$sth->execute($serial, $week_ago);
 
 		my @rows;
 
-		if ($latest) {
+		while (my $row = $sth->fetchrow_hashref) {
 
-			my $sql = q[
-				SELECT
-					ssid,
-					bssid,
-					rssi,
-					channel,
-					auth_mode,
-					pairwise_cipher,
-					group_cipher,
-					phy_11b,
-					phy_11g,
-					phy_11n,
-					wps
-				FROM wifi_scan
-				WHERE serial = ?
-				  AND unix_time = ?
-				ORDER BY rssi DESC
-				LIMIT 50
-			];
+			# Avoid undef in JSON
+			$_ //= '' for values %$row;
 
-			$sth = $dbh->prepare($sql);
-			$sth->execute($serial, $latest);
-
-			while (my $row = $sth->fetchrow_hashref) {
-
-				# Avoid undef in JSON
-				$_ //= '' for values %$row;
-
-				push @rows, $row;
-			}
+			push @rows, $row;
 		}
 
 		my $json = JSON::XS->new->utf8->canonical;
