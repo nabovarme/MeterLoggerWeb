@@ -5,14 +5,14 @@
 -]
 <HTML>
 	<HEAD>
-	<TITLE>MeterLogger Map</TITLE>
-	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<TITLE>MeterLogger Map</TITLE>
+		<meta name="robots" content="noindex">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-	<link rel="stylesheet" href="leaflet/leaflet.css" />
-	<script src="leaflet/leaflet.js"></script>
-	<style>
-		#footer {
+		<link rel="stylesheet" href="leaflet/leaflet.css" />
+		<script src="leaflet/leaflet.js"></script>
+		<style>
+			#footer {
 				position: fixed;
 				height: 0px;	// change this to enable footer
 				margin-top: 0;
@@ -20,75 +20,75 @@
 				right: 0;
 				left: 0;
 				background: white;
-		}
-		body > div.container {
-			position: fixed;
-			top: 0;
-			bottom: 0px;	// change this to enable footer
-			right: 0;
-			left: 0;
-			width: 100%;
-			vertical-align: top;
-			padding-left: 0;
-			padding-right: 0;
-			margin-left: 0;
-			margin-right: 0;
-			z-index: 500;
-		}
-		#map {
-			height: 100%;
-			width: 100%;
-		}
+			}
+			body > div.container {
+				position: fixed;
+				top: 0;
+				bottom: 0px;	// change this to enable footer
+				right: 0;
+				left: 0;
+				width: 100%;
+				vertical-align: top;
+				padding-left: 0;
+				padding-right: 0;
+				margin-left: 0;
+				margin-right: 0;
+				z-index: 500;
+			}
+			#map {
+				height: 100%;
+				width: 100%;
+			}
 
-		.leaflet-control-search .search-input {
-			font-size: 16px !important;
-			width: 200px !important; /* increase width as needed */
-			box-sizing: border-box;
-			margin: 4px 0 4px 4px; /* keep left margin so it doesn’t stick to edge */
-			float: left; /* keep float for layout */
-			padding: 0 20px 0 8px; /* keep padding */
-		}
+			.leaflet-control-search .search-input {
+				font-size: 16px !important;
+				width: 200px !important; /* increase width as needed */
+				box-sizing: border-box;
+				margin: 4px 0 4px 4px; /* keep left margin so it doesn’t stick to edge */
+				float: left; /* keep float for layout */
+				padding: 0 20px 0 8px; /* keep padding */
+			}
 
-		.leaflet-control-search {
-//			bottom: 150px !important;
-			top: auto !important;
-			transition: transform 0.3s ease;
-		}
-	</style>
+			.leaflet-control-search {
+	//			bottom: 150px !important;
+				top: auto !important;
+				transition: transform 0.3s ease;
+			}
+		</style>
 
-	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
-	
-	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-	
-	<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
-	<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
-	
-	<script src="leaflet/leaflet-search/leaflet-search.min.js"></script>
-	<link rel="stylesheet" href="leaflet/leaflet-search/leaflet-search.css">
+		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
+		
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+		
+		<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
+		<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
+		
+		<script src="leaflet/leaflet-search/leaflet-search.min.js"></script>
+		<link rel="stylesheet" href="leaflet/leaflet-search/leaflet-search.css">
 
-	<style type="text/css">
-	.top {
-		position: absolute;
-		top: 0;
-		left: 0;
-	}
-	.default {
-		font-family: Verdana, Geneva, sans-serif;
-	}
-	.default-bold {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-	}
-	.default-group {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-		font-size: 120%;
-	}
-	</style>
+		<style type="text/css">
+			.top {
+				position: absolute;
+				top: 0;
+				left: 0;
+			}
+			.default {
+				font-family: Verdana, Geneva, sans-serif;
+			}
+			.default-bold {
+				font-family: Verdana, Geneva, sans-serif;
+				font-weight: bold;
+			}
+			.default-group {
+				font-family: Verdana, Geneva, sans-serif;
+				font-weight: bold;
+				font-size: 120%;
+			}
+		</style>
 
-	<link rel="stylesheet" href="/css/menu.css">
-	<script src="/js/menu.js" defer></script>
-	
+		<link rel="stylesheet" href="/css/menu.css">
+		<script src="/js/menu.js" defer></script>
+		
 	</HEAD>
 	<BODY>
 
@@ -187,7 +187,7 @@
 				[$ elsif (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]
 					.setZIndexOffset(800)
 				[$ endif $]
-					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $][$ if defined $d->{ping_average_packet_loss} $]<b>Ping average packet loss: </b>[+ $d->{ping_average_packet_loss} +]<br>[$ endif $][$ if defined $d->{disconnect_count} $]<b>Disconnect count: </b>[+ $d->{disconnect_count} +]<br>[$ endif $][$ if defined $d->{flash_id} $]<b>Flash ID: </b>[+ $d->{flash_id} +]<br>[$ endif $][$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]<b>Version: </b>[+ $d->{sw_version} +]<br>[$ if (length($d->{comment} || ($d->{valve_installed} == 0))) $]<br><i>[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</i><br>[$ endif $]<a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume_acc.epl[$ else $]/detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">Accummulated</a> | <a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume.epl[$ else $]/detail.epl[$ endif $]?serial=[+ $d->{serial} +]">Details</a></div>'
+					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $][$ if defined $d->{ping_average_packet_loss} $]<b>Ping average packet loss: </b>[+ $d->{ping_average_packet_loss} +]<br>[$ endif $][$ if defined $d->{disconnect_count} $]<b>Disconnect count: </b>[+ $d->{disconnect_count} +]<br>[$ endif $][$ if defined $d->{flash_id} $]<b>Flash ID: </b>[+ $d->{flash_id} +]<br>[$ endif $][$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]<b>Version: </b>[+ $d->{sw_version} +]<br>[$ if (length($d->{comment} || ($d->{valve_installed} == 0))) $]<br><i>[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</i><br>[$ endif $]<a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume_acc.epl[$ else $]/detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">Accummulated</a> | <a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume.epl[$ else $]/detail.epl[$ endif $]?serial=[+ $d->{serial} +]">Details</a><br><b>Visible WiFi:</b><div id="wifi-[+ $d->{serial} +]"><i>Loading...</i></div></div>'
 					);
 				if (L.Browser.mobile == false) {
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
@@ -312,6 +312,62 @@
 							}
 						}, 150);
 					}
+				});
+
+				// Load WiFi dynamically from backend
+				m.on('popupopen', function() {
+					const serial = '[+ $d->{serial} +]';
+					const container = document.getElementById('wifi-' + serial);
+
+					if (!container || container.dataset.loaded) return;
+
+					fetch('/api/wifi_scan/' + encodeURIComponent(serial))
+						.then(res => res.json())
+						.then(data => {
+
+							if (!data.length) {
+								container.innerHTML = '<i>No scan data</i>';
+								return;
+							}
+
+							let html = `
+								<div style="max-height:200px;overflow-y:auto">
+								<table class="table table-condensed table-striped">
+								<thead>
+									<tr>
+										<th>SSID</th>
+										<th>RSSI</th>
+										<th>Ch</th>
+										<th>Auth</th>
+									</tr>
+								</thead>
+								<tbody>
+							`;
+
+							data.forEach(ap => {
+
+								let color = '#d9534f';
+								if (ap.rssi > -65) color = '#5cb85c';
+								else if (ap.rssi > -75) color = '#f0ad4e';
+
+								html += `
+									<tr>
+										<td>${ap.ssid || '(hidden)'}</td>
+										<td style="color:${color}">${ap.rssi} dBm</td>
+										<td>${ap.channel}</td>
+										<td>${ap.auth_mode}</td>
+									</tr>
+								`;
+							});
+
+							html += '</tbody></table></div>';
+
+							container.innerHTML = html;
+							container.dataset.loaded = "1";
+						})
+						.catch(() => {
+							container.innerHTML = '<span style="color:red">Error loading WiFi</span>';
+						});
 				});
 		
 	</script>

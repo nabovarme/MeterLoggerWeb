@@ -15,7 +15,8 @@ use Nabovarme::APIAlarms;
 use Nabovarme::APISnooze;
 use Nabovarme::APIPaymentsPending;
 use Nabovarme::APIAccount;
-use Nabovarme::APIWIFIPending;
+use Nabovarme::APIWiFiPending;
+use Nabovarme::APIWiFiScan;
 use Nabovarme::APISMSSent;
 
 1;
