@@ -54,6 +54,10 @@
 				top: auto !important;
 				transition: transform 0.3s ease;
 			}
+			.popup-table {
+				font-size: 12px;
+				margin: 0;
+			}
 		</style>
 
 		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
@@ -337,17 +341,21 @@
 							}
 
 							let html = `
-								<div style="max-height:200px;overflow-y:auto">
-								<table class="table table-condensed table-striped">
-								<thead>
-									<tr>
-										<th>SSID</th>
-										<th>RSSI</th>
-										<th>Ch</th>
-										<th>Auth</th>
-									</tr>
-								</thead>
-								<tbody>
+								<span id="toggle-wifi-${serial}" style="cursor:pointer; font-size:14px; user-select:none; margin-right:4px;">
+									▶
+								</span>
+								<b>Visible WiFi:</b>
+								<div id="wifi-table-${serial}" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;">
+									<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
+										<thead>
+											<tr>
+												<th>SSID</th>
+												<th>RSSI</th>
+												<th>Ch</th>
+												<th>Auth</th>
+											</tr>
+										</thead>
+										<tbody>
 							`;
 
 							data.forEach(ap => {
@@ -370,12 +378,25 @@
 
 							container.innerHTML = html;
 							container.dataset.loaded = "1";
+
+							// Triangle toggle functionality
+							const toggleLink = document.getElementById(`toggle-wifi-${serial}`);
+							const tableDiv = document.getElementById(`wifi-table-${serial}`);
+
+							toggleLink.addEventListener('click', () => {
+								if (tableDiv.style.display === 'none') {
+									tableDiv.style.display = 'block';
+									toggleLink.textContent = '▼';
+								} else {
+									tableDiv.style.display = 'none';
+									toggleLink.textContent = '▶';
+								}
+							});
 						})
 						.catch(() => {
 							container.innerHTML = '<span style="color:red">Error loading WiFi</span>';
 						});
-				});
-		
+				});		
 	</script>
 
 	</BODY>
