@@ -315,11 +315,17 @@
 				});
 
 				// Load WiFi dynamically from backend
-				m.on('popupopen', function() {
-					const serial = '[+ $d->{serial} +]';
-					const container = document.getElementById('wifi-' + serial);
+				map.on('popupopen', function(e) {
 
+					const popup = e.popup;
+					if (!popup) return;
+
+					const container = popup.getElement().querySelector('[id^="wifi-"]');
 					if (!container || container.dataset.loaded) return;
+
+					const serial = container.id.replace('wifi-', '');
+
+					console.log('Fetching WiFi for', serial);
 
 					fetch('/api/wifi_scan/' + encodeURIComponent(serial))
 						.then(res => res.json())
