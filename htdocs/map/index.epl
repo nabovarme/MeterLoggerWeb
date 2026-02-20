@@ -371,14 +371,23 @@
 													return;
 											}
 
-											tableDiv.innerHTML = `<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
-													<thead><tr><th>SSID</th><th>RSSI</th><th>Ch</th><th>Auth</th></tr></thead>
-													<tbody>${data.map(ap => {
-															const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
-															return `<tr><td>${ap.ssid || '(hidden)'}</td><td style="color:${color}">${ap.rssi} dBm</td><td>${ap.channel}</td><td>${ap.auth_mode}</td></tr>`;
-													}).join('')}</tbody></table>`;
+										tableDiv.innerHTML = `
+											<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
+												<thead><tr><th>SSID</th><th>RSSI</th><th>Ch</th><th>Auth</th></tr></thead>
+												<tbody>${data.map(ap => {
+													const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
+													// URL encode SSID
+													const encodedSSID = encodeURIComponent(ap.ssid || '');
+													return `<tr>
+														<td><a href="/update_wifi.epl?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
+														<td style="color:${color}">${ap.rssi} dBm</td>
+														<td>${ap.channel}</td>
+														<td>${ap.auth_mode}</td>
+													</tr>`;
+												}).join('')}</tbody>
+											</table>`;
 
-											container.dataset.loaded = "1";
+										container.dataset.loaded = "1";
 									})
 									.catch(() => {
 											tableDiv.innerHTML = '<span style="color:red">Error loading WiFi</span>';

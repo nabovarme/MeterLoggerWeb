@@ -13,16 +13,25 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` like $quoted_serial]);
 	$sth->execute;
 
+	# Prefer SSID from query string if provided
+	if ($fdat{'ssid'}) {
+		$ssid = $fdat{'ssid'};
+	} elsif ($sth->rows) {
+		if ($d = $sth->fetchrow_hashref) {
+			$ssid = $d->{ssid};
+		}
+	}
+
 	# URL encode & and =
-	$fdat{'ssid'} =~ s/&/%26/g;
-	$fdat{'ssid'} =~ s/=/%3d/g;
-	my $param = 'ssid=' . $fdat{'ssid'} . '&' . 'pwd=' . $fdat{'password'};
+	$ssid =~ s/&/%26/g;
+	$ssid =~ s/=/%3d/g;
+	my $param = 'ssid=' . $ssid . '&' . 'pwd=' . $fdat{'password'};
 	my $quoted_param = $dbh->quote($param);
 	if ($is_admin && ($fdat{state} =~ /update/i)) {
-				$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-					VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
-				$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-					VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
+		$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+			VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
+		$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+			VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
 	}
 }
 
@@ -30,7 +39,8 @@ if ($sth->rows) {
 	if ($d = $sth->fetchrow_hashref) {
 		$info = $d->{info};
 		$serial = $d->{serial};
-		$ssid = $d->{ssid};
+		# only prefill database SSID if query string not provided
+		$ssid = $d->{ssid} unless $fdat{'ssid'};
 	}
 }
 -] 
@@ -83,64 +93,56 @@ if ($sth->rows) {
 		    box-sizing: border-box;
 		}
 		</style>
-<!--		<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"> -->
-<!--		<script src="https://code.jquery.com/jquery-1.12.4.js"></script> -->
-<!--		<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script> -->
-<!--		<script>
-			$( function() {
-				$( "#datepicker" ).datepicker();
-			} );
-		</script> -->
 [$ endif $]
-		</HEAD>
+	</HEAD>
 	<BODY>
-			[$ if ($is_admin) $]
-			<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
-				<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-				<input type="hidden" name="state" value="update">
-				<table border="0" align="left" cellpadding="0" cellspacing="6">
-					<tr align="left" valign="bottom">
-						<td align="left">
-							<span class="default-bold">[+ $info +] </span><br>
-							<span class="default">serial [+ $serial +]</span><br>
-						</td>
-					</tr>
-					<tr align="left" valign="bottom">
-						<td>&nbsp;</td>
-					</tr>
-					<tr align="left" valign="bottom">
-						<td align="left">
-							<span class="default-bold">SSID</span><br>
-							<span class="default"><input type="text" inputmode="text" name="ssid" value="[+ ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid +]" size="32"></span>
-						</td>
-					</tr>
-					<tr align="left" valign="bottom">
-						<td align="left">
-							<span class="default-bold">Password</span><br>
-							<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
-						</td>
-					</tr>						
-					<tr align="left" valign="bottom">
-						<td>&nbsp;</td>
-					</tr>
-					<tr align="left" valign="bottom">
-						<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
-					</tr>
-					<tr align="left" valign="bottom">
-						<td>&nbsp;</td>
-					</tr>
-					<tr>
-						<td><span class="default"><a href="./">Back</a></span>
-					</td>
-				</tr>
-				</table>
-			</form>
-			[$ endif $]
-			<br>
-			<br>
-		<br>
-		<br>
+[$ if ($is_admin) $]
+	<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
+		<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+		<input type="hidden" name="state" value="update">
+		<table border="0" align="left" cellpadding="0" cellspacing="6">
+			<tr align="left" valign="bottom">
+				<td align="left">
+					<span class="default-bold">[+ $info +] </span><br>
+					<span class="default">serial [+ $serial +]</span><br>
+				</td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td align="left">
+					<span class="default-bold">SSID</span><br>
+					<span class="default">
+						<input type="text" inputmode="text" name="ssid" 
+							value="[+ ($fdat{'ssid'} || ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid) +]" size="32">
+					</span>
+				</td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td align="left">
+					<span class="default-bold">Password</span><br>
+					<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
+				</td>
+			</tr>						
+			<tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
+			</tr>
+			<tr align="left" valign="bottom">
+				<td>&nbsp;</td>
+			</tr>
+			<tr>
+				<td><span class="default"><a href="./">Back</a></span></td>
+			</tr>
+		</table>
+	</form>
+[$ endif $]
+	<br>
+	<br>
+	<br>
+	<br>
 	</BODY>
 </HTML>
-
-
