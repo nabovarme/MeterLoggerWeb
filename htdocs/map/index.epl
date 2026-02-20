@@ -378,10 +378,10 @@
 					container.querySelector('.toggle-wifi-container').addEventListener('click', () => {
 							if (tableDiv.style.display === 'none') {
 									tableDiv.style.display = 'block';
-									triangle.textContent = '▼';
+									triangle.textContent = '\u25BC'; // ▼
 							} else {
 									tableDiv.style.display = 'none';
-									triangle.textContent = '▶';
+									triangle.textContent = '\u25B6'; // ▶
 							}
 					});
 				});
