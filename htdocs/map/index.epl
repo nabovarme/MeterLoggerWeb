@@ -58,7 +58,12 @@
 				font-size: 12px;
 				margin: 0;
 			}
-		</style>
+			.toggle-wifi-triangle {
+			    font-family: Verdana, Arial, sans-serif !important;
+			    font-size: 14px;
+			    user-select: none;
+			    margin-right: 4px;
+			}		</style>
 
 		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
 		
@@ -378,10 +383,10 @@
 					container.querySelector('.toggle-wifi-container').addEventListener('click', () => {
 							if (tableDiv.style.display === 'none') {
 									tableDiv.style.display = 'block';
-									triangle.textContent = '\u25BC'; // ▼
+									triangle.textContent = '▼';
 							} else {
 									tableDiv.style.display = 'none';
-									triangle.textContent = '\u25B6'; // ▶
+									triangle.textContent = '▶';
 							}
 					});
 				});
