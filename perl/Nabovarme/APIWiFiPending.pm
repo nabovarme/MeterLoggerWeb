@@ -1,4 +1,4 @@
-package Nabovarme::APIWIFIPending;
+package Nabovarme::APIWiFiPending;
 
 use strict;
 use warnings;
