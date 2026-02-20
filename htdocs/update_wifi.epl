@@ -1,5 +1,4 @@
-﻿<HTML>
-[- 
+﻿[- 
 use Time::Format qw( time_format );
 
 use Nabovarme::Db;
@@ -44,105 +43,116 @@ if ($sth->rows) {
 	}
 }
 -] 
-	<HEAD>
-		<meta name="robots" content="noindex">
-		<TITLE>[+ $info +] MeterLogger</TITLE>
-		<script type="text/javascript">
-			var meter_serial = "[+ $fdat{'serial'} +]"
-		</script>
-		<style type="text/css">
-		.dygraph-legend {
-			font-family: Verdana, Geneva, sans-serif;
-			text-align: left;
-			background: none;
-			position: fixed;
-			top: 500px;
-			right: 20px;
-		}
-		.dygraph-label {
-			font-family: Verdana, Geneva, sans-serif;
-			text-align: left;
-			background: none;
-		}
-		.dygraph-axis-label {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-		.highlight {
-			font-weight: bold;
-		}
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-		.default-small {
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 50%;
-		}
-		.default-bold {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-		}
-		.default-highlight {
-			font-family: Verdana, Geneva, sans-serif;
-			background-color:#FFFF00;
-		}
-		</style>
+<HEAD>
+	<meta name="robots" content="noindex">
+	<TITLE>[+ $info +] MeterLogger</TITLE>
+	<script type="text/javascript">
+		var meter_serial = "[+ $fdat{'serial'} +]"
+	</script>
+
+	<!-- Dygraph & general styles -->
+	<style type="text/css">
+	.dygraph-legend {
+		font-family: Verdana, Geneva, sans-serif;
+		text-align: left;
+		background: none;
+		position: fixed;
+		top: 500px;
+		right: 20px;
+	}
+	.dygraph-label {
+		font-family: Verdana, Geneva, sans-serif;
+		text-align: left;
+		background: none;
+	}
+	.dygraph-axis-label {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.highlight {
+		font-weight: bold;
+	}
+	.default {
+		font-family: Verdana, Geneva, sans-serif;
+	}
+	.default-small {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 50%;
+	}
+	.default-bold {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+	}
+	.default-highlight {
+		font-family: Verdana, Geneva, sans-serif;
+		background-color:#FFFF00;
+	}
+	</style>
+
 [$ if ($is_admin) $]
-		<style type="text/css">
-		td input {
-		    width: 100%;
-		    box-sizing: border-box;
-		}
-		</style>
+	<style type="text/css">
+	td input {
+	    width: 100%;
+	    box-sizing: border-box;
+	}
+	</style>
 [$ endif $]
-	</HEAD>
-	<BODY>
+
+	<!-- Burger menu CSS & JS -->
+	<link rel="stylesheet" href="/css/menu.css">
+	<script src="/js/menu.js" defer></script>
+</HEAD>
+
+<BODY>
+
+<!-- Burger menu wrapper -->
+<div class="menu-wrap"></div>
+
 [$ if ($is_admin) $]
-	<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
-		<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-		<input type="hidden" name="state" value="update">
-		<table border="0" align="left" cellpadding="0" cellspacing="6">
-			<tr align="left" valign="bottom">
-				<td align="left">
-					<span class="default-bold">[+ $info +] </span><br>
-					<span class="default">serial [+ $serial +]</span><br>
-				</td>
-			</tr>
-			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-			</tr>
-			<tr align="left" valign="bottom">
-				<td align="left">
-					<span class="default-bold">SSID</span><br>
-					<span class="default">
-						<input type="text" inputmode="text" name="ssid" 
-							value="[+ ($fdat{'ssid'} || ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid) +]" size="32">
-					</span>
-				</td>
-			</tr>
-			<tr align="left" valign="bottom">
-				<td align="left">
-					<span class="default-bold">Password</span><br>
-					<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
-				</td>
-			</tr>						
-			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-			</tr>
-			<tr align="left" valign="bottom">
-				<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
-			</tr>
-			<tr align="left" valign="bottom">
-				<td>&nbsp;</td>
-			</tr>
-			<tr>
-				<td><span class="default"><a href="./">Back</a></span></td>
-			</tr>
-		</table>
-	</form>
+<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
+	<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+	<input type="hidden" name="state" value="update">
+	<table border="0" align="left" cellpadding="0" cellspacing="6">
+		<tr align="left" valign="bottom">
+			<td align="left">
+				<span class="default-bold">[+ $info +] </span><br>
+				<span class="default">serial [+ $serial +]</span><br>
+			</td>
+		</tr>
+		<tr align="left" valign="bottom">
+			<td>&nbsp;</td>
+		</tr>
+		<tr align="left" valign="bottom">
+			<td align="left">
+				<span class="default-bold">SSID</span><br>
+				<span class="default">
+					<input type="text" inputmode="text" name="ssid" 
+						value="[+ ($fdat{'ssid'} || ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid) +]" size="32">
+				</span>
+			</td>
+		</tr>
+		<tr align="left" valign="bottom">
+			<td align="left">
+				<span class="default-bold">Password</span><br>
+				<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
+			</td>
+		</tr>						
+		<tr align="left" valign="bottom">
+			<td>&nbsp;</td>
+		</tr>
+		<tr align="left" valign="bottom">
+			<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
+		</tr>
+		<tr align="left" valign="bottom">
+			<td>&nbsp;</td>
+		</tr>
+	</table>
+</form>
 [$ endif $]
-	<br>
-	<br>
-	<br>
-	<br>
-	</BODY>
+
+<br>
+<br>
+<br>
+<br>
+
+</BODY>
 </HTML>
