@@ -58,12 +58,16 @@
 				font-size: 12px;
 				margin: 0;
 			}
-			.toggle-wifi-triangle {
-			    font-family: Verdana, Arial, sans-serif !important;
-			    font-size: 14px;
-			    user-select: none;
-			    margin-right: 4px;
-			}		</style>
+
+			.toggle-wifi-triangle svg {
+				width: 10px;
+				height: 10px;
+				display: inline-block;
+				vertical-align: middle;
+				margin-right: 3px;
+				transition: transform 0.2s ease;
+			}
+		</style>
 
 		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
 		
@@ -212,7 +216,9 @@
 
 							// Flex container for triangle + label
 							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; cursor:pointer;">' +
-								'<span class="toggle-wifi-triangle" style="font-size:14px; user-select:none; margin-right:4px;">▶</span>' +
+								'<span class="toggle-wifi-triangle">' +
+									'<svg viewBox="0 0 12 12" width="10" height="10"><polygon points="0,0 12,6 0,12" fill="black"/></svg>' +
+								'</span>' +
 								'<b>Visible WiFi:</b>' +
 							'</div>' +
 
@@ -354,7 +360,7 @@
 					const container = popup.getElement();
 					const serial = container.querySelector('.toggle-wifi-container').dataset.serial;
 					const tableDiv = container.querySelector(`.wifi-table[data-serial="${serial}"]`);
-					const triangle = container.querySelector('.toggle-wifi-triangle');
+					const triangle = container.querySelector('.toggle-wifi-triangle svg');
 
 					if (!container.dataset.loaded) {
 							fetch('/api/wifi_scan/' + encodeURIComponent(serial))
@@ -383,10 +389,10 @@
 					container.querySelector('.toggle-wifi-container').addEventListener('click', () => {
 							if (tableDiv.style.display === 'none') {
 									tableDiv.style.display = 'block';
-									triangle.textContent = '▼';
+									triangle.style.transform = 'rotate(90deg)';
 							} else {
 									tableDiv.style.display = 'none';
-									triangle.textContent = '▶';
+									triangle.style.transform = 'rotate(0deg)';
 							}
 					});
 				});
