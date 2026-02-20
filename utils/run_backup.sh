@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #mysqldump --single-transaction --skip-add-drop-table --no-create-info nabovarme | pbzip2 > /var/lib/mysql_backup.sql.bz2
-mysqldump -h $METERLOGGER_DB_HOST -u root --password="$MYSQL_ROOT_PASSWORD" --single-transaction nabovarme | pbzip2 > /home/meterlogger/backup/mysql_backup.sql.bz2
+mysqldump --single-transaction nabovarme | pbzip2 > /home/meterlogger/backup/mysql_backup.sql.bz2
 if [ "${PIPESTATUS[0]}" -eq "0" ]
 then
 	echo "dump worked"
