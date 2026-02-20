@@ -191,8 +191,31 @@
 				[$ elsif (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]
 					.setZIndexOffset(800)
 				[$ endif $]
-					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div><div><b>Valve status: </b>[+ $d->{valve_status} +]<br><b>SSID: </b>[+ $d->{ssid} +]<br><b>RSSI: </b>[+ $d->{rssi} +]<br><b>AP status: </b>[+ $d->{ap_status} +]<br><b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $][$ if defined $d->{ping_average_packet_loss} $]<b>Ping average packet loss: </b>[+ $d->{ping_average_packet_loss} +]<br>[$ endif $][$ if defined $d->{disconnect_count} $]<b>Disconnect count: </b>[+ $d->{disconnect_count} +]<br>[$ endif $][$ if defined $d->{flash_id} $]<b>Flash ID: </b>[+ $d->{flash_id} +]<br>[$ endif $][$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]<b>Version: </b>[+ $d->{sw_version} +]<br>[$ if (length($d->{comment} || ($d->{valve_installed} == 0))) $]<br><i>[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</i><br>[$ endif $]<a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume_acc.epl[$ else $]/detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">Accummulated</a> | <a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume.epl[$ else $]/detail.epl[$ endif $]?serial=[+ $d->{serial} +]">Details</a><br><b>Visible WiFi:</b><div id="wifi-[+ $d->{serial} +]"><i>Loading...</i></div></div>'
-					);
+					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>' +
+						'<div>' +
+							'<b>Valve status: </b>[+ $d->{valve_status} +]<br>' +
+							'<b>SSID: </b>[+ $d->{ssid} +]<br>' +
+							'<b>RSSI: </b>[+ $d->{rssi} +]<br>' +
+							'<b>AP status: </b>[+ $d->{ap_status} +]<br>' +
+							'<b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>' +
+							'[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $]' +
+							'[$ if defined $d->{ping_average_packet_loss} $]<b>Ping average packet loss: </b>[+ $d->{ping_average_packet_loss} +]<br>[$ endif $]' +
+							'[$ if defined $d->{disconnect_count} $]<b>Disconnect count: </b>[+ $d->{disconnect_count} +]<br>[$ endif $]' +
+							'[$ if defined $d->{flash_id} $]<b>Flash ID: </b>[+ $d->{flash_id} +]<br>[$ endif $]' +
+							'[$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]' +
+							'<b>Version: </b>[+ $d->{sw_version} +]<br>' +
+
+							// Flex container for triangle + label
+							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; cursor:pointer;">' +
+								'<span class="toggle-wifi-triangle" style="font-size:14px; user-select:none; margin-right:4px;">▶</span>' +
+								'<b>Visible WiFi:</b>' +
+							'</div>' +
+
+							'<div class="wifi-table" data-serial="[+ $d->{serial} +]" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;"><i>Loading...</i></div>' +
+
+							'[$ if (length($d->{comment} || ($d->{valve_installed} == 0))) $]<br><i>[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</i><br>[$ endif $]' +
+							'<br><a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume_acc.epl[$ else $]/detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">Consumption</a> | <a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume.epl[$ else $]/detail.epl[$ endif $]?serial=[+ $d->{serial} +]">Details</a><br>' +
+						'</div>');
 				if (L.Browser.mobile == false) {
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
@@ -320,83 +343,48 @@
 
 				// Load WiFi dynamically from backend
 				map.on('popupopen', function(e) {
-
 					const popup = e.popup;
 					if (!popup) return;
 
-					const container = popup.getElement().querySelector('[id^="wifi-"]');
-					if (!container || container.dataset.loaded) return;
+					const container = popup.getElement();
+					const serial = container.querySelector('.toggle-wifi-container').dataset.serial;
+					const tableDiv = container.querySelector(`.wifi-table[data-serial="${serial}"]`);
+					const triangle = container.querySelector('.toggle-wifi-triangle');
 
-					const serial = container.id.replace('wifi-', '');
+					if (!container.dataset.loaded) {
+							fetch('/api/wifi_scan/' + encodeURIComponent(serial))
+									.then(res => res.json())
+									.then(data => {
+											if (!data.length) {
+													tableDiv.innerHTML = '<i>No scan data</i>';
+													return;
+											}
 
-					console.log('Fetching WiFi for', serial);
+											tableDiv.innerHTML = `<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
+													<thead><tr><th>SSID</th><th>RSSI</th><th>Ch</th><th>Auth</th></tr></thead>
+													<tbody>${data.map(ap => {
+															const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
+															return `<tr><td>${ap.ssid || '(hidden)'}</td><td style="color:${color}">${ap.rssi} dBm</td><td>${ap.channel}</td><td>${ap.auth_mode}</td></tr>`;
+													}).join('')}</tbody></table>`;
 
-					fetch('/api/wifi_scan/' + encodeURIComponent(serial))
-						.then(res => res.json())
-						.then(data => {
+											container.dataset.loaded = "1";
+									})
+									.catch(() => {
+											tableDiv.innerHTML = '<span style="color:red">Error loading WiFi</span>';
+									});
+					}
 
-							if (!data.length) {
-								container.innerHTML = '<i>No scan data</i>';
-								return;
-							}
-
-							let html = `
-								<span id="toggle-wifi-${serial}" style="cursor:pointer; font-size:14px; user-select:none; margin-right:4px;">
-									▶
-								</span>
-								<b>Visible WiFi:</b>
-								<div id="wifi-table-${serial}" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;">
-									<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
-										<thead>
-											<tr>
-												<th>SSID</th>
-												<th>RSSI</th>
-												<th>Ch</th>
-												<th>Auth</th>
-											</tr>
-										</thead>
-										<tbody>
-							`;
-
-							data.forEach(ap => {
-
-								let color = '#d9534f';
-								if (ap.rssi > -65) color = '#5cb85c';
-								else if (ap.rssi > -75) color = '#f0ad4e';
-
-								html += `
-									<tr>
-										<td>${ap.ssid || '(hidden)'}</td>
-										<td style="color:${color}">${ap.rssi} dBm</td>
-										<td>${ap.channel}</td>
-										<td>${ap.auth_mode}</td>
-									</tr>
-								`;
-							});
-
-							html += '</tbody></table></div>';
-
-							container.innerHTML = html;
-							container.dataset.loaded = "1";
-
-							// Triangle toggle functionality
-							const toggleLink = document.getElementById(`toggle-wifi-${serial}`);
-							const tableDiv = document.getElementById(`wifi-table-${serial}`);
-
-							toggleLink.addEventListener('click', () => {
-								if (tableDiv.style.display === 'none') {
+					// toggle on **click anywhere in the container**
+					container.querySelector('.toggle-wifi-container').addEventListener('click', () => {
+							if (tableDiv.style.display === 'none') {
 									tableDiv.style.display = 'block';
-									toggleLink.textContent = '▼';
-								} else {
+									triangle.textContent = '▼';
+							} else {
 									tableDiv.style.display = 'none';
-									toggleLink.textContent = '▶';
-								}
-							});
-						})
-						.catch(() => {
-							container.innerHTML = '<span style="color:red">Error loading WiFi</span>';
-						});
-				});		
+									triangle.textContent = '▶';
+							}
+					});
+				});
 	</script>
 
 	</BODY>
