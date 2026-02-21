@@ -74,25 +74,25 @@ sub handler {
 			my $current_serial = $node_serial;
 
 			while ($current_serial) {
-				my $current_ssid = "mesh-$current_serial";
+				# Get RSSI from meters.rssi
+				my ($rssi) = $dbh->selectrow_array(
+					"SELECT rssi FROM meters WHERE serial = ?",
+					undef, $current_serial
+				);
 
-				# Only consider RSSI if this serial has seen it
-				my $entry_ref = $aps_by_ssid{$current_ssid} ? $aps_by_ssid{$current_ssid}[0] : undef;
-				my $rssi = $entry_ref ? $entry_ref->{rssi} : undef;
+				if (defined $rssi) {
+					# Update min_rssi
+					if (!defined $min_rssi || $rssi < $min_rssi) {
+						$min_rssi = $rssi;
+						warn "DEBUG: New min_rssi=$min_rssi at node $current_serial";
+					} else {
+						warn "DEBUG: Node $current_serial has rssi=$rssi, current min_rssi=$min_rssi";
+					}
 
-				unless (defined $rssi) {
-					warn "DEBUG: Serial $serial has not seen node $current_serial, stopping traversal";
-					last;
-				}
-
-				if (!defined $min_rssi || $rssi < $min_rssi) {
-					$min_rssi = $rssi;
-					warn "DEBUG: New min_rssi=$min_rssi at node $current_serial";
+					push @chain, "$current_serial($rssi)";
 				} else {
-					warn "DEBUG: Node $current_serial has rssi=$rssi, current min_rssi=$min_rssi";
+					warn "DEBUG: Node $current_serial has no rssi, ignoring";
 				}
-
-				push @chain, "$current_serial($rssi)";
 
 				# Next upstream node
 				my ($parent_serial) = $dbh->selectrow_array(
