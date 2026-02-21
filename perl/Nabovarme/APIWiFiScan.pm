@@ -28,29 +28,56 @@ sub handler {
 
 	my $week_ago = time - 7*24*60*60;
 
-	# Step 1: fetch APs seen by this serial only, excluding its own AP and connected SSID
+	# Step 1: fetch all APs seen by this serial
 	my $sth = $dbh->prepare(q{
-		SELECT ws.ssid, ws.rssi, ws.channel, ws.auth_mode, ws.pairwise_cipher,
-		       ws.group_cipher, ws.phy_11b, ws.phy_11g, ws.phy_11n, ws.wps
-		FROM wifi_scan ws
-		LEFT JOIN meters m ON m.serial = ws.serial
-		WHERE ws.unix_time >= ?
-		  AND ws.serial = ?
-		  AND ws.ssid != CONCAT('mesh-', ?)
-		  AND ws.ssid != m.ssid
+		SELECT ssid, rssi, channel, auth_mode, pairwise_cipher, group_cipher,
+		       phy_11b, phy_11g, phy_11n, wps
+		FROM wifi_scan
+		WHERE unix_time >= ?
+		  AND serial = ?
 	});
-	$sth->execute($week_ago, $serial, $serial);
+	$sth->execute($week_ago, $serial);
 
-	# Step 2: organize by SSID
 	my %aps_by_ssid;
 	while (my $row = $sth->fetchrow_hashref) {
 		$_ //= '' for values %$row;
 		push @{ $aps_by_ssid{ $row->{ssid} } }, $row;
 	}
 
-	# Step 3: pick strongest AP per SSID
+	# Step 2: build recursive exclusion list
+	my %exclude;
+	my $root_ap = "mesh-$serial";
+
+	# exclude the meter's own AP
+	$exclude{$root_ap} = 1;
+
+	# exclude the SSID the meter is currently connected to
+	my $sth_ssid = $dbh->prepare("SELECT ssid FROM meters WHERE serial = ?");
+	$sth_ssid->execute($serial);
+	my ($current_ssid) = $sth_ssid->fetchrow_array;
+	$exclude{$current_ssid} = 1 if $current_ssid;
+
+	# recursively exclude all descendants
+	my @queue = ($serial);  # queue of serials
+	while (@queue) {
+		my $parent_serial = shift @queue;
+
+		# find all meters connected to this parent
+		my $sth_children = $dbh->prepare("SELECT serial FROM meters WHERE ssid = ?");
+		$sth_children->execute("mesh-$parent_serial");
+
+		while (my ($child_serial) = $sth_children->fetchrow_array) {
+			my $child_ap = "mesh-$child_serial";
+			next if $exclude{$child_ap};
+			$exclude{$child_ap} = 1;     # exclude the child’s AP
+			push @queue, $child_serial;  # recurse into the child
+		}
+	}
+
+	# Step 3: pick strongest AP per SSID, excluding all in %exclude
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
+		next if $exclude{$ssid};
 		my ($strongest) = sort { $b->{rssi} <=> $a->{rssi} } @{ $aps_by_ssid{$ssid} };
 		push @result, $strongest if $strongest;
 	}
