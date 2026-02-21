@@ -28,10 +28,10 @@ sub handler {
 
 	my $week_ago = time - 7*24*60*60;
 
-	# Step 1: fetch all APs seen by this serial
+	# Step 1: fetch all APs seen by this serial in the last week
 	my $sth = $dbh->prepare(q{
 		SELECT ssid, rssi, channel, auth_mode, pairwise_cipher, group_cipher,
-		       phy_11b, phy_11g, phy_11n, wps
+		       phy_11b, phy_11g, phy_11n, wps, unix_time
 		FROM wifi_scan
 		WHERE unix_time >= ?
 		  AND serial = ?
@@ -74,15 +74,53 @@ sub handler {
 		}
 	}
 
-	# Step 3: pick strongest AP per SSID, excluding all in %exclude
+	# Step 3: pick AP per SSID
+	#   - For mesh chain APs, calculate weakest RSSI along chain from meters.rssi
+	#   - For regular APs, pick the latest RSSI from wifi_scan
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
 		next if $exclude{$ssid};
-		my ($strongest) = sort { $b->{rssi} <=> $a->{rssi} } @{ $aps_by_ssid{$ssid} };
-		push @result, $strongest if $strongest;
+
+		my $entries = $aps_by_ssid{$ssid};
+
+		if ($ssid =~ /^mesh-/) {
+			# For mesh APs, walk the chain of nodes in meters to find weakest RSSI
+			my $min_rssi;
+			my ($root_serial) = $ssid =~ /^mesh-(.*)$/;
+			my @chain_queue = ($root_serial);
+
+			while (@chain_queue) {
+				my $node_serial = shift @chain_queue;
+
+				# get RSSI for this node from meters
+				my $sth_rssi = $dbh->prepare("SELECT rssi FROM meters WHERE serial = ?");
+				$sth_rssi->execute($node_serial);
+				my ($node_rssi) = $sth_rssi->fetchrow_array;
+
+				$min_rssi = $node_rssi
+					if defined $node_rssi && (!defined $min_rssi || $node_rssi < $min_rssi);
+
+				# enqueue children of this node
+				my $sth_children = $dbh->prepare("SELECT serial FROM meters WHERE ssid = ?");
+				$sth_children->execute("mesh-$node_serial");
+				while (my ($child_serial) = $sth_children->fetchrow_array) {
+					push @chain_queue, $child_serial;
+				}
+			}
+
+			# pick one entry from wifi_scan as base, overwrite RSSI with min_rssi
+			my ($base_entry) = @$entries;
+			$base_entry->{rssi} = $min_rssi if defined $min_rssi;
+			push @result, $base_entry;
+
+		} else {
+			# regular AP, pick the most recent scan by unix_time
+			my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
+			push @result, $latest_entry if $latest_entry;
+		}
 	}
 
-	# Step 4: sort by RSSI descending
+	# Step 4: sort final results by RSSI descending
 	@result = sort { $b->{rssi} <=> $a->{rssi} } @result;
 
 	my $json = JSON::XS->new->utf8->canonical->encode(\@result);
