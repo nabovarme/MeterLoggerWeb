@@ -28,15 +28,18 @@ sub handler {
 
 	my $week_ago = time - 7*24*60*60;
 
-	# Step 1: fetch APs seen by this serial only
+	# Step 1: fetch APs seen by this serial only, excluding its own AP and connected SSID
 	my $sth = $dbh->prepare(q{
-		SELECT ssid, rssi, channel, auth_mode, pairwise_cipher, group_cipher,
-		       phy_11b, phy_11g, phy_11n, wps
-		FROM wifi_scan
-		WHERE unix_time >= ?
-		  AND serial = ?
+		SELECT ws.ssid, ws.rssi, ws.channel, ws.auth_mode, ws.pairwise_cipher,
+		       ws.group_cipher, ws.phy_11b, ws.phy_11g, ws.phy_11n, ws.wps
+		FROM wifi_scan ws
+		LEFT JOIN meters m ON m.serial = ws.serial
+		WHERE ws.unix_time >= ?
+		  AND ws.serial = ?
+		  AND ws.ssid != CONCAT('mesh-', ?)
+		  AND ws.ssid != m.ssid
 	});
-	$sth->execute($week_ago, $serial);
+	$sth->execute($week_ago, $serial, $serial);
 
 	# Step 2: organize by SSID
 	my %aps_by_ssid;
@@ -45,35 +48,14 @@ sub handler {
 		push @{ $aps_by_ssid{ $row->{ssid} } }, $row;
 	}
 
-	# Step 3: build exclusion list (meter itself + descendants)
-	my %exclude;
-	my $root_ssid = "mesh-$serial";
-
-	if ($aps_by_ssid{$root_ssid}) {
-		my @queue = ($root_ssid);
-		while (@queue) {
-			my $current = shift @queue;
-			next if $exclude{$current};
-			$exclude{$current} = 1;
-
-			for my $ssid (keys %aps_by_ssid) {
-				# children are SSIDs like mesh-<parent_serial>
-				if ($ssid =~ /^mesh-(.+)$/ && $1 eq $current) {
-					push @queue, $ssid;
-				}
-			}
-		}
-	}
-
-	# Step 4: pick strongest AP per SSID, excluding meter's subtree
+	# Step 3: pick strongest AP per SSID
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
-		next if $exclude{$ssid};
 		my ($strongest) = sort { $b->{rssi} <=> $a->{rssi} } @{ $aps_by_ssid{$ssid} };
 		push @result, $strongest if $strongest;
 	}
 
-	# Step 5: sort by RSSI descending
+	# Step 4: sort by RSSI descending
 	@result = sort { $b->{rssi} <=> $a->{rssi} } @result;
 
 	my $json = JSON::XS->new->utf8->canonical->encode(\@result);
