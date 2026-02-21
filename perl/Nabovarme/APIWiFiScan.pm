@@ -97,6 +97,9 @@ sub handler {
 				$sth_rssi->execute($node_serial);
 				my ($node_rssi) = $sth_rssi->fetchrow_array;
 
+				# Debug: print current node RSSI and running min_rssi
+				warn "DEBUG: node=$node_serial, node_rssi=$node_rssi, min_rssi=" . ($min_rssi // 'undef') . "\n";
+
 				$min_rssi = $node_rssi
 					if defined $node_rssi && (!defined $min_rssi || $node_rssi < $min_rssi);
 
