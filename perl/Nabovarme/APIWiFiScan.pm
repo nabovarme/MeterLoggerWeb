@@ -44,67 +44,91 @@ sub handler {
 		push @{ $aps_by_ssid{ $row->{ssid} } }, $row;
 	}
 
-	# Step 2: build recursive exclusion list and compute mesh weakest RSSI
+	# Step 2: build recursive exclusion list of children
 	my %exclude;
-	my %mesh_min_rssi;    # store weakest RSSI per mesh AP
-	my $root_ap = "mesh-$serial";
-
-	# exclude the meter's own AP
-	$exclude{$root_ap} = 1;
-
-	# exclude the SSID the meter is currently connected to
-	my $sth_ssid = $dbh->prepare("SELECT ssid FROM meters WHERE serial = ?");
-	$sth_ssid->execute($serial);
-	my ($current_ssid) = $sth_ssid->fetchrow_array;
-	$exclude{$current_ssid} = 1 if $current_ssid;
-
-	# recursively exclude all descendants
-	my @queue = ($serial);  # queue of serials
+	my @queue = ($serial);
 	while (@queue) {
 		my $parent_serial = shift @queue;
-
-		# find all meters connected to this parent
-		my $sth_children = $dbh->prepare("SELECT serial, rssi FROM meters WHERE ssid = ?");
+		my $sth_children = $dbh->prepare("SELECT serial FROM meters WHERE ssid = ?");
 		$sth_children->execute("mesh-$parent_serial");
 
-		while (my ($child_serial, $child_rssi) = $sth_children->fetchrow_array) {
+		while (my ($child_serial) = $sth_children->fetchrow_array) {
 			my $child_ap = "mesh-$child_serial";
 			next if $exclude{$child_ap};
-			$exclude{$child_ap} = 1;     # exclude the child’s AP
-			push @queue, $child_serial;  # recurse into the child
-
-			# compute weakest RSSI for this mesh root
-			my $root_serial = $serial;  # original caller serial for this chain
-			$mesh_min_rssi{"mesh-$root_serial"} = $child_rssi
-				if !defined $mesh_min_rssi{"mesh-$root_serial"} || $child_rssi < $mesh_min_rssi{"mesh-$root_serial"};
-
-			# debug print
-			warn "DEBUG: SSID=mesh-$root_serial, node=$child_serial, node_rssi=$child_rssi, running_min_rssi=" 
-				. ($mesh_min_rssi{"mesh-$root_serial"} // 'undef') . "\n";
+			$exclude{$child_ap} = 1;
+			push @queue, $child_serial;
+			warn "DEBUG: Excluding child serial=$child_serial of parent=$parent_serial";
 		}
 	}
 
-	# Step 3: pick AP per SSID
-	#   - For mesh APs, use weakest RSSI computed in Step 2
-	#   - For regular APs, pick the latest RSSI from wifi_scan
+	# Step 3: compute weakest RSSI along upstream for all mesh APs visible in wifi_scan
+	my %mesh_min_rssi;
+	for my $ssid (keys %aps_by_ssid) {
+		next unless $ssid =~ /^mesh-/;
+		for my $entry (@{ $aps_by_ssid{$ssid} }) {
+			my ($node_serial) = $ssid =~ /^mesh-(.*)$/;
+			warn "DEBUG: Starting upstream RSSI traversal for mesh node $node_serial";
+
+			my $min_rssi;
+			my @chain;
+			my $current_serial = $node_serial;
+
+			while ($current_serial) {
+				my $current_ssid = "mesh-$current_serial";
+
+				# Only consider RSSI if this serial has seen it
+				my $entry_ref = $aps_by_ssid{$current_ssid} ? $aps_by_ssid{$current_ssid}[0] : undef;
+				my $rssi = $entry_ref ? $entry_ref->{rssi} : undef;
+
+				unless (defined $rssi) {
+					warn "DEBUG: Serial $serial has not seen node $current_serial, stopping traversal";
+					last;
+				}
+
+				if (!defined $min_rssi || $rssi < $min_rssi) {
+					$min_rssi = $rssi;
+					warn "DEBUG: New min_rssi=$min_rssi at node $current_serial";
+				} else {
+					warn "DEBUG: Node $current_serial has rssi=$rssi, current min_rssi=$min_rssi";
+				}
+
+				push @chain, "$current_serial($rssi)";
+
+				# Next upstream node
+				my ($parent_serial) = $dbh->selectrow_array(
+					"SELECT REPLACE(ssid,'mesh-','') FROM meters WHERE serial = ?",
+					undef, $current_serial
+				);
+
+				last unless defined $parent_serial && $parent_serial ne '';
+				$current_serial = $parent_serial;
+			}
+
+			$mesh_min_rssi{$ssid} = $min_rssi;
+			warn "DEBUG: Full upstream chain for $node_serial: " . join(" -> ", @chain);
+			warn "DEBUG: Weakest RSSI for mesh node $node_serial is $min_rssi";
+		}
+	}
+
+	# Step 4: pick AP per SSID
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
 		next if $exclude{$ssid};
 		my $entries = $aps_by_ssid{$ssid};
 
 		if ($ssid =~ /^mesh-/) {
-			# clone first wifi_scan entry just to hold SSID/channel info
 			my $base_entry = { %{ $entries->[0] } };
 			$base_entry->{rssi} = $mesh_min_rssi{$ssid} if defined $mesh_min_rssi{$ssid};
 			push @result, $base_entry;
+			warn "DEBUG: Mesh AP $ssid, original_rssi=$entries->[0]{rssi}, weakest_upstream_rssi=$base_entry->{rssi}, included=1";
 		} else {
-			# regular AP, pick the most recent scan by unix_time
 			my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
 			push @result, $latest_entry if $latest_entry;
+			warn "DEBUG: Regular AP $latest_entry->{ssid}, original_rssi=$latest_entry->{rssi}, included=1" if $latest_entry;
 		}
 	}
 
-	# Step 4: sort final results by RSSI descending
+	# Step 5: sort final results by RSSI descending
 	@result = sort { $b->{rssi} <=> $a->{rssi} } @result;
 
 	my $json = JSON::XS->new->utf8->canonical->encode(\@result);
