@@ -6,7 +6,7 @@ use Redis;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
-use Encode qw(decode FB_CROAK FB_DEFAULT);
+use Encode qw(decode encode FB_DEFAULT);
 
 use Nabovarme::Db;
 use Nabovarme::Crypto;
@@ -672,26 +672,18 @@ sub mqtt_network_quality_handler {
 	}
 }
 
+use Encode qw(decode);
+
 sub decode_ssid {
 	my ($raw) = @_;
-
 	return undef unless defined $raw;
-
-	my $ssid;
-
-	# 1) Try strict UTF-8
-	eval {
-		$ssid = decode('UTF-8', $raw, FB_CROAK);
-	};
-
-	# 2) Fallback to Latin-1 (never fails)
-	if ($@) {
-		$ssid = decode('ISO-8859-1', $raw, FB_DEFAULT);
-	}
-
-	# 3) Remove control characters
+	
+	# Decode UTF-8 bytes into Perl internal UTF-8 string
+	my $ssid = decode('UTF-8', $raw, Encode::FB_DEFAULT);
+	
+	# Remove control chars
 	$ssid =~ s/[\x00-\x1F\x7F]//g;
-
+	
 	return $ssid;
 }
 

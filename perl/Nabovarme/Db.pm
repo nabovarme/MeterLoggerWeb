@@ -10,7 +10,7 @@ sub my_connect {
 		'dbi:mysql:',
 		'',
 		'',
-		{ mysql_read_default_file => '/etc/mysql/my.cnf', mysql_auto_reconnect => 1, mysql_enable_utf8 => 1 }
+		{ mysql_read_default_file => '/etc/mysql/my.cnf', mysql_auto_reconnect => 1, mysql_enable_utf8mb4 => 1 }
 	);
 	
 	unless ($dbh) {
