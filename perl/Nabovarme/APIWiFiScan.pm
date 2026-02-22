@@ -61,7 +61,7 @@ sub handler {
 	}
 
 	# Step 3: compute upstream weakest RSSI along the mesh chain
-	my %mesh_min_rssi;
+	my %mesh_chain_info;
 
 	for my $ssid (keys %aps_by_ssid) {
 		next unless $ssid =~ /^mesh-/;
@@ -72,41 +72,37 @@ sub handler {
 		next unless defined $first_entry_ref && defined $first_entry_ref->{rssi};
 
 		my $min_rssi = $first_entry_ref->{rssi};
-		my @chain = ("$node_serial($min_rssi)");
-
+		my $hop_count = 1;
 		my $current_serial = $node_serial;
 
 		while (1) {
 
 			# Get the SSID this node is connected to (actual SSID, not forced mesh-)
-			my ($parent_ssid) = $dbh->selectrow_array(
-				"SELECT ssid FROM meters WHERE serial = ?",
+			my ($parent_ssid, $child_to_parent_rssi) = $dbh->selectrow_array(
+				"SELECT ssid, rssi FROM meters WHERE serial = ?",
 				undef, $current_serial
 			);
 
 			last unless defined $parent_ssid && $parent_ssid ne '';
 
-			# Get RSSI for this connection from meters
-			my ($child_to_parent_rssi) = $dbh->selectrow_array(
-				"SELECT rssi FROM meters WHERE serial = ? AND ssid = ?",
-				undef, $current_serial, $parent_ssid
-			);
-
 			if (defined $child_to_parent_rssi) {
 				$min_rssi = $child_to_parent_rssi if $child_to_parent_rssi < $min_rssi;
-				push @chain, "$current_serial($child_to_parent_rssi)";
 			}
 
 			# If parent SSID is mesh-<serial>, continue upstream
 			if ($parent_ssid =~ /^mesh-(.*)$/) {
 				$current_serial = $1;
+				$hop_count++;
 			} else {
 				# Reached root AP (non-mesh SSID like Gustav)
 				last;
 			}
 		}
 
-		$mesh_min_rssi{$ssid} = $min_rssi;
+		$mesh_chain_info{$ssid} = {
+			min_rssi => $min_rssi,
+			hop      => $hop_count,
+		};
 	}
 
 	# Step 4: pick AP per SSID, skipping SSID currently connected to
@@ -129,7 +125,12 @@ sub handler {
 			next if $is_excluded;
 
 			my $base_entry = { %{ $entries->[0] } };
-			$base_entry->{rssi} = $mesh_min_rssi{$ssid} if defined $mesh_min_rssi{$ssid};
+
+			if (my $info = $mesh_chain_info{$ssid}) {
+				$base_entry->{rssi} = $info->{min_rssi}
+					if defined $info->{min_rssi};
+				$base_entry->{hop} = $info->{hop};
+			}
 
 			push @result, $base_entry;
 

@@ -375,7 +375,13 @@
 													return;
 											}
 
-											rssiSpan.innerHTML = `<span>${data.weakest_rssi} dBm</span>`;
+											const hops = data.hop_count || (data.chain ? data.chain.length : 0);
+
+											rssiSpan.innerHTML =
+												`<span>${data.weakest_rssi} dBm` +
+													(hops ? ` (${hops} hop${hops > 1 ? 's' : ''})` : '') +
+												`</span>`;
+
 											rssiSpan.dataset.loaded = "1";
 									})
 									.catch(() => {
@@ -401,7 +407,9 @@
 													const encodedSSID = encodeURIComponent(ap.ssid || '');
 													return `<tr>
 														<td><a href="/update_wifi.epl?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
-														<td style="color:${color}">${ap.rssi} dBm</td>
+														<td style="color:${color}">
+															${ap.rssi} dBm${ap.hop ? ` (${ap.hop} hop${ap.hop > 1 ? 's' : ''})` : ''}
+														</td>
 														<td>${ap.channel}</td>
 														<td>${ap.auth_mode}</td>
 													</tr>`;
