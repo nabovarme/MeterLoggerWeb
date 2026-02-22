@@ -109,19 +109,23 @@ sub handler {
 		$mesh_min_rssi{$ssid} = $min_rssi;
 	}
 
-	# Step 4: pick AP per SSID with focused visibility logging
+	# Step 4: pick AP per SSID, skipping SSID currently connected to
+	my ($current_connected_ssid) = $dbh->selectrow_array(
+		"SELECT ssid FROM meters WHERE serial = ?", undef, $serial
+	);
+
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
 
 		my $entries = $aps_by_ssid{$ssid};
 		next unless $entries && @$entries;
 
+		# Skip the SSID the serial is currently connected to
+		next if defined $current_connected_ssid && $ssid eq $current_connected_ssid;
+
 		if ($ssid =~ /^mesh-/) {
 
-			my $seen = exists $aps_by_ssid{$ssid} ? 1 : 0;
 			my $is_excluded = $exclude{$ssid} ? 1 : 0;
-			my $min = defined $mesh_min_rssi{$ssid} ? $mesh_min_rssi{$ssid} : 'undef';
-
 			next if $is_excluded;
 
 			my $base_entry = { %{ $entries->[0] } };
