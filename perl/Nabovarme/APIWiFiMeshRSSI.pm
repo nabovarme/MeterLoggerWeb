@@ -41,6 +41,7 @@ sub handler {
 
 	my $min_rssi;
 	my @chain;
+	my $hop = 0;
 
 	my $current_serial = $serial;
 
@@ -55,13 +56,16 @@ sub handler {
 		last unless defined $ssid && $ssid ne '';
 
 		if (defined $rssi) {
+			$hop++;
+
 			$min_rssi = $rssi
 				if !defined($min_rssi) || $rssi < $min_rssi;
 
 			push @chain, {
 				serial => $current_serial,
 				ssid   => $ssid,
-				rssi   => $rssi
+				rssi   => $rssi,
+				hop    => $hop
 			};
 		}
 
@@ -77,6 +81,7 @@ sub handler {
 	my $json = JSON::XS->new->utf8->canonical->encode({
 		serial        => $serial,
 		weakest_rssi  => $min_rssi,
+		hop_count     => $hop,
 		chain         => \@chain
 	});
 
