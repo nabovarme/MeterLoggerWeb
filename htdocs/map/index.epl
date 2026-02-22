@@ -1,4 +1,4 @@
-﻿[-
+﻿[- 
 	use Nabovarme::Db;
 
 	$dbh = Nabovarme::Db->my_connect || die $!;
@@ -204,7 +204,7 @@
 						'<div>' +
 							'<b>Valve status: </b>[+ $d->{valve_status} +]<br>' +
 							'<b>SSID: </b>[+ $d->{ssid} +]<br>' +
-							'<b>RSSI: </b>[+ $d->{rssi} +]<br>' +
+							'<b>RSSI: </b><span class="chain-rssi" data-serial="[+ $d->{serial} +]">Loading...</span><br>' +
 							'<b>AP status: </b>[+ $d->{ap_status} +]<br>' +
 							'<b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>' +
 							'[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $]' +
@@ -361,6 +361,27 @@
 					const serial = container.querySelector('.toggle-wifi-container').dataset.serial;
 					const tableDiv = container.querySelector(`.wifi-table[data-serial="${serial}"]`);
 					const triangle = container.querySelector('.toggle-wifi-triangle svg');
+
+					// Fetch weakest RSSI for this serial
+					const rssiSpan = container.querySelector('.chain-rssi[data-serial="' + serial + '"]');
+					if (rssiSpan && !rssiSpan.dataset.loaded) {
+
+							fetch('/api/wifi_mesh_rssi/' + encodeURIComponent(serial))
+									.then(res => res.json())
+									.then(data => {
+
+											if (!data || typeof data.weakest_rssi === 'undefined') {
+													rssiSpan.innerHTML = 'N/A';
+													return;
+											}
+
+											rssiSpan.innerHTML = `<span>${data.weakest_rssi} dBm</span>`;
+											rssiSpan.dataset.loaded = "1";
+									})
+									.catch(() => {
+											rssiSpan.innerHTML = 'Error';
+									});
+					}
 
 					if (!container.dataset.loaded) {
 							fetch('/api/wifi_scan/' + encodeURIComponent(serial))

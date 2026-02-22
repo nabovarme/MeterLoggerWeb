@@ -17,6 +17,7 @@ use Nabovarme::APIPaymentsPending;
 use Nabovarme::APIAccount;
 use Nabovarme::APIWiFiPending;
 use Nabovarme::APIWiFiScan;
+use Nabovarme::APIWiFiMeshRSSI;
 use Nabovarme::APISMSSent;
 
 1;
