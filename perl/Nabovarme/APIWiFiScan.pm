@@ -69,10 +69,7 @@ sub handler {
 		my ($node_serial) = $ssid =~ /^mesh-(.*)$/;
 		my $first_entry_ref = $aps_by_ssid{$ssid}[0];
 
-		unless (defined $first_entry_ref && defined $first_entry_ref->{rssi}) {
-			warn "VISIBILITY: Node $node_serial has no first hop wifi_scan RSSI, skipping";
-			next;
-		}
+		next unless defined $first_entry_ref && defined $first_entry_ref->{rssi};
 
 		my $min_rssi = $first_entry_ref->{rssi};
 		my @chain = ("$node_serial($min_rssi)");
@@ -98,8 +95,6 @@ sub handler {
 			if (defined $child_to_parent_rssi) {
 				$min_rssi = $child_to_parent_rssi if $child_to_parent_rssi < $min_rssi;
 				push @chain, "$current_serial($child_to_parent_rssi)";
-			} else {
-				warn "VISIBILITY: Node $current_serial has no meters.rssi for parent $parent_ssid, ignoring";
 			}
 
 			# If parent SSID is mesh-<serial>, continue upstream
@@ -112,8 +107,6 @@ sub handler {
 		}
 
 		$mesh_min_rssi{$ssid} = $min_rssi;
-		warn "VISIBILITY: Full upstream chain for $node_serial: " . join(" -> ", @chain)
-			. ", weakest_rssi=$min_rssi";
 	}
 
 	# Step 4: pick AP per SSID with focused visibility logging
@@ -129,17 +122,7 @@ sub handler {
 			my $is_excluded = $exclude{$ssid} ? 1 : 0;
 			my $min = defined $mesh_min_rssi{$ssid} ? $mesh_min_rssi{$ssid} : 'undef';
 
-			if ($is_excluded) {
-				warn "VISIBILITY: $ssid skipped (excluded child of $serial)";
-				next;
-			}
-
-			unless ($seen) {
-				warn "VISIBILITY: $ssid about to be included BUT NOT seen in wifi_scan for serial=$serial";
-			}
-
-			warn "VISIBILITY: INCLUDING $ssid for serial=$serial "
-			   . "(seen=$seen, excluded=$is_excluded, upstream_min_rssi=$min)";
+			next if $is_excluded;
 
 			my $base_entry = { %{ $entries->[0] } };
 			$base_entry->{rssi} = $mesh_min_rssi{$ssid} if defined $mesh_min_rssi{$ssid};
