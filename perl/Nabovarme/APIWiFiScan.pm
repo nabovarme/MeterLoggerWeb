@@ -80,32 +80,40 @@ sub handler {
 		my $current_serial = $node_serial;
 
 		while (1) {
-			# Find parent serial from meters
-			my ($parent_serial) = $dbh->selectrow_array(
-				"SELECT REPLACE(ssid,'mesh-','') FROM meters WHERE serial = ?",
+
+			# Get the SSID this node is connected to (actual SSID, not forced mesh-)
+			my ($parent_ssid) = $dbh->selectrow_array(
+				"SELECT ssid FROM meters WHERE serial = ?",
 				undef, $current_serial
 			);
-			last unless defined $parent_serial && $parent_serial ne '';
 
-			# Get the RSSI of the child connecting to this parent
+			last unless defined $parent_ssid && $parent_ssid ne '';
+
+			# Get RSSI for this connection from meters
 			my ($child_to_parent_rssi) = $dbh->selectrow_array(
 				"SELECT rssi FROM meters WHERE serial = ? AND ssid = ?",
-				undef, $current_serial, "mesh-$parent_serial"
+				undef, $current_serial, $parent_ssid
 			);
 
 			if (defined $child_to_parent_rssi) {
 				$min_rssi = $child_to_parent_rssi if $child_to_parent_rssi < $min_rssi;
 				push @chain, "$current_serial($child_to_parent_rssi)";
 			} else {
-				warn "VISIBILITY: Node $current_serial has no meters.rssi for parent $parent_serial, ignoring";
+				warn "VISIBILITY: Node $current_serial has no meters.rssi for parent $parent_ssid, ignoring";
 			}
 
-			$current_serial = $parent_serial;
+			# If parent SSID is mesh-<serial>, continue upstream
+			if ($parent_ssid =~ /^mesh-(.*)$/) {
+				$current_serial = $1;
+			} else {
+				# Reached root AP (non-mesh SSID like Gustav)
+				last;
+			}
 		}
 
 		$mesh_min_rssi{$ssid} = $min_rssi;
-		warn "VISIBILITY: Full upstream chain for $node_serial: " . join(" -> ", @chain) .
-		     ", weakest_rssi=$min_rssi";
+		warn "VISIBILITY: Full upstream chain for $node_serial: " . join(" -> ", @chain)
+			. ", weakest_rssi=$min_rssi";
 	}
 
 	# Step 4: pick AP per SSID with focused visibility logging
