@@ -3,6 +3,7 @@
 .env~
 /build/*
 db/db_data/*
+db/logs/slow.log
 db_data/*
 sms_spool/
 mosquitto_data/
