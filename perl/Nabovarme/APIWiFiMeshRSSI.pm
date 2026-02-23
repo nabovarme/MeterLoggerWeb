@@ -15,7 +15,7 @@ sub handler {
 	my $r = shift;
 
 	my $orig_uri = $r->unparsed_uri || $r->uri;
-	my ($serial) = $orig_uri =~ m{^/api/wifi_mesh_rssi/([A-Za-z0-9_-]{1,16})$};
+	my ($serial) = $orig_uri =~ m{/([A-Za-z0-9_-]{1,16})$};
 	return Apache2::Const::HTTP_BAD_REQUEST unless $serial;
 
 	my $dbh = Nabovarme::Db->my_connect
