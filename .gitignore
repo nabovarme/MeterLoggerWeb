@@ -1,5 +1,6 @@
 /build/*
 db/db_data/*
+db/logs/slow.log
 db/conf.d/
 db_data/*
 smstools_spool/

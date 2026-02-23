@@ -17,6 +17,11 @@ services:
         # write mariadb server config
         echo '[mysqld]' > /out/99-custom.cnf &&
         echo 'innodb_buffer_pool_size=${INNODB_BUFFER_POOL_SIZE:-1G}' >> /out/99-custom.cnf &&
+        echo 'slow_query_log=ON' >> /out/99-custom.cnf &&
+        echo 'slow_query_log_file=/var/lib/mysql/logs/slow.log' >> /out/99-custom.cnf &&
+        echo 'long_query_time=0.05' >> /out/99-custom.cnf &&
+        echo 'log_queries_not_using_indexes=OFF' >> /out/99-custom.cnf &&
+        echo 'performance_schema=ON' >> /out/99-custom.cnf &&
         # write client config for other containers to read DB connection
         echo '[client]' > /out/99-client.cnf &&
         echo 'user=${METERLOGGER_DB_USER}' >> /out/99-client.cnf &&
@@ -44,6 +49,7 @@ services:
       - "127.0.0.1:${METERLOGGER_DB_PORT:-3306}:3306"
     volumes:
       - ./db/db_data:/var/lib/mysql:delegated
+      - ./db/logs:/var/lib/mysql/logs
       - ./db/conf.d:/etc/mysql/conf.d:ro
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
