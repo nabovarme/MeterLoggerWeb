@@ -67,11 +67,23 @@ sub handler {
 		next unless $ssid =~ /^mesh-/;
 
 		my ($node_serial) = $ssid =~ /^mesh-(.*)$/;
-		my $first_entry_ref = $aps_by_ssid{$ssid}[0];
 
-		next unless defined $first_entry_ref && defined $first_entry_ref->{rssi};
+		# Compute median RSSI for this mesh AP over all scans
+		my @rssi_vals = map { $_->{rssi} }
+			grep { defined $_->{rssi} }
+			@{ $aps_by_ssid{$ssid} };
 
-		my $min_rssi = $first_entry_ref->{rssi};
+		next unless @rssi_vals;
+
+		@rssi_vals = sort { $a <=> $b } @rssi_vals;
+
+		my $mid = int(@rssi_vals / 2);
+		my $first_rssi = (@rssi_vals % 2)
+			? $rssi_vals[$mid]
+			: int(($rssi_vals[$mid-1] + $rssi_vals[$mid]) / 2);
+
+		my $min_rssi = $first_rssi;
+
 		my $hop_count = 1;
 		my $current_serial = $node_serial;
 
