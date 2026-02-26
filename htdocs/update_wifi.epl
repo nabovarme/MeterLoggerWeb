@@ -7,41 +7,68 @@ use Nabovarme::Admin;
 $admin = new Nabovarme::Admin;
 $is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
 
-if ($dbh = Nabovarme::Db->my_connect) {
-	my $quoted_serial = $dbh->quote($fdat{'serial'});
-	$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` like $quoted_serial]);
-	$sth->execute;
-
-	# Fetch row once
-	if ($sth->rows) {
-		my $d = $sth->fetchrow_hashref;
-		$info   = $d->{info};
-		$serial = $d->{serial};
-		$ssid   = $fdat{'ssid'} || $d->{ssid};  # fallback if ssid not in query
+if ($is_admin) {
+	$mesh_password = '';	# default empty
+	
+	if ($dbh = Nabovarme::Db->my_connect) {
+	
+		# Check if SSID matches mesh-[serial] and look up mesh_pwd
+		if ($fdat{'ssid'} =~ /^mesh-(\S+)$/) {
+			my $mesh_serial = $1;
+			my $quoted_mesh_serial = $dbh->quote($mesh_serial);
+			my $sth_mesh = $dbh->prepare(qq[SELECT `mesh_pwd` FROM meters WHERE `serial` = $quoted_mesh_serial]);
+			$sth_mesh->execute;
+			if ($sth_mesh->rows) {
+				my $d_mesh = $sth_mesh->fetchrow_hashref;
+				if (defined $d_mesh->{mesh_pwd} && length($d_mesh->{mesh_pwd})) {
+					$mesh_password = $d_mesh->{mesh_pwd};
+				}
+			}
+			$sth_mesh->finish;
+		}
+	
+		# Fetch the meter info using the passed serial (canonical serial)
+		my $quoted_serial = $dbh->quote($fdat{'serial'});
+		$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` = $quoted_serial]);
+		$sth->execute;
+	
+		# Fetch row once
+		if ($sth->rows) {
+			my $d = $sth->fetchrow_hashref;
+			$info   = $d->{info};
+			$serial = $d->{serial};
+			# only prefill database SSID if query string not provided
+			$ssid   = $fdat{'ssid'} || $d->{ssid};
+		}
+	
+		# Keep the original block intact for non-mesh handling
+		if ($sth->rows) {
+			if ($d = $sth->fetchrow_hashref) {
+				$info   = $d->{info};
+				$serial = $d->{serial};
+				# only prefill database SSID if query string not provided
+				$ssid   = $d->{ssid} unless $fdat{'ssid'};
+			}
+		}
+	
+		# URL encode & and =
+		$ssid =~ s/&/%26/g;
+		$ssid =~ s/=/%3d/g;
+	
+		my $param = 'ssid=' . $ssid . '&' . 'pwd=' . ($fdat{'password'} || $mesh_password);
+		my $quoted_param = $dbh->quote($param);
+		if ($is_admin && ($fdat{state} =~ /update/i)) {
+			$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+				VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
+			$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
+				VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
+		}
 	}
-
-	# URL encode & and =
-	$ssid =~ s/&/%26/g;
-	$ssid =~ s/=/%3d/g;
-
-	my $param = 'ssid=' . $ssid . '&' . 'pwd=' . $fdat{'password'};
-	my $quoted_param = $dbh->quote($param);
-	if ($is_admin && ($fdat{state} =~ /update/i)) {
-		$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-			VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
-		$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-			VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
-	}
+	
+	# Use mesh_password if no password provided in query
+	$prefill_password = $fdat{'password'} || $mesh_password;
 }
 
-if ($sth->rows) {
-	if ($d = $sth->fetchrow_hashref) {
-		$info = $d->{info};
-		$serial = $d->{serial};
-		# only prefill database SSID if query string not provided
-		$ssid = $d->{ssid} unless $fdat{'ssid'};
-	}
-}
 -] 
 <HEAD>
 	<meta name="robots" content="noindex">
@@ -134,7 +161,9 @@ if ($sth->rows) {
 		<tr align="left" valign="bottom">
 			<td align="left">
 				<span class="default-bold">Password</span><br>
-				<span class="default"><input type="text" inputmode="text" name="password" value="[+ $fdat{password} +]" size="32"></span>
+				<span class="default">
+					<input type="text" inputmode="text" name="password" value="[+ $prefill_password +]" size="32">
+				</span>
 			</td>
 		</tr>						
 		<tr align="left" valign="bottom">
