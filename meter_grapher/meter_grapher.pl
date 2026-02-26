@@ -75,6 +75,9 @@ while (1) {
 		elsif ($data{topic} =~ /ap_status\/v2/) {
 			mqtt_ap_status_handler($data{topic}, $data{message});
 		}
+		elsif ($data{topic} =~ /set_ap_mesh_pwd\/v2/) {
+			mqtt_set_ap_mesh_pwd_handler($data{topic}, $data{message});
+		}
 		elsif ($data{topic} =~ /scan_result\/v2/) {
 			mqtt_scan_result_handler($data{topic}, $data{message});
 		}
@@ -383,6 +386,44 @@ sub mqtt_ap_status_handler {
 	else {
 		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+	}
+}
+
+sub mqtt_set_ap_mesh_pwd_handler {
+	my ($topic, $message) = @_;
+	my ($meter_serial, $unix_time);
+
+	unless ($topic =~ m!/set_ap_mesh_pwd/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+	$meter_serial = $1;
+	$unix_time = $2;
+
+	my $mesh_pwd = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if (defined $mesh_pwd) {
+		# remove trailing nulls
+		$mesh_pwd =~ s/[\x00\s]+$//;
+		$mesh_pwd .= '';
+
+		my $quoted_serial = $dbh->quote($meter_serial);
+		my $quoted_time   = $dbh->quote($unix_time);
+		my $quoted_pwd	= $dbh->quote($mesh_pwd);
+
+		$dbh->do(qq[
+			UPDATE meters SET
+				mesh_pwd = $quoted_pwd,
+				last_updated = $quoted_time
+			WHERE serial = $quoted_serial
+				AND $quoted_time > last_updated
+		]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+
+		log_info($topic . "\tmesh_pwd updated", {-no_script_name => 1});
+	}
+	else {
+		# hmac sha256 not ok
+		log_warn($topic . " hmac error, " .
+			(defined $message ? unpack('H*', $message) : 'undef'),
+			{-no_script_name => 1});
 	}
 }
 
