@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Define OpenResty version
-ENV OPENRESTY_VERSION=1.27.1.2
+ENV OPENRESTY_VERSION=1.29.2.1
 
 # Download and build OpenResty
 RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz && \
