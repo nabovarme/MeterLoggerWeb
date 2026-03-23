@@ -275,6 +275,7 @@ DROP TABLE IF EXISTS `meter_groups`;
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(256) NOT NULL DEFAULT '',
+  `mobile_pay_receiver` varchar(256) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
