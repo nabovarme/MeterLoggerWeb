@@ -93,7 +93,6 @@ services:
       - ./sms_spool:/var/www/nabovarme/sms_spool
     restart: always
     environment:
-      QR_MOBILE_PAY_RECEIVER: ${QR_MOBILE_PAY_RECEIVER}
       TZ: 'Europe/Copenhagen'
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
