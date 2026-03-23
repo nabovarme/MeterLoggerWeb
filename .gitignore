@@ -1,3 +1,4 @@
+*~
 /build/*
 db/db_data/*
 db/logs/slow.log

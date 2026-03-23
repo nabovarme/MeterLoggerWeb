@@ -11,13 +11,31 @@ use Fcntl qw(:flock);
 
 use Nabovarme::Db;
 
+sub latex_escape {
+	my $s = shift // '';
+
+	$s =~ s/\\/\\textbackslash{}/g;
+	$s =~ s/([#\$%&_{}])/\\$1/g;
+
+	$s =~ s/~/\\textasciitilde{}/g;
+	$s =~ s/\^/\\textasciicircum{}/g;
+
+	return $s;
+}
+
+sub uri_escape {
+	my $s = shift // '';
+	$s =~ s/([^A-Za-z0-9\-_.~])/sprintf("%%%02X", ord($1))/ge;
+	return $s;
+}
+
 sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
-	my $mobilepay_receiver = $r->dir_config('QRMobilePayReceiver') || '28490157';
+	my $mobilepay_receiver = $r->dir_config('QRMobilePayReceiver') or die "QRMobilePayReceiver is not configured";
 	my $qr_path = $r->dir_config('QRPath') || '/qr';
-	my $latex_template_name = $r->dir_config('QRLatexTemplateName') || 'template.tex';
+	my $latex_template_name = $r->dir_config('QRLatexTemplateName') or die "QRLatexTemplateName is not configured";
 	my $document_root = $r->document_root();
 	my $latex_template = $document_root . $qr_path . '/' . $latex_template_name;
 
@@ -45,6 +63,11 @@ sub handler {
 				if ($d = $sth->fetchrow_hashref) {
 					my $info = $d->{info};
 					my $sms = $d->{sms_notification};
+					my $info_esc = latex_escape($info);
+					my $sms_esc = latex_escape($sms);
+					my $serial_esc = latex_escape($serial);
+					my $mobilepay_esc = latex_escape($mobilepay_receiver);
+					my $comment = uri_escape("$serial, NV");
 					eval {
 						warn(qq[cd $document_root$qr_path && \
 						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
@@ -56,9 +79,9 @@ sub handler {
 
 						system(qq[cd $document_root$qr_path && \
 						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
-						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$serial, NV" ; \ 
+						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$comment" ; \ 
 						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
-						pdflatex "\\newcommand{\\varserial}{$serial} \\newcommand{\\varinfo}{$info} \\newcommand{\\varsms}{$sms} \\newcommand{\\varmobilepay}{$mobilepay_receiver} \\input{$latex_template_name}" ; \
+						pdflatex "\\newcommand{\\varserial}{$serial_esc} \\newcommand{\\varinfo}{$info_esc} \\newcommand{\\varsms}{$sms_esc} \\newcommand{\\varmobilepay}{$mobilepay_esc} \\input{$latex_template_name}" ; \
 						mv template.pdf $serial.pdf ; \
 						rm qr_mobilepay.png qr_meterlogger.png]);
 					};
