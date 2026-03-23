@@ -67,7 +67,7 @@ sub handler {
 					my $sms_esc = latex_escape($sms);
 					my $serial_esc = latex_escape($serial);
 					my $mobilepay_esc = latex_escape($mobilepay_receiver);
-					my $comment = uri_escape("$serial, NV");
+					my $comment = uri_escape("$serial, $info");
 					eval {
 						warn(qq[cd $document_root$qr_path && \
 						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
