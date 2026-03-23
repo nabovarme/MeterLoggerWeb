@@ -33,7 +33,6 @@ sub handler {
 	my $r = shift;
 	my ($dbh, $sth, $sth2, $d, $d2);
 	
-	my $mobilepay_receiver = $r->dir_config('QRMobilePayReceiver') or die "QRMobilePayReceiver is not configured";
 	my $qr_path = $r->dir_config('QRPath') || '/qr';
 	my $latex_template_name = $r->dir_config('QRLatexTemplateName') or die "QRLatexTemplateName is not configured";
 	my $document_root = $r->document_root();
@@ -53,16 +52,22 @@ sub handler {
 		else {
 			warn Dumper "no valid cache found: " . $document_root . $qr_path . '/' . $serial . '.pdf' . " we need to create it";
 			
-			$sth = $dbh->prepare(qq[SELECT \
-				serial, \
-				info, \
-				sms_notification \
-				FROM `meters` WHERE `serial` LIKE ] . $quoted_serial);
+			$sth = $dbh->prepare(qq[
+				SELECT m.serial, m.info, m.sms_notification, g.mobile_pay_receiver
+				FROM meters m
+				LEFT JOIN meter_groups g ON m.group = g.id
+				WHERE m.serial = ] . $quoted_serial);
 			$sth->execute;
 			if ($sth->rows) {
 				if ($d = $sth->fetchrow_hashref) {
 					my $info = $d->{info};
 					my $sms = $d->{sms_notification};
+					my $mobilepay_receiver = $d->{mobile_pay_receiver};
+
+					if (!defined $mobilepay_receiver || $mobilepay_receiver eq '') {
+						return Apache2::Const::NOT_FOUND;
+					}
+
 					my $info_esc = latex_escape($info);
 					my $sms_esc = latex_escape($sms);
 					my $serial_esc = latex_escape($serial);
