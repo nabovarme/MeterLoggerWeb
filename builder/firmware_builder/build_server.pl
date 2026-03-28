@@ -48,9 +48,7 @@ for (1..10) {
 			print "Worker $$ building serial: $job->{serial}\n";
 
 			run_docker_build(
-				$job->{serial},
-				$job->{key},
-				$job->{sw_version}
+				$job->{serial}
 			);
 		}
 
@@ -90,16 +88,14 @@ sub process_build {
 
 	while (my $row = $sth->fetchrow_hashref) {
 
-		# --- DEDUP KEY (serial + sw_version) ---
-		my $dedup_key = "job:$row->{serial}:$row->{sw_version}";
+		# Dedup
+		my $dedup_key = "job:$row->{serial}";
 
 		# Skip if already enqueued recently
 		next unless $redis->set($dedup_key, 1, 'NX', 'EX', 3600);
 
 		my $job = encode_json({
 			serial => $row->{serial},
-			key => $row->{key},
-			sw_version => $row->{sw_version},
 			trigger_time => time()
 		});
 
@@ -110,7 +106,24 @@ sub process_build {
 }
 
 sub run_docker_build {
-	my ($serial, $key, $sw_version) = @_;
+	my ($serial) = @_;
+
+	my $dbh = Nabovarme::Db->my_connect
+		or die "DB connection failed";
+
+	my $sth = $dbh->prepare("
+		SELECT `key`, sw_version
+		FROM meters
+		WHERE serial = ?
+	");
+
+	$sth->execute($serial);
+
+	my $row = $sth->fetchrow_hashref
+		or die "No meter found for serial $serial";
+
+	my $key = $row->{key};
+	my $sw_version = $row->{sw_version};
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
