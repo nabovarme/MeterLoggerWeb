@@ -9,6 +9,9 @@ use HTTP::Response;
 use JSON;
 use Redis;
 
+use File::Path qw(make_path);
+use File::Copy qw(move);
+
 use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
 
@@ -130,6 +133,7 @@ while (my $conn = $daemon->accept) {
 						SELECT serial, `key`, sw_version
 						FROM meters
 						WHERE enabled = 1
+						ORDER BY serial
 					");
 
 					$sth->execute;
@@ -207,6 +211,10 @@ sub enqueue_job {
 sub run_docker_build {
 	my ($serial, $key, $sw_version) = @_;
 
+	# filesystem safe version (ONLY for paths)
+	my $fs_version = $sw_version;
+	$fs_version =~ s/[^a-zA-Z0-9._-]//g;
+
 	my @build_flags = ('AP=1');
 
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
@@ -247,10 +255,110 @@ sub run_docker_build {
 		warn "Build failed for $serial\n$output\n";
 	}
 
+	if ($success) {
+
+		prepare_release_structure($serial, $fs_version);
+		generate_manifest($serial, $sw_version, $fs_version);
+		generate_firmware_index();
+	}
+
 	return {
 		serial => $serial,
 		success => $success ? 1 : 0,
 		exit_code => $exit_code,
 		output => $output
 	};
+}
+
+sub prepare_release_structure {
+	my ($serial, $fs_version) = @_;
+
+	my $base_dir = RELEASE_DIR;
+	my $serial_dir = "$base_dir/$serial";
+	my $version_dir = "$serial_dir/$fs_version";
+
+	my $src = "$base_dir/$serial.bin";
+	my $dst = "$version_dir/firmware.bin";
+
+	make_path($version_dir);
+
+	unlink $dst if -f $dst;
+
+	if (-f $src) {
+		move($src, $dst)
+			or die "Cannot move $src to $dst: $!";
+	}
+	else {
+		die "Firmware file not found: $src";
+	}
+
+	my $latest_link = "$serial_dir/latest";
+
+	unlink $latest_link if -l $latest_link || -e $latest_link;
+
+	symlink($fs_version, $latest_link)
+		or warn "Could not create symlink: $!";
+}
+
+sub generate_manifest {
+	my ($serial, $sw_version, $fs_version) = @_;
+
+	my $dir = RELEASE_DIR . "/$serial/$fs_version";
+
+	my $manifest = {
+		name => "MeterLogger $serial",
+		version => $sw_version,
+		builds => [
+			{
+				chipFamily => "ESP8266",
+				parts => [
+					{
+						path => "firmware.bin",
+						offset => 0
+					}
+				]
+			}
+		]
+	};
+
+	open(my $fh, ">", "$dir/manifest.json")
+		or die "Cannot write manifest: $!";
+
+	print $fh encode_json($manifest);
+	close($fh);
+}
+
+sub generate_firmware_index {
+
+	opendir(my $dh, RELEASE_DIR) or die "Cannot open dir";
+
+	my @firmwares;
+
+	while (my $serial = readdir($dh)) {
+
+		next if ($serial =~ /^\./);
+
+		my $latest = RELEASE_DIR . "/$serial/latest";
+
+		next unless -l $latest;
+
+		my $target = readlink($latest);
+		my $manifest_path = "$serial/$target/manifest.json";
+
+		if (-f RELEASE_DIR . "/$manifest_path") {
+
+			push @firmwares, {
+				name => "$serial ($target)",
+				path => $manifest_path
+			};
+		}
+	}
+
+	closedir($dh);
+
+	open(my $fh, ">", RELEASE_DIR . "/firmwares.json")
+		or die "Cannot write index";
+
+	print $fh encode_json(\@firmwares);
+	close($fh);
 }

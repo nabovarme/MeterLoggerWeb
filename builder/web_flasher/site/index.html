@@ -1,19 +1,66 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>ESP8266 Flasher</title>
+	<meta charset="UTF-8">
+	<title>ESP8266 Flasher</title>
 
-  <script type="module"
-    src="https://unpkg.com/esp-web-tools@latest/dist/web/install-button.js">
-  </script>
+	<!-- Load ESP Web Tools (used for flashing firmware over WebSerial) -->
+	<script type="module"
+		src="https://unpkg.com/esp-web-tools@latest/dist/web/install-button.js">
+	</script>
 </head>
 
 <body>
-  <h2>ESP8266 Flash Tool</h2>
+	<h2>ESP8266 Flash Tool</h2>
 
-  <esp-web-install-button manifest="manifest.json" erase="true">
-    <button slot="activate">Flash Device</button>
-  </esp-web-install-button>
+	<!-- Dropdown for selecting firmware -->
+	<label for="firmwareSelect">Select firmware:</label>
+	<select id="firmwareSelect">
+		<option value="">Loading...</option>
+	</select>
+
+	<br><br>
+
+	<!-- Flash button that uses the selected manifest -->
+	<esp-web-install-button id="installBtn" manifest="" erase="true">
+		<button slot="activate">Flash Device</button>
+	</esp-web-install-button>
+
+	<script>
+		const select = document.getElementById('firmwareSelect');
+		const button = document.getElementById('installBtn');
+
+		// Fetch firmware list from the server
+		fetch('firmware/firmwares.json')
+			.then(res => res.json())
+			.then(list => {
+
+				// Clear dropdown options
+				select.innerHTML = '';
+
+				// Populate dropdown with available firmware entries
+				list.forEach(fw => {
+					const opt = document.createElement('option');
+					opt.value = 'firmware/' + fw.path;
+					opt.textContent = fw.name;
+					select.appendChild(opt);
+				});
+
+				// Set default selection and update manifest
+				if (list.length > 0) {
+					select.value = 'firmware/' + list[0].path;
+					button.setAttribute('manifest', select.value);
+				}
+			})
+			.catch(err => {
+				console.error('Failed to load firmware list', err);
+			});
+
+		// Update manifest when user selects a different firmware
+		select.addEventListener('change', () => {
+			button.setAttribute('manifest', select.value);
+		});
+	</script>
+
 </body>
 </html>
