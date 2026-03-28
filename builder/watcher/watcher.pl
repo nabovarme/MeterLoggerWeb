@@ -7,16 +7,14 @@ use JSON;
 use LWP::UserAgent;
 
 my $REPO_URL = "https://api.github.com/repos/nabovarme/MeterLogger/commits/master";
-my $CHECK_INTERVAL = 60; # seconds
+my $CHECK_INTERVAL = 60;
 
-my $BUILDER_URL = "http://firmware-builder:5000/build-all";
-
-my $last_sha = "";
+my $BUILDER_URL = "http://firmware-builder:5000/rpc";
 
 # Shared state for signal handler
+my $last_sha = "";
 my $current_sha = "";
 
-# SIGHUP handler
 $SIG{HUP} = sub {
 	print "Received HUP signal - triggering build\n";
 	trigger_build($current_sha || "manual");
@@ -30,12 +28,14 @@ while (1) {
 	my $res = $ua->get($REPO_URL);
 
 	if ($res->is_success) {
+
 		my $json = decode_json($res->decoded_content);
 		my $sha = $json->{sha};
 
 		$current_sha = $sha;
 
 		if (!$last_sha || $sha ne $last_sha) {
+
 			print "Repo updated: $sha\n";
 
 			$last_sha = $sha;
@@ -64,7 +64,11 @@ sub trigger_build {
 	my $res = $ua->post(
 		$BUILDER_URL,
 		'Content-Type' => 'application/json',
-		Content => encode_json({})
+		Content => encode_json({
+			jsonrpc => "2.0",
+			method => "build_all",
+			id => time()
+		})
 	);
 
 	if ($res->is_success) {

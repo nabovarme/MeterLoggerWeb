@@ -1,3 +1,3 @@
 #!/bin/bash
 
-build_server.pl daemon -l http://*:5000
+build_server.pl
