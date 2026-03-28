@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y \
 	libmojolicious-perl \
 	libjson-perl \
 	libdbi-perl \
+	libdbd-mysql-perl \
 	sed \
 	texinfo \
 	unrar \
@@ -49,9 +50,6 @@ RUN apt-get update && apt-get install -y \
 	sudo \
 	screen \
 	software-properties-common
-
-# REQUIRED: compatible esptool for ESP8266 toolchain
-RUN pip3 install esptool==2.8
 
 # Adduser `meterlogger`
 RUN perl -pi -e 's/^#?\%sudo\W+ALL=\(ALL\:ALL\)\W+ALL/\%sudo\tALL=\(ALL\:ALL\) NOPASSWD\: ALL/' /etc/sudoers
@@ -79,6 +77,9 @@ RUN cd /meterlogger/esp-open-sdk && git clone https://github.com/nabovarme/esp-o
 
 RUN cd /meterlogger/esp-open-sdk && \
 	make STANDALONE=y
+
+# REQUIRED: compatible esptool for ESP8266 toolchain
+RUN pip3 install esptool
 
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \

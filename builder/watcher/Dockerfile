@@ -11,4 +11,5 @@ WORKDIR /app
 
 COPY ./builder/watcher/watcher.pl .
 
-CMD ["perl", "watcher.pl"]
+#CMD ["perl", "watcher.pl"]
+CMD cat /dev/zero > /dev/null
