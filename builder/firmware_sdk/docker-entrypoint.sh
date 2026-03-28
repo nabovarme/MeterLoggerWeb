@@ -34,17 +34,5 @@ if [ $EXIT_CODE -ne 0 ]; then
   exit $EXIT_CODE
 fi
 
-# Move firmware to shared release directory
-if [ -f /meterlogger/MeterLogger/release/firmware.bin ]; then
-  OUTPUT="/meterlogger/MeterLogger/release/${SERIAL}.bin"
-
-  mv /meterlogger/MeterLogger/release/firmware.bin "$OUTPUT"
-
-  echo "Firmware written to $OUTPUT"
-else
-  echo "ERROR: firmware.bin not found"
-  exit 1
-fi
-
 echo "Build completed successfully"
 exit 0
