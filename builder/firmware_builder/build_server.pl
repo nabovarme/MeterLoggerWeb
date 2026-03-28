@@ -3,7 +3,8 @@
 use strict;
 use warnings;
 
-use Mojolicious::Lite;
+use HTTP::Daemon;
+use HTTP::Status qw(:constants);
 use JSON;
 
 use lib qw( /usr/local/share/perl );
@@ -14,38 +15,111 @@ use Parallel::ForkManager;
 use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
-post '/build' => sub {
-	my $c = shift;
+my $daemon = HTTP::Daemon->new(
+	LocalPort => 5000,
+	Reuse => 1,
+) or die "Cannot start server: $!";
 
-	my $data = $c->req->json;
+print "Server running at: ", $daemon->url, "\n";
 
-	unless ($data && $data->{serial}) {
-		return $c->render(json => { error => "Missing serial" }, status => 400);
+while (my $conn = $daemon->accept) {
+
+	while (my $req = $conn->get_request) {
+
+		if ($req->method eq 'POST' && $req->url->path eq '/rpc') {
+
+			my $content = $req->content;
+			my $data;
+
+			eval {
+				$data = decode_json($content);
+			};
+
+			if ($@ || !$data->{method}) {
+
+				my $res = HTTP::Response->new(
+					400,
+					'Bad Request',
+					['Content-Type' => 'application/json'],
+					encode_json({
+						error => "Invalid JSON-RPC request"
+					})
+				);
+
+				$conn->send_response($res);
+				next;
+			}
+
+			my $method = $data->{method};
+			my $params = $data->{params} || {};
+			my $id = $data->{id};
+
+			my $result;
+
+			eval {
+
+				if ($method eq 'build') {
+
+					my $serial = $params->{serial}
+						or die "Missing serial";
+
+					$result = run_build($serial);
+				}
+				elsif ($method eq 'build_all') {
+
+					my $dbh = Nabovarme::Db->my_connect
+						or die "DB connection failed";
+
+					$dbh->{'mysql_auto_reconnect'} = 1;
+
+					my $res = run_build_all($dbh);
+
+					$result = {
+						success => 1,
+						results => $res
+					};
+				}
+				else {
+					die "Unknown method";
+				}
+			};
+
+			my $body;
+
+			if ($@) {
+
+				$body = encode_json({
+					jsonrpc => "2.0",
+					error => "$@",
+					id => $id
+				});
+			}
+			else {
+
+				$body = encode_json({
+					jsonrpc => "2.0",
+					result => $result,
+					id => $id
+				});
+			}
+
+			my $response = HTTP::Response->new(
+				200,
+				'OK',
+				['Content-Type' => 'application/json'],
+				$body
+			);
+
+			$conn->send_response($response);
+		}
+		else {
+			$conn->send_response(HTTP::Response->new(404));
+		}
 	}
 
-	my $result = run_build($data->{serial});
-
-	$c->render(json => $result);
-};
-
-post '/build-all' => sub {
-	my $c = shift;
-
-	my $dbh = Nabovarme::Db->my_connect;
-
-	unless ($dbh) {
-		return $c->render(json => { error => "DB connection failed" }, status => 500);
-	}
-
-	$dbh->{'mysql_auto_reconnect'} = 1;
-
-	my $result = run_build_all($dbh);
-
-	$c->render(json => {
-		success => 1,
-		results => $result
-	});
-};
+	$conn->close;
+	undef($conn);
+}
 
 sub run_build_all {
 	my ($dbh) = @_;
@@ -60,7 +134,6 @@ sub run_build_all {
 
 	my @results;
 
-	# Limit parallel builds (adjust as needed)
 	my $pm = Parallel::ForkManager->new(10);
 
 	while (my $row = $sth->fetchrow_hashref) {
@@ -74,7 +147,6 @@ sub run_build_all {
 		print "Building serial: $serial\n";
 
 		my $res = run_docker_build($serial, $key, $sw_version);
-		push @results, $res;
 
 		$pm->finish(0, $res);
 	}
@@ -98,7 +170,6 @@ sub run_build {
 	$sth->execute;
 
 	if (my $row = $sth->fetchrow_hashref) {
-
 		return run_docker_build($serial, $row->{key}, $row->{sw_version});
 	}
 
@@ -136,7 +207,7 @@ sub run_docker_build {
 		"-v firmware_release:" . RELEASE_DIR,
 		DOCKER_IMAGE
 	);
-	
+
 	print "Running: $docker_cmd\n";
 
 	my $output = `$docker_cmd 2>&1`;
@@ -155,5 +226,3 @@ sub run_docker_build {
 		output => $output
 	};
 }
-
-app->start;
