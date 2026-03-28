@@ -60,8 +60,7 @@ RUN usermod -a -G sudo meterlogger
 RUN mkdir /meterlogger
 RUN chown -R meterlogger:meterlogger /meterlogger
 
-COPY ./builder/firmware_builder/build_server.pl /usr/local/bin
-COPY ./perl /meterlogger/perl
+COPY ./builder/firmware_builder/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Crosstool demands non-root user for compilation
 USER meterlogger
@@ -78,7 +77,7 @@ RUN cd /meterlogger/esp-open-sdk && git clone https://github.com/nabovarme/esp-o
 RUN cd /meterlogger/esp-open-sdk && \
 	make STANDALONE=y
 
-# REQUIRED: compatible esptool for ESP8266 toolchain
+# compatible esptool for ESP8266 toolchain
 RUN pip3 install esptool
 
 # meterlogger
@@ -94,6 +93,7 @@ WORKDIR /meterlogger/MeterLogger
 
 RUN mkdir -p release
 
-CMD /usr/local/bin/build_server.pl daemon -l http://*:5000 &
+COPY ./builder/firmware_builder/build_server.pl /meterlogger
+COPY ./perl /meterlogger/perl
 
-CMD cat /dev/zero > /dev/null
+CMD /docker-entrypoint.sh

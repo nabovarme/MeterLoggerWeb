@@ -7,12 +7,20 @@ use JSON;
 use LWP::UserAgent;
 
 my $REPO_URL = "https://api.github.com/repos/nabovarme/MeterLogger/commits/master";
-my $CHECK_INTERVAL = 30; # seconds
+my $CHECK_INTERVAL = 60; # seconds
 
-# URL til din builder container (Docker service navn)
 my $BUILDER_URL = "http://firmware-builder:5000/build-all";
 
 my $last_sha = "";
+
+# Shared state for signal handler
+my $current_sha = "";
+
+# SIGHUP handler
+$SIG{HUP} = sub {
+	print "Received HUP signal - triggering build\n";
+	trigger_build($current_sha || "manual");
+};
 
 while (1) {
 
@@ -24,6 +32,8 @@ while (1) {
 	if ($res->is_success) {
 		my $json = decode_json($res->decoded_content);
 		my $sha = $json->{sha};
+
+		$current_sha = $sha;
 
 		if (!$last_sha || $sha ne $last_sha) {
 			print "Repo updated: $sha\n";
