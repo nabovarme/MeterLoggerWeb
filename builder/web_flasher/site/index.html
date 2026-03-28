@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ESP8266 Flasher</title>
+
+  <script type="module"
+    src="https://unpkg.com/esp-web-tools@latest/dist/web/install-button.js">
+  </script>
+</head>
+
+<body>
+  <h2>ESP8266 Flash Tool</h2>
+
+  <esp-web-install-button manifest="manifest.json" erase="true">
+    <button slot="activate">Flash Device</button>
+  </esp-web-install-button>
+</body>
+</html>

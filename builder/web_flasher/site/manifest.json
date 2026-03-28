@@ -1,0 +1,17 @@
+{
+  "name": "MeterLogger Firmware",
+  "version": "3.0.6+",
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "flash_size": "1MB",
+      "flash_mode": "dout",
+      "parts": [
+        {
+          "path": "firmware/meterlogger.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
