@@ -382,6 +382,18 @@ services:
       - firmware_builder
     restart: unless-stopped
 
+  web_flasher:
+    build:
+        context: '.'
+        dockerfile: ./builder/web_flasher/Dockerfile
+    container_name: web_flasher
+    hostname: web-flasher
+    ports:
+      - "8080:80"
+    volumes:
+      - ./builder/release:/var/www/html/firmware
+    restart: unless-stopped
+
 volumes:
   postfix_spool:
   postfix_mail:
