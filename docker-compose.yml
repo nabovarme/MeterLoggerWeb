@@ -4,13 +4,15 @@ services:
         context: '.'
         dockerfile: ./perl_modules/Dockerfile
     container_name: perl_modules_builder
+    hostname: perl-modules-builder
     volumes:
       - ./perl_modules/debs:/debs
     command: /build/build-all.sh
 
-  db-config:
+  db_config:
     image: busybox
-    container_name: db-config
+    container_name: db_config
+    hostname: db-config
     command: >
       sh -c "
         mkdir -p /out &&
@@ -44,7 +46,7 @@ services:
     image: mariadb:10.5
     container_name: db
     depends_on:
-      - db-config
+      - db_config
     ports:
       - "127.0.0.1:${METERLOGGER_DB_PORT:-3306}:3306"
     volumes:
@@ -144,6 +146,7 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_receive
+    hostname: mysql-mqtt-command-queue-receive
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
@@ -163,6 +166,7 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mysql_mqtt_command_queue_send
+    hostname: mysql-mqtt-command-queue-send
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
@@ -203,6 +207,7 @@ services:
         context: '.'
         dockerfile: ./smsd_watchdog/Dockerfile
     container_name: smsd_watchdog
+    hostname: smsd-watchdog
     depends_on:
       - smsd
     volumes:
@@ -228,6 +233,7 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_sms
+    hostname: meter-sms
     volumes:
       - meter_sms_state:/var/run/app_state
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
@@ -250,6 +256,7 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_cron
+    hostname: meter-cron
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
@@ -329,6 +336,7 @@ services:
       context: '.'
       dockerfile: ./prometheus_exporter/Dockerfile
     container_name: prometheus_exporter
+    hostname: prometheus-exporter
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     depends_on:
@@ -349,6 +357,27 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+
+  firmware_builder:
+    build:
+        context: '.'
+        dockerfile: ./builder/firmware_builder/Dockerfile
+    container_name: firmware_builder
+    hostname: firmware-builder
+    volumes:
+      - ./builder/release:/meterlogger/MeterLogger/release
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: unless-stopped
+
+  firmware_watcher:
+    build:
+        context: '.'
+        dockerfile: ./builder/watcher/Dockerfile
+    container_name: firmware_watcher
+    hostname: firmware-watcher
+    depends_on:
+      - firmware_builder
+    restart: unless-stopped
 
 volumes:
   postfix_spool:
