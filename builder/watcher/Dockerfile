@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
 	perl \
 	libwww-perl \
 	libjson-perl \
+	libredis-perl\
 	curl \
 	joe
 

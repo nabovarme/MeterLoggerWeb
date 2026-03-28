@@ -35,10 +35,13 @@
 			.then(res => res.json())
 			.then(list => {
 
-				// Clear dropdown options
+				// Sort firmware list by name (alphabetically)
+				list.sort((a, b) => a.name.localeCompare(b.name));
+
+				// Clear dropdown
 				select.innerHTML = '';
 
-				// Populate dropdown with available firmware entries
+				// Populate dropdown with sorted firmware entries
 				list.forEach(fw => {
 					const opt = document.createElement('option');
 					opt.value = 'firmware/' + fw.path;
