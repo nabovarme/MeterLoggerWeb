@@ -1,8 +1,8 @@
 services:
   perl_modules_builder:
     build:
-        context: '.'
-        dockerfile: ./perl_modules/Dockerfile
+      context: '.'
+      dockerfile: ./perl_modules/Dockerfile
     container_name: perl_modules_builder
     hostname: perl-modules-builder
     volumes:
@@ -138,8 +138,8 @@ services:
 
   mysql_mqtt_command_queue_receive:
     build:
-        context: '.'
-        dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
+      context: '.'
+      dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -158,8 +158,8 @@ services:
 
   mysql_mqtt_command_queue_send:
     build:
-        context: '.'
-        dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
+      context: '.'
+      dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -178,8 +178,8 @@ services:
 
   smsd:
     build:
-        context: '.'
-        dockerfile: ./smsd/Dockerfile
+      context: '.'
+      dockerfile: ./smsd/Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -204,8 +204,8 @@ services:
 
   smsd_watchdog:
     build:
-        context: '.'
-        dockerfile: ./smsd_watchdog/Dockerfile
+      context: '.'
+      dockerfile: ./smsd_watchdog/Dockerfile
     container_name: smsd_watchdog
     hostname: smsd-watchdog
     depends_on:
@@ -300,8 +300,8 @@ services:
 
   openresty:
     build:
-        context: '.'
-        dockerfile: ./openresty/Dockerfile
+      context: '.'
+      dockerfile: ./openresty/Dockerfile
     container_name: openresty
     depends_on:
       web:
@@ -319,8 +319,8 @@ services:
 
   utils:
     build:
-        context: '.'
-        dockerfile: ./utils/Dockerfile
+      context: '.'
+      dockerfile: ./utils/Dockerfile
     container_name: utils
     volumes:
       - ./backup:/home/meterlogger/backup
@@ -358,15 +358,32 @@ services:
       timeout: 5s
       retries: 3
 
+  firmware_sdk:
+    build:
+      context: '.'
+      dockerfile: ./builder/firmware_sdk/Dockerfile
+    image: firmware_sdk:latest
+    container_name: firmware_sdk
+    hostname: firmware-sdk
+    volumes:
+      - firmware_release:/meterlogger/MeterLogger/release
+    environment:
+      TZ: Europe/Copenhagen
+
   firmware_builder:
     build:
-        context: '.'
-        dockerfile: ./builder/firmware_builder/Dockerfile
+      context: '.'
+      dockerfile: ./builder/firmware_builder/Dockerfile
     container_name: firmware_builder
     hostname: firmware-builder
     volumes:
-      - ./builder/release:/meterlogger/MeterLogger/release
+      - /var/run/docker.sock:/var/run/docker.sock
+      - firmware_release:/meterlogger/MeterLogger/release
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+#    ports:
+#      - "5000:5000"
+    environment:
+      TZ: Europe/Copenhagen
     depends_on:
       db:
         condition: service_healthy
@@ -374,8 +391,8 @@ services:
 
   firmware_watcher:
     build:
-        context: '.'
-        dockerfile: ./builder/watcher/Dockerfile
+      context: '.'
+      dockerfile: ./builder/watcher/Dockerfile
     container_name: firmware_watcher
     hostname: firmware-watcher
     depends_on:
@@ -384,8 +401,8 @@ services:
 
   web_flasher:
     build:
-        context: '.'
-        dockerfile: ./builder/web_flasher/Dockerfile
+      context: '.'
+      dockerfile: ./builder/web_flasher/Dockerfile
     container_name: web_flasher
     hostname: web-flasher
     ports:
@@ -398,3 +415,5 @@ volumes:
   postfix_spool:
   postfix_mail:
   meter_sms_state:
+  firmware_release:
+    name: firmware_release

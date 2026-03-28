@@ -6,14 +6,13 @@ use warnings;
 use Mojolicious::Lite;
 use JSON;
 
-use lib qw( ./perl );
+use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
-use File::Copy qw(move);
 
-use constant BUILD_COMMAND => 'make clean all';
-use constant REPO_DIR => '/meterlogger/MeterLogger';
+use Parallel::ForkManager;
+
+use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
-use constant FIRMWARE => '/meterlogger/MeterLogger/release/firmware.bin';
 
 post '/build' => sub {
 	my $c = shift;
@@ -50,126 +49,110 @@ post '/build-all' => sub {
 
 sub run_build_all {
 	my ($dbh) = @_;
-	# Update repo ONCE before all builds
-	my $repo_dir = REPO_DIR;
-	if (-d $repo_dir) {
-		print "Updating repository...\n";
-		my $git_output = `cd $repo_dir && git pull 2>&1`;
-		print "Git output: $git_output\n";
-	}
-	else {
-		warn "Repo directory not found: $repo_dir\n";
-	}
 
-	my $sth = $dbh->prepare("SELECT serial FROM meters WHERE enabled = 1");
+	my $sth = $dbh->prepare("
+		SELECT serial, `key`, sw_version
+		FROM meters
+		WHERE enabled = 1
+	");
+
 	$sth->execute;
 
 	my @results;
 
-	while (my ($serial) = $sth->fetchrow_array) {
-		print "Building serial: $serial\n";
-		my $res = run_build($serial);
+	# Limit parallel builds (adjust as needed)
+	my $pm = Parallel::ForkManager->new(10);
 
-		push @results, {
-			serial => $serial,
-			%$res
-		};
+	while (my $row = $sth->fetchrow_hashref) {
+
+		$pm->start and next;
+
+		my $serial = $row->{serial};
+		my $key = $row->{key};
+		my $sw_version = $row->{sw_version};
+
+		print "Building serial: $serial\n";
+
+		my $res = run_docker_build($serial, $key, $sw_version);
+		push @results, $res;
+
+		$pm->finish(0, $res);
 	}
+
+	$pm->wait_all_children;
 
 	return \@results;
 }
 
 sub run_build {
-	my ($meter_serial) = @_;
+	my ($serial) = @_;
 
-	my $dbh;
-	if ($dbh = Nabovarme::Db->my_connect) {
-		$dbh->{'mysql_auto_reconnect'} = 1;
-	}
+	my $dbh = Nabovarme::Db->my_connect;
+
+	return { success => 0, error => "DB connection failed" } unless $dbh;
 
 	my $sth = $dbh->prepare(
-		"SELECT `key`, `sw_version` FROM meters WHERE serial = " . $dbh->quote($meter_serial) . " LIMIT 1"
+		"SELECT `key`, sw_version FROM meters WHERE serial = " . $dbh->quote($serial) . " LIMIT 1"
 	);
 
 	$sth->execute;
 
-	if ($sth->rows) {
-		my $row = $sth->fetchrow_hashref;
+	if (my $row = $sth->fetchrow_hashref) {
 
-		my $key = $row->{key} || warn "no aes key found\n";
-		my $sw_version = $row->{sw_version} || warn "no sw_version found\n";
+		return run_docker_build($serial, $row->{key}, $row->{sw_version});
+	}
 
-		my $DEFAULT_BUILD_VARS = 'AP=1';
+	return { success => 0, error => "Meter not found" };
+}
 
-		if ($sw_version =~ /NO_AUTO_CLOSE/) {
-			$DEFAULT_BUILD_VARS .= ' AUTO_CLOSE=0';
-		}
+sub run_docker_build {
+	my ($serial, $key, $sw_version) = @_;
 
-		if ($sw_version =~ /NO_CRON/) {
-			$DEFAULT_BUILD_VARS .= ' NO_CRON=1';
-		}
+	my @build_flags = ('AP=1');
 
-		if ($sw_version =~ /DEBUG_STACK_TRACE/) {
-			$DEFAULT_BUILD_VARS .= ' DEBUG_STACK_TRACE=1';
-		}
+	if ($sw_version =~ /NO_AUTO_CLOSE/) {
+		push @build_flags, 'AUTO_CLOSE=0';
+	}
 
-		if ($sw_version =~ /THERMO_ON_AC_2/) {
-			$DEFAULT_BUILD_VARS .= ' THERMO_ON_AC_2=1';
-		}
+	if ($sw_version =~ /NO_CRON/) {
+		push @build_flags, 'NO_CRON=1';
+	}
 
-		my $cmd;
+	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
+		push @build_flags, 'DEBUG_STACK_TRACE=1';
+	}
 
-		if ($sw_version =~ /MC-B/) {
-			$cmd = BUILD_COMMAND . " $DEFAULT_BUILD_VARS MC_66B=1 SERIAL=$meter_serial KEY=$key";
-		}
-		elsif ($sw_version =~ /MC/) {
-			$cmd = BUILD_COMMAND . " $DEFAULT_BUILD_VARS EN61107=1 SERIAL=$meter_serial KEY=$key";
-		}
-		elsif ($sw_version =~ /NO_METER/) {
-			$cmd = BUILD_COMMAND . " $DEFAULT_BUILD_VARS DEBUG=1 DEBUG_NO_METER=1 SERIAL=$meter_serial KEY=$key";
-		}
-		else {
-			$cmd = BUILD_COMMAND . " $DEFAULT_BUILD_VARS SERIAL=$meter_serial KEY=$key";
-		}
+	if ($sw_version =~ /THERMO_ON_AC_2/) {
+		push @build_flags, 'THERMO_ON_AC_2=1';
+	}
 
-		print "Running: $cmd\n";
+	my $extra_flags = join(' ', @build_flags);
 
-		my $repo_dir = REPO_DIR;
-		my $output = `cd $repo_dir && $cmd 2>&1`;
-		my $exit_code = $? >> 8;
+	my $docker_cmd = join(" ",
+		"docker run --rm",
+		"-e SERIAL=$serial",
+		"-e KEY=$key",
+		"-e BUILD_FLAGS=\"$extra_flags\"",
+		"-v firmware_release:" . RELEASE_DIR,
+		DOCKER_IMAGE
+	);
+	
+	print "Running: $docker_cmd\n";
 
-		my $success = ($exit_code == 0);
+	my $output = `$docker_cmd 2>&1`;
+	my $exit_code = $? >> 8;
 
-		if ($success) {
-			my $src = FIRMWARE;
-			my $dst = RELEASE_DIR . "/$meter_serial.bin";
+	my $success = ($exit_code == 0);
 
-			if (-e $src) {
-				if (move($src, $dst)) {
-					print "Moved firmware to $dst\n";
-				}
-				else {
-					warn "Failed to move firmware: $!";
-					$success = 0;
-				}
-			}
-			else {
-				warn "Firmware file not found: $src";
-				$success = 0;
-			}
-		}
-
-		return {
-			success => $success ? 1 : 0,
-			exit_code => $exit_code,
-			command => $cmd,
-			output => $output
-		};
+	if (!$success) {
+		warn "Build failed for $serial\n$output\n";
 	}
 
 	return {
-		success => 0,
-		error => "Meter not found"
+		serial => $serial,
+		success => $success ? 1 : 0,
+		exit_code => $exit_code,
+		output => $output
 	};
 }
 
