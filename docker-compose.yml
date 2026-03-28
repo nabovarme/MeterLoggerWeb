@@ -367,6 +367,9 @@ services:
     volumes:
       - ./builder/release:/meterlogger/MeterLogger/release
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   firmware_watcher:

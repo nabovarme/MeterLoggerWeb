@@ -8,8 +8,12 @@ use JSON;
 
 use lib qw( ./perl );
 use Nabovarme::Db;
+use File::Copy qw(move);
 
-use constant BUILD_COMMAND => 'make firmware';
+use constant BUILD_COMMAND => 'make clean all';
+use constant REPO_DIR => '/meterlogger/MeterLogger';
+use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
+use constant FIRMWARE => '/meterlogger/MeterLogger/release/firmware.bin';
 
 post '/build' => sub {
 	my $c = shift;
@@ -46,6 +50,16 @@ post '/build-all' => sub {
 
 sub run_build_all {
 	my ($dbh) = @_;
+	# Update repo ONCE before all builds
+	my $repo_dir = REPO_DIR;
+	if (-d $repo_dir) {
+		print "Updating repository...\n";
+		my $git_output = `cd $repo_dir && git pull 2>&1`;
+		print "Git output: $git_output\n";
+	}
+	else {
+		warn "Repo directory not found: $repo_dir\n";
+	}
 
 	my $sth = $dbh->prepare("SELECT serial FROM meters WHERE enabled = 1");
 	$sth->execute;
@@ -120,11 +134,33 @@ sub run_build {
 
 		print "Running: $cmd\n";
 
-		my $output = `$cmd 2>&1`;
+		my $repo_dir = REPO_DIR;
+		my $output = `cd $repo_dir && $cmd 2>&1`;
 		my $exit_code = $? >> 8;
 
+		my $success = ($exit_code == 0);
+
+		if ($success) {
+			my $src = FIRMWARE;
+			my $dst = RELEASE_DIR . "/$meter_serial.bin";
+
+			if (-e $src) {
+				if (move($src, $dst)) {
+					print "Moved firmware to $dst\n";
+				}
+				else {
+					warn "Failed to move firmware: $!";
+					$success = 0;
+				}
+			}
+			else {
+				warn "Firmware file not found: $src";
+				$success = 0;
+			}
+		}
+
 		return {
-			success => $exit_code == 0 ? 1 : 0,
+			success => $success ? 1 : 0,
 			exit_code => $exit_code,
 			command => $cmd,
 			output => $output
