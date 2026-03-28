@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
 	aptitude \
 	bash \
 	joe \
-	libhttp-daemon-perl \
 	libjson-perl \
 	libdbi-perl \
 	libdbd-mysql-perl \

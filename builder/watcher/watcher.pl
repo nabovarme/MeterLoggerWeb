@@ -5,19 +5,28 @@ use warnings;
 
 use JSON;
 use LWP::UserAgent;
+use Redis;
 
 my $REPO_URL = "https://api.github.com/repos/nabovarme/MeterLogger/commits/master";
 my $CHECK_INTERVAL = 60;
 
-my $BUILDER_URL = "http://firmware-builder:5000/rpc";
+# Redis connection
+my $redis_host = $ENV{'REDIS_HOST'}
+	or die "ERROR: REDIS_HOST environment variable not set";
 
-# Shared state for signal handler
+my $redis_port = $ENV{'REDIS_PORT'}
+	or die "ERROR: REDIS_PORT environment variable not set";
+
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+);
+
 my $last_sha = "";
 my $current_sha = "";
 
 $SIG{HUP} = sub {
 	print "Received HUP signal - triggering build\n";
-	trigger_build($current_sha || "manual");
+	trigger_build("manual");
 };
 
 while (1) {
@@ -36,11 +45,11 @@ while (1) {
 
 		if (!$last_sha || $sha ne $last_sha) {
 
-			print "Repo updated: $sha\n";
+			print "Repo updated\n";
 
 			$last_sha = $sha;
 
-			trigger_build($sha);
+			trigger_build("git_update");
 		}
 		else {
 			print "No changes\n";
@@ -54,28 +63,15 @@ while (1) {
 }
 
 sub trigger_build {
-	my ($sha) = @_;
+	my ($reason) = @_;
 
-	print "Triggering build for $sha\n";
+	print "Triggering build ($reason)\n";
 
-	my $ua = LWP::UserAgent->new;
-	$ua->timeout(300);
+	# just emit a trigger event — no payload needed
+	$redis->rpush("firmware_build_trigger", encode_json({
+		reason => $reason,
+		time => time()
+	}));
 
-	my $res = $ua->post(
-		$BUILDER_URL,
-		'Content-Type' => 'application/json',
-		Content => encode_json({
-			jsonrpc => "2.0",
-			method => "build_all",
-			id => time()
-		})
-	);
-
-	if ($res->is_success) {
-		print "Build triggered successfully\n";
-		print $res->decoded_content . "\n";
-	}
-	else {
-		warn "Failed to trigger build: " . $res->status_line;
-	}
+	print "Trigger sent\n";
 }

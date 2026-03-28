@@ -3,9 +3,6 @@
 use strict;
 use warnings;
 
-use HTTP::Daemon;
-use HTTP::Status qw(:constants);
-use HTTP::Response;
 use JSON;
 use Redis;
 
@@ -19,6 +16,7 @@ use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
+my $REDIS_TRIGGER = "firmware_build_trigger";
 
 # Redis connection
 my $redis_host = $ENV{'REDIS_HOST'}
@@ -52,7 +50,8 @@ for (1..10) {
 			run_docker_build(
 				$job->{serial},
 				$job->{key},
-				$job->{sw_version}
+				$job->{sw_version},
+				$job->{sha}
 			);
 		}
 
@@ -60,156 +59,59 @@ for (1..10) {
 	}
 }
 
-# HTTP server
-my $daemon = HTTP::Daemon->new(
-	LocalPort => 5000,
-	Reuse => 1,
-) or die "Cannot start server: $!";
+print "Workers started\n";
 
-print "Server running at: ", $daemon->url, "\n";
+# Trigger listener (DB + enqueue jobs happens here)
+while (1) {
 
-while (my $conn = $daemon->accept) {
+	my $data = $redis->blpop($REDIS_TRIGGER, 0);
+	my (undef, $payload) = @$data;
 
-	while (my $req = $conn->get_request) {
+	my $trigger = decode_json($payload);
 
-		if ($req->method eq 'POST' && $req->url->path eq '/rpc') {
+	print "Processing build trigger\n";
 
-			my $data;
-
-			eval {
-				$data = decode_json($req->content);
-			};
-
-			if ($@ || !$data->{method}) {
-
-				$conn->send_response(HTTP::Response->new(
-					400,
-					'Bad Request',
-					['Content-Type' => 'application/json'],
-					encode_json({ error => "Invalid JSON-RPC request" })
-				));
-
-				next;
-			}
-
-			my $method = $data->{method};
-			my $params = $data->{params} || {};
-			my $id = $data->{id};
-
-			my $result;
-
-			eval {
-
-				if ($method eq 'build') {
-
-					my $serial = $params->{serial}
-						or die "Missing serial";
-
-					my $dbh = Nabovarme::Db->my_connect
-						or die "DB connection failed";
-
-					my $sth = $dbh->prepare(
-						"SELECT `key`, sw_version FROM meters WHERE serial = " . $dbh->quote($serial) . " LIMIT 1"
-					);
-
-					$sth->execute;
-
-					if (my $row = $sth->fetchrow_hashref) {
-
-						enqueue_job($serial, $row->{key}, $row->{sw_version});
-
-						$result = { success => 1, queued => 1 };
-					}
-					else {
-						die "Meter not found";
-					}
-				}
-				elsif ($method eq 'build_all') {
-
-					my $dbh = Nabovarme::Db->my_connect
-						or die "DB connection failed";
-
-					my $sth = $dbh->prepare("
-						SELECT serial, `key`, sw_version
-						FROM meters
-						WHERE enabled = 1
-						ORDER BY serial
-					");
-
-					$sth->execute;
-
-					my $count = 0;
-
-					while (my $row = $sth->fetchrow_hashref) {
-
-						enqueue_job(
-							$row->{serial},
-							$row->{key},
-							$row->{sw_version}
-						);
-
-						$count++;
-					}
-
-					$result = {
-						success => 1,
-						queued => $count
-					};
-				}
-				else {
-					die "Unknown method";
-				}
-			};
-
-			my $body;
-
-			if ($@) {
-
-				$body = encode_json({
-					jsonrpc => "2.0",
-					error => "$@",
-					id => $id
-				});
-			}
-			else {
-
-				$body = encode_json({
-					jsonrpc => "2.0",
-					result => $result,
-					id => $id
-				});
-			}
-
-			$conn->send_response(HTTP::Response->new(
-				200,
-				'OK',
-				['Content-Type' => 'application/json'],
-				$body
-			));
-		}
-		else {
-			$conn->send_response(HTTP::Response->new(404));
-		}
-	}
-
-	$conn->close;
-	undef($conn);
+	process_build($trigger);
 }
 
-sub enqueue_job {
-	my ($serial, $key, $sw_version) = @_;
+sub process_build {
+	my ($trigger) = @_;
 
-	my $job = encode_json({
-		serial => $serial,
-		key => $key,
-		sw_version => $sw_version
-	});
+	my $dbh = Nabovarme::Db->my_connect
+		or die "DB connection failed";
 
-	$redis->rpush($REDIS_QUEUE, $job);
+	my $sth = $dbh->prepare("
+		SELECT serial, `key`, sw_version
+		FROM meters
+		WHERE enabled = 1
+		ORDER BY serial
+	");
+
+	$sth->execute;
+
+	while (my $row = $sth->fetchrow_hashref) {
+
+		my $job = encode_json({
+			serial => $row->{serial},
+			key => $row->{key},
+			sw_version => $row->{sw_version},
+			trigger_time => time()
+		});
+
+		$redis->rpush($REDIS_QUEUE, $job);
+	}
+
+	print "Jobs enqueued\n";
 }
 
 sub run_docker_build {
-	my ($serial, $key, $sw_version) = @_;
+	my ($serial, $key, $sw_version, $sha) = @_;
+
+	# Skip if already built
+	if ($sha && $redis->get("build:sha:$sha")) {
+		print "Already built for $sha — skipping\n";
+		return;
+	}
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
@@ -260,6 +162,11 @@ sub run_docker_build {
 		prepare_release_structure($serial, $fs_version);
 		generate_manifest($serial, $sw_version, $fs_version);
 		generate_firmware_index();
+
+		# mark build as done (if SHA is provided later)
+		if ($sha) {
+			$redis->set("build:sha:$sha", 1);
+		}
 	}
 
 	return {

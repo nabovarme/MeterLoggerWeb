@@ -399,6 +399,9 @@ services:
       dockerfile: ./builder/watcher/Dockerfile
     container_name: firmware_watcher
     hostname: firmware-watcher
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
     depends_on:
       - firmware_builder
     restart: unless-stopped
