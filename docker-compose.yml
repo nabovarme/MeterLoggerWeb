@@ -408,7 +408,7 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./builder/release:/var/www/html/firmware
+      - firmware_release:/var/www/html/firmware
     restart: unless-stopped
 
 volumes:
