@@ -5,16 +5,59 @@ use warnings;
 
 use HTTP::Daemon;
 use HTTP::Status qw(:constants);
+use HTTP::Response;
 use JSON;
+use Redis;
 
 use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
 
-use Parallel::ForkManager;
-
 use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
+my $REDIS_QUEUE = "firmware_build_queue";
+
+# Redis connection
+my $redis_host = $ENV{'REDIS_HOST'}
+	or die "ERROR: REDIS_HOST environment variable not set";
+
+my $redis_port = $ENV{'REDIS_PORT'}
+	or die "ERROR: REDIS_PORT environment variable not set";
+
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+);
+
+# Start 10 workers (forks)
+for (1..10) {
+
+	my $pid = fork();
+
+	if ($pid == 0) {
+
+		print "Worker $_ started (pid $$)\n";
+
+		while (1) {
+
+			my $job_json = $redis->blpop($REDIS_QUEUE, 0);
+			my ($queue, $data) = @$job_json;
+
+			my $job = decode_json($data);
+
+			print "Worker $$ building serial: $job->{serial}\n";
+
+			run_docker_build(
+				$job->{serial},
+				$job->{key},
+				$job->{sw_version}
+			);
+		}
+
+		exit;
+	}
+}
+
+# HTTP server
 my $daemon = HTTP::Daemon->new(
 	LocalPort => 5000,
 	Reuse => 1,
@@ -28,25 +71,21 @@ while (my $conn = $daemon->accept) {
 
 		if ($req->method eq 'POST' && $req->url->path eq '/rpc') {
 
-			my $content = $req->content;
 			my $data;
 
 			eval {
-				$data = decode_json($content);
+				$data = decode_json($req->content);
 			};
 
 			if ($@ || !$data->{method}) {
 
-				my $res = HTTP::Response->new(
+				$conn->send_response(HTTP::Response->new(
 					400,
 					'Bad Request',
 					['Content-Type' => 'application/json'],
-					encode_json({
-						error => "Invalid JSON-RPC request"
-					})
-				);
+					encode_json({ error => "Invalid JSON-RPC request" })
+				));
 
-				$conn->send_response($res);
 				next;
 			}
 
@@ -63,20 +102,54 @@ while (my $conn = $daemon->accept) {
 					my $serial = $params->{serial}
 						or die "Missing serial";
 
-					$result = run_build($serial);
+					my $dbh = Nabovarme::Db->my_connect
+						or die "DB connection failed";
+
+					my $sth = $dbh->prepare(
+						"SELECT `key`, sw_version FROM meters WHERE serial = " . $dbh->quote($serial) . " LIMIT 1"
+					);
+
+					$sth->execute;
+
+					if (my $row = $sth->fetchrow_hashref) {
+
+						enqueue_job($serial, $row->{key}, $row->{sw_version});
+
+						$result = { success => 1, queued => 1 };
+					}
+					else {
+						die "Meter not found";
+					}
 				}
 				elsif ($method eq 'build_all') {
 
 					my $dbh = Nabovarme::Db->my_connect
 						or die "DB connection failed";
 
-					$dbh->{'mysql_auto_reconnect'} = 1;
+					my $sth = $dbh->prepare("
+						SELECT serial, `key`, sw_version
+						FROM meters
+						WHERE enabled = 1
+					");
 
-					my $res = run_build_all($dbh);
+					$sth->execute;
+
+					my $count = 0;
+
+					while (my $row = $sth->fetchrow_hashref) {
+
+						enqueue_job(
+							$row->{serial},
+							$row->{key},
+							$row->{sw_version}
+						);
+
+						$count++;
+					}
 
 					$result = {
 						success => 1,
-						results => $res
+						queued => $count
 					};
 				}
 				else {
@@ -103,14 +176,12 @@ while (my $conn = $daemon->accept) {
 				});
 			}
 
-			my $response = HTTP::Response->new(
+			$conn->send_response(HTTP::Response->new(
 				200,
 				'OK',
 				['Content-Type' => 'application/json'],
 				$body
-			);
-
-			$conn->send_response($response);
+			));
 		}
 		else {
 			$conn->send_response(HTTP::Response->new(404));
@@ -121,59 +192,16 @@ while (my $conn = $daemon->accept) {
 	undef($conn);
 }
 
-sub run_build_all {
-	my ($dbh) = @_;
+sub enqueue_job {
+	my ($serial, $key, $sw_version) = @_;
 
-	my $sth = $dbh->prepare("
-		SELECT serial, `key`, sw_version
-		FROM meters
-		WHERE enabled = 1
-	");
+	my $job = encode_json({
+		serial => $serial,
+		key => $key,
+		sw_version => $sw_version
+	});
 
-	$sth->execute;
-
-	my @results;
-
-	my $pm = Parallel::ForkManager->new(10);
-
-	while (my $row = $sth->fetchrow_hashref) {
-
-		$pm->start and next;
-
-		my $serial = $row->{serial};
-		my $key = $row->{key};
-		my $sw_version = $row->{sw_version};
-
-		print "Building serial: $serial\n";
-
-		my $res = run_docker_build($serial, $key, $sw_version);
-
-		$pm->finish(0, $res);
-	}
-
-	$pm->wait_all_children;
-
-	return \@results;
-}
-
-sub run_build {
-	my ($serial) = @_;
-
-	my $dbh = Nabovarme::Db->my_connect;
-
-	return { success => 0, error => "DB connection failed" } unless $dbh;
-
-	my $sth = $dbh->prepare(
-		"SELECT `key`, sw_version FROM meters WHERE serial = " . $dbh->quote($serial) . " LIMIT 1"
-	);
-
-	$sth->execute;
-
-	if (my $row = $sth->fetchrow_hashref) {
-		return run_docker_build($serial, $row->{key}, $row->{sw_version});
-	}
-
-	return { success => 0, error => "Meter not found" };
+	$redis->rpush($REDIS_QUEUE, $job);
 }
 
 sub run_docker_build {
