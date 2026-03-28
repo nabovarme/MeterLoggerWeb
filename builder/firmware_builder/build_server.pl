@@ -50,8 +50,7 @@ for (1..10) {
 			run_docker_build(
 				$job->{serial},
 				$job->{key},
-				$job->{sw_version},
-				$job->{sha}
+				$job->{sw_version}
 			);
 		}
 
@@ -91,6 +90,12 @@ sub process_build {
 
 	while (my $row = $sth->fetchrow_hashref) {
 
+		# --- DEDUP KEY (serial + sw_version) ---
+		my $dedup_key = "job:$row->{serial}:$row->{sw_version}";
+
+		# Skip if already enqueued recently
+		next unless $redis->set($dedup_key, 1, 'NX', 'EX', 3600);
+
 		my $job = encode_json({
 			serial => $row->{serial},
 			key => $row->{key},
@@ -101,17 +106,11 @@ sub process_build {
 		$redis->rpush($REDIS_QUEUE, $job);
 	}
 
-	print "Jobs enqueued\n";
+	print "Jobs enqueued (deduplicated)\n";
 }
 
 sub run_docker_build {
-	my ($serial, $key, $sw_version, $sha) = @_;
-
-	# Skip if already built
-	if ($sha && $redis->get("build:sha:$sha")) {
-		print "Already built for $sha — skipping\n";
-		return;
-	}
+	my ($serial, $key, $sw_version) = @_;
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
@@ -162,11 +161,6 @@ sub run_docker_build {
 		prepare_release_structure($serial, $fs_version);
 		generate_manifest($serial, $sw_version, $fs_version);
 		generate_firmware_index();
-
-		# mark build as done (if SHA is provided later)
-		if ($sha) {
-			$redis->set("build:sha:$sha", 1);
-		}
 	}
 
 	return {
