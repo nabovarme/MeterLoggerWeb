@@ -1,0 +1,6 @@
+/* Global layout and defaults */
+html, body {
+	height: 100%;
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 100%;
+}
