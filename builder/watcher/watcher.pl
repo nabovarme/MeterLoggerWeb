@@ -24,12 +24,24 @@ my $redis = Redis->new(
 my $last_sha = "";
 my $current_sha = "";
 
+my $running = 1;
+
+$SIG{TERM} = sub {
+	print "Received TERM - shutting down cleanly\n";
+	$running = 0;
+};
+
+$SIG{INT} = sub {
+	print "Received INT - shutting down cleanly\n";
+	$running = 0;
+};
+
 $SIG{HUP} = sub {
 	print "Received HUP signal - triggering build\n";
 	trigger_build("manual");
 };
 
-while (1) {
+while ($running) {
 
 	my $ua = LWP::UserAgent->new;
 	$ua->timeout(10);
