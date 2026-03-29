@@ -23,6 +23,20 @@ my $REDIS_TRIGGER = "firmware_build_trigger";
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
+# Graceful shutdown flag
+my $running = 1;
+
+# Handle shutdown signals
+$SIG{TERM} = sub {
+	print "Received SIGTERM, shutting down...\n";
+	$running = 0;
+};
+
+$SIG{INT} = sub {
+	print "Received SIGINT, shutting down...\n";
+	$running = 0;
+};
+
 # Redis connection
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
@@ -45,9 +59,11 @@ for (1..$workers) {
 	if ($pid == 0) {
 		print "Worker $_ started (pid $$)\n";
 
-		while (1) {
+		while ($running) {
 
-			my $job_json = $redis->blpop($REDIS_QUEUE, 0);
+			my $job_json = $redis->blpop($REDIS_QUEUE, 1);
+			next unless $job_json;
+
 			my ($queue, $data) = @$job_json;
 
 			my $job = decode_json($data);
@@ -66,9 +82,11 @@ for (1..$workers) {
 print "Workers started\n";
 
 # Trigger listener (DB + enqueue jobs happens here)
-while (1) {
+while ($running) {
 
-	my $data = $redis->blpop($REDIS_TRIGGER, 0);
+	my $data = $redis->blpop($REDIS_TRIGGER, 1);
+	next unless $data;
+
 	my (undef, $payload) = @$data;
 
 	my $trigger = decode_json($payload);
