@@ -77,6 +77,20 @@ while (1) {
 	process_build($trigger);
 }
 
+sub get_git_version_from_docker {
+	my $cmd = join(" ",
+		"docker run --rm",
+		DOCKER_IMAGE,
+		"sh -c",
+		"echo \$(git rev-parse --abbrev-ref HEAD)-\$(git rev-list HEAD --count)-\$(git describe --abbrev=4 --dirty --always)"
+	);
+
+	my $version = `$cmd`;
+	chomp $version;
+
+	return $version;
+}
+
 sub process_build {
 	my ($trigger) = @_;
 
@@ -133,7 +147,8 @@ sub run_docker_build {
 		or die "No meter found for serial $serial";
 
 	my $key = $row->{key};
-	my $sw_version = $row->{sw_version} // 'unknown';
+	my $db_sw_version = $row->{sw_version} // 'unknown';
+	my $sw_version = get_git_version_from_docker();
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
@@ -155,30 +170,30 @@ sub run_docker_build {
 
 	my $build_flags = 'AP=1';
 
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
+	if ($db_sw_version =~ /NO_AUTO_CLOSE/) {
 		$build_flags .= ' AUTO_CLOSE=0';
 	}
 
-	if ($sw_version =~ /NO_CRON/) {
+	if ($db_sw_version =~ /NO_CRON/) {
 		$build_flags .= ' NO_CRON=1';
 	}
 
-	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
+	if ($db_sw_version =~ /DEBUG_STACK_TRACE/) {
 		$build_flags .= ' DEBUG_STACK_TRACE=1';
 	}
 
-	if ($sw_version =~ /THERMO_ON_AC_2/) {
+	if ($db_sw_version =~ /THERMO_ON_AC_2/) {
 		$build_flags .= ' THERMO_ON_AC_2=1';
 	}
 
 	# hardware model logic
-	if ($sw_version =~ /MC-B/) {
+	if ($db_sw_version =~ /MC-B/) {
 		$build_flags .= ' MC_66B=1';
 	}
-	elsif ($sw_version =~ /MC/) {
+	elsif ($db_sw_version =~ /MC/) {
 		$build_flags .= ' EN61107=1';
 	}
-	elsif ($sw_version =~ /NO_METER/) {
+	elsif ($db_sw_version =~ /NO_METER/) {
 		$build_flags .= ' DEBUG=1 DEBUG_NO_METER=1';
 	}
 
