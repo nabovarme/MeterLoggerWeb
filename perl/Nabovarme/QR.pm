@@ -84,7 +84,7 @@ sub handler {
 
 						system(qq[cd $document_root$qr_path && \
 						qrencode -o qr_meterlogger.png -v 4 -s 16 "https://meterlogger.net/detail_acc.epl?serial=$serial" ; \
-						qrencode -o qr_mobilepay.png -v 4 -s 16 "https://www.mobilepay.dk/erhverv/betalingslink/betalingslink-svar?phone=$mobilepay_receiver&amount=&comment=$comment" ; \ 
+						qrencode -o qr_mobilepay.png -v 4 -s 16 "mobilepay://send?phone=$mobilepay_receiver&amount=&comment=$comment" ; \ 
 						mogrify -interpolate Integer -filter point -resize 256x256 *.png ;
 						pdflatex "\\newcommand{\\varserial}{$serial_esc} \\newcommand{\\varinfo}{$info_esc} \\newcommand{\\varsms}{$sms_esc} \\newcommand{\\varmobilepay}{$mobilepay_esc} \\input{$latex_template_name}" ; \
 						mv template.pdf $serial.pdf ; \
