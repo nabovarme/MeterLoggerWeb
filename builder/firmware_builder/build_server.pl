@@ -8,6 +8,7 @@ use Redis;
 
 use File::Path qw(make_path);
 use File::Copy qw(move);
+use IO::Handle;
 
 use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
@@ -18,6 +19,9 @@ use constant BUILDERS => 10;
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 # Redis connection
 my $redis_host = $ENV{'REDIS_HOST'}
@@ -36,6 +40,12 @@ for (1..BUILDERS) {
 	my $pid = fork();
 
 	if ($pid == 0) {
+
+		# Ensure proper STDOUT/STDERR handling in child
+		open STDOUT, '>&', \*STDOUT or die "Can't dup STDOUT: $!";
+		open STDERR, '>&', \*STDERR or die "Can't dup STDERR: $!";
+		STDOUT->autoflush(1);
+		STDERR->autoflush(1);
 
 		print "Worker $_ started (pid $$)\n";
 
@@ -174,13 +184,13 @@ sub run_docker_build {
 
 	print "Running: $docker_cmd\n";
 
-	my $output = `$docker_cmd 2>&1`;
+	system($docker_cmd);
 	my $exit_code = $? >> 8;
 
 	my $success = ($exit_code == 0);
 
 	if (!$success) {
-		warn "Build failed for $serial\n$output\n";
+		warn "Build failed for $serial\n";
 	}
 
 	if ($success) {
@@ -193,8 +203,7 @@ sub run_docker_build {
 	return {
 		serial => $serial,
 		success => $success ? 1 : 0,
-		exit_code => $exit_code,
-		output => $output
+		exit_code => $exit_code
 	};
 }
 
