@@ -123,11 +123,12 @@ sub run_docker_build {
 		or die "No meter found for serial $serial";
 
 	my $key = $row->{key};
-	my $sw_version = $row->{sw_version};
+	my $sw_version = $row->{sw_version} // 'unknown';
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
 	$fs_version =~ s/[^a-zA-Z0-9._-]//g;
+	$fs_version = 'unknown' if !$fs_version;
 
 	my @build_flags = ('AP=1');
 
@@ -221,7 +222,7 @@ sub generate_manifest {
 
 	my $manifest = {
 		name => "MeterLogger $serial",
-		version => $sw_version,
+		version => $sw_version || 'unknown',
 		builds => [
 			{
 				chipFamily => "ESP8266",
