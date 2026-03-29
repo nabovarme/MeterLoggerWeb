@@ -131,6 +131,18 @@ sub run_docker_build {
 	$fs_version =~ s/[^a-zA-Z0-9._-]//g;
 	$fs_version = 'unknown' if !$fs_version;
 
+	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/firmware.bin";
+
+	# Skip if already built
+	if (-f $firmware_path) {
+		print "Skipping build for $serial (already exists)\n";
+		return {
+			serial => $serial,
+			skipped => 1,
+			reason => 'already_built'
+		};
+	}
+
 	my @build_flags = ('AP=1');
 
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
