@@ -14,6 +14,7 @@ use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
 
 use constant DOCKER_IMAGE => 'firmware_sdk:latest';
+use constant SOURCE_DIR => '/meterlogger/MeterLogger';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
@@ -82,7 +83,7 @@ sub get_git_version_from_docker {
 		"docker run --rm",
 		DOCKER_IMAGE,
 		"sh -c",
-		"echo \$(git rev-parse --abbrev-ref HEAD)-\$(git rev-list HEAD --count)-\$(git describe --abbrev=4 --dirty --always)"
+		"'set -e; cd " . SOURCE_DIR . " && git rev-parse --abbrev-ref HEAD && git rev-list HEAD --count && git describe --abbrev=4 --dirty --always'"
 	);
 
 	my $version = `$cmd`;
