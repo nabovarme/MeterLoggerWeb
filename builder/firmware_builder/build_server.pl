@@ -209,6 +209,23 @@ sub run_docker_build {
 
 			prepare_release_structure($serial, $fs_version);
 			generate_manifest($serial, $sw_version, $fs_version);
+
+			# Create meta.json
+			my $dir = RELEASE_DIR . "/$serial/$fs_version";
+			make_path($dir);
+
+			my $meta = {
+				serial     => $serial,
+				sw_version => $sw_version,
+				built_at   => time(),
+			};
+
+			open(my $fh, ">", "$dir/meta.json")
+				or die "Cannot write meta.json: $!";
+
+			print $fh encode_json($meta);
+			close($fh);
+
 			generate_firmware_index();
 		}
 	};
