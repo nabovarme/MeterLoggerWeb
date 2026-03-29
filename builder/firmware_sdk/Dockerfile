@@ -82,7 +82,7 @@ RUN pip3 install esptool
 
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
-	cd /meterlogger/MeterLogger && git checkout dev_build_server
+	cd /meterlogger/MeterLogger && git checkout master
 
 # Export ENV
 ENV PATH=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin:$PATH
