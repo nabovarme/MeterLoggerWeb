@@ -146,31 +146,40 @@ sub run_docker_build {
 		};
 	}
 
-	my @build_flags = ('AP=1');
+	my $build_flags = 'AP=1';
 
 	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		push @build_flags, 'AUTO_CLOSE=0';
+		$build_flags .= ' AUTO_CLOSE=0';
 	}
 
 	if ($sw_version =~ /NO_CRON/) {
-		push @build_flags, 'NO_CRON=1';
+		$build_flags .= ' NO_CRON=1';
 	}
 
 	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
-		push @build_flags, 'DEBUG_STACK_TRACE=1';
+		$build_flags .= ' DEBUG_STACK_TRACE=1';
 	}
 
 	if ($sw_version =~ /THERMO_ON_AC_2/) {
-		push @build_flags, 'THERMO_ON_AC_2=1';
+		$build_flags .= ' THERMO_ON_AC_2=1';
 	}
 
-	my $extra_flags = join(' ', @build_flags);
+	# hardware model logic
+	if ($sw_version =~ /MC-B/) {
+		$build_flags .= ' MC_66B=1';
+	}
+	elsif ($sw_version =~ /MC/) {
+		$build_flags .= ' EN61107=1';
+	}
+	elsif ($sw_version =~ /NO_METER/) {
+		$build_flags .= ' DEBUG=1 DEBUG_NO_METER=1';
+	}
 
 	my $docker_cmd = join(" ",
 		"docker run --rm",
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
-		"-e BUILD_FLAGS=\"$extra_flags\"",
+		"-e BUILD_FLAGS=$build_flags",
 		"-v firmware_release:" . RELEASE_DIR,
 		DOCKER_IMAGE
 	);
