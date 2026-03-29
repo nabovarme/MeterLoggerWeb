@@ -40,13 +40,6 @@ for (1..BUILDERS) {
 	my $pid = fork();
 
 	if ($pid == 0) {
-
-		# Ensure proper STDOUT/STDERR handling in child
-		open STDOUT, '>&', \*STDOUT or die "Can't dup STDOUT: $!";
-		open STDERR, '>&', \*STDERR or die "Can't dup STDERR: $!";
-		STDOUT->autoflush(1);
-		STDERR->autoflush(1);
-
 		print "Worker $_ started (pid $$)\n";
 
 		while (1) {
