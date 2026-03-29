@@ -259,6 +259,7 @@ sub run_docker_build {
 			my $meta = {
 				serial     => $serial,
 				sw_version => $sw_version,
+				build_flags => $build_flags,
 				built_at   => time(),
 			};
 
@@ -380,6 +381,10 @@ sub generate_firmware_index {
 
 				my $meta = decode_json($json_text);
 				$name = "$serial ($meta->{sw_version})";
+
+				if ($meta->{build_flags}) {
+					$name .= " [$meta->{build_flags}]";
+				}
 			}
 			else {
 				$name = "$serial ($version)";
