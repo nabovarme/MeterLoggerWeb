@@ -14,6 +14,7 @@ use Nabovarme::Db;
 
 use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
+use constant BUILDERS => 10;
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
@@ -30,7 +31,7 @@ my $redis = Redis->new(
 );
 
 # Start 10 workers (forks)
-for (1..10) {
+for (1..BUILDERS) {
 
 	my $pid = fork();
 
@@ -78,7 +79,7 @@ sub process_build {
 		or die "DB connection failed";
 
 	my $sth = $dbh->prepare("
-		SELECT serial, `key`, sw_version
+		SELECT serial
 		FROM meters
 		WHERE enabled = 1
 		ORDER BY serial
@@ -89,7 +90,7 @@ sub process_build {
 	while (my $row = $sth->fetchrow_hashref) {
 
 		# Dedup
-		my $dedup_key = "job:$row->{serial}";
+		my $dedup_key = "build-job:$row->{serial}";
 
 		# Skip if already enqueued recently
 		next unless $redis->set($dedup_key, 1, 'NX', 'EX', 3600);
