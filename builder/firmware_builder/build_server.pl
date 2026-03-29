@@ -280,7 +280,7 @@ sub generate_manifest {
 	my $dir = RELEASE_DIR . "/$serial/$fs_version";
 
 	my $manifest = {
-		name => "MeterLogger $serial ($sw_version)",
+		name => "$serial ($sw_version)",
 		version => $sw_version || 'unknown',
 		builds => [
 			{
@@ -333,7 +333,7 @@ sub generate_firmware_index {
 
 				my $meta = decode_json($json_text);
 
-				$name = "MeterLogger $serial ($meta->{sw_version})";
+				$name = "$serial ($meta->{sw_version})";
 			}
 			else {
 				$name = "$serial ($target)";
