@@ -92,12 +92,6 @@ sub process_build {
 
 	while (my $row = $sth->fetchrow_hashref) {
 
-		# Dedup
-		my $dedup_key = "build-job:$row->{serial}";
-
-		# Skip if already enqueued recently
-		next unless $redis->set($dedup_key, 1, 'NX', 'EX', 3600);
-
 		my $job = encode_json({
 			serial => $row->{serial},
 			trigger_time => time()
@@ -106,11 +100,21 @@ sub process_build {
 		$redis->rpush($REDIS_QUEUE, $job);
 	}
 
-	print "Jobs enqueued (deduplicated)\n";
+	print "Jobs enqueued\n";
 }
 
 sub run_docker_build {
 	my ($serial) = @_;
+
+	my $lock_key = "build-lock:$serial";
+
+	# try to acquire lock
+	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
+
+	if (!$got_lock) {
+		print "Skipping $serial (already in progress)\n";
+		return;
+	}
 
 	my $dbh = Nabovarme::Db->my_connect
 		or die "DB connection failed";
@@ -139,6 +143,7 @@ sub run_docker_build {
 	# Skip if already built
 	if (-f $firmware_path) {
 		print "Skipping build for $serial (already exists)\n";
+		$redis->del($lock_key);
 		return {
 			serial => $serial,
 			skipped => 1,
@@ -186,21 +191,32 @@ sub run_docker_build {
 
 	print "Running: $docker_cmd\n";
 
-	system($docker_cmd);
-	my $exit_code = $? >> 8;
+	my $success;
+	my $exit_code;
 
-	my $success = ($exit_code == 0);
+	eval {
+		system($docker_cmd);
+		$exit_code = $? >> 8;
+		$success = ($exit_code == 0);
 
-	if (!$success) {
-		warn "Build failed for $serial\n";
-	}
+		if (!$success) {
+			warn "Build failed for $serial\n";
+		}
 
-	if ($success) {
+		if ($success) {
 
-		prepare_release_structure($serial, $fs_version);
-		generate_manifest($serial, $sw_version, $fs_version);
-		generate_firmware_index();
-	}
+			prepare_release_structure($serial, $fs_version);
+			generate_manifest($serial, $sw_version, $fs_version);
+			generate_firmware_index();
+		}
+	};
+
+	my $err = $@;
+
+	# always release lock
+	$redis->del($lock_key);
+
+	die $err if $err;
 
 	return {
 		serial => $serial,
