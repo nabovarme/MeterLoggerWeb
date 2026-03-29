@@ -87,7 +87,11 @@ sub get_git_version_from_docker {
 	);
 
 	my $version = `$cmd`;
-	chomp $version;
+	# convert all whitespace into a single space
+	$version =~ s/\s+/ /g;
+
+	# trim leading/trailing spaces
+	$version =~ s/^\s+|\s+$//g;
 
 	return $version;
 }
