@@ -179,7 +179,7 @@ sub run_docker_build {
 		"docker run --rm",
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
-		"-e BUILD_FLAGS=$build_flags",
+		"-e BUILD_FLAGS=\"$build_flags\"",
 		"-v firmware_release:" . RELEASE_DIR,
 		DOCKER_IMAGE
 	);
