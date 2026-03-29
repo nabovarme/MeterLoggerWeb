@@ -1,3 +1,4 @@
 #!/bin/bash
+set -e
 
-build_server.pl
+exec build_server.pl >> /proc/1/fd/1 2>> /proc/1/fd/2
