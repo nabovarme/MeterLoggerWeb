@@ -328,38 +328,46 @@ sub generate_firmware_index {
 
 		next if ($serial =~ /^\./);
 
-		my $latest = RELEASE_DIR . "/$serial/latest";
+		my $serial_path = RELEASE_DIR . "/$serial";
 
-		next unless -l $latest;
+		next unless -d $serial_path;
 
-		my $target = readlink($latest);
-		my $manifest_path = "$serial/$target/manifest.json";
-		my $meta_path = "$serial/$target/meta.json";
+		opendir(my $v_dh, $serial_path) or next;
 
-		if (-f RELEASE_DIR . "/$manifest_path") {
+		while (my $version = readdir($v_dh)) {
+
+			next if ($version =~ /^\./);
+			next if ($version eq 'latest');
+
+			my $manifest_path = "$serial_path/$version/manifest.json";
+			my $meta_path     = "$serial_path/$version/meta.json";
+
+			next unless -f $manifest_path;
 
 			my $name;
 
-			if (-f RELEASE_DIR . "/$meta_path") {
-
-				open(my $fh, "<", RELEASE_DIR . "/$meta_path");
+			if (-f $meta_path) {
+				open(my $fh, "<", $meta_path);
 				local $/;
 				my $json_text = <$fh>;
 				close($fh);
 
 				my $meta = decode_json($json_text);
-
 				$name = "$serial ($meta->{sw_version})";
 			}
 			else {
-				$name = "$serial ($target)";
+				$name = "$serial ($version)";
 			}
 
 			push @firmwares, {
-				name => $name,
-				path => $manifest_path
+				name    => $name,
+				serial  => $serial,
+				version => $version,
+				path    => "$serial/$version/manifest.json",
 			};
 		}
+
+		closedir($v_dh);
 	}
 
 	closedir($dh);
