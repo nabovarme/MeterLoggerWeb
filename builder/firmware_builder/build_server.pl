@@ -79,21 +79,25 @@ while (1) {
 }
 
 sub get_git_version_from_docker {
-	my $cmd = join(" ",
-		"docker run --rm",
-		DOCKER_IMAGE,
-		"sh -c",
-		"'set -e; cd " . SOURCE_DIR . " && git rev-parse --abbrev-ref HEAD && git rev-list HEAD --count && git describe --abbrev=4 --dirty --always'"
-	);
+	my $cmd = "docker run --rm " . DOCKER_IMAGE .
+		" git -C " . SOURCE_DIR . " rev-parse --abbrev-ref HEAD";
 
-	my $version = `$cmd`;
-	# convert all whitespace into a single space
-	$version =~ s/\s+/ /g;
+	my $branch = `$cmd`;
+	chomp $branch;
 
-	# trim leading/trailing spaces
-	$version =~ s/^\s+|\s+$//g;
+	$cmd = "docker run --rm " . DOCKER_IMAGE .
+		" git -C " . SOURCE_DIR . " rev-list HEAD --count";
 
-	return $version;
+	my $count = `$cmd`;
+	chomp $count;
+
+	$cmd = "docker run --rm " . DOCKER_IMAGE .
+		" git -C " . SOURCE_DIR . " describe --abbrev=4 --dirty --always";
+
+	my $desc = `$cmd`;
+	chomp $desc;
+
+	return "$branch-$count-$desc";
 }
 
 sub process_build {
