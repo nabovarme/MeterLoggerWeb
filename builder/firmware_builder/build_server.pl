@@ -15,7 +15,6 @@ use Nabovarme::Db;
 
 use constant DOCKER_IMAGE => 'firmware_sdk:latest';
 use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
-use constant BUILDERS => 10;
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
@@ -34,9 +33,12 @@ my $redis = Redis->new(
 	server => "$redis_host:$redis_port",
 );
 
-# Start 10 workers (forks)
-for (1..BUILDERS) {
+# Start workers (forks)
+my $cpu_cores = `nproc`;
+chomp $cpu_cores;
+my $workers = $cpu_cores * 2;
 
+for (1..$workers) {
 	my $pid = fork();
 
 	if ($pid == 0) {
