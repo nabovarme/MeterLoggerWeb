@@ -131,7 +131,7 @@ sub run_docker_build {
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
-	$fs_version =~ s/[^a-zA-Z0-9._-]//g;
+	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
 	$fs_version = 'unknown' if !$fs_version;
 
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/firmware.bin";
