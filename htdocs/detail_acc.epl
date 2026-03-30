@@ -39,7 +39,7 @@
 
 		<!-- style and js for burger menu -->
 		<link rel="stylesheet" href="/css/menu.css">
-		<script src="/js/menu.epl" defer></script>	
+		<script src="/js/menu.js.epl" defer></script>	
 
 		<script src="/js/dygraph.min.js"></script>
 		<link rel="stylesheet" href="/css/dygraph.css">
@@ -173,7 +173,7 @@
 				// Only when menu is NOT visible
 				if (e.key.toLowerCase() === "d" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
 					e.preventDefault();
-					e.stopImmediatePropagation(); // block menu.epl
+					e.stopImmediatePropagation(); // block menu.js.epl
 
 					window.location.href = "detail.epl?serial=" + meter_serial;
 				}
