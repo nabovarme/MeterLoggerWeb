@@ -17,8 +17,8 @@ use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::Admin;
 
-# Main Apache request handler
 # Main Apache request handler
 sub handler {
 	my $r = shift;
@@ -87,6 +87,7 @@ sub login_handler {
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
 	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
 	my $default_path = $r->dir_config('DefaultPath') || '/';
+	my $user_admin_access = $r->dir_config('UserAdminAccess') || '';
 
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -236,6 +237,27 @@ sub login_handler {
 				# Update last used timestamp
 				$dbh->do(qq[UPDATE sms_auth SET unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
 				add_set_cookie_once($r, $cookie);
+				
+				# Check UserAdminAccess paths
+				if ($user_admin_access) {
+					my $needs_admin = 0;
+
+					foreach (split(/,\s*/, $user_admin_access)) {
+						if ($r->uri =~ /^\Q$_\E/) {
+							$needs_admin = 1;
+							last;
+						}
+					}
+
+					if ($needs_admin) {
+						my $admin = Nabovarme::Admin->new();
+
+						unless ($admin->cookie_is_admin($r, undef)) {
+							$r->warn("user is not admin and not allowed: " . $r->uri);
+							return Apache2::Const::NOT_FOUND;
+						}
+					}
+				}
 				return Apache2::Const::OK;
 			}
 			elsif ($d->{auth_state} =~ /deny/i) {
