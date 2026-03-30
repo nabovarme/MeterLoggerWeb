@@ -481,4 +481,12 @@ SECURITY:
 - SMS codes are single-use and expire with DB cleanup strategy (not shown here).
 - Optional "stay_logged_in" checkbox enables persistent auth cookies.
 
+ADMIN ACCESS CONTROL:
+
+- Certain URI paths can be restricted to admin users via the Apache directive
+  `UserAdminAccess`.
+- When a request matches one of these paths, the system verifies the user
+  is an authenticated admin via `cookie_is_admin`.
+- If the user is not an admin, access is denied.
+
 */
