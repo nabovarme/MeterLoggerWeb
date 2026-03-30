@@ -19,8 +19,6 @@ use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
-my $REDIS_JOB_COUNT = "firmware_jobs_remaining";
-my $REDIS_JOB_COMPLETED = "firmware_jobs_completed";
 
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -75,7 +73,8 @@ for (1..$workers) {
 			run_docker_build(
 				$job->{serial},
 				$job->{version},
-				$job->{build_flags}
+				$job->{build_flags},
+				$job->{batch_id}
 			);
 		}
 
@@ -85,7 +84,7 @@ for (1..$workers) {
 
 print "Workers started\n";
 
-# Trigger listener (DB + enqueue jobs happens here)
+# Trigger listener
 while ($running) {
 
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
@@ -177,8 +176,10 @@ sub build_flags_from_sw_version {
 }
 
 sub print_progress {
-	my $total = $redis->get($REDIS_JOB_COUNT) || 0;
-	my $done  = $redis->get($REDIS_JOB_COMPLETED) || 0;
+	my ($batch_id) = @_;
+
+	my $total = $redis->get("firmware_jobs_remaining:$batch_id") || 0;
+	my $done  = $redis->get("firmware_jobs_completed:$batch_id") || 0;
 
 	return if $total == 0;
 
@@ -206,10 +207,15 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
-	my $job_count = 0;
+	my $batch_id = time();
 
-	$redis->set($REDIS_JOB_COUNT, 0);
-	$redis->set($REDIS_JOB_COMPLETED, 0);
+	my $total_key = "firmware_jobs_remaining:$batch_id";
+	my $done_key  = "firmware_jobs_completed:$batch_id";
+
+	$redis->set($total_key, 0);
+	$redis->set($done_key, 0);
+
+	my $job_count = 0;
 
 	while (my $row = $sth->fetchrow_hashref) {
 
@@ -219,7 +225,8 @@ sub process_build {
 			serial => $row->{serial},
 			trigger_time => time(),
 			version => $git_version,
-			build_flags => $build_flags
+			build_flags => $build_flags,
+			batch_id => $batch_id
 		});
 
 		$redis->rpush($REDIS_QUEUE, $job);
@@ -227,23 +234,33 @@ sub process_build {
 		$job_count++;
 	}
 
-	$redis->set($REDIS_JOB_COUNT, $job_count);
-	$redis->set($REDIS_JOB_COMPLETED, 0);
+	$redis->set($total_key, $job_count);
 
 	print "Jobs enqueued: $job_count\n";
 	print "All jobs enqueued\n";
 }
 
 sub run_docker_build {
-	my ($serial, $version, $build_flags) = @_;
+	my ($serial, $version, $build_flags, $batch_id) = @_;
 
 	my $lock_key = "build-lock:$serial";
+
+	my $total_key = "firmware_jobs_remaining:$batch_id";
+	my $done_key  = "firmware_jobs_completed:$batch_id";
 
 	# try to acquire lock
 	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
 
 	if (!$got_lock) {
 		print "Skipping $serial (already in progress)\n";
+
+		my $done = $redis->incr($done_key);
+		print_progress($batch_id);
+
+		if ($done == $redis->get($total_key)) {
+			print "All jobs completed\n";
+		}
+
 		return;
 	}
 
@@ -277,10 +294,10 @@ sub run_docker_build {
 		print "Skipping build for $serial (already exists)\n";
 		$redis->del($lock_key);
 
-		my $done = $redis->incr($REDIS_JOB_COMPLETED);
-		print_progress();
+		my $done = $redis->incr($done_key);
+		print_progress($batch_id);
 
-		if ($done == $redis->get($REDIS_JOB_COUNT)) {
+		if ($done == $redis->get($total_key)) {
 			print "All jobs completed\n";
 		}
 
@@ -341,10 +358,10 @@ sub run_docker_build {
 	# always release lock
 	$redis->del($lock_key);
 
-	my $done = $redis->incr($REDIS_JOB_COMPLETED);
-	print_progress();
+	my $done = $redis->incr($done_key);
+	print_progress($batch_id);
 
-	if ($done == $redis->get($REDIS_JOB_COUNT)) {
+	if ($done == $redis->get($total_key)) {
 		print "All jobs completed\n";
 	}
 
