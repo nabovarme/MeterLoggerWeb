@@ -1,6 +1,12 @@
 /* Global layout and defaults */
 html, body {
-	height: 100%;
+	margin: 6px 6px 0;
 	font-family: Verdana, Geneva, sans-serif;
 	font-size: 100%;
+}
+
+/* Group header (e.g., site or area name) */
+.header {
+	font-size: 120%;
+	font-weight: bold;
 }
