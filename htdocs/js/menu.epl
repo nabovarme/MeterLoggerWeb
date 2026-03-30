@@ -1,3 +1,14 @@
+[- 
+	# Load internal application modules
+	use Nabovarme::Db;
+	use Nabovarme::Admin;
+
+	# Instantiate admin checker
+	$admin = new Nabovarme::Admin;
+
+	$is_admin = $admin->cookie_is_admin($req_rec);
+-]
+
 // Global type-ahead variables
 let typeAheadBuffer = "";
 let typeAheadTimer;
@@ -13,6 +24,9 @@ const menuItems = [
 	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
 	{ text: "User log", href: "/users.epl" },
 	{ text: "Valve control", href: "/valve_control.epl" },
+[$ if ($is_admin) $]
+	{ text: "Firmware flasher", href: "/flasher/index.html" },
+[$ endif $]
 	{ separator: true },
 	{ text: "Logout", href: "/logout" }
 ];
