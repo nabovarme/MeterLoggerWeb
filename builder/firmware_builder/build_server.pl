@@ -219,31 +219,37 @@ sub process_build {
 	my $total_key = "firmware_jobs_remaining:$batch_id";
 	my $done_key  = "firmware_jobs_completed:$batch_id";
 
-	$redis->set($total_key, 0);
-	$redis->set($done_key, 0);
-
+	# count jobs
 	my $job_count = 0;
 
+	my @rows;
 	while (my $row = $sth->fetchrow_hashref) {
+		push @rows, $row;
+		$job_count++;
+	}
+
+	# initialize counters early
+	$redis->set($total_key, $job_count);
+	$redis->set($done_key, 0);
+
+	print "Jobs to enqueue: $job_count\n";
+
+	# enqueue jobs
+	foreach my $row (@rows) {
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
 
 		my $job = encode_json({
-			serial => $row->{serial},
+			serial       => $row->{serial},
 			trigger_time => time(),
-			version => $git_version,
-			build_flags => $build_flags,
-			batch_id => $batch_id
+			version      => $git_version,
+			build_flags  => $build_flags,
+			batch_id     => $batch_id
 		});
 
 		$redis->rpush($REDIS_QUEUE, $job);
-
-		$job_count++;
 	}
 
-	$redis->set($total_key, $job_count);
-
-	print "Jobs enqueued: $job_count\n";
 	print "All jobs enqueued\n";
 }
 
