@@ -80,6 +80,9 @@ RUN cd /meterlogger/esp-open-sdk && \
 # compatible esptool for ESP8266 toolchain
 RUN pip3 install esptool
 
+# Ensure we always fetch the newest MeterLogger firmware (disable cache for this step)
+ARG CACHEBUST=1
+
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
 	cd /meterlogger/MeterLogger && git checkout master
