@@ -37,7 +37,7 @@ $SIG{INT} = sub {
 	$running = 0;
 };
 
-# Redis connection
+# Redis connection (MAIN PROCESS ONLY)
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
@@ -57,6 +57,12 @@ for (1..$workers) {
 	my $pid = fork();
 
 	if ($pid == 0) {
+
+		# Child process gets its own Redis connection
+		my $redis = Redis->new(
+			server => "$redis_host:$redis_port",
+		);
+
 		print "Worker $_ started (pid $$)\n";
 
 		while ($running) {
@@ -71,6 +77,7 @@ for (1..$workers) {
 			print "Worker $$ building serial: $job->{serial}\n";
 
 			run_docker_build(
+				$redis,
 				$job->{serial},
 				$job->{version},
 				$job->{build_flags},
@@ -241,7 +248,7 @@ sub process_build {
 }
 
 sub run_docker_build {
-	my ($serial, $version, $build_flags, $batch_id) = @_;
+	my ($redis, $serial, $version, $build_flags, $batch_id) = @_;
 
 	my $lock_key = "build-lock:$serial";
 
