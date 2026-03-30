@@ -10,7 +10,7 @@
 	<TITLE>MeterLogger payments pending</TITLE>
 
 	<!-- style and js for burger menu -->
-	<script src="/js/menu.epl" defer></script>	
+	<script src="/js/menu.js.epl" defer></script>	
 	<link rel="stylesheet" href="/css/menu.css">
 
 	<style type="text/css">
