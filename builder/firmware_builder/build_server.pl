@@ -19,6 +19,8 @@ use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
+my $REDIS_JOB_COUNT = "firmware_jobs_remaining";
+my $REDIS_JOB_COMPLETED = "firmware_jobs_completed";
 
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -94,6 +96,7 @@ while ($running) {
 	my $trigger = decode_json($payload);
 
 	print "Processing build trigger\n";
+	print "Starting job processing...\n";
 
 	process_build($trigger);
 }
@@ -173,6 +176,17 @@ sub build_flags_from_sw_version {
 	return $flags;
 }
 
+sub print_progress {
+	my $total = $redis->get($REDIS_JOB_COUNT) || 0;
+	my $done  = $redis->get($REDIS_JOB_COMPLETED) || 0;
+
+	return if $total == 0;
+
+	my $percent = int(($done / $total) * 100);
+
+	print "Progress: $done/$total ($percent%)\n";
+}
+
 sub process_build {
 	my ($trigger) = @_;
 
@@ -192,6 +206,11 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
+	my $job_count = 0;
+
+	$redis->set($REDIS_JOB_COUNT, 0);
+	$redis->set($REDIS_JOB_COMPLETED, 0);
+
 	while (my $row = $sth->fetchrow_hashref) {
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
@@ -204,9 +223,15 @@ sub process_build {
 		});
 
 		$redis->rpush($REDIS_QUEUE, $job);
+
+		$job_count++;
 	}
 
-	print "Jobs enqueued\n";
+	$redis->set($REDIS_JOB_COUNT, $job_count);
+	$redis->set($REDIS_JOB_COMPLETED, 0);
+
+	print "Jobs enqueued: $job_count\n";
+	print "All jobs enqueued\n";
 }
 
 sub run_docker_build {
@@ -251,11 +276,15 @@ sub run_docker_build {
 	if (-f $firmware_path) {
 		print "Skipping build for $serial (already exists)\n";
 		$redis->del($lock_key);
-		return {
-			serial => $serial,
-			skipped => 1,
-			reason => 'already_built'
-		};
+
+		my $done = $redis->incr($REDIS_JOB_COMPLETED);
+		print_progress();
+
+		if ($done == $redis->get($REDIS_JOB_COUNT)) {
+			print "All jobs completed\n";
+		}
+
+		return;
 	}
 
 	my $docker_cmd = join(" ",
@@ -311,6 +340,13 @@ sub run_docker_build {
 
 	# always release lock
 	$redis->del($lock_key);
+
+	my $done = $redis->incr($REDIS_JOB_COMPLETED);
+	print_progress();
+
+	if ($done == $redis->get($REDIS_JOB_COUNT)) {
+		print "All jobs completed\n";
+	}
 
 	die $err if $err;
 
