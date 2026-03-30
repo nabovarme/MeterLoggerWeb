@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 	libjson-perl \
 	libdbi-perl \
 	libdbd-mysql-perl \
-	libredis-perl\
+	libredis-perl \
 	sed \
 	curl \
 	lsb-release \
