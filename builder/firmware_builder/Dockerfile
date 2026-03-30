@@ -8,6 +8,7 @@ RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-fr
 # Base dependencies
 RUN apt-get update && apt-get install -y \
 	docker.io \
+	procps \
 	aptitude \
 	bash \
 	joe \
