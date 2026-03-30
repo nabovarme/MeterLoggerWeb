@@ -100,7 +100,7 @@
 		</style>
 
 		<link rel="stylesheet" href="/css/menu.css">
-		<script src="/js/menu.js" defer></script>
+		<script src="/js/menu.epl" defer></script>
 		
 	</HEAD>
 	<BODY>
