@@ -93,6 +93,7 @@ services:
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
       - ./sms_spool:/var/www/nabovarme/sms_spool
+      - firmware_release:/var/www/nabovarme/flasher/firmware
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
@@ -406,18 +407,6 @@ services:
       WATCHER_REPO_URL: ${WATCHER_REPO_URL}
     depends_on:
       - firmware_builder
-    restart: unless-stopped
-
-  web_flasher:
-    build:
-      context: '.'
-      dockerfile: ./builder/web_flasher/Dockerfile
-    container_name: web_flasher
-    hostname: web-flasher
-    ports:
-      - "8080:80"
-    volumes:
-      - firmware_release:/var/www/html/firmware
     restart: unless-stopped
 
 volumes:
