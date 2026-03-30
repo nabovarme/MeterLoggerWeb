@@ -12,8 +12,8 @@ use IO::Handle;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
-my $REPO_URL = $ENV{'METERLOGGER_BUILDER_FIRMWARE_REPO_URL'}
-	or die "ERROR: METERLOGGER_BUILDER_FIRMWARE_REPO_URL environment variable not set";
+my $REPO_URL = $ENV{'WATCHER_REPO_URL'}
+	or die "ERROR: WATCHER_REPO_URL environment variable not set";
 
 my $CHECK_INTERVAL = 120;
 

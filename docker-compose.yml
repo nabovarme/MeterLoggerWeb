@@ -379,6 +379,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - firmware_release:/meterlogger/MeterLogger/release
+      - ./:/docker_root
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
 #    ports:
 #      - "5000:5000"
@@ -402,7 +403,7 @@ services:
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
-      METERLOGGER_BUILDER_FIRMWARE_REPO_URL: ${METERLOGGER_BUILDER_FIRMWARE_REPO_URL}
+      WATCHER_REPO_URL: ${WATCHER_REPO_URL}
     depends_on:
       - firmware_builder
     restart: unless-stopped
