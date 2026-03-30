@@ -402,6 +402,7 @@ services:
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
+      METERLOGGER_BUILDER_FIRMWARE_REPO_URL: ${METERLOGGER_BUILDER_FIRMWARE_REPO_URL}
     depends_on:
       - firmware_builder
     restart: unless-stopped

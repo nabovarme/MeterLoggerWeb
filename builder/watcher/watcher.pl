@@ -7,7 +7,9 @@ use JSON;
 use LWP::UserAgent;
 use Redis;
 
-my $REPO_URL = "https://api.github.com/repos/nabovarme/MeterLogger/commits/master";
+my $REPO_URL = $ENV{'METERLOGGER_BUILDER_FIRMWARE_REPO_URL'}
+	or die "ERROR: METERLOGGER_BUILDER_FIRMWARE_REPO_URL environment variable not set";
+
 my $CHECK_INTERVAL = 60;
 
 # Redis connection
