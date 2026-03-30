@@ -71,7 +71,9 @@ for (1..$workers) {
 			print "Worker $$ building serial: $job->{serial}\n";
 
 			run_docker_build(
-				$job->{serial}
+				$job->{serial},
+				$job->{version},
+				$job->{build_flags}
 			);
 		}
 
@@ -118,6 +120,42 @@ sub get_git_version_from_docker {
 	return "$branch-$count-$desc";
 }
 
+sub build_flags_from_sw_version {
+	my ($sw_version) = @_;
+
+	my $flags = 'AP=1';
+
+	return $flags unless defined $sw_version;
+
+	if ($sw_version =~ /NO_AUTO_CLOSE/) {
+		$flags .= ' AUTO_CLOSE=0';
+	}
+
+	if ($sw_version =~ /NO_CRON/) {
+		$flags .= ' NO_CRON=1';
+	}
+
+	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
+		$flags .= ' DEBUG_STACK_TRACE=1';
+	}
+
+	if ($sw_version =~ /THERMO_ON_AC_2/) {
+		$flags .= ' THERMO_ON_AC_2=1';
+	}
+
+	if ($sw_version =~ /MC-B/) {
+		$flags .= ' MC_66B=1';
+	}
+	elsif ($sw_version =~ /MC/) {
+		$flags .= ' EN61107=1';
+	}
+	elsif ($sw_version =~ /NO_METER/) {
+		$flags .= ' DEBUG=1 DEBUG_NO_METER=1';
+	}
+
+	return $flags;
+}
+
 sub process_build {
 	my ($trigger) = @_;
 
@@ -125,7 +163,7 @@ sub process_build {
 		or die "DB connection failed";
 
 	my $sth = $dbh->prepare("
-		SELECT serial
+		SELECT serial, sw_version
 		FROM meters
 		WHERE enabled = 1
 		ORDER BY serial
@@ -133,11 +171,17 @@ sub process_build {
 
 	$sth->execute;
 
+	my $git_version = get_git_version_from_docker();
+
 	while (my $row = $sth->fetchrow_hashref) {
+
+		my $build_flags = build_flags_from_sw_version($row->{sw_version});
 
 		my $job = encode_json({
 			serial => $row->{serial},
-			trigger_time => time()
+			trigger_time => time(),
+			version => $git_version,
+			build_flags => $build_flags
 		});
 
 		$redis->rpush($REDIS_QUEUE, $job);
@@ -147,7 +191,7 @@ sub process_build {
 }
 
 sub run_docker_build {
-	my ($serial) = @_;
+	my ($serial, $version, $build_flags) = @_;
 
 	my $lock_key = "build-lock:$serial";
 
@@ -163,7 +207,7 @@ sub run_docker_build {
 		or die "DB connection failed";
 
 	my $sth = $dbh->prepare("
-		SELECT `key`, sw_version
+		SELECT `key`
 		FROM meters
 		WHERE serial = ?
 	");
@@ -174,8 +218,8 @@ sub run_docker_build {
 		or die "No meter found for serial $serial";
 
 	my $key = $row->{key};
-	my $db_sw_version = $row->{sw_version} // 'unknown';
-	my $sw_version = get_git_version_from_docker();
+
+	my $sw_version = $version;
 
 	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
@@ -193,35 +237,6 @@ sub run_docker_build {
 			skipped => 1,
 			reason => 'already_built'
 		};
-	}
-
-	my $build_flags = 'AP=1';
-
-	if ($db_sw_version =~ /NO_AUTO_CLOSE/) {
-		$build_flags .= ' AUTO_CLOSE=0';
-	}
-
-	if ($db_sw_version =~ /NO_CRON/) {
-		$build_flags .= ' NO_CRON=1';
-	}
-
-	if ($db_sw_version =~ /DEBUG_STACK_TRACE/) {
-		$build_flags .= ' DEBUG_STACK_TRACE=1';
-	}
-
-	if ($db_sw_version =~ /THERMO_ON_AC_2/) {
-		$build_flags .= ' THERMO_ON_AC_2=1';
-	}
-
-	# hardware model logic
-	if ($db_sw_version =~ /MC-B/) {
-		$build_flags .= ' MC_66B=1';
-	}
-	elsif ($db_sw_version =~ /MC/) {
-		$build_flags .= ' EN61107=1';
-	}
-	elsif ($db_sw_version =~ /NO_METER/) {
-		$build_flags .= ' DEBUG=1 DEBUG_NO_METER=1';
 	}
 
 	my $docker_cmd = join(" ",
