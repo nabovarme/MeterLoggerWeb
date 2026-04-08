@@ -26,6 +26,8 @@ const dataUrlFine = `data/${meter_serial}/fine`;
 fetchAndUpdateGraph(true); // Initial call
 setInterval(() => fetchAndUpdateGraph(false), 60000); // Refresh every 60s
 
+let drawTimeout;
+
 /**
  * Fetches CSV data and updates or initializes Dygraph.
  * @param {boolean} isInitialLoad
@@ -85,7 +87,15 @@ function fetchAndUpdateGraph(isInitialLoad) {
 						},
 						unhighlightCallback: updateUrlFromGraph,
 						zoomCallback: updateUrlFromGraph,
-						clickCallback: updateUrlFromGraph
+						clickCallback: updateUrlFromGraph,
+						drawCallback: function(g, isInitial) {
+							if (isInitial) return;
+
+							clearTimeout(drawTimeout);
+							drawTimeout = setTimeout(() => {
+								updateUrlFromGraph();
+							}, 150);
+						}
 					}
 				);
 
