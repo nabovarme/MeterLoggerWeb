@@ -103,17 +103,6 @@ services:
       timeout: 5s
       retries: 5
 
-  certbot:
-    container_name: certbot
-    image: certbot/certbot
-    volumes:
-      - ./certbot/etc:/etc/letsencrypt
-      - ./certbot/var:/var/www/certbot
-    environment:
-      TZ: 'Europe/Copenhagen'
-    entrypoint: >
-      sh -c "certbot certonly --webroot --webroot-path=/var/www/certbot --email hostmaster@skulp.net --agree-tos --no-eff-email -d meterlogger.net"
-
   meter_grapher:
     build:
       context: '.'
@@ -311,8 +300,6 @@ services:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
-      - ./certbot/etc:/etc/letsencrypt
-      - ./certbot/var:/var/www/certbot
       - ./openresty/lua/dnsbl_whitelist:/usr/local/openresty/lualib/dnsbl_whitelist
     restart: always
     environment:
