@@ -112,7 +112,9 @@ sub login_handler {
 			$cookie = CGI::Cookie->new(
 				-name  => 'auth_token',
 				-value => $cookie_token,
-				-expires => '+1y'
+				-expires => '+1y',
+				-httponly => 1,
+				-secure   => 1
 			);
 			# Set the new cookie early so it's only set once
 			add_set_cookie_once($r, $cookie);
@@ -162,7 +164,9 @@ sub login_handler {
 					# Start with a session cookie
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
-						-value => $cookie_token
+						-value => $cookie_token,
+						-httponly => 1,
+						-secure   => 1
 					);
 					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $sms_code_path);
@@ -185,13 +189,17 @@ sub login_handler {
 					$cookie = CGI::Cookie->new(
 						-name	=> 'auth_token',
 						-value   => $passed_cookie_token,
-						-expires => '+1y'
+						-expires => '+1y',
+						-httponly => 1,
+						-secure   => 1,
 					);
 				} else {
 					# Create session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
-						-value => $passed_cookie_token
+						-value => $passed_cookie_token,
+						-httponly => 1,
+						-secure   => 1
 					);
 				}
 
@@ -224,14 +232,18 @@ sub login_handler {
 					# Session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
 						-name  => 'auth_token',
-						-value => $passed_cookie_token
+						-value => $passed_cookie_token,
+						-httponly => 1,
+						-secure   => 1
 					);
 				} else {
 					# Persistent cookie (1 year expiration)
 					$cookie = CGI::Cookie->new(
 						-name    => 'auth_token',
 						-value   => $passed_cookie_token,
-						-expires => '+1y'
+						-expires => '+1y',
+						-httponly => 1,
+						-secure   => 1
 					);
 				}
 				# Update last used timestamp
@@ -306,7 +318,9 @@ sub logout_handler {
 		my $cookie = CGI::Cookie->new(
 			-name  => 'auth_token',
 			-value => $passed_cookie_token,
-			-expires => '-1y'
+			-expires => '-1y',
+			-httponly => 1,
+			-secure   => 1
 		);
 		
 		# Log admin logout if applicable
