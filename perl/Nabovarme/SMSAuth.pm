@@ -280,7 +280,7 @@ sub login_handler {
 		else {
 			# No record found, create a new login session
 			my $quoted_cookie_token = $dbh->quote($passed_cookie_token || $cookie_token);
-			my $quoted_remote_host = $dbh->quote($r->headers_in->{'X-Real-IP'} || $r->headers_in->{'X-Forwarded-For'} || $r->connection->remote_ip);
+			my $quoted_remote_host = $dbh->quote($r->headers_in->{'X-Real-IP'} || $r->headers_in->{'X-Forwarded-For'} || $r->connection->client_ip);
 			my $quoted_user_agent = $dbh->quote($r->headers_in->{'User-Agent'});
 
 			if (index($r->uri, $login_path) >= 0 || index($r->uri, $logout_path) >= 0 || index($r->uri, $logged_out_path) >= 0 || index($r->uri, $sms_code_path) >= 0) {
