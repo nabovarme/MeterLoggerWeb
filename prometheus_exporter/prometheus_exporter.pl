@@ -21,6 +21,19 @@ my $dbh = Nabovarme::Db->my_connect
 $dbh->{'mysql_auto_reconnect'} = 1;
 log_info("connected to db");
 
+# --- shutdown handling ---
+my $RUNNING = 1;
+
+$SIG{INT} = sub {
+	log_info("received SIGINT, shutting down");
+	$RUNNING = 0;
+};
+
+$SIG{TERM} = sub {
+	log_info("received SIGTERM, shutting down");
+	$RUNNING = 0;
+};
+
 sub get_sms_totals {
 	my %totals = (
 		sent     => 0,
@@ -47,7 +60,11 @@ my $d = HTTP::Daemon->new(
 
 log_info("listening on " . $d->url . "metrics");
 
-while (my $c = $d->accept) {
+while ($RUNNING) {
+	my $c = $d->accept;
+
+	next unless $c;
+
 	while (my $r = $c->get_request) {
 
 		if ($r->method eq 'GET' && $r->uri->path eq '/metrics') {
@@ -79,3 +96,6 @@ EOF
 	}
 	$c->close;
 }
+
+log_info("closing HTTP server");
+$d->close if $d;
