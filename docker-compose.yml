@@ -340,7 +340,7 @@ services:
       EXPORTER_PORT: 9101
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9101/metrics || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9101/metrics || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
