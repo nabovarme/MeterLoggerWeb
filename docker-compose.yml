@@ -330,17 +330,16 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${PROM_EXPORTER_PORT:-9101}:9101"
+      - "${PROM_EXPORTER_PORT:-9101}:80"
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
-      EXPORTER_PORT: 9101
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9101/metrics || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80/metrics || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
