@@ -67,10 +67,6 @@ sms_messages_sent_total $totals->{sent}
 sms_messages_received_total $totals->{received}
 EOF
 
-#	$r->content_type('text/plain; version=0.0.4; charset=utf-8');
-#	$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0');
-#	$r->headers_out->set('Pragma' => 'no-cache');
-
 	$r->print($output);
 
 	return Apache2::Const::OK;
