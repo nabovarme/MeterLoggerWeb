@@ -222,6 +222,8 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     container_name: meter_sms
     hostname: meter-sms
     volumes:
@@ -230,6 +232,8 @@ services:
     restart: always
     stop_grace_period: 30s
     environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
       CLOSE_MESSAGE: ${NOTIFICATION_CLOSE_MESSAGE}
       CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}

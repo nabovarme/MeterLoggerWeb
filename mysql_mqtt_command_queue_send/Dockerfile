@@ -50,7 +50,7 @@ COPY ./perl /etc/apache2/perl
 
 COPY ./mysql_mqtt_command_queue_send/mysql_mqtt_command_queue_send.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
 
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
-CMD /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
+CMD ["/etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl"]
 
