@@ -227,7 +227,6 @@ services:
     container_name: meter_sms
     hostname: meter-sms
     volumes:
-      - meter_sms_state:/var/run/app_state
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     stop_grace_period: 30s
@@ -401,6 +400,5 @@ services:
 volumes:
   postfix_spool:
   postfix_mail:
-  meter_sms_state:
   firmware_release:
     name: firmware_release
