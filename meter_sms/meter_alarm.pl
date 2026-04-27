@@ -216,6 +216,11 @@ sub interpolate_variables {
 
 		$value = 0 if !defined $value || $value eq '';
 
+		# Format ONLY numeric values for SMS output
+		if ($value =~ /^-?\d+(\.\d+)?$/) {
+			$value = sprintf("%.2f", $value);
+		}
+
 		$text =~ s/\$$var\b/$value/g;
 	}
 
