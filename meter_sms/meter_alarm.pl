@@ -18,14 +18,14 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # Constants
-use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes
-use constant INITIAL_NO_BACKOFF => 2;
+use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
+use constant INITIAL_NO_BACKOFF => 2;   # first N notifications sent without exponential backoff
 
-$| = 1;
+$| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
 my $script_name = basename($0 . ".pl");
 
-# Redis
+# Redis connection
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
@@ -38,29 +38,27 @@ my $redis = Redis->new(
 
 my $shutdown_requested = 0;
 
-# DB
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 log_info("Connected to DB");
 
-# Signals
-$SIG{TERM} = sub {
-	log_info("SIGTERM received, shutting down...");
-	$shutdown_requested = 1;
-};
-
-$SIG{INT} = sub {
-	log_info("SIGINT received, shutting down...");
-	$shutdown_requested = 1;
-};
-
-# MAIN LOOP
+# Main loop
 while (1) {
 	process_alarms();
 	last if $shutdown_requested;
 	sleep 60;
 }
+
+$SIG{TERM} = sub {
+	log_info("SIGTERM received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
+
+$SIG{INT} = sub {
+	log_info("SIGINT received, will shutdown after current loop...");
+	$shutdown_requested = 1;
+};
 
 # --------------------------
 # PROCESS ALARMS
@@ -82,6 +80,20 @@ sub process_alarms {
 	$sth->execute;
 
 	while (my $alarm = $sth->fetchrow_hashref) {
+
+		# --------------------------
+		# SINGLE DB QUERY PER ALARM (METER CACHE)
+		# --------------------------
+		my $msth = $dbh->prepare(qq[
+			SELECT info, valve_status, valve_installed
+			FROM meters
+			WHERE serial = ?
+			LIMIT 1
+		]);
+
+		$msth->execute($alarm->{serial});
+		$alarm->{meter} = $msth->fetchrow_hashref || {};
+
 		evaluate_alarm($alarm);
 	}
 }
@@ -101,25 +113,17 @@ sub evaluate_alarm {
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
-	log_debug("RAW condition: $condition");
+	log_debug("raw condition: $condition");
 
-	# --------------------------
-	# VALVE LOGIC (REDIS ONLY)
-	# --------------------------
 	my $closed_status = check_delayed_valve_closed($serial);
 
-	# IMPORTANT: do NOT early-return here anymore
-	# just substitute safely if available
 	if (defined $closed_status) {
 		$condition =~ s/\$closed/$closed_status/g;
 	}
 
-	# --------------------------
-	# VARIABLE INTERPOLATION
-	# --------------------------
-	$condition = interpolate_variables($condition, $serial);
+	$condition = interpolate_variables($condition, $alarm);
 
-	log_debug("PARSED condition: $condition");
+	log_debug("parsed condition: $condition");
 
 	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
@@ -132,7 +136,7 @@ sub evaluate_alarm {
 		$eval_alarm_state = eval $condition;
 
 		if ($@) {
-			log_warn("Eval error: $@ | condition: $condition");
+			log_warn("Eval error: $@");
 
 			my $err = $dbh->quote($@);
 
@@ -166,11 +170,11 @@ sub fill_template {
 	$template =~ s/\$serial/$alarm->{serial}/g;
 	$template =~ s/\$id/$alarm->{id}/g;
 
-	return interpolate_variables($template, $alarm->{serial});
+	return interpolate_variables($template, $alarm);
 }
 
 # --------------------------
-# VALVE LOGIC (REDIS FIXED)
+# VALVE (REDIS)
 # --------------------------
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
@@ -181,23 +185,18 @@ sub check_delayed_valve_closed {
 
 	my $key = "valve:$serial:closed_since";
 
-	# not installed or open → reset
-	unless ($installed && $status && $status =~ /close/i) {
+	unless ($installed && $status =~ /close/i) {
 		$redis->del($key);
 		return 0;
 	}
 
 	my $now = time();
-
 	my $closed_since = $redis->get($key);
 
-	# first detection
 	if (!defined $closed_since || $closed_since eq '') {
 		$redis->set($key, $now);
 		return undef;
 	}
-
-	$closed_since += 0;
 
 	return (($now - $closed_since) >= VALVE_CLOSE_DELAY) ? 1 : undef;
 }
@@ -206,26 +205,45 @@ sub check_delayed_valve_closed {
 # VARIABLE INTERPOLATION
 # --------------------------
 sub interpolate_variables {
-	my ($text, $serial) = @_;
+	my ($text, $alarm) = @_;
+	my $serial = $alarm->{serial};
+
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
-		next if $var =~ /^(id|serial|info|closed|default_snooze|snooze_auth_key)$/;
+		# DB-backed fields (from cached meter row)
+		if ($var =~ /^(info|valve_status|valve_installed)$/) {
+
+			my $meter = $alarm->{meter} || {};
+			my $val = $meter->{$var};
+
+			$val = 0 if !defined $val || $val eq '';
+			$text =~ s/\$$var/$val/g;
+			next;
+		}
+
+		if ($var eq 'serial') {
+			$text =~ s/\$serial/$serial/g;
+			next;
+		}
 
 		if ($var eq 'offline') {
 			my $sth = $dbh->prepare("SELECT last_updated FROM meters WHERE serial = ?");
 			$sth->execute($serial);
 			my ($lu) = $sth->fetchrow_array;
+
 			my $offline = time() - ($lu || time());
 			$text =~ s/\$offline/$offline/g;
 			next;
 		}
 
+		# Redis metrics
 		my $redis_key = "sensor:$serial:$var:last_value";
 		my $val = $redis->get($redis_key);
 
 		if (!defined $val) {
+
 			my $sth = $dbh->prepare(qq[
 				SELECT `$var`
 				FROM samples_cache
@@ -250,15 +268,13 @@ sub interpolate_variables {
 }
 
 # --------------------------
-# ALARM HANDLER (UNCHANGED)
+# ALARM HANDLER
 # --------------------------
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
 	my $id = $dbh->quote($alarm->{id});
 	my $now = time();
-
-	my $count = $alarm->{alarm_count} || 0;
 
 	if ($state) {
 
@@ -267,10 +283,13 @@ sub handle_alarm {
 			sms_send($alarm->{sms_notification}, $down);
 
 			$dbh->do(qq[
-				UPDATE alarms SET alarm_state=1, last_notification=$now, alarm_count=1,
-				snooze_auth_key=$key WHERE id=$id
+				UPDATE alarms
+				SET alarm_state=1,
+					last_notification=$now,
+					alarm_count=1,
+					snooze_auth_key=$key
+				WHERE id=$id
 			]);
-
 		}
 
 	} else {
@@ -280,16 +299,17 @@ sub handle_alarm {
 			sms_send($alarm->{sms_notification}, $up);
 
 			$dbh->do(qq[
-				UPDATE alarms SET alarm_state=0, alarm_count=0, snooze=0,
-				snooze_auth_key='' WHERE id=$id
+				UPDATE alarms
+				SET alarm_state=0,
+					alarm_count=0,
+					snooze=0,
+					snooze_auth_key=''
+				WHERE id=$id
 			]);
 		}
 	}
 }
 
-# --------------------------
-# SMS
-# --------------------------
 sub sms_send {
 	my ($to, $msg) = @_;
 	return unless $to;
