@@ -231,7 +231,7 @@ sub resolve_var {
 	my ($var, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[resolve_var] START var=$var serial=$serial");
+	log_debug("[resolve_var][serial=$serial] START var=$var");
 
 	# --------------------------
 	# DB FIELDS
@@ -240,13 +240,15 @@ sub resolve_var {
 
 		my $val = $alarm->{meter}{$var};
 
-		log_debug("[resolve_var] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'));
 
 		return $val;
 	}
 
 	if ($var eq 'serial') {
-		log_debug("[resolve_var] SYSTEM serial=$serial");
+
+		log_debug("[resolve_var][serial=$serial] SYSTEM serial return");
+
 		return $serial;
 	}
 
@@ -261,7 +263,7 @@ sub resolve_var {
 
 		my $val = time() - ($lu || time());
 
-		log_debug("[resolve_var] SYSTEM offline last_updated=" . ($lu // 'undef') . " value=$val");
+		log_debug("[resolve_var][serial=$serial] SYSTEM offline last_updated=" . ($lu // 'undef') . " value=$val");
 
 		return $val;
 	}
@@ -270,7 +272,7 @@ sub resolve_var {
 
 		my $val = check_delayed_valve_closed($serial);
 
-		log_debug("[resolve_var] SYSTEM closed value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var][serial=$serial] SYSTEM closed value=" . (defined $val ? $val : 'undef'));
 
 		return $val;
 	}
@@ -281,11 +283,11 @@ sub resolve_var {
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $ema_key   = "sensor:$serial:$var:ema";
 
-	log_debug("[resolve_var] REDIS keys redis_key=$redis_key ema_key=$ema_key");
+	log_debug("[resolve_var][serial=$serial] REDIS keys redis_key=$redis_key ema_key=$ema_key");
 
 	my $val = $redis->get($redis_key);
 
-	log_debug("[resolve_var] REDIS last_value=" . (defined $val ? $val : 'undef'));
+	log_debug("[resolve_var][serial=$serial] REDIS last_value=" . (defined $val ? $val : 'undef'));
 
 	# fallback to DB if Redis empty
 	if (!defined $val) {
@@ -301,21 +303,21 @@ sub resolve_var {
 		$sth->execute($serial);
 		($val) = $sth->fetchrow_array;
 
-		log_debug("[resolve_var] DB fallback value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var][serial=$serial] DB fallback value=" . (defined $val ? $val : 'undef'));
 	}
 
 	return undef unless defined $val;
 
 	my $prev = $redis->get($ema_key);
 
-	log_debug("[resolve_var] EMA prev=" . (defined $prev ? $prev : 'undef'));
+	log_debug("[resolve_var][serial=$serial] EMA prev=" . (defined $prev ? $prev : 'undef'));
 
 	# initialize EMA
 	if (!defined $prev) {
 
 		$redis->set($ema_key, $val);
 
-		log_debug("[resolve_var] EMA INIT value=$val");
+		log_debug("[resolve_var][serial=$serial] EMA INIT value=$val");
 
 		return sprintf("%.2f", $val) + 0;
 	}
@@ -323,7 +325,7 @@ sub resolve_var {
 	my $diff = abs($val - $prev);
 	my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
 
-	log_debug("[resolve_var] EMA calc val=$val prev=$prev diff=$diff threshold=$threshold");
+	log_debug("[resolve_var][serial=$serial] EMA calc val=$val prev=$prev diff=$diff threshold=$threshold");
 
 	my $new_ema;
 
@@ -331,7 +333,7 @@ sub resolve_var {
 
 		$new_ema = $prev;
 
-		log_debug("[resolve_var] EMA UNCHANGED new_ema=$new_ema");
+		log_debug("[resolve_var][serial=$serial] EMA UNCHANGED new_ema=$new_ema");
 
 	} else {
 
@@ -339,12 +341,12 @@ sub resolve_var {
 
 		$redis->set($ema_key, $new_ema);
 
-		log_debug("[resolve_var] EMA UPDATED new_ema=$new_ema");
+		log_debug("[resolve_var][serial=$serial] EMA UPDATED new_ema=$new_ema");
 	}
 
 	my $out = sprintf("%.2f", $new_ema) + 0;
 
-	log_debug("[resolve_var] END var=$var final_value=$out");
+	log_debug("[resolve_var][serial=$serial] END var=$var final_value=$out");
 
 	return $out;
 }
