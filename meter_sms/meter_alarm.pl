@@ -283,7 +283,7 @@ sub resolve_var {
 
 	if (!defined $prev) {
 		$redis->set($ema_key, $val);
-		return $val;
+		return sprintf("%.2f", $val) + 0;
 	}
 
 	my $diff = abs($val - $prev);
@@ -298,7 +298,7 @@ sub resolve_var {
 		$redis->set($ema_key, $new_ema);
 	}
 
-	return $new_ema;
+	return sprintf("%.2f", $new_ema) + 0;
 }
 
 # --------------------------
