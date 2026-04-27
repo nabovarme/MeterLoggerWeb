@@ -66,6 +66,6 @@ COPY ./meter_cron/update_estimated_energy.pl /etc/apache2/perl/Nabovarme/bin/upd
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]

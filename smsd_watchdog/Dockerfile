@@ -18,6 +18,6 @@ RUN chmod +x /watcher.pl
 
 WORKDIR /
 
-ENV PERL5LIB=/usr/local/lib/perl:${PERL5LIB}
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["/watcher.pl"]

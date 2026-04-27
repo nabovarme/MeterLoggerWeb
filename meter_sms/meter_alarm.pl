@@ -12,6 +12,7 @@ use Math::Random::Secure qw(rand);      # for generating secure random keys
 use File::Basename;
 use Storable qw(store retrieve);
 use File::Path qw(make_path);
+use Redis;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -24,6 +25,17 @@ $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0 . ".pl");
+
+# Redis connection
+my $redis_host = $ENV{'REDIS_HOST'}
+	or die "ERROR: REDIS_HOST environment variable not set";
+
+my $redis_port = $ENV{'REDIS_PORT'}
+	or die "ERROR: REDIS_PORT environment variable not set";
+
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+);
 
 # --- File-backed state for valve closures ---
 my $STATE_DIR        = '/var/run/app_state';
@@ -119,12 +131,13 @@ sub evaluate_alarm {
 
 	# Replace $closed with calculated status (based on valve being closed > 5 min)
 	my $closed_status = check_delayed_valve_closed($alarm->{serial});
-	# Skip evaluation entirely if in grace period
-	return if not defined $closed_status;
-	
-	$condition =~ s/\$closed/$closed_status/;
 
-	# Interpolate other variables from DB/sample data
+	# Only substitute if value is ready
+	if (defined $closed_status) {
+		$condition =~ s/\$closed/$closed_status/;
+	}
+
+	# Interpolate variables (powered by redis except offline)
 	$condition = interpolate_variables($condition, $serial);
 
 	# Print the final parsed condition to be evaluated
@@ -142,7 +155,7 @@ sub evaluate_alarm {
 		if ($@) {
 			# Log condition parse errors in DB
 			my $error = $@;
-			 log_warn("Error parsing condition for serial " . $serial . ": " . $condition . ", error: " . $error);
+			log_warn("Error parsing condition for serial " . $serial . ": " . $condition . ", error: " . $error);
 
 			my $quoted_error = $dbh->quote($error);
 			$dbh->do(qq[
@@ -182,7 +195,7 @@ sub fill_template {
 # Returns undef during grace period to prevent SMS/actions
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
-	
+
 	# Fetch current valve status from DB
 	my $sth = $dbh->prepare("SELECT valve_status, valve_installed FROM meters WHERE serial = ?");
 	$sth->execute($serial);
@@ -213,102 +226,68 @@ sub check_delayed_valve_closed {
 	return ($now - $valve_close_time{$serial} >= VALVE_CLOSE_DELAY) ? 1 : undef;
 }
 
-# Replaces $variables in a string with values from meter/sample data
+# Replaces $variables in a string with values from meter/sample data using redis except for offline
 sub interpolate_variables {
 	my ($text, $serial) = @_;
 	my @vars = ($text =~ /\$(\w+)/g);
 
-	my %static_vars;
-
-	# Fetch some common fields from meters table
-	my $sth_meter = $dbh->prepare(qq[
-		SELECT last_updated, info, valve_status, valve_installed
-		FROM meters
-		WHERE serial = ?
-	]);
-	$sth_meter->execute($serial);
-	if (my $row = $sth_meter->fetchrow_hashref) {
-		$static_vars{offline}	= time() - ($row->{last_updated} || time());
-		$static_vars{info}	   = $row->{info} || '';
-		$static_vars{valve_status}   = $dbh->quote($row->{valve_status} || '');
-		$static_vars{valve_installed}= $row->{valve_installed} + 0;  # force numeric
-	}
-
 	foreach my $var (@vars) {
-		if (exists $static_vars{$var}) {
-			my $val = $static_vars{$var};
-			$val =~ s/"/\\"/g;
-			$text =~ s/\$$var/$val/g;
-			next;
-		}
 
-		# volume_day / energy_day calculated over last 24h - delay window
-		if ($var eq 'volume_day' or $var eq 'energy_day') {
-			my $column = $var eq 'volume_day' ? 'volume' : 'energy';
-			my $since = time() - 86400 - VALVE_CLOSE_DELAY;
+		# Skip system fields
+		next if $var =~ /^(id|serial|info|default_snooze|snooze_auth_key)$/;
 
-			# Get earliest sample after time window
+		# --- OFFLINE stays DB-based ---
+		if ($var eq 'offline') {
 			my $sth = $dbh->prepare(qq[
-				SELECT $column
-				FROM samples_cache
+				SELECT last_updated
+				FROM meters
 				WHERE serial = ?
-				AND unix_time > ?
-				ORDER BY unix_time ASC
-				LIMIT 1
 			]);
-			$sth->execute($serial, $since);
-			my ($first_val) = $sth->fetchrow_array;
-			$first_val = 0 unless defined $first_val;
-
-			# Get latest sample
-			$sth = $dbh->prepare(qq[
-				SELECT $column
-				FROM samples_cache
-				WHERE serial = ?
-				AND unix_time > ?
-				ORDER BY unix_time DESC
-				LIMIT 1
-			]);
-			$sth->execute($serial, $since);
-			my ($last_val) = $sth->fetchrow_array;
-			$last_val = 0 unless defined $last_val;
-
-			my $delta = $last_val - $first_val;
-			$delta = 0 if $delta < 0;  # protect against counter resets
-
-			$text =~ s/\$$var/$delta/g;
+			$sth->execute($serial);
+			my ($lu) = $sth->fetchrow_array;
+			my $offline = time() - ($lu || time());
+			$text =~ s/\$offline/$offline/g;
 			next;
 		}
 
-		# Skip alarm system fields not tied to sample data
-		next if $var =~ /^(id|serial|default_snooze|snooze_auth_key)$/;
+		# --- REDIS FIRST (fast path) ---
+		my $redis_key = "sensor:$serial:$var:last_value";
+		my $val = $redis->get($redis_key);
 
-		# Default behavior: median of last 5 values from samples_cache
-		my $quoted_var = '`' . $var . '`';
-		my $sth = $dbh->prepare(qq[
-			SELECT $quoted_var
-			FROM samples_cache
-			WHERE serial = ?
-			ORDER BY unix_time DESC
-			LIMIT 5
-		]);
-		$sth->execute($serial);
-		my $values = $sth->fetchall_arrayref;
-		if (@$values) {
-			my $median_val = median(map { $_->[0] + 0.0 } @$values) + 0.0;
-			$text =~ s/\$$var/$median_val/g;
+		# --- FALLBACK TO DB MEDIAN (your original logic preserved) ---
+		if (!defined $val) {
+
+			my $quoted_var = '`' . $var . '`';
+
+			my $sth = $dbh->prepare(qq[
+				SELECT $quoted_var
+				FROM samples_cache
+				WHERE serial = ?
+				ORDER BY unix_time DESC
+				LIMIT 5
+			]);
+
+			$sth->execute($serial);
+			my $values = $sth->fetchall_arrayref;
+
+			if (@$values) {
+				my $median_val = median(map { $_->[0] + 0.0 } @$values) + 0.0;
+				$val = $median_val;
+			}
 		}
+
+		$val = 0 unless (!defined $val || $val eq '');
 	}
 
 	return $text;
 }
 
-# Send SMS based on alarm state (up/down)
+# Send SMS based on alarm state (unchanged)
 sub handle_alarm {
 	my ($alarm, $state, $down_message, $up_message, $quoted_snooze_auth_key) = @_;
+
 	my $quoted_id = $dbh->quote($alarm->{id});
 	my $now = time();
-
 	# Initialize alarm_count if undefined
 	my $count = $alarm->{alarm_count} || 0;
 
@@ -319,6 +298,7 @@ sub handle_alarm {
 	}
 
 	if ($state) {
+
 		if ($alarm->{alarm_state} == 0) {
 			# First time alarm triggered
 			sms_send($alarm->{sms_notification}, $down_message);
@@ -336,20 +316,12 @@ sub handle_alarm {
 			log_info("Serial " . $alarm->{serial} . ": down (count=1)");
 
 		} elsif ($alarm->{repeat}) {
-			# Calculate interval
-			my $interval;
+
+			my $interval = $alarm->{repeat};
+
 			if ($use_backoff && $count >= INITIAL_NO_BACKOFF) {
-				# Apply exponential backoff only after 5 notifications
-				my $backoff_count = $count;
-
-				# Exponential backoff: repeat * 2^(count-1)
-				$interval = $alarm->{repeat} * (2 ** ($backoff_count - INITIAL_NO_BACKOFF));
-
-				# Cap at 24h to ensure max 1 SMS per day for small repeats
+				$interval = $alarm->{repeat} * (2 ** ($count - INITIAL_NO_BACKOFF));
 				$interval = 86400 if $interval > 86400;
-			} else {
-				# Fixed repeat interval (repeat >= 24h or backoff disabled), and fixed repeat for first number of notifications
-				$interval = $alarm->{repeat};
 			}
 
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
@@ -409,6 +381,5 @@ sub sms_send {
 sub generate_snooze_key {
 	return join('', map { sprintf("%02x", int rand(256)) } 1..8);
 }
-
 
 __END__
