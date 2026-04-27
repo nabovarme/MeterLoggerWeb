@@ -20,6 +20,8 @@ use Nabovarme::Utils;
 # Constants
 use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
 use constant INITIAL_NO_BACKOFF => 2;   # first N notifications sent without exponential backoff
+use constant EMA_ALPHA => 0.2;
+use constant THRESHOLD_PERCENT => 2;
 
 $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
@@ -38,18 +40,13 @@ my $redis = Redis->new(
 
 my $shutdown_requested = 0;
 
+# DB
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 log_info("Connected to DB");
 
-# Main loop
-while (1) {
-	process_alarms();
-	last if $shutdown_requested;
-	sleep 60;
-}
-
+# Signals
 $SIG{TERM} = sub {
 	log_info("SIGTERM received, will shutdown after current loop...");
 	$shutdown_requested = 1;
@@ -60,20 +57,26 @@ $SIG{INT} = sub {
 	$shutdown_requested = 1;
 };
 
+# MAIN LOOP
+while (1) {
+	process_alarms();
+	last if $shutdown_requested;
+	sleep 60;
+}
+
 # --------------------------
 # PROCESS ALARMS
 # --------------------------
 sub process_alarms {
 
 	my $sth = $dbh->prepare(qq[
-		SELECT alarms.id, alarms.serial, meters.info, meters.last_updated,
+		SELECT alarms.id, alarms.serial,
 			alarms.condition, alarms.last_notification, alarms.alarm_state,
 			alarms.repeat, alarms.alarm_count, alarms.exp_backoff_enabled,
 			alarms.snooze, alarms.default_snooze,
 			alarms.snooze_auth_key, alarms.sms_notification,
 			alarms.down_message, alarms.up_message
 		FROM alarms
-		JOIN meters ON alarms.serial = meters.serial
 		WHERE alarms.enabled
 	]);
 
@@ -81,9 +84,6 @@ sub process_alarms {
 
 	while (my $alarm = $sth->fetchrow_hashref) {
 
-		# --------------------------
-		# SINGLE DB QUERY PER ALARM (METER CACHE)
-		# --------------------------
 		my $msth = $dbh->prepare(qq[
 			SELECT info, valve_status, valve_installed
 			FROM meters
@@ -174,7 +174,7 @@ sub fill_template {
 }
 
 # --------------------------
-# VALVE (REDIS)
+# VALVE LOGIC (UNCHANGED)
 # --------------------------
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
@@ -202,7 +202,7 @@ sub check_delayed_valve_closed {
 }
 
 # --------------------------
-# VARIABLE INTERPOLATION
+# VARIABLE RESOLVER (3-LAYER MODEL)
 # --------------------------
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
@@ -212,59 +212,88 @@ sub interpolate_variables {
 
 	foreach my $var (@vars) {
 
-		# DB-backed fields (from cached meter row)
-		if ($var =~ /^(info|valve_status|valve_installed)$/) {
+		my $value = resolve_var($var, $alarm);
 
-			my $meter = $alarm->{meter} || {};
-			my $val = $meter->{$var};
+		$value = 0 if !defined $value || $value eq '';
 
-			$val = 0 if !defined $val || $val eq '';
-			$text =~ s/\$$var/$val/g;
-			next;
-		}
-
-		if ($var eq 'serial') {
-			$text =~ s/\$serial/$serial/g;
-			next;
-		}
-
-		if ($var eq 'offline') {
-			my $sth = $dbh->prepare("SELECT last_updated FROM meters WHERE serial = ?");
-			$sth->execute($serial);
-			my ($lu) = $sth->fetchrow_array;
-
-			my $offline = time() - ($lu || time());
-			$text =~ s/\$offline/$offline/g;
-			next;
-		}
-
-		# Redis metrics
-		my $redis_key = "sensor:$serial:$var:last_value";
-		my $val = $redis->get($redis_key);
-
-		if (!defined $val) {
-
-			my $sth = $dbh->prepare(qq[
-				SELECT `$var`
-				FROM samples_cache
-				WHERE serial = ?
-				ORDER BY unix_time DESC
-				LIMIT 5
-			]);
-
-			$sth->execute($serial);
-			my $rows = $sth->fetchall_arrayref;
-
-			if (@$rows) {
-				$val = median(map { $_->[0] + 0 } @$rows);
-			}
-		}
-
-		$val = 0 if !defined $val || $val eq '';
-		$text =~ s/\$$var/$val/g;
+		$text =~ s/\$$var\b/$value/g;
 	}
 
 	return $text;
+}
+
+sub resolve_var {
+	my ($var, $alarm) = @_;
+	my $serial = $alarm->{serial};
+
+	# --------------------------
+	# DB FIELDS
+	# --------------------------
+	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed') {
+		return $alarm->{meter}{$var};
+	}
+
+	if ($var eq 'serial') {
+		return $serial;
+	}
+
+	# --------------------------
+	# SYSTEM
+	# --------------------------
+	if ($var eq 'offline') {
+		my $sth = $dbh->prepare("SELECT last_updated FROM meters WHERE serial = ?");
+		$sth->execute($serial);
+		my ($lu) = $sth->fetchrow_array;
+		return time() - ($lu || time());
+	}
+
+	if ($var eq 'closed') {
+		return check_delayed_valve_closed($serial);
+	}
+
+	# --------------------------
+	# REDIS + EMA
+	# --------------------------
+	my $redis_key = "sensor:$serial:$var:last_value";
+	my $ema_key   = "sensor:$serial:$var:ema";
+
+	my $val = $redis->get($redis_key);
+
+	if (!defined $val) {
+		my $sth = $dbh->prepare(qq[
+			SELECT `$var`
+			FROM samples_cache
+			WHERE serial = ?
+			ORDER BY unix_time DESC
+			LIMIT 1
+		]);
+
+		$sth->execute($serial);
+		($val) = $sth->fetchrow_array;
+	}
+
+	return undef unless defined $val;
+
+	my $prev = $redis->get($ema_key);
+
+	if (!defined $prev) {
+		$redis->set($ema_key, $val);
+		return $val;
+	}
+
+	my $diff = abs($val - $prev);
+	my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
+
+	my $new_ema;
+
+	if ($diff <= $threshold) {
+		$new_ema = $prev;
+	} else {
+		$new_ema = (EMA_ALPHA * $val) + ((1 - EMA_ALPHA) * $prev);
+		$redis->set($ema_key, $new_ema);
+	}
+
+	return $new_ema;
 }
 
 # --------------------------
@@ -310,6 +339,9 @@ sub handle_alarm {
 	}
 }
 
+# --------------------------
+# SMS
+# --------------------------
 sub sms_send {
 	my ($to, $msg) = @_;
 	return unless $to;
