@@ -267,6 +267,9 @@ services:
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -402,3 +405,5 @@ volumes:
   postfix_mail:
   firmware_release:
     name: firmware_release
+  redis_data:
+

@@ -52,6 +52,8 @@ my $redis_port = $ENV{'REDIS_PORT'}
 
 my $redis = Redis->new(server => "$redis_host:$redis_port");
 
+redis_startup_snapshot();
+
 # --------------------------
 # DB
 # --------------------------
@@ -73,6 +75,10 @@ $SIG{TERM} = sub {
 $SIG{INT} = sub {
 	log_info("SIGINT received, will shutdown after current loop...");
 	$shutdown_requested = 1;
+};
+
+$SIG{HUP} = sub {
+	redis_startup_snapshot();
 };
 
 # --------------------------
@@ -503,3 +509,110 @@ sub sms_send {
 sub generate_snooze_key {
 	return join('', map { sprintf("%02x", int rand(256)) } 1..8);
 }
+
+# --------------------------
+# REDIS STARTUP
+# --------------------------
+sub redis_startup_snapshot {
+
+	log_info("===== REDIS STARTUP SNAPSHOT BEGIN =====");
+
+	my $cursor = 0;
+	my $now = time();
+
+	my %meters;   # grouped by real meter serial
+	my %alarms;   # grouped by alarm id (NOT serial)
+
+	# --------------------------
+	# SCAN REDIS
+	# --------------------------
+	do {
+		my ($new_cursor, $keys) = $redis->scan($cursor, 'COUNT', 500);
+		$cursor = $new_cursor;
+
+		foreach my $key (@$keys) {
+
+			# --------------------------
+			# METER STATE (REAL SERIALS)
+			# --------------------------
+			if ($key =~ /^(sensor|valve|flow):(\d+):/) {
+
+				my $serial = $2;
+				my $val = $redis->get($key);
+
+				$meters{$serial}{$key} = $val;
+			}
+
+			# --------------------------
+			# ALARM STATE (ALARM ID ONLY)
+			# --------------------------
+			elsif ($key =~ /^alarm:(\d+):/) {
+
+				my $alarm_id = $1;
+				my $val = $redis->get($key);
+
+				$alarms{$alarm_id}{$key} = $val;
+			}
+		}
+
+	} while ($cursor != 0);
+
+	# --------------------------
+	# METERS (GROUPED BY SERIAL)
+	# --------------------------
+	log_info("---- METER STATE BY SERIAL ----");
+
+	foreach my $serial (sort { $a <=> $b } keys %meters) {
+
+		log_info("== SERIAL $serial ==");
+
+		foreach my $key (sort keys %{ $meters{$serial} }) {
+
+			my $val = $meters{$serial}{$key};
+
+			if (!defined $val || $val eq '') {
+				log_info("  $key => <empty>");
+				next;
+			}
+
+			my $age = ($val =~ /^\d+$/) ? ($now - $val) : undef;
+
+			if (defined $age) {
+				log_info("  $key => $val (age=${age}s)");
+			} else {
+				log_info("  $key => $val");
+			}
+		}
+	}
+
+	# --------------------------
+	# ALARMS (SEPARATE VIEW)
+	# --------------------------
+	log_info("---- ALARM STATE ----");
+
+	foreach my $alarm_id (sort { $a <=> $b } keys %alarms) {
+
+		log_info("== ALARM $alarm_id ==");
+
+		foreach my $key (sort keys %{ $alarms{$alarm_id} }) {
+
+			my $val = $alarms{$alarm_id}{$key};
+
+			if (!defined $val || $val eq '') {
+				log_info("  $key => <empty>");
+				next;
+			}
+
+			my $age = ($val =~ /^\d+$/) ? ($now - $val) : undef;
+
+			if (defined $age) {
+				log_info("  $key => $val (age=${age}s)");
+			} else {
+				log_info("  $key => $val");
+			}
+		}
+	}
+
+	log_info("===== REDIS STARTUP SNAPSHOT END =====");
+}
+
