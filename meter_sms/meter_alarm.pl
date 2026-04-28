@@ -391,7 +391,6 @@ sub handle_alarm {
 	my $now  = time();
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
-	my $clear_delay = $cfg->{alarm_clear_delay};
 
 	my $count = $alarm->{alarm_count} || 0;
 
@@ -454,7 +453,7 @@ sub handle_alarm {
 			return;
 		}
 
-		if (($now - $since) < $clear_delay) {
+		if (($now - $since) < $cfg->{alarm_clear_delay}) {
 			return;
 		}
 
