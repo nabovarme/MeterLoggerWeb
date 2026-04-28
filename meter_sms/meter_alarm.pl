@@ -1,12 +1,5 @@
 #!/usr/bin/perl -w
 
-# Anti-hysteresis:
-# 1) Valve state ($closed): time-filtered using VALVE_CLOSE_DELAY to ensure the valve
-#    is continuously closed before being considered valid.
-#
-# 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
-#    to prevent rapid alarm flapping due to transient conditions.
-
 use strict;
 use utf8;
 use Data::Dumper;
@@ -23,8 +16,20 @@ use Nabovarme::Utils;
 # --------------------------
 # CONSTANTS
 # --------------------------
-use constant VALVE_CLOSE_DELAY => 600;
+# Anti-hysteresis mechanisms:
+#
+# Alarm state:
+# Controls how quickly an active alarm can be cleared. The alarm must remain in a
+# stable normal condition for ALARM_CLEAR_DELAY before transitioning back to OK,
+# preventing rapid flapping from transient recoveries.
 use constant ALARM_CLEAR_DELAY => 600;
+
+# Valve state ($closed):
+# Time-filtered using VALVE_CLOSE_DELAY to ensure the valve has been continuously
+# closed for a sustained period before being considered valid, filtering out noise
+# and short interruptions.
+use constant VALVE_CLOSE_DELAY => 600;
+
 use constant INITIAL_NO_BACKOFF => 2;
 
 $| = 1;
