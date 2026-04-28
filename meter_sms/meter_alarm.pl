@@ -58,8 +58,14 @@ $SIG{INT} = sub {
 };
 
 # MAIN LOOP
+my $run_id;
 while (1) {
-	process_alarms();
+
+	$run_id = time();
+	log_debug("===== MAIN LOOP START run_id=$run_id =====");
+
+	process_alarms($run_id);
+
 	last if $shutdown_requested;
 	sleep 60;
 }
@@ -68,6 +74,8 @@ while (1) {
 # PROCESS ALARMS
 # --------------------------
 sub process_alarms {
+
+	my ($run_id) = @_;
 
 	my $sth = $dbh->prepare(qq[
 		SELECT alarms.id, alarms.serial,
@@ -94,7 +102,7 @@ sub process_alarms {
 		$msth->execute($alarm->{serial});
 		$alarm->{meter} = $msth->fetchrow_hashref || {};
 
-		evaluate_alarm($alarm);
+		evaluate_alarm($alarm, $run_id);
 	}
 }
 
@@ -102,7 +110,7 @@ sub process_alarms {
 # EVALUATE ALARM
 # --------------------------
 sub evaluate_alarm {
-	my ($alarm) = @_;
+	my ($alarm, $run_id) = @_;
 
 	my $serial = $alarm->{serial};
 
@@ -210,15 +218,15 @@ sub interpolate_variables {
 	my ($text, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[interpolate_variables] BEFORE: $text");
+	log_debug("[interpolate_variables run_id=$run_id] BEFORE: $text");
 
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
-		my $value = resolve_var($var, $alarm);
+		my $value = resolve_var($var, $alarm, $run_id);
 
-		log_debug("[interpolate_variables] var=\$$var value=" . (defined $value ? $value : 'undef'));
+		log_debug("[interpolate_variables run_id=$run_id] var=\$$var value=" . (defined $value ? $value : 'undef'));
 
 		$value = 0 if !defined $value || $value eq '';
 
@@ -230,16 +238,16 @@ sub interpolate_variables {
 		$text =~ s/\$$var\b/$value/g;
 	}
 
-	log_debug("[interpolate_variables] AFTER: $text");
+	log_debug("[interpolate_variables run_id=$run_id] AFTER: $text");
 
 	return $text;
 }
 
 sub resolve_var {
-	my ($var, $alarm) = @_;
+	my ($var, $alarm, $run_id) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[resolve_var][serial=$serial] START var=$var");
+	log_debug("[resolve_var run_id=$run_id][serial=$serial] START var=$var");
 
 	# --------------------------
 	# DB FIELDS
@@ -248,7 +256,7 @@ sub resolve_var {
 
 		my $val = $alarm->{meter}{$var};
 
-		log_debug("[resolve_var][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var run_id=$run_id][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'));
 
 		return $val;
 	}
@@ -277,7 +285,6 @@ sub resolve_var {
 	}
 
 	if ($var eq 'closed') {
-
 		my $val = check_delayed_valve_closed($serial);
 
 		log_debug("[resolve_var][serial=$serial] SYSTEM closed value=" . (defined $val ? $val : 'undef'));
@@ -296,7 +303,7 @@ sub resolve_var {
 
 	my $cached = $redis->get($alarm_cache_key);
 	if (defined $cached) {
-		log_debug("[resolve_var] CACHE HIT key=$alarm_cache_key value=$cached");
+		log_debug("[EMA TRACE run_id=$run_id] CACHE HIT key=$alarm_cache_key value=$cached");
 		return $cached;
 	}
 
@@ -308,7 +315,6 @@ sub resolve_var {
 
 	# fallback to DB if Redis empty
 	if (!defined $val) {
-
 		log_debug("[resolve_var] Redis MISS -> DB fallback for $var");
 
 		my $sth = $dbh->prepare(qq[
@@ -339,6 +345,8 @@ sub resolve_var {
 		$new_ema = $val;
 		$redis->set($ema_key, $val);
 
+		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var INIT val=$val ema=$new_ema");
+
 	} else {
 
 		my $diff = abs($val - $prev);
@@ -346,6 +354,9 @@ sub resolve_var {
 
 		log_debug("[EMA] serial=$serial var=$var val=$val prev=$prev diff=$diff threshold=$threshold action=" .
 			($diff <= $threshold ? "HOLD" : "UPDATE"));
+		my $action = ($diff <= $threshold) ? "HOLD" : "UPDATE";
+
+		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var input=$val prev=$prev diff=$diff threshold=$threshold action=$action");
 
 		if ($diff <= $threshold) {
 
@@ -356,6 +367,8 @@ sub resolve_var {
 			$new_ema = (EMA_ALPHA * $val) + ((1 - EMA_ALPHA) * $prev);
 			$redis->set($ema_key, $new_ema);
 		}
+
+		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var output_ema=$new_ema");
 	}
 
 	my $out = sprintf("%.2f", $new_ema) + 0;
