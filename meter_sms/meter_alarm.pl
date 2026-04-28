@@ -81,30 +81,23 @@ sub process_alarms {
 	my ($run_id) = @_;
 
 	my $sth = $dbh->prepare(qq[
-		SELECT alarms.id, alarms.serial,
+		SELECT
+			alarms.id, alarms.serial,
 			alarms.condition, alarms.last_notification, alarms.alarm_state,
 			alarms.repeat, alarms.alarm_count, alarms.exp_backoff_enabled,
 			alarms.snooze, alarms.default_snooze,
 			alarms.snooze_auth_key, alarms.sms_notification,
-			alarms.down_message, alarms.up_message
+			alarms.down_message, alarms.up_message,
+			meters.info, meters.valve_status, meters.valve_installed,
+			meters.last_updated
 		FROM alarms
+		JOIN meters ON alarms.serial = meters.serial
 		WHERE alarms.enabled
 	]);
 
 	$sth->execute;
 
 	while (my $alarm = $sth->fetchrow_hashref) {
-
-		my $msth = $dbh->prepare(qq[
-			SELECT info, valve_status, valve_installed
-			FROM meters
-			WHERE serial = ?
-			LIMIT 1
-		]);
-
-		$msth->execute($alarm->{serial});
-		$alarm->{meter} = $msth->fetchrow_hashref || {};
-
 		evaluate_alarm($alarm, $run_id);
 	}
 }
@@ -254,8 +247,8 @@ sub resolve_var {
 	my ($var, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed') {
-		return $alarm->{meter}{$var};
+	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed' || $var eq 'last_updated') {
+		return $alarm->{$var};
 	}
 
 	if ($var eq 'serial') {
