@@ -22,7 +22,7 @@ use Nabovarme::Utils;
 # Defines how long a previously active alarm condition must remain in a stable
 # "normal" state before the alarm is cleared. This prevents rapid alarm flapping
 # caused by short-lived recoveries or intermittent signal noise.
-use constant ALARM_CLEAR_DELAY => 3600;
+use constant ALARM_CLEAR_DELAY => 600;
 
 # Valve state ($closed) (VALVE_CLOSE_DELAY):
 # Ensures the valve is considered "closed" only after it has continuously remained
