@@ -20,8 +20,6 @@ use Nabovarme::Utils;
 # Constants
 use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
 use constant INITIAL_NO_BACKOFF => 2;   # first N notifications sent without exponential backoff
-use constant EMA_ALPHA => 0.2;
-use constant THRESHOLD_PERCENT => 2;
 
 $| = 1;  # Autoflush STDOUT to ensure logs appear immediately
 
@@ -220,25 +218,17 @@ sub check_delayed_valve_closed {
 }
 
 # --------------------------
-# VARIABLE RESOLVER (3-LAYER MODEL)
+# VARIABLE RESOLVER (RAW ONLY)
 # --------------------------
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[interpolate_variables run_id=$run_id] BEFORE: $text", {
-		-custom_tag => "VAR:$run_id:$alarm->{serial}"
-	});
-
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
-		my $value = resolve_var($var, $alarm, $run_id);
-
-		log_debug("[interpolate_variables run_id=$run_id] var=\$$var value=" . (defined $value ? $value : 'undef'), {
-			-custom_tag => "VAR:$run_id:$alarm->{serial}:$var"
-		});
+		my $value = resolve_var($var, $alarm);
 
 		$value = 0 if !defined $value || $value eq '';
 
@@ -250,98 +240,36 @@ sub interpolate_variables {
 		$text =~ s/\$$var\b/$value/g;
 	}
 
-	log_debug("[interpolate_variables run_id=$run_id] AFTER: $text", {
-		-custom_tag => "VAR:$run_id:$alarm->{serial}"
-	});
-
 	return $text;
 }
 
 sub resolve_var {
-	my ($var, $alarm, $run_id) = @_;
+	my ($var, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[resolve_var run_id=$run_id][serial=$serial] START var=$var", {
-		-custom_tag => "VAR:$run_id:$serial"
-	});
-
-	# --------------------------
-	# DB FIELDS
-	# --------------------------
 	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed') {
-
-		my $val = $alarm->{meter}{$var};
-
-		log_debug("[resolve_var run_id=$run_id][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'), {
-			-custom_tag => "VAR:$run_id:$serial"
-		});
-
-		return $val;
+		return $alarm->{meter}{$var};
 	}
 
 	if ($var eq 'serial') {
 		return $serial;
 	}
 
-	# --------------------------
-	# SYSTEM
-	# --------------------------
 	if ($var eq 'offline') {
-
 		my $sth = $dbh->prepare("SELECT last_updated FROM meters WHERE serial = ?");
 		$sth->execute($serial);
 		my ($lu) = $sth->fetchrow_array;
-
-		my $val = time() - ($lu || time());
-
-		log_debug("[resolve_var][serial=$serial] SYSTEM offline last_updated=" . ($lu // 'undef') . " value=$val", {
-			-custom_tag => "VAR:$run_id:$serial"
-		});
-
-		return $val;
+		return time() - ($lu || time());
 	}
 
 	if ($var eq 'closed') {
-		my $val = check_delayed_valve_closed($serial);
-
-		log_debug("[resolve_var][serial=$serial] SYSTEM closed value=" . (defined $val ? $val : 'undef'), {
-			-custom_tag => "VAR:$run_id:$serial"
-		});
-
-		return $val;
+		return check_delayed_valve_closed($serial);
 	}
 
-	# --------------------------
-	# REDIS + EMA
-	# --------------------------
 	my $redis_key = "sensor:$serial:$var:last_value";
-	my $ema_key   = "sensor:$serial:$var:ema";
-
-	# per-alarm EMA cache
-	my $alarm_cache_key = "alarm:$alarm->{id}:$serial:$var:ema";
-
-	my $cached = $redis->get($alarm_cache_key);
-	my $ttl    = $redis->ttl($alarm_cache_key);
-
-	if (defined $cached && $ttl > 0) {
-
-		log_debug("CACHE HIT value=$cached ttl=$ttl run_id=$run_id", {
-			-custom_tag => "EMA:$run_id:$serial:$var"
-		});
-
-		return $cached;
-	}
-	log_debug("[resolve_var][serial=$serial] REDIS keys redis_key=$redis_key ema_key=$ema_key");
-
 	my $val = $redis->get($redis_key);
 
-	log_debug("[resolve_var][serial=$serial] REDIS last_value=" . (defined $val ? $val : 'undef'));
-
-	# fallback to DB if Redis empty
 	if (!defined $val) {
-		log_debug("Redis MISS -> DB fallback", {
-			-custom_tag => "EMA:$run_id:$serial:$var"
-		});
 
 		my $sth = $dbh->prepare(qq[
 			SELECT `$var`
@@ -353,69 +281,15 @@ sub resolve_var {
 
 		$sth->execute($serial);
 		($val) = $sth->fetchrow_array;
-
-		log_debug("[resolve_var][serial=$serial] DB fallback value=" . (defined $val ? $val : 'undef'));
 	}
 
 	return undef unless defined $val;
 
-	my $prev = $redis->get($ema_key);
-
-	log_debug("[resolve_var][serial=$serial] EMA prev=" . (defined $prev ? $prev : 'undef'));
-
-	# initialize EMA
-	my $new_ema;
-
-	if (!defined $prev) {
-
-		$new_ema = $val;
-		$redis->set($ema_key, $val);
-
-		log_debug("EMA INIT val=$val ema=$val", {
-			-custom_tag => "EMA:$run_id:$serial:$var"
-		});
-
-	} else {
-
-		my $diff = abs($val - $prev);
-		my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
-
-		my $action = ($diff <= $threshold) ? "HOLD" : "UPDATE";
-
-		log_debug("EMA DECISION val=$val prev=$prev diff=$diff threshold=$threshold action=$action", {
-			-custom_tag => "EMA:$run_id:$serial:$var"
-		});
-
-		if ($diff <= $threshold) {
-
-			$new_ema = $prev;
-
-		} else {
-
-			$new_ema = (EMA_ALPHA * $val) + ((1 - EMA_ALPHA) * $prev);
-			$redis->set($ema_key, $new_ema);
-		}
-
-		log_debug("EMA OUTPUT value=$new_ema", {
-			-custom_tag => "EMA:$run_id:$serial:$var"
-		});
-	}
-
-	my $out = sprintf("%.2f", $new_ema) + 0;
-
-	# store per-alarm cache
-	$redis->set($alarm_cache_key, $out);
-	$redis->expire($alarm_cache_key, 70);  # TTL matches loop cycle (~60s)
-
-	log_debug("END final_value=$out", {
-		-custom_tag => "EMA:$run_id:$serial:$var"
-	});
-
-	return $out;
+	return $val + 0;
 }
 
 # --------------------------
-# ALARM HANDLER
+# ALARM HANDLER (ANTI-HYSTERESIS)
 # --------------------------
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
@@ -423,7 +297,12 @@ sub handle_alarm {
 	my $id = $dbh->quote($alarm->{id});
 	my $now = time();
 
+	my $redis_key = "alarm:$alarm->{id}:clear_pending_since";
+	my $clear_delay = 120; # seconds
+
 	if ($state) {
+
+		$redis->del($redis_key);
 
 		if ($alarm->{alarm_state} == 0) {
 
@@ -441,6 +320,17 @@ sub handle_alarm {
 
 	} else {
 
+		my $since = $redis->get($redis_key);
+
+		if (!$since) {
+			$redis->set($redis_key, $now);
+			return;
+		}
+
+		if (($now - $since) < $clear_delay) {
+			return;
+		}
+
 		if ($alarm->{alarm_state} == 1) {
 
 			sms_send($alarm->{sms_notification}, $up);
@@ -454,6 +344,8 @@ sub handle_alarm {
 				WHERE id=$id
 			]);
 		}
+
+		$redis->del($redis_key);
 	}
 }
 
