@@ -1,8 +1,5 @@
 #!/usr/bin/perl -w
 
-# Perl script to monitor alarms from IoT meters and send SMS notifications
-# when certain conditions (like valve closure or abnormal energy usage) are met.
-
 use strict;
 use utf8;
 use Data::Dumper;
