@@ -4,44 +4,49 @@ use strict;
 use utf8;
 use Data::Dumper;
 use DBI;
-use Statistics::Basic qw(:all);	 # for computing medians
+use Statistics::Basic qw(:all);
 use Math::Random::Secure qw(rand);
 use File::Basename;
-use Storable qw(store retrieve);
 use File::Path qw(make_path);
 use Redis;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
-# Constants
-use constant VALVE_CLOSE_DELAY => 600;  # 10 minutes delay used in metrics
-use constant INITIAL_NO_BACKOFF => 2;   # first N notifications sent without exponential backoff
+# --------------------------
+# CONSTANTS
+# --------------------------
+use constant VALVE_CLOSE_DELAY => 600;
+use constant INITIAL_NO_BACKOFF => 2;
 
-$| = 1;  # Autoflush STDOUT to ensure logs appear immediately
+$| = 1;
 
 my $script_name = basename($0 . ".pl");
 
-# Redis connection
+# --------------------------
+# REDIS
+# --------------------------
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
 my $redis_port = $ENV{'REDIS_PORT'}
 	or die "ERROR: REDIS_PORT environment variable not set";
 
-my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
-);
+my $redis = Redis->new(server => "$redis_host:$redis_port");
 
-my $shutdown_requested = 0;
-
+# --------------------------
 # DB
+# --------------------------
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 log_info("Connected to DB");
 
-# Signals
+# --------------------------
+# SIGNALS
+# --------------------------
+my $shutdown_requested = 0;
+
 $SIG{TERM} = sub {
 	log_info("SIGTERM received, will shutdown after current loop...");
 	$shutdown_requested = 1;
@@ -52,11 +57,12 @@ $SIG{INT} = sub {
 	$shutdown_requested = 1;
 };
 
+# --------------------------
 # MAIN LOOP
-my $run_id;
+# --------------------------
 while (1) {
+	my $run_id = time();
 
-	$run_id = time();
 	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
 		-custom_tag => "MAIN:$run_id"
 	});
@@ -109,12 +115,11 @@ sub process_alarms {
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
 
-	my $serial = $alarm->{serial};
-
 	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
 	my $quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
 
-	my $condition    = $alarm->{condition};
+	my $condition = $alarm->{condition};
+
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
@@ -122,14 +127,14 @@ sub evaluate_alarm {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
 
-	my $closed_status = check_delayed_valve_closed($serial);
+	my $serial = $alarm->{serial};
 
+	my $closed_status = check_delayed_valve_closed($serial);
 	return if not defined $closed_status;
-	
+
 	$alarm->{closed_status} = $closed_status;
 
 	$condition =~ s/\$closed/$closed_status/g;
-	
 	$condition = interpolate_variables($condition, $alarm);
 
 	log_debug("parsed condition: $condition", {
@@ -189,7 +194,7 @@ sub fill_template {
 }
 
 # --------------------------
-# VALVE LOGIC (UNCHANGED)
+# VALVE LOGIC (REDIS)
 # --------------------------
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
@@ -199,6 +204,7 @@ sub check_delayed_valve_closed {
 	my ($status, $installed) = $sth->fetchrow_array;
 
 	my $key = "valve:$serial:closed_since";
+	my $now = time();
 
 	# Not closed → reset
 	unless ($installed && $status =~ /close/i) {
@@ -206,25 +212,20 @@ sub check_delayed_valve_closed {
 		return 0;
 	}
 
-	my $now = time();
 	my $closed_since = $redis->get($key);
 
 	# First detection (start timer)
-	if (!defined $closed_since || $closed_since eq '') {
+	if (!$closed_since || $closed_since !~ /^\d+$/) {
 		$redis->set($key, $now, 'EX', 3600);
 		return undef;
 	}
 
 	# Still within delay window
-	if (($now - $closed_since) < VALVE_CLOSE_DELAY) {
-	    return undef;
-	}
-
-	return 1;
+	return ($now - $closed_since >= VALVE_CLOSE_DELAY) ? 1 : undef;
 }
 
 # --------------------------
-# VARIABLE RESOLVER (RAW ONLY)
+# VARIABLE RESOLVER
 # --------------------------
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
@@ -275,7 +276,7 @@ sub resolve_var {
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $val = $redis->get($redis_key);
 
-	if (!defined $val) {
+	if (!defined $val || $val eq '') {
 
 		my $sth = $dbh->prepare(qq[
 			SELECT `$var`
@@ -287,49 +288,82 @@ sub resolve_var {
 
 		$sth->execute($serial);
 		($val) = $sth->fetchrow_array;
+		return undef unless defined $val;
 	}
-
-	return undef unless defined $val;
 
 	return $val + 0;
 }
 
 # --------------------------
-# ALARM HANDLER (ANTI-HYSTERESIS)
+# ALARM HANDLER
 # --------------------------
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
-	my $id = $dbh->quote($alarm->{id});
-	my $now = time();
+	my $id   = $dbh->quote($alarm->{id});
+	my $now  = time();
 
-	my $redis_key = "alarm:$alarm->{id}:clear_pending_since";
-	my $clear_delay = 300; # seconds
+	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
+	my $clear_delay = 300;
+
+	my $count = $alarm->{alarm_count} || 0;
 
 	if ($state) {
 
-		$redis->del($redis_key);
+		$redis->del($redis_clear_key);
+
+		my $use_backoff = ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) ? 1 : 0;
 
 		if ($alarm->{alarm_state} == 0) {
 
 			sms_send($alarm->{sms_notification}, $down);
+			$count = 1;
 
 			$dbh->do(qq[
 				UPDATE alarms
 				SET alarm_state=1,
 					last_notification=$now,
-					alarm_count=1,
+					alarm_count=$count,
 					snooze_auth_key=$key
 				WHERE id=$id
 			]);
+
+		} elsif ($alarm->{repeat}) {
+
+			my $interval;
+
+			if ($use_backoff && $count >= INITIAL_NO_BACKOFF) {
+				$interval = $alarm->{repeat} * (2 ** ($count - INITIAL_NO_BACKOFF));
+				$interval = 86400 if $interval > 86400;
+			} else {
+				$interval = $alarm->{repeat};
+			}
+
+			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
+
+				sms_send($alarm->{sms_notification}, $down);
+				$count++;
+
+				$alarm->{last_notification} = $now;
+
+				$dbh->do(qq[
+					UPDATE alarms
+					SET last_notification=$now,
+						alarm_state=1,
+						alarm_count=$count,
+						snooze=0,
+						snooze_auth_key=$key
+					WHERE id=$id
+				]);
+			}
 		}
 
 	} else {
 
-		my $since = $redis->get($redis_key);
+		my $since = $redis->get($redis_clear_key);
 
 		if (!$since) {
-			$redis->set($redis_key, $now);
+			$redis->set($redis_clear_key, $now);
 			return;
 		}
 
@@ -351,7 +385,7 @@ sub handle_alarm {
 			]);
 		}
 
-		$redis->del($redis_key);
+		$redis->del($redis_clear_key);
 	}
 }
 
@@ -371,5 +405,3 @@ sub sms_send {
 sub generate_snooze_key {
 	return join('', map { sprintf("%02x", int rand(256)) } 1..8);
 }
-
-__END__
