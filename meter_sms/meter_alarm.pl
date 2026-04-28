@@ -1,5 +1,12 @@
 #!/usr/bin/perl -w
 
+# Anti-hysteresis:
+# 1) Valve state ($closed): time-filtered using VALVE_CLOSE_DELAY to ensure the valve
+#    is continuously closed before being considered valid.
+#
+# 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
+#    to prevent rapid alarm flapping due to transient conditions.
+
 use strict;
 use utf8;
 use Data::Dumper;
@@ -16,27 +23,16 @@ use Nabovarme::Utils;
 # --------------------------
 # CONSTANTS
 # --------------------------
-# Timing and anti-hysteresis controls used throughout alarm evaluation.
-#
-# Alarm state (ALARM_CLEAR_DELAY):
-# Defines how long a previously active alarm condition must remain in a stable
-# "normal" state before the alarm is cleared. This prevents rapid alarm flapping
-# caused by short-lived recoveries or intermittent signal noise.
+# Fallback anti-hysteresis delay before clearing an active alarm (prevents flapping if DB value not set)
 use constant ALARM_CLEAR_DELAY => 600;
 
-# Valve state ($closed) (VALVE_CLOSE_DELAY):
-# Ensures the valve is considered "closed" only after it has continuously remained
-# in the closed state for the defined period. This filters out transient state
-# changes and sensor noise.
+# Fallback anti-hysteresis delay before considering valve fully closed (filters transient changes if DB value not set)
 use constant VALVE_CLOSE_DELAY => 600;
 
-# Leakage detection (LEAKAGE_DELAY):
-# Defines how long a non-zero flow condition must persist before it is considered
-# a valid leakage event. Short flow spikes are ignored.
+# Fallback anti-hysteresis delay before treating flow as real leakage (ignores spikes if DB value not set)
 use constant LEAKAGE_DELAY => 300;
 
-# Alarm notification backoff (INITIAL_NO_BACKOFF):
-# Controls when exponential backoff starts for repeated alarm notifications.
+# Fallback count of initial repeats without exponential backoff (used if DB value not set)
 use constant INITIAL_NO_BACKOFF => 2;
 
 $| = 1;
@@ -78,6 +74,11 @@ $SIG{INT} = sub {
 };
 
 # --------------------------
+# CONFIG
+# --------------------------
+my $alarm_config = {};
+
+# --------------------------
 # MAIN LOOP
 # --------------------------
 while (1) {
@@ -97,7 +98,6 @@ while (1) {
 # PROCESS ALARMS
 # --------------------------
 sub process_alarms {
-
 	my ($run_id) = @_;
 
 	my $sth = $dbh->prepare(qq[
@@ -108,6 +108,10 @@ sub process_alarms {
 			alarms.snooze, alarms.default_snooze,
 			alarms.snooze_auth_key, alarms.sms_notification,
 			alarms.down_message, alarms.up_message,
+			alarms.alarm_clear_delay,
+			alarms.valve_close_delay,
+			alarms.initial_no_backoff,
+			alarms.leakage_delay,
 			meters.info, meters.valve_status, meters.valve_installed,
 			meters.last_updated
 		FROM alarms
@@ -118,6 +122,27 @@ sub process_alarms {
 	$sth->execute;
 
 	while (my $alarm = $sth->fetchrow_hashref) {
+		$alarm_config->{$alarm->{serial}} = {
+			alarm_clear_delay =>
+				defined $alarm->{alarm_clear_delay} && $alarm->{alarm_clear_delay} ne ''
+					? $alarm->{alarm_clear_delay}
+					: ALARM_CLEAR_DELAY,
+
+			valve_close_delay =>
+				defined $alarm->{valve_close_delay} && $alarm->{valve_close_delay} ne ''
+					? $alarm->{valve_close_delay}
+					: VALVE_CLOSE_DELAY,
+
+			initial_no_backoff =>
+				defined $alarm->{initial_no_backoff} && $alarm->{initial_no_backoff} ne ''
+					? $alarm->{initial_no_backoff}
+					: INITIAL_NO_BACKOFF,
+
+			leakage_delay =>
+				defined $alarm->{leakage_delay} && $alarm->{leakage_delay} ne ''
+					? $alarm->{leakage_delay}
+					: LEAKAGE_DELAY,
+		};
 		evaluate_alarm($alarm, $run_id);
 	}
 }
@@ -127,6 +152,9 @@ sub process_alarms {
 # --------------------------
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
+
+	my $serial = $alarm->{serial};
+	my $cfg = $alarm_config->{$serial};
 
 	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
 	my $quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
@@ -139,8 +167,6 @@ sub evaluate_alarm {
 	log_debug("raw condition: $condition", {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
-
-	my $serial = $alarm->{serial};
 
 	my $closed_status = check_delayed_valve_closed($serial);
 	return if not defined $closed_status;
@@ -212,6 +238,8 @@ sub fill_template {
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
 
+	my $cfg = $alarm_config->{$serial};
+
 	my $sth = $dbh->prepare("SELECT valve_status, valve_installed FROM meters WHERE serial = ?");
 	$sth->execute($serial);
 	my ($status, $installed) = $sth->fetchrow_array;
@@ -234,7 +262,7 @@ sub check_delayed_valve_closed {
 	}
 
 	# Still within delay window
-	return ($now - $closed_since >= VALVE_CLOSE_DELAY) ? 1 : undef;
+	return ($now - $closed_since >= $cfg->{valve_close_delay}) ? 1 : undef;
 }
 
 # --------------------------
@@ -242,7 +270,6 @@ sub check_delayed_valve_closed {
 # --------------------------
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
-	my $serial = $alarm->{serial};
 
 	my @vars = ($text =~ /\$(\w+)/g);
 
@@ -260,7 +287,9 @@ sub interpolate_variables {
 
 sub resolve_var {
 	my ($var, $alarm) = @_;
+
 	my $serial = $alarm->{serial};
+	my $cfg = $alarm_config->{$serial};
 
 	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed' || $var eq 'last_updated') {
 		return $alarm->{$var};
@@ -323,7 +352,7 @@ sub resolve_var {
 		}
 
 		# only count as leakage after delay
-		return ($now - $since >= LEAKAGE_DELAY) ? $flow : 0;
+		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
 	}
 
 	# ---- generic sensor fallback ----
@@ -355,11 +384,14 @@ sub resolve_var {
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
+	my $serial = $alarm->{serial};
+	my $cfg = $alarm_config->{$serial};
+
 	my $id   = $dbh->quote($alarm->{id});
 	my $now  = time();
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
-	my $clear_delay = ALARM_CLEAR_DELAY;
+	my $clear_delay = $cfg->{alarm_clear_delay};
 
 	my $count = $alarm->{alarm_count} || 0;
 
@@ -387,8 +419,8 @@ sub handle_alarm {
 
 			my $interval;
 
-			if ($use_backoff && $count >= INITIAL_NO_BACKOFF) {
-				$interval = $alarm->{repeat} * (2 ** ($count - INITIAL_NO_BACKOFF));
+			if ($use_backoff && $count >= $cfg->{initial_no_backoff}) {
+				$interval = $alarm->{repeat} * (2 ** ($count - $cfg->{initial_no_backoff}));
 				$interval = 86400 if $interval > 86400;
 			} else {
 				$interval = $alarm->{repeat};
