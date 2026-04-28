@@ -1,5 +1,12 @@
 #!/usr/bin/perl -w
 
+# Anti-hysteresis:
+# 1) Valve state ($closed): time-filtered using VALVE_CLOSE_DELAY to ensure the valve
+#    is continuously closed before being considered valid.
+#
+# 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
+#    to prevent rapid alarm flapping due to transient conditions.
+
 use strict;
 use utf8;
 use Data::Dumper;
@@ -17,6 +24,7 @@ use Nabovarme::Utils;
 # CONSTANTS
 # --------------------------
 use constant VALVE_CLOSE_DELAY => 600;
+use constant ALARM_CLEAR_DELAY => 600;
 use constant INITIAL_NO_BACKOFF => 2;
 
 $| = 1;
@@ -232,11 +240,6 @@ sub interpolate_variables {
 
 		$value = 0 if !defined $value || $value eq '';
 
-		# Format ONLY numeric values for SMS output
-		if ($value =~ /^-?\d+(\.\d+)?$/) {
-			$value = sprintf("%.2f", $value);
-		}
-
 		$text =~ s/\$$var\b/$value/g;
 	}
 
@@ -297,7 +300,7 @@ sub handle_alarm {
 	my $now  = time();
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
-	my $clear_delay = 300;
+	my $clear_delay = ALARM_CLEAR_DELAY;
 
 	my $count = $alarm->{alarm_count} || 0;
 
