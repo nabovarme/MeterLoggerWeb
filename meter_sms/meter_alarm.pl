@@ -359,7 +359,7 @@ sub handle_alarm {
 		my $since = $redis->get($redis_clear_key);
 
 		if (!$since) {
-			$redis->set($redis_clear_key, $now);
+			$redis->set($redis_clear_key, $now, 'EX', 3600);
 			return;
 		}
 
