@@ -158,7 +158,7 @@ sub evaluate_alarm {
 			return;
 		}
 
-		log_debug("[eval] result=$eval_alarm_state condition=$condition", {
+		log_debug("eval_result=$eval_alarm_state condition=$condition", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
 
