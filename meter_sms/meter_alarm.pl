@@ -52,8 +52,6 @@ my $redis_port = $ENV{'REDIS_PORT'}
 
 my $redis = Redis->new(server => "$redis_host:$redis_port");
 
-redis_startup_snapshot();
-
 # --------------------------
 # DB
 # --------------------------
@@ -153,6 +151,7 @@ sub process_alarms {
 		};
 		evaluate_alarm($alarm, $run_id);
 	}
+	redis_log_snapshot();
 }
 
 # --------------------------
@@ -528,7 +527,7 @@ sub generate_snooze_key {
 # --------------------------
 # REDIS STARTUP
 # --------------------------
-sub redis_startup_snapshot {
+sub redis_log_snapshot {
 	log_info("===== REDIS STARTUP SNAPSHOT BEGIN =====");
 
 	my $cursor = 0;
@@ -566,16 +565,15 @@ sub redis_startup_snapshot {
 				my $field    = $2;
 				my $val      = $redis->get($key);
 
-				# store both id + fields
 				$alarms{$alarm_id}{$field} = $val;
 			}
 		}
 
 	} while ($cursor != 0);
 
-	# --------------------------
+	# ==================================================
 	# METERS
-	# --------------------------
+	# ==================================================
 	log_info("---- METER STATE BY SERIAL ----");
 
 	foreach my $serial (sort { $a <=> $b } keys %meters) {
@@ -592,51 +590,91 @@ sub redis_startup_snapshot {
 			}
 
 			my $age;
+			my $delay = 0;
+			my $state = "STATIC";
 
 			if ($key =~ /_since$/) {
 				$age = $now - $val;
-			}
-
-			if (defined $age) {
-
-				my $delay = 0;
 
 				if ($key =~ /valve/) {
 					$delay = VALVE_CLOSE_DELAY;
+					$state = ($age >= $delay) ? "STABLE" : "TRANSITION";
 				}
 				elsif ($key =~ /flow/) {
 					$delay = LEAKAGE_DELAY;
+					$state = ($age >= $delay) ? "STABLE" : "TRANSITION";
 				}
+				else {
+					$state = "TIMED_EVENT";
+				}
+			}
 
+			if (defined $age) {
 				log_info(sprintf(
-					"  %s => %s (time since event=%ds, required stable=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key,
 					$val,
+					$state,
 					$age,
 					$delay,
 					($delay - $age)
 				));
 			}
 			else {
-				log_info("  $key => $val");
+				log_info("  $key => $val (state=$state)");
 			}
 		}
 	}
 
-	# --------------------------
-	# ALARMS (NOW WITH SERIAL)
-	# --------------------------
+	# ==================================================
+	# ALARMS
+	# ==================================================
 	log_info("---- ALARM STATE ----");
 
 	foreach my $alarm_id (sort { $a <=> $b } keys %alarms) {
 
 		my $serial = $alarms{$alarm_id}{serial} // 'UNKNOWN';
+		my $alarm_state = $alarms{$alarm_id}{alarm_state} // 0;
 
 		log_info("== ALARM $alarm_id (SERIAL $serial) ==");
 
-		my $delay = $serial ne 'UNKNOWN'
-			? ($alarm_config->{$serial}{alarm_clear_delay} // ALARM_CLEAR_DELAY)
-			: ALARM_CLEAR_DELAY;
+		# --------------------------
+		# CONFIG (IMPORTANT)
+		# --------------------------
+		my $cfg = ($serial ne 'UNKNOWN') ? $alarm_config->{$serial} : undef;
+
+		log_info(sprintf(
+			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
+			($cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY),
+			($cfg->{valve_close_delay}  // VALVE_CLOSE_DELAY),
+			($cfg->{leakage_delay}      // LEAKAGE_DELAY),
+			($cfg->{initial_no_backoff} // INITIAL_NO_BACKOFF),
+		));
+
+		my $base_delay = $cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY;
+
+		# --------------------------
+		# DERIVE STATE
+		# --------------------------
+		my $state = "IDLE";
+
+		if ($alarm_state) {
+			$state = "ACTIVE";
+		}
+
+		my $clear_since = $alarms{$alarm_id}{clear_pending_since};
+		my $clear_age;
+
+		if (defined $clear_since && $clear_since =~ /^\d+$/) {
+			$clear_age = $now - $clear_since;
+		}
+
+		if ($alarm_state && defined $clear_since) {
+			$state = "CLEARING";
+		}
+		elsif (!$alarm_state && defined $clear_since && $clear_age < $base_delay) {
+			$state = "WAITING";
+		}
 
 		foreach my $key (sort keys %{ $alarms{$alarm_id} }) {
 
@@ -645,36 +683,37 @@ sub redis_startup_snapshot {
 			next unless defined $val && $val ne '';
 
 			my $age;
+			my $effective_delay = $base_delay;
 
 			if ($key =~ /_since$/) {
 				$age = $now - $val;
 			}
 
+			if ($key =~ /valve/) {
+				$effective_delay = $cfg->{valve_close_delay} // VALVE_CLOSE_DELAY;
+			}
+			elsif ($key =~ /flow/) {
+				$effective_delay = $cfg->{leakage_delay} // LEAKAGE_DELAY;
+			}
+
 			if (defined $age) {
-				my $effective_delay = $delay;
-
-				if ($key =~ /valve/) {
-					$effective_delay =
-						$alarm_config->{$serial}{valve_close_delay}
-						// VALVE_CLOSE_DELAY;
-				}
-				elsif ($key =~ /flow/) {
-					$effective_delay =
-						$alarm_config->{$serial}{leakage_delay}
-						// LEAKAGE_DELAY;
-				}
-
 				log_info(sprintf(
-					"  %s => %s (time since event=%ds, required stable=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key,
 					$val,
+					$state,
 					$age,
 					$effective_delay,
 					($effective_delay - $age)
 				));
 			}
 			else {
-				log_info("  $key => $val");
+				log_info(sprintf(
+					"  %s => %s (state=%s)",
+					$key,
+					$val,
+					$state
+				));
 			}
 		}
 	}
