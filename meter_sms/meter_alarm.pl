@@ -283,6 +283,15 @@ sub resolve_var {
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $ema_key   = "sensor:$serial:$var:ema";
 
+	# per-alarm EMA cache
+	my $alarm_cache_key = "alarm:$alarm->{id}:$serial:$var:ema";
+
+	my $cached = $redis->get($alarm_cache_key);
+	if (defined $cached) {
+		log_debug("[resolve_var] CACHE HIT $alarm_cache_key");
+		return $cached;
+	}
+
 	log_debug("[resolve_var][serial=$serial] REDIS keys redis_key=$redis_key ema_key=$ema_key");
 
 	my $val = $redis->get($redis_key);
@@ -313,38 +322,33 @@ sub resolve_var {
 	log_debug("[resolve_var][serial=$serial] EMA prev=" . (defined $prev ? $prev : 'undef'));
 
 	# initialize EMA
-	if (!defined $prev) {
-
-		$redis->set($ema_key, $val);
-
-		log_debug("[resolve_var][serial=$serial] EMA INIT value=$val");
-
-		return sprintf("%.2f", $val) + 0;
-	}
-
-	my $diff = abs($val - $prev);
-	my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
-
-	log_debug("[resolve_var][serial=$serial] EMA calc val=$val prev=$prev diff=$diff threshold=$threshold");
-
 	my $new_ema;
 
-	if ($diff <= $threshold) {
+	if (!defined $prev) {
 
-		$new_ema = $prev;
-
-		log_debug("[resolve_var][serial=$serial] EMA UNCHANGED new_ema=$new_ema");
+		$new_ema = $val;
+		$redis->set($ema_key, $val);
 
 	} else {
 
-		$new_ema = (EMA_ALPHA * $val) + ((1 - EMA_ALPHA) * $prev);
+		my $diff = abs($val - $prev);
+		my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
 
-		$redis->set($ema_key, $new_ema);
+		if ($diff <= $threshold) {
 
-		log_debug("[resolve_var][serial=$serial] EMA UPDATED new_ema=$new_ema");
+			$new_ema = $prev;
+
+		} else {
+
+			$new_ema = (EMA_ALPHA * $val) + ((1 - EMA_ALPHA) * $prev);
+			$redis->set($ema_key, $new_ema);
+		}
 	}
 
 	my $out = sprintf("%.2f", $new_ema) + 0;
+
+	# store per-alarm cache
+	$redis->set($alarm_cache_key, $out);
 
 	log_debug("[resolve_var][serial=$serial] END var=$var final_value=$out");
 
