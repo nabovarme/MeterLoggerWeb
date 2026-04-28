@@ -127,10 +127,12 @@ sub evaluate_alarm {
 
 	my $closed_status = check_delayed_valve_closed($serial);
 
-	if (defined $closed_status) {
-		$condition =~ s/\$closed/$closed_status/g;
-	}
+	return if not defined $closed_status;
+	
+	$alarm->{closed_status} = $closed_status;
 
+	$condition =~ s/\$closed/$closed_status/g;
+	
 	$condition = interpolate_variables($condition, $alarm);
 
 	log_debug("parsed condition: $condition", {
@@ -201,6 +203,7 @@ sub check_delayed_valve_closed {
 
 	my $key = "valve:$serial:closed_since";
 
+	# Not closed → reset
 	unless ($installed && $status =~ /close/i) {
 		$redis->del($key);
 		return 0;
@@ -209,12 +212,18 @@ sub check_delayed_valve_closed {
 	my $now = time();
 	my $closed_since = $redis->get($key);
 
+	# First detection (start timer)
 	if (!defined $closed_since || $closed_since eq '') {
-		$redis->set($key, $now);
+		$redis->set($key, $now, 'EX', 3600);
 		return undef;
 	}
 
-	return (($now - $closed_since) >= VALVE_CLOSE_DELAY) ? 1 : undef;
+	# Still within delay window
+	if (($now - $closed_since) < VALVE_CLOSE_DELAY) {
+	    return undef;
+	}
+
+	return 1;
 }
 
 # --------------------------
@@ -263,7 +272,7 @@ sub resolve_var {
 	}
 
 	if ($var eq 'closed') {
-		return check_delayed_valve_closed($serial);
+		return $alarm->{closed_status};
 	}
 
 	my $redis_key = "sensor:$serial:$var:last_value";
@@ -298,7 +307,7 @@ sub handle_alarm {
 	my $now = time();
 
 	my $redis_key = "alarm:$alarm->{id}:clear_pending_since";
-	my $clear_delay = 120; # seconds
+	my $clear_delay = 300; # seconds
 
 	if ($state) {
 
