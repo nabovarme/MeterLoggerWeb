@@ -149,6 +149,8 @@ sub evaluate_alarm {
 			return;
 		}
 
+		log_debug("[eval] result=$eval_alarm_state condition=$condition");
+
 		$dbh->do(qq[
 			UPDATE alarms
 			SET condition_error = NULL
@@ -208,11 +210,15 @@ sub interpolate_variables {
 	my ($text, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
+	log_debug("[interpolate_variables] BEFORE: $text");
+
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
 		my $value = resolve_var($var, $alarm);
+
+		log_debug("[interpolate_variables] var=\$$var value=" . (defined $value ? $value : 'undef'));
 
 		$value = 0 if !defined $value || $value eq '';
 
@@ -223,6 +229,8 @@ sub interpolate_variables {
 
 		$text =~ s/\$$var\b/$value/g;
 	}
+
+	log_debug("[interpolate_variables] AFTER: $text");
 
 	return $text;
 }
@@ -288,7 +296,7 @@ sub resolve_var {
 
 	my $cached = $redis->get($alarm_cache_key);
 	if (defined $cached) {
-		log_debug("[resolve_var] CACHE HIT $alarm_cache_key");
+		log_debug("[resolve_var] CACHE HIT key=$alarm_cache_key value=$cached");
 		return $cached;
 	}
 
@@ -300,6 +308,8 @@ sub resolve_var {
 
 	# fallback to DB if Redis empty
 	if (!defined $val) {
+
+		log_debug("[resolve_var] Redis MISS -> DB fallback for $var");
 
 		my $sth = $dbh->prepare(qq[
 			SELECT `$var`
@@ -333,6 +343,9 @@ sub resolve_var {
 
 		my $diff = abs($val - $prev);
 		my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
+
+		log_debug("[EMA] serial=$serial var=$var val=$val prev=$prev diff=$diff threshold=$threshold action=" .
+			($diff <= $threshold ? "HOLD" : "UPDATE"));
 
 		if ($diff <= $threshold) {
 
