@@ -62,7 +62,9 @@ my $run_id;
 while (1) {
 
 	$run_id = time();
-	log_debug("===== MAIN LOOP START run_id=$run_id =====");
+	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
+		-custom_tag => "MAIN:$run_id"
+	});
 
 	process_alarms($run_id);
 
@@ -121,7 +123,9 @@ sub evaluate_alarm {
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
-	log_debug("raw condition: $condition");
+	log_debug("raw condition: $condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+	});
 
 	my $closed_status = check_delayed_valve_closed($serial);
 
@@ -131,7 +135,9 @@ sub evaluate_alarm {
 
 	$condition = interpolate_variables($condition, $alarm);
 
-	log_debug("parsed condition: $condition");
+	log_debug("parsed condition: $condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+	});
 
 	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
@@ -157,7 +163,9 @@ sub evaluate_alarm {
 			return;
 		}
 
-		log_debug("[eval] result=$eval_alarm_state condition=$condition");
+		log_debug("[eval] result=$eval_alarm_state condition=$condition", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		});
 
 		$dbh->do(qq[
 			UPDATE alarms
@@ -218,7 +226,9 @@ sub interpolate_variables {
 	my ($text, $alarm) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[interpolate_variables run_id=$run_id] BEFORE: $text");
+	log_debug("[interpolate_variables run_id=$run_id] BEFORE: $text", {
+		-custom_tag => "VAR:$run_id:$alarm->{serial}"
+	});
 
 	my @vars = ($text =~ /\$(\w+)/g);
 
@@ -226,7 +236,9 @@ sub interpolate_variables {
 
 		my $value = resolve_var($var, $alarm, $run_id);
 
-		log_debug("[interpolate_variables run_id=$run_id] var=\$$var value=" . (defined $value ? $value : 'undef'));
+		log_debug("[interpolate_variables run_id=$run_id] var=\$$var value=" . (defined $value ? $value : 'undef'), {
+			-custom_tag => "VAR:$run_id:$alarm->{serial}:$var"
+		});
 
 		$value = 0 if !defined $value || $value eq '';
 
@@ -238,7 +250,9 @@ sub interpolate_variables {
 		$text =~ s/\$$var\b/$value/g;
 	}
 
-	log_debug("[interpolate_variables run_id=$run_id] AFTER: $text");
+	log_debug("[interpolate_variables run_id=$run_id] AFTER: $text", {
+		-custom_tag => "VAR:$run_id:$alarm->{serial}"
+	});
 
 	return $text;
 }
@@ -247,7 +261,9 @@ sub resolve_var {
 	my ($var, $alarm, $run_id) = @_;
 	my $serial = $alarm->{serial};
 
-	log_debug("[resolve_var run_id=$run_id][serial=$serial] START var=$var");
+	log_debug("[resolve_var run_id=$run_id][serial=$serial] START var=$var", {
+		-custom_tag => "VAR:$run_id:$serial"
+	});
 
 	# --------------------------
 	# DB FIELDS
@@ -256,15 +272,14 @@ sub resolve_var {
 
 		my $val = $alarm->{meter}{$var};
 
-		log_debug("[resolve_var run_id=$run_id][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var run_id=$run_id][serial=$serial] DB FIELD var=$var value=" . (defined $val ? $val : 'undef'), {
+			-custom_tag => "VAR:$run_id:$serial"
+		});
 
 		return $val;
 	}
 
 	if ($var eq 'serial') {
-
-		log_debug("[resolve_var][serial=$serial] SYSTEM serial return");
-
 		return $serial;
 	}
 
@@ -279,7 +294,9 @@ sub resolve_var {
 
 		my $val = time() - ($lu || time());
 
-		log_debug("[resolve_var][serial=$serial] SYSTEM offline last_updated=" . ($lu // 'undef') . " value=$val");
+		log_debug("[resolve_var][serial=$serial] SYSTEM offline last_updated=" . ($lu // 'undef') . " value=$val", {
+			-custom_tag => "VAR:$run_id:$serial"
+		});
 
 		return $val;
 	}
@@ -287,7 +304,9 @@ sub resolve_var {
 	if ($var eq 'closed') {
 		my $val = check_delayed_valve_closed($serial);
 
-		log_debug("[resolve_var][serial=$serial] SYSTEM closed value=" . (defined $val ? $val : 'undef'));
+		log_debug("[resolve_var][serial=$serial] SYSTEM closed value=" . (defined $val ? $val : 'undef'), {
+			-custom_tag => "VAR:$run_id:$serial"
+		});
 
 		return $val;
 	}
@@ -303,7 +322,9 @@ sub resolve_var {
 
 	my $cached = $redis->get($alarm_cache_key);
 	if (defined $cached) {
-		log_debug("[EMA TRACE run_id=$run_id] CACHE HIT key=$alarm_cache_key value=$cached");
+		log_debug("CACHE HIT value=$cached", {
+			-custom_tag => "EMA:$run_id:$serial:$var"
+		});
 		return $cached;
 	}
 
@@ -315,7 +336,9 @@ sub resolve_var {
 
 	# fallback to DB if Redis empty
 	if (!defined $val) {
-		log_debug("[resolve_var] Redis MISS -> DB fallback for $var");
+		log_debug("Redis MISS -> DB fallback", {
+			-custom_tag => "EMA:$run_id:$serial:$var"
+		});
 
 		my $sth = $dbh->prepare(qq[
 			SELECT `$var`
@@ -345,18 +368,20 @@ sub resolve_var {
 		$new_ema = $val;
 		$redis->set($ema_key, $val);
 
-		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var INIT val=$val ema=$new_ema");
+		log_debug("EMA INIT val=$val ema=$val", {
+			-custom_tag => "EMA:$run_id:$serial:$var"
+		});
 
 	} else {
 
 		my $diff = abs($val - $prev);
 		my $threshold = ($prev != 0) ? abs($prev) * (THRESHOLD_PERCENT / 100) : 0;
 
-		log_debug("[EMA] serial=$serial var=$var val=$val prev=$prev diff=$diff threshold=$threshold action=" .
-			($diff <= $threshold ? "HOLD" : "UPDATE"));
 		my $action = ($diff <= $threshold) ? "HOLD" : "UPDATE";
 
-		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var input=$val prev=$prev diff=$diff threshold=$threshold action=$action");
+		log_debug("EMA DECISION val=$val prev=$prev diff=$diff threshold=$threshold action=$action", {
+			-custom_tag => "EMA:$run_id:$serial:$var"
+		});
 
 		if ($diff <= $threshold) {
 
@@ -368,7 +393,9 @@ sub resolve_var {
 			$redis->set($ema_key, $new_ema);
 		}
 
-		log_debug("[EMA TRACE run_id=$run_id] serial=$serial var=$var output_ema=$new_ema");
+		log_debug("EMA OUTPUT value=$new_ema", {
+			-custom_tag => "EMA:$run_id:$serial:$var"
+		});
 	}
 
 	my $out = sprintf("%.2f", $new_ema) + 0;
@@ -376,7 +403,9 @@ sub resolve_var {
 	# store per-alarm cache
 	$redis->set($alarm_cache_key, $out);
 
-	log_debug("[resolve_var][serial=$serial] END var=$var final_value=$out");
+	log_debug("END final_value=$out", {
+		-custom_tag => "EMA:$run_id:$serial:$var"
+	});
 
 	return $out;
 }
