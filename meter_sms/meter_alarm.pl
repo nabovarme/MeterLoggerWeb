@@ -35,6 +35,8 @@ use constant LEAKAGE_DELAY => 300;
 # Fallback count of initial repeats without exponential backoff (used if DB value not set)
 use constant INITIAL_NO_BACKOFF => 2;
 
+use constant MAX_DATA_AGE => 86400; # seconds (e.g. 1 day)
+
 $| = 1;
 
 my $script_name = basename($0 . ".pl");
@@ -152,6 +154,16 @@ sub process_alarms {
 # --------------------------
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
+
+	my $now = time();
+	my $last_updated = $alarm->{last_updated};
+
+	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
+		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		});
+		return;
+	}
 
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
