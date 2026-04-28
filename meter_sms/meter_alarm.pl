@@ -321,13 +321,16 @@ sub resolve_var {
 	my $alarm_cache_key = "alarm:$alarm->{id}:$serial:$var:ema";
 
 	my $cached = $redis->get($alarm_cache_key);
-	if (defined $cached) {
-		log_debug("CACHE HIT value=$cached", {
+	my $ttl    = $redis->ttl($alarm_cache_key);
+
+	if (defined $cached && $ttl > 0) {
+
+		log_debug("CACHE HIT value=$cached ttl=$ttl run_id=$run_id", {
 			-custom_tag => "EMA:$run_id:$serial:$var"
 		});
+
 		return $cached;
 	}
-
 	log_debug("[resolve_var][serial=$serial] REDIS keys redis_key=$redis_key ema_key=$ema_key");
 
 	my $val = $redis->get($redis_key);
@@ -402,6 +405,7 @@ sub resolve_var {
 
 	# store per-alarm cache
 	$redis->set($alarm_cache_key, $out);
+	$redis->expire($alarm_cache_key, 70);  # TTL matches loop cycle (~60s)
 
 	log_debug("END final_value=$out", {
 		-custom_tag => "EMA:$run_id:$serial:$var"
