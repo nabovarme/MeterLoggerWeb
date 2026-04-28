@@ -16,20 +16,27 @@ use Nabovarme::Utils;
 # --------------------------
 # CONSTANTS
 # --------------------------
-# Anti-hysteresis mechanisms:
+# Timing and anti-hysteresis controls used throughout alarm evaluation.
 #
-# Alarm state:
-# Controls how quickly an active alarm can be cleared. The alarm must remain in a
-# stable normal condition for ALARM_CLEAR_DELAY before transitioning back to OK,
-# preventing rapid flapping from transient recoveries.
-use constant ALARM_CLEAR_DELAY => 600;
+# Alarm state (ALARM_CLEAR_DELAY):
+# Defines how long a previously active alarm condition must remain in a stable
+# "normal" state before the alarm is cleared. This prevents rapid alarm flapping
+# caused by short-lived recoveries or intermittent signal noise.
+use constant ALARM_CLEAR_DELAY => 3600;
 
-# Valve state ($closed):
-# Time-filtered using VALVE_CLOSE_DELAY to ensure the valve has been continuously
-# closed for a sustained period before being considered valid, filtering out noise
-# and short interruptions.
+# Valve state ($closed) (VALVE_CLOSE_DELAY):
+# Ensures the valve is considered "closed" only after it has continuously remained
+# in the closed state for the defined period. This filters out transient state
+# changes and sensor noise.
 use constant VALVE_CLOSE_DELAY => 600;
 
+# Leakage detection (LEAKAGE_DELAY):
+# Defines how long a non-zero flow condition must persist before it is considered
+# a valid leakage event. Short flow spikes are ignored.
+use constant LEAKAGE_DELAY => 300;
+
+# Alarm notification backoff (INITIAL_NO_BACKOFF):
+# Controls when exponential backoff starts for repeated alarm notifications.
 use constant INITIAL_NO_BACKOFF => 2;
 
 $| = 1;
@@ -274,6 +281,52 @@ sub resolve_var {
 		return $alarm->{closed_status};
 	}
 
+	if ($var eq 'leakage') {
+
+		my $key = "flow:$serial:leak_since";
+		my $now = time();
+
+		# direct flow lookup (no recursion)
+		my $flow;
+
+		my $redis_key = "sensor:$serial:flow:last_value";
+		$flow = $redis->get($redis_key);
+
+		if (!defined $flow || $flow eq '') {
+
+			my $sth = $dbh->prepare(qq[
+				SELECT flow
+				FROM samples_cache
+				WHERE serial = ?
+				ORDER BY unix_time DESC
+				LIMIT 1
+			]);
+
+			$sth->execute($serial);
+			($flow) = $sth->fetchrow_array;
+		}
+
+		$flow ||= 0;
+
+		# no flow → reset timer
+		if ($flow <= 0) {
+			$redis->del($key);
+			return 0;
+		}
+
+		my $since = $redis->get($key);
+
+		# first detection → start timer
+		if (!$since || $since !~ /^\d+$/) {
+			$redis->set($key, $now, 'EX', 3600);
+			return 0;
+		}
+
+		# only count as leakage after delay
+		return ($now - $since >= LEAKAGE_DELAY) ? $flow : 0;
+	}
+
+	# ---- generic sensor fallback ----
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $val = $redis->get($redis_key);
 
@@ -289,6 +342,7 @@ sub resolve_var {
 
 		$sth->execute($serial);
 		($val) = $sth->fetchrow_array;
+
 		return undef unless defined $val;
 	}
 
