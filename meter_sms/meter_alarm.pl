@@ -410,8 +410,20 @@ sub handle_alarm {
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
 
+	my $redis_serial_key = "alarm:$alarm->{id}:serial";
+
 	my $count = $alarm->{alarm_count} || 0;
 
+	# ensure serial exists in Redis
+	if (defined $serial && $serial ne '') {
+		$redis->set($redis_serial_key, $serial);
+	} else {
+		$serial = $redis->get($redis_serial_key) // 'UNKNOWN';
+	}
+
+	# ==================================================
+	# ALARM ACTIVE STATE
+	# ==================================================
 	if ($state) {
 
 		$redis->del($redis_clear_key);
@@ -462,6 +474,9 @@ sub handle_alarm {
 			}
 		}
 
+	# ==================================================
+	# ALARM CLEARING STATE
+	# ==================================================
 	} else {
 
 		my $since = $redis->get($redis_clear_key);
@@ -514,14 +529,13 @@ sub generate_snooze_key {
 # REDIS STARTUP
 # --------------------------
 sub redis_startup_snapshot {
-
 	log_info("===== REDIS STARTUP SNAPSHOT BEGIN =====");
 
 	my $cursor = 0;
 	my $now = time();
 
-	my %meters;   # grouped by real meter serial
-	my %alarms;   # grouped by alarm id (NOT serial)
+	my %meters;
+	my %alarms;
 
 	# --------------------------
 	# SCAN REDIS
@@ -533,7 +547,7 @@ sub redis_startup_snapshot {
 		foreach my $key (@$keys) {
 
 			# --------------------------
-			# METER STATE (REAL SERIALS)
+			# METERS
 			# --------------------------
 			if ($key =~ /^(sensor|valve|flow):(\d+):/) {
 
@@ -544,21 +558,23 @@ sub redis_startup_snapshot {
 			}
 
 			# --------------------------
-			# ALARM STATE (ALARM ID ONLY)
+			# ALARMS
 			# --------------------------
-			elsif ($key =~ /^alarm:(\d+):/) {
+			elsif ($key =~ /^alarm:(\d+):(.*)$/) {
 
 				my $alarm_id = $1;
-				my $val = $redis->get($key);
+				my $field    = $2;
+				my $val      = $redis->get($key);
 
-				$alarms{$alarm_id}{$key} = $val;
+				# store both id + fields
+				$alarms{$alarm_id}{$field} = $val;
 			}
 		}
 
 	} while ($cursor != 0);
 
 	# --------------------------
-	# METERS (GROUPED BY SERIAL)
+	# METERS
 	# --------------------------
 	log_info("---- METER STATE BY SERIAL ----");
 
@@ -575,39 +591,89 @@ sub redis_startup_snapshot {
 				next;
 			}
 
-			my $age = ($val =~ /^\d+$/) ? ($now - $val) : undef;
+			my $age;
+
+			if ($key =~ /_since$/) {
+				$age = $now - $val;
+			}
 
 			if (defined $age) {
-				log_info("  $key => $val (age=${age}s)");
-			} else {
+
+				my $delay = 0;
+
+				if ($key =~ /valve/) {
+					$delay = VALVE_CLOSE_DELAY;
+				}
+				elsif ($key =~ /flow/) {
+					$delay = LEAKAGE_DELAY;
+				}
+
+				log_info(sprintf(
+					"  %s => %s (time since event=%ds, required stable=%ds, remaining=%ds)",
+					$key,
+					$val,
+					$age,
+					$delay,
+					($delay - $age)
+				));
+			}
+			else {
 				log_info("  $key => $val");
 			}
 		}
 	}
 
 	# --------------------------
-	# ALARMS (SEPARATE VIEW)
+	# ALARMS (NOW WITH SERIAL)
 	# --------------------------
 	log_info("---- ALARM STATE ----");
 
 	foreach my $alarm_id (sort { $a <=> $b } keys %alarms) {
 
-		log_info("== ALARM $alarm_id ==");
+		my $serial = $alarms{$alarm_id}{serial} // 'UNKNOWN';
+
+		log_info("== ALARM $alarm_id (SERIAL $serial) ==");
+
+		my $delay = $serial ne 'UNKNOWN'
+			? ($alarm_config->{$serial}{alarm_clear_delay} // ALARM_CLEAR_DELAY)
+			: ALARM_CLEAR_DELAY;
 
 		foreach my $key (sort keys %{ $alarms{$alarm_id} }) {
 
 			my $val = $alarms{$alarm_id}{$key};
 
-			if (!defined $val || $val eq '') {
-				log_info("  $key => <empty>");
-				next;
+			next unless defined $val && $val ne '';
+
+			my $age;
+
+			if ($key =~ /_since$/) {
+				$age = $now - $val;
 			}
 
-			my $age = ($val =~ /^\d+$/) ? ($now - $val) : undef;
-
 			if (defined $age) {
-				log_info("  $key => $val (age=${age}s)");
-			} else {
+				my $effective_delay = $delay;
+
+				if ($key =~ /valve/) {
+					$effective_delay =
+						$alarm_config->{$serial}{valve_close_delay}
+						// VALVE_CLOSE_DELAY;
+				}
+				elsif ($key =~ /flow/) {
+					$effective_delay =
+						$alarm_config->{$serial}{leakage_delay}
+						// LEAKAGE_DELAY;
+				}
+
+				log_info(sprintf(
+					"  %s => %s (time since event=%ds, required stable=%ds, remaining=%ds)",
+					$key,
+					$val,
+					$age,
+					$effective_delay,
+					($effective_delay - $age)
+				));
+			}
+			else {
 				log_info("  $key => $val");
 			}
 		}
@@ -615,4 +681,3 @@ sub redis_startup_snapshot {
 
 	log_info("===== REDIS STARTUP SNAPSHOT END =====");
 }
-
