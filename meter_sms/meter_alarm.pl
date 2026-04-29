@@ -378,18 +378,30 @@ sub resolve_var {
 
 	if (!defined $val || $val eq '') {
 
+		my $quoted_var = '`' . $var . '`';
+
 		my $sth = $dbh->prepare(qq[
-			SELECT `$var`
+			SELECT $quoted_var
 			FROM samples_cache
 			WHERE serial = ?
 			ORDER BY unix_time DESC
-			LIMIT 1
+			LIMIT 5
 		]);
 
 		$sth->execute($serial);
-		($val) = $sth->fetchrow_array;
+		my $rows = $sth->fetchall_arrayref;
 
-		return undef unless defined $val;
+		return undef unless @$rows;
+
+		my @values = map {
+			defined $_->[0] ? $_->[0] + 0.0 : ()
+		} @$rows;
+
+		return undef unless @values;
+
+		my $median_val = median(@values);
+
+		return $median_val + 0.0;
 	}
 
 	return $val + 0;
