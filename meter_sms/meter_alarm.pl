@@ -2,10 +2,10 @@
 
 # Anti-hysteresis:
 # 1) Valve state ($closed): time-filtered using VALVE_CLOSE_DELAY to ensure the valve
-#    is continuously closed before being considered valid.
+#    is continuously closed before being considered valid.
 #
 # 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
-#    to prevent rapid alarm flapping due to transient conditions.
+#    to prevent rapid alarm flapping due to transient conditions.
 
 use strict;
 use utf8;
@@ -44,6 +44,7 @@ my $script_name = basename($0 . ".pl");
 # --------------------------
 # REDIS
 # --------------------------
+# Redis stores real-time timestamps to track how long a condition has been true (anti-hysteresis)
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
@@ -75,6 +76,7 @@ $SIG{INT} = sub {
 	$shutdown_requested = 1;
 };
 
+# SIGHUP can be used to trigger a status dump of all internal Redis timers to logs
 $SIG{HUP} = sub {
 	redis_log_snapshot();
 };
@@ -103,6 +105,7 @@ while (1) {
 # --------------------------
 # PROCESS ALARMS
 # --------------------------
+# Fetches all enabled alarms and merges them with current meter metadata
 sub process_alarms {
 	my ($run_id) = @_;
 
@@ -128,6 +131,7 @@ sub process_alarms {
 	$sth->execute;
 
 	while (my $alarm = $sth->fetchrow_hashref) {
+		# Configuration hierarchy: DB setting > Constant fallback
 		$alarm_config->{$alarm->{serial}} = {
 			alarm_clear_delay =>
 				defined $alarm->{alarm_clear_delay} && $alarm->{alarm_clear_delay} ne ''
@@ -157,12 +161,14 @@ sub process_alarms {
 # --------------------------
 # EVALUATE ALARM
 # --------------------------
+# Determines if an alarm condition is met and handles notification logic
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
 
 	my $now = time();
 	my $last_updated = $alarm->{last_updated};
 
+	# Safety: ignore data older than 24 hours
 	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
@@ -178,18 +184,21 @@ sub evaluate_alarm {
 
 	my $condition = $alarm->{condition};
 
+	# Prepare messages with substituted values
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
-	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
+	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
 	log_debug("raw condition: $condition", {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
 
+	# Anti-hysteresis check for valve closure
 	my $closed_status = check_delayed_valve_closed($serial);
 	return if not defined $closed_status;
 
 	$alarm->{closed_status} = $closed_status;
 
+	# Variable interpolation: replacing tokens like $flow or $closed with real data
 	$condition =~ s/\$closed/$closed_status/g;
 	$condition = interpolate_variables($condition, $alarm);
 
@@ -200,6 +209,7 @@ sub evaluate_alarm {
 	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
 
+	# Safe evaluation of the condition string as Perl logic
 	{
 		local $@;
 		no strict;
@@ -232,12 +242,14 @@ sub evaluate_alarm {
 		]);
 	}
 
+	# Delegate to handle_alarm for state transitions and SMS sending
 	handle_alarm($alarm, $eval_alarm_state, $down_message, $up_message, $quoted_snooze_auth_key);
 }
 
 # --------------------------
 # TEMPLATE
 # --------------------------
+# Substitutes system variables into notification text
 sub fill_template {
 	my ($template, $alarm, $key) = @_;
 
@@ -252,6 +264,7 @@ sub fill_template {
 # --------------------------
 # VALVE LOGIC (REDIS)
 # --------------------------
+# Ensures the valve has been closed continuously for VALVE_CLOSE_DELAY seconds
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
 
@@ -264,7 +277,7 @@ sub check_delayed_valve_closed {
 	my $key = "valve:$serial:closed_since";
 	my $now = time();
 
-	# Not closed → reset
+	# If valve is open or missing, clear timer and return 0 (open)
 	unless ($installed && $status =~ /close/i) {
 		$redis->del($key);
 		return 0;
@@ -272,19 +285,20 @@ sub check_delayed_valve_closed {
 
 	my $closed_since = $redis->get($key);
 
-	# First detection (start timer)
+	# If first detection, set start time in Redis
 	if (!$closed_since || $closed_since !~ /^\d+$/) {
 		$redis->set($key, $now, 'EX', 3600);
 		return undef;
 	}
 
-	# Still within delay window
+	# Only return 1 (closed) if enough time has passed
 	return ($now - $closed_since >= $cfg->{valve_close_delay}) ? 1 : undef;
 }
 
 # --------------------------
 # VARIABLE RESOLVER
 # --------------------------
+# Iterates through text to find and replace $variable tokens
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
 
@@ -302,6 +316,7 @@ sub interpolate_variables {
 	return $text;
 }
 
+# Core logic for fetching sensor data from Redis or DB
 sub resolve_var {
 	my ($var, $alarm) = @_;
 
@@ -327,6 +342,7 @@ sub resolve_var {
 		return $alarm->{closed_status};
 	}
 
+	# Leakage logic: requires flow to be > 0 for LEAKAGE_DELAY seconds
 	if ($var eq 'leakage') {
 
 		my $key = "flow:$serial:leak_since";
@@ -454,14 +470,15 @@ sub resolve_var {
 # --------------------------
 # ALARM HANDLER
 # --------------------------
+# Manages state changes, snooze, and exponential backoff for notifications
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
 
-	my $id   = $dbh->quote($alarm->{id});
-	my $now  = time();
+	my $id   = $dbh->quote($alarm->{id});
+	my $now  = time();
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
 
@@ -536,11 +553,13 @@ sub handle_alarm {
 
 		my $since = $redis->get($redis_clear_key);
 
+		# Step 1: Start the clear timer if condition is normal
 		if (!$since) {
 			$redis->set($redis_clear_key, $now, 'EX', 3600);
 			return;
 		}
 
+		# Step 2: Only clear if stable for ALARM_CLEAR_DELAY
 		if (($now - $since) < $cfg->{alarm_clear_delay}) {
 			return;
 		}
@@ -583,6 +602,7 @@ sub generate_snooze_key {
 # --------------------------
 # REDIS STARTUP
 # --------------------------
+# Iterates through Redis to log current state of all meters and pending alarms
 sub redis_log_snapshot {
 	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
 
@@ -612,8 +632,8 @@ sub redis_log_snapshot {
 			elsif ($key =~ /^alarm:(\d+):(.*)$/) {
 
 				my $alarm_id = $1;
-				my $field    = $2;
-				my $val      = $redis->get($key);
+				my $field    = $2;
+				my $val      = $redis->get($key);
 
 				$alarms{$alarm_id}{$field} = $val;
 			}
@@ -635,7 +655,7 @@ sub redis_log_snapshot {
 			my $val = $meters{$serial}{$key};
 
 			if (!defined $val || $val eq '') {
-				log_debug("  $key => <empty>");
+				log_debug("  $key => <empty>");
 				next;
 			}
 
@@ -661,11 +681,11 @@ sub redis_log_snapshot {
 
 			if (defined $age) {
 				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, ($delay // 0), (($delay // 0) - $age)
 				));
 			} else {
-				log_debug("  $key => $val (state=$state)");
+				log_debug("  $key => $val (state=$state)");
 			}
 		}
 	}
@@ -691,7 +711,7 @@ sub redis_log_snapshot {
 		my $cfg = $alarm_config->{$serial} // {};
 
 		log_debug(sprintf(
-			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
+			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
 			($cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY),
 			($cfg->{valve_close_delay} // VALVE_CLOSE_DELAY),
 			($cfg->{leakage_delay} // LEAKAGE_DELAY),
@@ -742,13 +762,13 @@ sub redis_log_snapshot {
 
 			if (defined $age) {
 				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, $effective_delay, ($effective_delay - $age)
 				));
 			}
 			else {
 				log_debug(sprintf(
-					"  %s => %s (state=%s)",
+					"  %s => %s (state=%s)",
 					$key, $val, $state
 				));
 			}
