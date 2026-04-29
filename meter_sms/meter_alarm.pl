@@ -372,6 +372,50 @@ sub resolve_var {
 		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
 	}
 
+	# volume_day / energy_day calculated over last 24h - delay window
+	if ($var eq 'volume_day' or $var eq 'energy_day') {
+
+		my $column = $var eq 'volume_day' ? 'volume' : 'energy';
+
+		my $delay = $alarm_config->{$serial}->{valve_close_delay} // VALVE_CLOSE_DELAY;
+		my $since = time() - 86400 - $delay;
+
+		# Get earliest sample after time window
+		my $sth = $dbh->prepare(qq[
+			SELECT $column
+			FROM samples_cache
+			WHERE serial = ?
+			AND unix_time > ?
+			ORDER BY unix_time ASC
+			LIMIT 1
+		]);
+
+		$sth->execute($serial, $since);
+		my ($first_val) = $sth->fetchrow_array;
+		$first_val = 0 unless defined $first_val;
+
+		# Get latest sample in same window
+		$sth = $dbh->prepare(qq[
+			SELECT $column
+			FROM samples_cache
+			WHERE serial = ?
+			AND unix_time > ?
+			ORDER BY unix_time DESC
+			LIMIT 1
+		]);
+
+		$sth->execute($serial, $since);
+		my ($last_val) = $sth->fetchrow_array;
+		$last_val = 0 unless defined $last_val;
+
+		my $delta = $last_val - $first_val;
+
+		# Protect against counter resets / rollover
+		$delta = 0 if $delta < 0;
+
+		return $delta + 0;
+	}
+	
 	# ---- generic sensor fallback ----
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $val = $redis->get($redis_key);
