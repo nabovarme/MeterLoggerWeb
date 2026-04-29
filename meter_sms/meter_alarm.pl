@@ -76,7 +76,7 @@ $SIG{INT} = sub {
 };
 
 $SIG{HUP} = sub {
-	redis_startup_snapshot();
+	redis_log_snapshot();
 };
 
 # --------------------------
