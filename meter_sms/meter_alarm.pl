@@ -2,10 +2,10 @@
 
 # Anti-hysteresis:
 # 1) Valve state ($closed): time-filtered using VALVE_CLOSE_DELAY to ensure the valve
-#    is continuously closed before being considered valid.
+#    is continuously closed before being considered valid.
 #
 # 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
-#    to prevent rapid alarm flapping due to transient conditions.
+#    to prevent rapid alarm flapping due to transient conditions.
 
 use strict;
 use utf8;
@@ -186,7 +186,7 @@ sub evaluate_alarm {
 
 	# Prepare messages with substituted values
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
-	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
+	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
 	log_debug("raw condition: $condition", {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
@@ -477,8 +477,8 @@ sub handle_alarm {
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
 
-	my $id   = $dbh->quote($alarm->{id});
-	my $now  = time();
+	my $id   = $dbh->quote($alarm->{id});
+	my $now  = time();
 
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
 
@@ -632,8 +632,8 @@ sub redis_log_snapshot {
 			elsif ($key =~ /^alarm:(\d+):(.*)$/) {
 
 				my $alarm_id = $1;
-				my $field    = $2;
-				my $val      = $redis->get($key);
+				my $field    = $2;
+				my $val      = $redis->get($key);
 
 				$alarms{$alarm_id}{$field} = $val;
 			}
@@ -655,7 +655,7 @@ sub redis_log_snapshot {
 			my $val = $meters{$serial}{$key};
 
 			if (!defined $val || $val eq '') {
-				log_debug("  $key => <empty>");
+				log_debug("  $key => <empty>");
 				next;
 			}
 
@@ -681,11 +681,11 @@ sub redis_log_snapshot {
 
 			if (defined $age) {
 				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, ($delay // 0), (($delay // 0) - $age)
 				));
 			} else {
-				log_debug("  $key => $val (state=$state)");
+				log_debug("  $key => $val (state=$state)");
 			}
 		}
 	}
@@ -711,7 +711,7 @@ sub redis_log_snapshot {
 		my $cfg = $alarm_config->{$serial} // {};
 
 		log_debug(sprintf(
-			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
+			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
 			($cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY),
 			($cfg->{valve_close_delay} // VALVE_CLOSE_DELAY),
 			($cfg->{leakage_delay} // LEAKAGE_DELAY),
@@ -762,13 +762,13 @@ sub redis_log_snapshot {
 
 			if (defined $age) {
 				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
+					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, $effective_delay, ($effective_delay - $age)
 				));
 			}
 			else {
 				log_debug(sprintf(
-					"  %s => %s (state=%s)",
+					"  %s => %s (state=%s)",
 					$key, $val, $state
 				));
 			}
