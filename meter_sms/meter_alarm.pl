@@ -58,7 +58,7 @@ my $redis = Redis->new(server => "$redis_host:$redis_port");
 my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
-log_info("Connected to DB");
+log_debug("Connected to DB");
 
 # --------------------------
 # SIGNALS
@@ -66,12 +66,12 @@ log_info("Connected to DB");
 my $shutdown_requested = 0;
 
 $SIG{TERM} = sub {
-	log_info("SIGTERM received, will shutdown after current loop...");
+	log_debug("SIGTERM received, will shutdown after current loop...");
 	$shutdown_requested = 1;
 };
 
 $SIG{INT} = sub {
-	log_info("SIGINT received, will shutdown after current loop...");
+	log_debug("SIGINT received, will shutdown after current loop...");
 	$shutdown_requested = 1;
 };
 
@@ -515,7 +515,7 @@ sub sms_send {
 	return unless $to;
 
 	for my $r ($to =~ /\d+/g) {
-		log_info("SMS -> 45$r: $msg");
+		log_debug("SMS -> 45$r: $msg");
 		send_notification($r, $msg);
 	}
 }
@@ -528,7 +528,7 @@ sub generate_snooze_key {
 # REDIS STARTUP
 # --------------------------
 sub redis_log_snapshot {
-	log_info("===== REDIS STARTUP SNAPSHOT BEGIN =====");
+	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
 
 	my $cursor = 0;
 	my $now = time();
@@ -568,18 +568,18 @@ sub redis_log_snapshot {
 	# ==================================================
 	# METERS
 	# ==================================================
-	log_info("---- METER STATE BY SERIAL ----");
+	log_debug("---- METER STATE BY SERIAL ----");
 
 	foreach my $serial (sort { $a <=> $b } keys %meters) {
 
-		log_info("== SERIAL $serial ==");
+		log_debug("== SERIAL $serial ==");
 
 		foreach my $key (sort keys %{ $meters{$serial} }) {
 
 			my $val = $meters{$serial}{$key};
 
 			if (!defined $val || $val eq '') {
-				log_info("  $key => <empty>");
+				log_debug("  $key => <empty>");
 				next;
 			}
 
@@ -604,12 +604,12 @@ sub redis_log_snapshot {
 			}
 
 			if (defined $age) {
-				log_info(sprintf(
+				log_debug(sprintf(
 					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, ($delay // 0), (($delay // 0) - $age)
 				));
 			} else {
-				log_info("  $key => $val (state=$state)");
+				log_debug("  $key => $val (state=$state)");
 			}
 		}
 	}
@@ -617,7 +617,7 @@ sub redis_log_snapshot {
 	# ==================================================
 	# ALARMS
 	# ==================================================
-	log_info("---- ALARM STATE ----");
+	log_debug("---- ALARM STATE ----");
 
 	foreach my $alarm_id (sort { $a <=> $b } keys %alarms) {
 
@@ -630,11 +630,11 @@ sub redis_log_snapshot {
 
 		my $alarm_state = $alarms{$alarm_id}{alarm_state} // 0;
 
-		log_info("== ALARM $alarm_id (SERIAL $serial) ==");
+		log_debug("== ALARM $alarm_id (SERIAL $serial) ==");
 
 		my $cfg = $alarm_config->{$serial} // {};
 
-		log_info(sprintf(
+		log_debug(sprintf(
 			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
 			($cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY),
 			($cfg->{valve_close_delay} // VALVE_CLOSE_DELAY),
@@ -685,13 +685,13 @@ sub redis_log_snapshot {
 			}
 
 			if (defined $age) {
-				log_info(sprintf(
+				log_debug(sprintf(
 					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
 					$key, $val, $state, $age, $effective_delay, ($effective_delay - $age)
 				));
 			}
 			else {
-				log_info(sprintf(
+				log_debug(sprintf(
 					"  %s => %s (state=%s)",
 					$key, $val, $state
 				));
