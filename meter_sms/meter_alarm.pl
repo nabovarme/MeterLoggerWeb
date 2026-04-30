@@ -109,6 +109,18 @@ while (1) {
 sub process_alarms {
 	my ($run_id) = @_;
 
+	# --------------------------------------------------
+	# LOAD ALL ACTIVE ALARMS + METER STATE (JOINED VIEW)
+	# --------------------------------------------------
+	# This query is the "entry point" for the entire system cycle.
+	#
+	# It fetches:
+	#   - alarm configuration (rules, thresholds, messaging)
+	#   - runtime state (last_notification, alarm_state, counters)
+	#   - meter telemetry (valve state, last_updated, metadata)
+	#
+	# JOIN ensures each alarm evaluation has a consistent snapshot
+	# of both rule + sensor state.
 	my $sth = $dbh->prepare(qq[
 		SELECT
 			alarms.id, alarms.serial,
@@ -130,31 +142,92 @@ sub process_alarms {
 
 	$sth->execute;
 
+	# --------------------------------------------------
+	# PROCESS EACH ALARM INDEPENDENTLY
+	# --------------------------------------------------
+	# Each row represents a fully self-contained evaluation unit.
+	# No cross-alarm dependencies exist at runtime.
 	while (my $alarm = $sth->fetchrow_hashref) {
-		# Configuration hierarchy: DB setting > Constant fallback
+
+		# --------------------------------------------------
+		# CONFIGURATION LAYERING (DB > DEFAULT CONSTANTS)
+		# --------------------------------------------------
+		# Build per-serial runtime configuration.
+		#
+		# Priority order:
+		#   1. DB override (per alarm / per meter tuning)
+		#   2. System constant fallback (safe defaults)
+		#
+		# This allows:
+		#   - per-customer tuning
+		#   - gradual rollout of behavior changes
+		#   - safe fallback if DB fields are empty
+
 		$alarm_config->{$alarm->{serial}} = {
+
+			# --------------------------------------------------
+			# ALARM CLEAR DELAY (hysteresis for recovery)
+			# --------------------------------------------------
 			alarm_clear_delay =>
 				defined $alarm->{alarm_clear_delay} && $alarm->{alarm_clear_delay} ne ''
 					? $alarm->{alarm_clear_delay}
 					: ALARM_CLEAR_DELAY,
 
+			# --------------------------------------------------
+			# VALVE STABILITY DELAY
+			# --------------------------------------------------
+			# Ensures valve must remain closed continuously
+			# before being treated as "closed"
 			valve_close_delay =>
 				defined $alarm->{valve_close_delay} && $alarm->{valve_close_delay} ne ''
 					? $alarm->{valve_close_delay}
 					: VALVE_CLOSE_DELAY,
 
+			# --------------------------------------------------
+			# BACKOFF CONTROL
+			# --------------------------------------------------
+			# Number of initial alarm repetitions before
+			# exponential backoff kicks in.
 			initial_no_backoff =>
 				defined $alarm->{initial_no_backoff} && $alarm->{initial_no_backoff} ne ''
 					? $alarm->{initial_no_backoff}
 					: INITIAL_NO_BACKOFF,
 
+			# --------------------------------------------------
+			# LEAKAGE DETECTION DELAY
+			# --------------------------------------------------
+			# Flow must persist continuously for this duration
+			# before being classified as leakage
 			leakage_delay =>
 				defined $alarm->{leakage_delay} && $alarm->{leakage_delay} ne ''
 					? $alarm->{leakage_delay}
 					: LEAKAGE_DELAY,
 		};
+
+		# --------------------------------------------------
+		# CORE EVALUATION STEP
+		# --------------------------------------------------
+		# Each alarm is evaluated independently using:
+		#   - resolved meter state
+		#   - Redis hysteresis state
+		#   - DB configuration rules
+		#
+		# This is the "decision engine" per alarm.
 		evaluate_alarm($alarm, $run_id);
 	}
+
+	# --------------------------------------------------
+	# OBSERVABILITY SNAPSHOT (DEBUG / AUDIT TOOLING)
+	# --------------------------------------------------
+	# After processing all alarms, we dump Redis state:
+	#   - valve timers
+	#   - flow timers
+	#   - alarm transition states
+	#
+	# This is primarily for:
+	#   - debugging hysteresis issues
+	#   - verifying timing behavior
+	#   - diagnosing edge cases in production
 	redis_log_snapshot();
 }
 
