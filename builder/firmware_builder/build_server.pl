@@ -85,6 +85,8 @@ for (1..$workers) {
 				$job->{batch_id}
 			);
 		}
+		
+		print "Worker $$ exiting cleanly\n";
 
 		exit;
 	}
@@ -186,14 +188,21 @@ sub build_flags_from_sw_version {
 sub print_progress {
 	my ($batch_id) = @_;
 
-	my $total = $redis->get("firmware_jobs_remaining:$batch_id") || 0;
+	my $total = $redis->get("firmware_jobs_total:$batch_id") || 0;
 	my $done  = $redis->get("firmware_jobs_completed:$batch_id") || 0;
+	my $skip  = $redis->get("firmware_jobs_skipped:$batch_id") || 0;
+	my $fail  = $redis->get("firmware_jobs_failed:$batch_id") || 0;
 
 	return if $total == 0;
 
-	my $percent = int(($done / $total) * 100);
+	my $percent = int((($done + $skip + $fail) / $total) * 100);
 
-	print "Progress: $done/$total ($percent%)\n";
+	print "Progress: $done done, $skip skipped, $fail failed ($percent%)\n";
+
+	if (($done + $skip + $fail) >= $total) {
+		print "ALL JOBS COMPLETED ($batch_id)\n";
+		cleanup_batch($batch_id);
+	}
 }
 
 sub process_build {
@@ -217,10 +226,11 @@ sub process_build {
 
 	my $batch_id = time();
 
-	my $total_key = "firmware_jobs_remaining:$batch_id";
+	my $total_key = "firmware_jobs_total:$batch_id";
 	my $done_key  = "firmware_jobs_completed:$batch_id";
+	my $skip_key  = "firmware_jobs_skipped:$batch_id";
+	my $fail_key  = "firmware_jobs_failed:$batch_id";
 
-	# count jobs
 	my $job_count = 0;
 
 	my @rows;
@@ -229,13 +239,13 @@ sub process_build {
 		$job_count++;
 	}
 
-	# initialize counters early
 	$redis->set($total_key, $job_count);
 	$redis->set($done_key, 0);
+	$redis->set($skip_key, 0);
+	$redis->set($fail_key, 0);
 
 	print "Jobs to enqueue: $job_count\n";
 
-	# enqueue jobs
 	foreach my $row (@rows) {
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
@@ -260,21 +270,18 @@ sub run_docker_build {
 
 	my $lock_key = "build-lock:$serial";
 
-	my $total_key = "firmware_jobs_remaining:$batch_id";
+	my $total_key = "firmware_jobs_total:$batch_id";
 	my $done_key  = "firmware_jobs_completed:$batch_id";
+	my $skip_key  = "firmware_jobs_skipped:$batch_id";
+	my $fail_key  = "firmware_jobs_failed:$batch_id";
 
-	# try to acquire lock
 	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
 
 	if (!$got_lock) {
 		print "Skipping $serial (already in progress)\n";
 
-		my $done = $redis->incr($done_key);
+		$redis->incr($skip_key);
 		print_progress($batch_id);
-
-		if ($done == $redis->get($total_key)) {
-			print "All jobs completed\n";
-		}
 
 		return;
 	}
@@ -297,24 +304,19 @@ sub run_docker_build {
 
 	my $sw_version = $version;
 
-	# filesystem safe version (ONLY for paths)
 	my $fs_version = $sw_version;
 	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
 	$fs_version = 'unknown' if !$fs_version;
 
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/firmware.bin";
 
-	# Skip if already built
 	if (-f $firmware_path) {
 		print "Skipping build for $serial (already exists)\n";
+
 		$redis->del($lock_key);
+		$redis->incr($skip_key);
 
-		my $done = $redis->incr($done_key);
 		print_progress($batch_id);
-
-		if ($done == $redis->get($total_key)) {
-			print "All jobs completed\n";
-		}
 
 		return;
 	}
@@ -340,6 +342,7 @@ sub run_docker_build {
 
 		if (!$success) {
 			warn "Build failed for $serial\n";
+			$redis->incr($fail_key);
 		}
 
 		if ($success) {
@@ -347,16 +350,15 @@ sub run_docker_build {
 			prepare_release_structure($serial, $fs_version);
 			generate_manifest($serial, $info, $sw_version, $fs_version);
 
-			# Create meta.json
 			my $dir = RELEASE_DIR . "/$serial/$fs_version";
 			make_path($dir);
 
 			my $meta = {
-				serial     => $serial,
-				info       => $info,
-				sw_version => $sw_version,
+				serial      => $serial,
+				info        => $info,
+				sw_version  => $sw_version,
 				build_flags => $build_flags,
-				built_at   => time(),
+				built_at    => time(),
 			};
 
 			open(my $fh, ">", "$dir/meta.json")
@@ -364,6 +366,8 @@ sub run_docker_build {
 
 			print $fh encode_json($meta);
 			close($fh);
+
+			$redis->incr($done_key);
 		}
 	};
 
@@ -372,13 +376,7 @@ sub run_docker_build {
 	# always release lock
 	$redis->del($lock_key);
 
-	my $done = $redis->incr($done_key);
 	print_progress($batch_id);
-
-	if ($done == $redis->get($total_key)) {
-		generate_firmware_index();
-		print "All jobs completed\n";
-	}
 
 	die $err if $err;
 
@@ -511,3 +509,15 @@ sub generate_firmware_index {
 	print $fh encode_json(\@firmwares);
 	close($fh);
 }
+
+sub cleanup_batch {
+	my ($batch_id) = @_;
+
+	$redis->del("firmware_jobs_total:$batch_id");
+	$redis->del("firmware_jobs_completed:$batch_id");
+	$redis->del("firmware_jobs_skipped:$batch_id");
+	$redis->del("firmware_jobs_failed:$batch_id");
+
+	print "Cleaned up Redis batch keys for $batch_id\n";
+}
+

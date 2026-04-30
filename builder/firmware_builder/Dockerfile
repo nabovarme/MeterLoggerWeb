@@ -25,4 +25,6 @@ COPY ./builder/firmware_builder/docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./builder/firmware_builder/build_server.pl /usr/local/bin
 COPY ./perl /usr/local/share/perl
 
+WORKDIR /meterlogger/MeterLogger/release
+
 CMD ["/docker-entrypoint.sh"]
