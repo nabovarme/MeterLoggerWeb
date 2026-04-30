@@ -50,7 +50,7 @@ COPY ./perl /etc/apache2/perl
 
 COPY ./mysql_mqtt_command_queue_receive/mysql_mqtt_command_queue_receive.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
 
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
-CMD /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl
+CMD ["/etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_receive.pl"]
 

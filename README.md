@@ -116,6 +116,7 @@ These variables are computed by querying the last 5 rows from `samples_cache` fo
 | `$kwh_remaining`     | Median of last 5 values from `samples_cache.kwh_remaining` (if present)     |
 | `$valve_status`      | Median (numeric) of last 5 values from `samples_cache.valve_status`         |
 | `$valve_installed`   | From `meters.valve_installed` (not sample-based)                            |
+| `$leakage`           | Median flow only if sustained for LEAKAGE_DELAY seconds (detects persistent leaks, filters short spikes) |
 | `$your_column`       | Any other column from `samples_cache` can be used the same way              |
 
 ✅ Use any valid column name in `samples_cache` as `$column_name`, and it will be replaced with the median of the last 5 values.

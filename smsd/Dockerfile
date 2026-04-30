@@ -53,6 +53,6 @@ COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh
 RUN mkdir -p /var/spool/sms/{outgoing,failed,incoming,checked,sent}
 RUN chown -R smsd:smsd /var/spool/sms
 
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]
