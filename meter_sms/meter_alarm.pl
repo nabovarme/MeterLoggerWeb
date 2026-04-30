@@ -732,37 +732,30 @@ sub resolve_var {
 	# --------------------------------------------------
 	# Handles arbitrary variables like:
 	#   $temperature, $pressure, etc.
-	if (!defined $val || $val eq '') {
-		my $sth = $dbh->prepare(qq[
-			SELECT `$var`
-			FROM samples_cache
-			WHERE serial = ?
-			ORDER BY unix_time DESC
-			LIMIT 5
-		]);
+	my $sth = $dbh->prepare(qq[
+		SELECT `$var`
+		FROM samples_cache
+		WHERE serial = ?
+		ORDER BY unix_time DESC
+		LIMIT 5
+	]);
 
-		$sth->execute($serial);
-		my $rows = $sth->fetchall_arrayref;
+	$sth->execute($serial);
+	my $rows = $sth->fetchall_arrayref;
 
-		return undef unless @$rows;
+	return undef unless @$rows;
 
-		# Extract numeric values, ignore NULLs
-		my @values = map {
-			defined $_->[0] ? $_->[0] + 0.0 : ()
-		} @$rows;
+	# Extract numeric values, ignore NULLs
+	my @values = map {
+		defined $_->[0] ? $_->[0] + 0.0 : ()
+	} @$rows;
 
-		return undef unless @values;
+	return undef unless @values;
 
-		# Use median: robust against spikes / outliers
-		my $median_val = median(@values);
+	# Use median: robust against spikes / outliers
+	my $median_val = median(@values);
 
-		return $median_val + 0.0;
-	}
-
-	# --------------------------------------
-	# REDIS HIT → return immediately
-	# --------------------------------------
-	return $val + 0;
+	return $median_val + 0.0;
 }
 
 # --------------------------
