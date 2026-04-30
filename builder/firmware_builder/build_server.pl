@@ -26,14 +26,14 @@ STDERR->autoflush(1);
 # Graceful shutdown flag
 my $running = 1;
 
-# Handle shutdown signals
+# Handle shutdown signals for main process
 $SIG{TERM} = sub {
-	print "Received SIGTERM, shutting down...\n";
+	print "Main process received SIGTERM, shutting down...\n";
 	$running = 0;
 };
 
 $SIG{INT} = sub {
-	print "Received SIGINT, shutting down...\n";
+	print "Main process received SIGINT, shutting down...\n";
 	$running = 0;
 };
 
@@ -53,6 +53,8 @@ my $cpu_cores = `nproc`;
 chomp $cpu_cores;
 my $workers = $cpu_cores * 2;
 
+my @worker_pids;
+
 for (1..$workers) {
 	my $worker_id = $_;
 
@@ -68,6 +70,20 @@ for (1..$workers) {
 		my $redis = Redis->new(
 			server => "$redis_host:$redis_port",
 		);
+
+		# Child-local running flag
+		my $running = 1;
+
+		# IMPORTANT: child must handle shutdown signals
+		$SIG{TERM} = sub {
+			print "Worker $$ received TERM\n";
+			$running = 0;
+		};
+
+		$SIG{INT} = sub {
+			print "Worker $$ received INT\n";
+			$running = 0;
+		};
 
 		print "Worker $worker_id started (pid $$)\n";
 
@@ -94,16 +110,19 @@ for (1..$workers) {
 				$job->{batch_id}
 			);
 		}
-		
+
 		cleanup_all_batches();
 		print "Worker $$ exiting cleanly\n";
 		exit 0;
 	}
+
+	# parent tracks PID
+	push @worker_pids, $pid;
 }
 
 print "Workers started\n";
 
-# Trigger listener
+# Trigger listener (parent)
 while ($running) {
 
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
@@ -118,6 +137,25 @@ while ($running) {
 
 	process_build($trigger);
 }
+
+# =========================
+# GRACEFUL SHUTDOWN
+# =========================
+
+print "Stopping workers...\n";
+
+kill 'TERM', @worker_pids;
+
+foreach my $pid (@worker_pids) {
+	waitpid($pid, 0);
+	print "Worker $pid exited\n";
+}
+
+print "All workers shut down cleanly\n";
+
+# =========================
+# ORIGINAL FUNCTIONS BELOW
+# =========================
 
 sub rebuild_firmware_sdk {
 	print "Rebuilding firmware_sdk via docker on host...\n";
@@ -232,7 +270,7 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
-	my $batch_id = time();	# DEBUG is that uniq
+	my $batch_id = time();
 	
 	$redis->sadd("firmware_active_batches", $batch_id);
 
@@ -289,10 +327,8 @@ sub run_docker_build {
 
 	if (!$got_lock) {
 		print "Skipping $serial (already in progress)\n";
-
 		$redis->incr($skip_key);
 		print_progress($batch_id);
-
 		return;
 	}
 
@@ -327,7 +363,6 @@ sub run_docker_build {
 		$redis->incr($skip_key);
 
 		print_progress($batch_id);
-
 		return;
 	}
 
@@ -346,8 +381,8 @@ sub run_docker_build {
 	my $exit_code;
 
 	eval {
-#		system($docker_cmd);
-		system("$docker_cmd > /dev/null 2>&1");
+		system($docker_cmd);
+#		system("$docker_cmd > /dev/null 2>&1");
 		$exit_code = $? >> 8;
 		$success = ($exit_code == 0);
 
@@ -457,7 +492,6 @@ sub generate_manifest {
 }
 
 sub generate_firmware_index {
-
 	opendir(my $dh, RELEASE_DIR) or die "Cannot open dir";
 
 	my @firmwares;
