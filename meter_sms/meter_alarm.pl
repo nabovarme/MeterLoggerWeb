@@ -558,6 +558,14 @@ sub interpolate_variables {
 }
 
 # Core logic for fetching sensor data from Redis or DB
+# --------------------------------------------------
+# Handles arbitrary sensor variables like:
+#   $temperature, $pressure, etc.
+#
+# Resolution strategy:
+#   1. Query DB for recent samples
+#   2. Compute a stable value (median of last samples)
+# --------------------------------------------------
 sub resolve_var {
 	my ($var, $alarm) = @_;
 
@@ -724,23 +732,9 @@ sub resolve_var {
 	# --------------------------------------------------
 	# Handles arbitrary variables like:
 	#   $temperature, $pressure, etc.
-	#
-	# Strategy:
-	#   1. Try Redis (latest real-time value)
-	#   2. Fallback to DB (median of last 5 samples)
-	my $redis_key = "sensor:$serial:$var:last_value";
-	my $val = $redis->get($redis_key);
-
-	# --------------------------------------
-	# REDIS MISS → fallback to DB
-	# --------------------------------------
 	if (!defined $val || $val eq '') {
-
-		# Backtick-quote column name to avoid SQL keyword conflicts
-		my $quoted_var = '`' . $var . '`';
-
 		my $sth = $dbh->prepare(qq[
-			SELECT $quoted_var
+			SELECT `$var`
 			FROM samples_cache
 			WHERE serial = ?
 			ORDER BY unix_time DESC
@@ -759,8 +753,7 @@ sub resolve_var {
 
 		return undef unless @values;
 
-		# Use median instead of mean:
-		# → robust against spikes / outliers
+		# Use median: robust against spikes / outliers
 		my $median_val = median(@values);
 
 		return $median_val + 0.0;
