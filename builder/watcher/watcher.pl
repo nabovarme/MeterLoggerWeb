@@ -28,6 +28,9 @@ my $redis = Redis->new(
 	server => "$redis_host:$redis_port",
 );
 
+# Redis keys
+my $REDIS_TRIGGER = "firmware_build_trigger";
+
 my $last_sha = "";
 my $current_sha = "";
 
@@ -87,7 +90,7 @@ sub trigger_build {
 	print "Triggering build ($reason)\n";
 
 	# just emit a trigger event — no payload needed
-	$redis->rpush("firmware_build_trigger", encode_json({
+	$redis->rpush($REDIS_TRIGGER, encode_json({
 		reason => $reason,
 		time => time()
 	}));

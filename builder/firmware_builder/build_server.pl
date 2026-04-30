@@ -150,9 +150,18 @@ while ($running) {
 		my $fail  = $redis->get("$REDIS_JOBS_FAIL:$current_batch") || 0;
 
 		if ($total > 0 && ($done + $skip + $fail) >= $total) {
-			print "Batch $current_batch completed. Cleaning up.\n";
-			$redis->lpop($REDIS_ACTIVE_BATCHES);
+			print "Batch $current_batch fully completed ($done done, $skip skipped, $fail failed).\n";
+			
+			# Generate index and clean up batch-specific keys
 			generate_firmware_index();
+			
+			$redis->del("$REDIS_JOBS_TOTAL:$current_batch");
+			$redis->del("$REDIS_JOBS_DONE:$current_batch");
+			$redis->del("$REDIS_JOBS_SKIP:$current_batch");
+			$redis->del("$REDIS_JOBS_FAIL:$current_batch");
+
+			$redis->lpop($REDIS_ACTIVE_BATCHES);
+			print "Batch $current_batch removed from active queue.\n";
 		}
 	} else {
 		# No active batch, try to start the next pending trigger
@@ -594,7 +603,6 @@ sub cleanup_all_batches {
 		"$REDIS_JOBS_FAIL:*",
 		$REDIS_QUEUE,
 		$REDIS_ACTIVE_BATCHES,
-		$REDIS_PENDING_TRIGGERS,
 		"$REDIS_BUILD_LOCK:*",
 	);
 
