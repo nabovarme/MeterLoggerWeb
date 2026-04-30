@@ -474,39 +474,58 @@ sub resolve_var {
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
+	# Basic context
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
 
+	# Quote ID for safe SQL usage
 	my $id   = $dbh->quote($alarm->{id});
 	my $now  = time();
 
+	# Redis key used to track when a "normal" (non-alarm) condition started.
+	# This enables delayed clearing (anti-flapping).
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
 
+	# Redis key used to persist serial ↔ alarm mapping
+	# (useful for debugging / snapshot logging even if DB data is incomplete)
 	my $redis_serial_key = "alarm:$alarm->{id}:serial";
 
+	# Number of times this alarm has been triggered (used for backoff logic)
 	my $count = $alarm->{alarm_count} || 0;
 
-	# ensure serial exists in Redis
+	# Ensure serial is always available in Redis for observability/debugging
 	if (defined $serial && $serial ne '') {
 		$redis->set($redis_serial_key, $serial);
 	} else {
+		# Fallback: recover serial from Redis if DB value is missing
 		$serial = $redis->get($redis_serial_key) // 'UNKNOWN';
 	}
 
 	# ==================================================
-	# ALARM ACTIVE STATE
+	# ALARM ACTIVE STATE (condition is TRUE)
 	# ==================================================
 	if ($state) {
 
+		# If alarm is active again, cancel any pending "clear" timer.
+		# This prevents clearing if condition briefly returned to normal.
 		$redis->del($redis_clear_key);
 
+		# Determine whether exponential backoff should be used
+		# Disabled if repeat interval is very large (>= 1 day)
 		my $use_backoff = ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) ? 1 : 0;
 
+		# --------------------------------------------------
+		# FIRST ACTIVATION (alarm transitions from 0 → 1)
+		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 0) {
 
+			# Send initial alarm notification immediately
 			sms_send($alarm->{sms_notification}, $down);
+
+			# Reset counter to 1 (first occurrence)
 			$count = 1;
 
+			# Persist new alarm state in DB
 			$dbh->do(qq[
 				UPDATE alarms
 				SET alarm_state=1,
@@ -516,24 +535,41 @@ sub handle_alarm {
 				WHERE id=$id
 			]);
 
+		# --------------------------------------------------
+		# REPEATED NOTIFICATIONS (alarm already active)
+		# --------------------------------------------------
 		} elsif ($alarm->{repeat}) {
 
 			my $interval;
 
+			# Apply exponential backoff after N initial notifications
+			# Example:
+			#   repeat = 60s, initial_no_backoff = 2
+			#   → 60s, 60s, 120s, 240s, 480s, ...
 			if ($use_backoff && $count >= $cfg->{initial_no_backoff}) {
 				$interval = $alarm->{repeat} * (2 ** ($count - $cfg->{initial_no_backoff}));
+
+				# Cap interval to 24 hours to avoid excessive silence
 				$interval = 86400 if $interval > 86400;
 			} else {
+				# Fixed repeat interval (no backoff yet)
 				$interval = $alarm->{repeat};
 			}
 
+			# Check if enough time has passed since last notification
+			# Includes snooze delay (user-suppressed notifications)
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
 
+				# Send repeated alarm notification
 				sms_send($alarm->{sms_notification}, $down);
+
+				# Increment occurrence count (affects future backoff)
 				$count++;
 
+				# Update in-memory timestamp (used for next iteration)
 				$alarm->{last_notification} = $now;
 
+				# Persist updated state
 				$dbh->do(qq[
 					UPDATE alarms
 					SET last_notification=$now,
@@ -547,27 +583,41 @@ sub handle_alarm {
 		}
 
 	# ==================================================
-	# ALARM CLEARING STATE
+	# ALARM CLEARING STATE (condition is FALSE)
 	# ==================================================
 	} else {
 
+		# Check when the system first observed a "normal" condition
 		my $since = $redis->get($redis_clear_key);
 
-		# Step 1: Start the clear timer if condition is normal
+		# --------------------------------------------------
+		# STEP 1: Start clear timer
+		# --------------------------------------------------
+		# If this is the first time we see a normal state,
+		# start a timer instead of clearing immediately.
 		if (!$since) {
 			$redis->set($redis_clear_key, $now, 'EX', 3600);
-			return;
+			return; # wait for stability before clearing
 		}
 
-		# Step 2: Only clear if stable for ALARM_CLEAR_DELAY
+		# --------------------------------------------------
+		# STEP 2: Enforce stability window
+		# --------------------------------------------------
+		# Only clear alarm if condition has remained normal
+		# continuously for alarm_clear_delay seconds
 		if (($now - $since) < $cfg->{alarm_clear_delay}) {
-			return;
+			return; # still within hysteresis window → do nothing
 		}
 
+		# --------------------------------------------------
+		# STEP 3: Clear alarm if it was previously active
+		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 1) {
 
+			# Send "recovery" / "back to normal" notification
 			sms_send($alarm->{sms_notification}, $up);
 
+			# Reset alarm state in DB
 			$dbh->do(qq[
 				UPDATE alarms
 				SET alarm_state=0,
@@ -578,6 +628,7 @@ sub handle_alarm {
 			]);
 		}
 
+		# Cleanup: remove clear timer after successful resolution
 		$redis->del($redis_clear_key);
 	}
 }
