@@ -135,12 +135,17 @@ while ($running) {
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
 	if ($data) {
 		my (undef, $payload) = @$data;
+		my $trigger = decode_json($payload);
+		
+		print "Received trigger: " . ($trigger->{reason} || "unknown") . " at " . scalar(localtime($trigger->{time})) . "\n";
+		
 		$redis->rpush($REDIS_PENDING_TRIGGERS, $payload);
 		print "Trigger added to pending queue\n";
 	}
 
 	# 2. Check if a batch is currently active
 	my $current_batch = $redis->lindex($REDIS_ACTIVE_BATCHES, 0);
+	my $pending_count = $redis->llen($REDIS_PENDING_TRIGGERS) || 0;
 
 	if ($current_batch) {
 		# Existing batch is running, check completion status
@@ -148,8 +153,11 @@ while ($running) {
 		my $done  = $redis->get("$REDIS_JOBS_DONE:$current_batch") || 0;
 		my $skip  = $redis->get("$REDIS_JOBS_SKIP:$current_batch") || 0;
 		my $fail  = $redis->get("$REDIS_JOBS_FAIL:$current_batch") || 0;
+		
+		my $processed = $done + $skip + $fail;
+		print "Batch active: $current_batch. Progress: $processed/$total ($pending_count batches pending)\n" if $processed % 5 == 0 || $processed == $total;
 
-		if ($total > 0 && ($done + $skip + $fail) >= $total) {
+		if ($total > 0 && $processed >= $total) {
 			print "Batch $current_batch fully completed ($done done, $skip skipped, $fail failed).\n";
 			
 			# Generate index and clean up batch-specific keys
@@ -168,12 +176,13 @@ while ($running) {
 		my $next_payload = $redis->lpop($REDIS_PENDING_TRIGGERS);
 		if ($next_payload) {
 			my $trigger = decode_json($next_payload);
-			print "Starting new batch from pending triggers\n";
+			print "Starting new batch from pending triggers. ($pending_count remaining in queue)\n";
 			process_build($trigger);
 		}
 	}
 
 	last unless $running;
+	sleep 1 if !$current_batch;
 }
 
 # =========================
