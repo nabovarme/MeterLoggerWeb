@@ -19,6 +19,8 @@ use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
+my $REDIS_ACTIVE_BATCHES = "firmware_active_batches";
+my $REDIS_PENDING_TRIGGERS = "firmware_pending_triggers";
 
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -124,17 +126,40 @@ print "Workers started\n";
 # Trigger listener (parent)
 while ($running) {
 
+	# 1. Listen for new triggers and put them in a pending list
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
-	next unless $data;
+	if ($data) {
+		my (undef, $payload) = @$data;
+		$redis->rpush($REDIS_PENDING_TRIGGERS, $payload);
+		print "New build trigger queued. Pending triggers: " . $redis->llen($REDIS_PENDING_TRIGGERS) . "\n";
+	}
 
-	my (undef, $payload) = @$data;
+	# 2. Check if a batch is currently running
+	my $current_batch = $redis->lindex($REDIS_ACTIVE_BATCHES, 0);
+	
+	if ($current_batch) {
+		# A batch is active, check if it's finished
+		my $total = $redis->get("firmware_jobs_total:$current_batch") || 0;
+		my $done  = $redis->get("firmware_jobs_completed:$current_batch") || 0;
+		my $skip  = $redis->get("firmware_jobs_skipped:$current_batch") || 0;
+		my $fail  = $redis->get("firmware_jobs_failed:$current_batch") || 0;
 
-	my $trigger = decode_json($payload);
+		if ($total > 0 && ($done + $skip + $fail) >= $total) {
+			print "Batch $current_batch fully completed. Removing from active queue.\n";
+			$redis->lpop($REDIS_ACTIVE_BATCHES);
+			generate_firmware_index();
+		}
+	} else {
+		# No batch is active, check if we have a pending trigger to start
+		my $pending_payload = $redis->lpop($REDIS_PENDING_TRIGGERS);
+		if ($pending_payload) {
+			my $trigger = decode_json($pending_payload);
+			print "Starting new batch processing...\n";
+			process_build($trigger);
+		}
+	}
 
-	print "Processing build trigger\n";
-	print "Starting job processing...\n";
-
-	process_build($trigger);
+	last unless $running;
 }
 
 # =========================
@@ -272,7 +297,7 @@ sub process_build {
 
 	my $batch_id = time();
 	
-	$redis->sadd("firmware_active_batches", $batch_id);
+	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
 
 	my $total_key = "firmware_jobs_total:$batch_id";
 	my $done_key  = "firmware_jobs_completed:$batch_id";
@@ -310,7 +335,7 @@ sub process_build {
 		$redis->rpush($REDIS_QUEUE, $job);
 	}
 
-	print "All jobs enqueued\n";
+	print "All jobs enqueued for batch $batch_id\n";
 }
 
 sub run_docker_build {
@@ -563,6 +588,7 @@ sub cleanup_all_batches {
 		"firmware_jobs_skipped:*",
 		"firmware_jobs_failed:*",
 		"firmware_active_batches",
+		"firmware_pending_triggers",
 		"build-lock:*",
 	);
 
