@@ -115,8 +115,7 @@ $SIG{INT} = sub {
 # --------------------------------------------------
 # SIGHUP (diagnostic trigger)
 # --------------------------------------------------
-# Does NOT stop the process.
-# Instead triggers a full Redis state dump for debugging:
+# Triggers a full Redis state dump for debugging:
 #   - valve timers
 #   - flow timers
 #   - alarm transition states
@@ -166,9 +165,6 @@ while (1) {
 	last if $shutdown_requested;
 
 	# Fixed polling interval (1 minute)
-	# This defines system responsiveness vs load tradeoff:
-	#   - lower = faster reaction, more load
-	#   - higher = lower load, slower detection
 	sleep 60;
 }
 
@@ -216,7 +212,6 @@ sub process_alarms {
 	# PROCESS EACH ALARM INDEPENDENTLY
 	# --------------------------------------------------
 	# Each row represents a fully self-contained evaluation unit.
-	# No cross-alarm dependencies exist at runtime.
 	while (my $alarm = $sth->fetchrow_hashref) {
 
 		# --------------------------------------------------
@@ -227,11 +222,6 @@ sub process_alarms {
 		# Priority order:
 		#   1. DB override (per alarm / per meter tuning)
 		#   2. System constant fallback (safe defaults)
-		#
-		# This allows:
-		#   - per-customer tuning
-		#   - gradual rollout of behavior changes
-		#   - safe fallback if DB fields are empty
 
 		$alarm_config->{$alarm->{serial}} = {
 
@@ -286,18 +276,7 @@ sub process_alarms {
 		evaluate_alarm($alarm, $run_id);
 	}
 
-	# --------------------------------------------------
-	# OBSERVABILITY SNAPSHOT (DEBUG / AUDIT TOOLING)
-	# --------------------------------------------------
-	# After processing all alarms, we dump Redis state:
-	#   - valve timers
-	#   - flow timers
-	#   - alarm transition states
-	#
-	# This is primarily for:
-	#   - debugging hysteresis issues
-	#   - verifying timing behavior
-	#   - diagnosing edge cases in production
+	# Dump Redis state for debugging/timing verification
 	redis_log_snapshot();
 }
 
@@ -479,7 +458,7 @@ sub fill_template {
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
 
-	# Per-serial configuration (may override default delays)
+	# Per-serial configuration
 	my $cfg = $alarm_config->{$serial};
 
 	# --------------------------------------------------
@@ -560,14 +539,18 @@ sub check_delayed_valve_closed {
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
 
+	# Extract all $variable tokens from the expression
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
+		# Resolve each variable against alarm/meter state
 		my $value = resolve_var($var, $alarm);
 
+		# Normalize missing/undefined values to 0 for safe evaluation
 		$value = 0 if !defined $value || $value eq '';
 
+		# Replace all occurrences of $var with its resolved value
 		$text =~ s/\$$var\b/$value/g;
 	}
 
@@ -591,7 +574,7 @@ sub resolve_var {
 		return $alarm->{$var};
 	}
 
-	# Serial is explicitly exposed for templating / conditions
+	# Return device serial
 	if ($var eq 'serial') {
 		return $serial;
 	}
@@ -640,45 +623,27 @@ sub resolve_var {
 		my $key = "flow:$serial:leak_since";  # Redis timer key
 		my $now = time();
 
-		# --------------------------------------
-		# STEP 1: Fetch current flow value
-		# --------------------------------------
-		# Prefer Redis (fast, real-time), fallback to DB
-		my $flow;
+		# Get current flow (no Redis cache used here)
+		my $sth = $dbh->prepare(qq[
+			SELECT flow
+			FROM samples_cache
+			WHERE serial = ?
+			ORDER BY unix_time DESC
+			LIMIT 1
+		]);
 
-		my $redis_key = "sensor:$serial:flow:last_value";
-		$flow = $redis->get($redis_key);
-
-		if (!defined $flow || $flow eq '') {
-
-			# Fallback: latest DB sample
-			my $sth = $dbh->prepare(qq[
-				SELECT flow
-				FROM samples_cache
-				WHERE serial = ?
-				ORDER BY unix_time DESC
-				LIMIT 1
-			]);
-
-			$sth->execute($serial);
-			($flow) = $sth->fetchrow_array;
-		}
+		$sth->execute($serial);
+		my ($flow) = $sth->fetchrow_array;
 
 		# Normalize undefined → 0
 		$flow ||= 0;
 
-		# --------------------------------------
-		# STEP 2: Reset if no flow
-		# --------------------------------------
 		# Any interruption cancels leakage detection
 		if ($flow <= 0) {
 			$redis->del($key);
 			return 0;
 		}
 
-		# --------------------------------------
-		# STEP 3: Check when flow started
-		# --------------------------------------
 		my $since = $redis->get($key);
 
 		# First detection → start timer
@@ -687,9 +652,6 @@ sub resolve_var {
 			return 0; # not yet stable
 		}
 
-		# --------------------------------------
-		# STEP 4: Apply delay threshold
-		# --------------------------------------
 		# Only report leakage if flow persisted long enough
 		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
 	}
