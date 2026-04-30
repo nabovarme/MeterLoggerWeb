@@ -79,6 +79,7 @@ for (1..$workers) {
 			run_docker_build(
 				$redis,
 				$job->{serial},
+				$job->{info},
 				$job->{version},
 				$job->{build_flags},
 				$job->{batch_id}
@@ -204,7 +205,7 @@ sub process_build {
 		or die "DB connection failed";
 
 	my $sth = $dbh->prepare("
-		SELECT serial, sw_version
+		SELECT `serial`, `info`, `sw_version`
 		FROM meters
 		WHERE enabled = 1
 		ORDER BY serial
@@ -241,6 +242,7 @@ sub process_build {
 
 		my $job = encode_json({
 			serial       => $row->{serial},
+			info         => $row->{info},
 			trigger_time => time(),
 			version      => $git_version,
 			build_flags  => $build_flags,
@@ -254,7 +256,7 @@ sub process_build {
 }
 
 sub run_docker_build {
-	my ($redis, $serial, $version, $build_flags, $batch_id) = @_;
+	my ($redis, $serial, $info, $version, $build_flags, $batch_id) = @_;
 
 	my $lock_key = "build-lock:$serial";
 
@@ -343,7 +345,7 @@ sub run_docker_build {
 		if ($success) {
 
 			prepare_release_structure($serial, $fs_version);
-			generate_manifest($serial, $sw_version, $fs_version);
+			generate_manifest($serial, $info, $sw_version, $fs_version);
 
 			# Create meta.json
 			my $dir = RELEASE_DIR . "/$serial/$fs_version";
@@ -351,6 +353,7 @@ sub run_docker_build {
 
 			my $meta = {
 				serial     => $serial,
+				info       => $info,
 				sw_version => $sw_version,
 				build_flags => $build_flags,
 				built_at   => time(),
@@ -361,8 +364,6 @@ sub run_docker_build {
 
 			print $fh encode_json($meta);
 			close($fh);
-
-			generate_firmware_index();
 		}
 	};
 
@@ -375,6 +376,7 @@ sub run_docker_build {
 	print_progress($batch_id);
 
 	if ($done == $redis->get($total_key)) {
+		generate_firmware_index();
 		print "All jobs completed\n";
 	}
 
@@ -418,12 +420,12 @@ sub prepare_release_structure {
 }
 
 sub generate_manifest {
-	my ($serial, $sw_version, $fs_version) = @_;
+	my ($serial, $info, $sw_version, $fs_version) = @_;
 
 	my $dir = RELEASE_DIR . "/$serial/$fs_version";
 
 	my $manifest = {
-		name => "$serial ($sw_version)",
+		name => "$info $serial ($sw_version)",
 		version => $sw_version || 'unknown',
 		builds => [
 			{
