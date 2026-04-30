@@ -482,7 +482,7 @@ sub generate_firmware_index {
 				close($fh);
 
 				my $meta = decode_json($json_text);
-				$name = "$serial ($meta->{sw_version})";
+				$name = "$serial $meta->{info} ($meta->{sw_version})";
 
 				if ($meta->{build_flags}) {
 					$name .= " [$meta->{build_flags}]";
