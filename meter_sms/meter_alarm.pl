@@ -268,30 +268,77 @@ sub fill_template {
 sub check_delayed_valve_closed {
 	my ($serial) = @_;
 
+	# Per-serial configuration (may override default delays)
 	my $cfg = $alarm_config->{$serial};
 
+	# --------------------------------------------------
+	# FETCH CURRENT VALVE STATE FROM DB
+	# --------------------------------------------------
+	# We rely on DB as the source of truth for:
+	#   - valve_status (e.g. "closed", "open")
+	#   - valve_installed (boolean flag)
+	#
+	# NOTE: This is intentionally not cached in Redis,
+	# since correctness is more important than speed here.
 	my $sth = $dbh->prepare("SELECT valve_status, valve_installed FROM meters WHERE serial = ?");
 	$sth->execute($serial);
 	my ($status, $installed) = $sth->fetchrow_array;
 
+	# Redis key used to track *when* the valve was first observed closed
 	my $key = "valve:$serial:closed_since";
+
 	my $now = time();
 
-	# If valve is open or missing, clear timer and return 0 (open)
+	# --------------------------------------------------
+	# CASE 1: VALVE NOT CLOSED (or not installed)
+	# --------------------------------------------------
+	# If:
+	#   - valve is open
+	#   - valve is missing
+	#   - status does not match "close"
+	#
+	# Then:
+	#   - Reset any existing timer (important!)
+	#   - Immediately return 0 (definitively NOT closed)
+	#
+	# This ensures that "closed" must be continuous
+	# — any interruption resets the hysteresis window.
 	unless ($installed && $status =~ /close/i) {
 		$redis->del($key);
 		return 0;
 	}
 
+	# --------------------------------------------------
+	# CASE 2: VALVE JUST BECAME CLOSED (start timing)
+	# --------------------------------------------------
+	# Check when we first observed "closed"
 	my $closed_since = $redis->get($key);
 
-	# If first detection, set start time in Redis
+	# If no valid timestamp exists:
+	#   - This is the FIRST detection of closed state
+	#   - Start a timer in Redis
+	#   - Return undef (not stable yet)
 	if (!$closed_since || $closed_since !~ /^\d+$/) {
 		$redis->set($key, $now, 'EX', 3600);
+
+		# undef signals:
+		#   "we are in transition, do not evaluate alarm yet"
 		return undef;
 	}
 
-	# Only return 1 (closed) if enough time has passed
+	# --------------------------------------------------
+	# CASE 3: VALVE CLOSED LONG ENOUGH (stable state)
+	# --------------------------------------------------
+	# Only consider valve truly closed if it has remained
+	# closed continuously for valve_close_delay seconds.
+	#
+	# This prevents:
+	#   - rapid open/close jitter
+	#   - transient reporting glitches
+	#
+	# Return values:
+	#   1     → closed (stable)
+	#   undef → still waiting for stability
 	return ($now - $closed_since >= $cfg->{valve_close_delay}) ? 1 : undef;
 }
 
