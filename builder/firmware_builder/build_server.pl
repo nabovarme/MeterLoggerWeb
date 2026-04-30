@@ -54,7 +54,13 @@ chomp $cpu_cores;
 my $workers = $cpu_cores * 2;
 
 for (1..$workers) {
+	my $worker_id = $_;
+
 	my $pid = fork();
+
+	if (!defined $pid) {
+		die "Failed to fork worker $worker_id: $!";
+	}
 
 	if ($pid == 0) {
 
@@ -63,12 +69,15 @@ for (1..$workers) {
 			server => "$redis_host:$redis_port",
 		);
 
-		print "Worker $_ started (pid $$)\n";
+		print "Worker $worker_id started (pid $$)\n";
 
 		while ($running) {
 
 			my $job_json = $redis->blpop($REDIS_QUEUE, 1);
 			next unless $job_json;
+
+			# parent may be shutting down; don't start new work
+			next unless $running;
 
 			my ($queue, $data) = @$job_json;
 
@@ -86,9 +95,9 @@ for (1..$workers) {
 			);
 		}
 		
+		cleanup_all_batches();
 		print "Worker $$ exiting cleanly\n";
-
-		exit;
+		exit 0;
 	}
 }
 
@@ -201,7 +210,6 @@ sub print_progress {
 
 	if (($done + $skip + $fail) >= $total) {
 		print "ALL JOBS COMPLETED ($batch_id)\n";
-		cleanup_batch($batch_id);
 	}
 }
 
@@ -224,7 +232,9 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
-	my $batch_id = time();
+	my $batch_id = time();	# DEBUG is that uniq
+	
+	$redis->sadd("firmware_active_batches", $batch_id);
 
 	my $total_key = "firmware_jobs_total:$batch_id";
 	my $done_key  = "firmware_jobs_completed:$batch_id";
@@ -336,7 +346,8 @@ sub run_docker_build {
 	my $exit_code;
 
 	eval {
-		system($docker_cmd);
+#		system($docker_cmd);
+		system("$docker_cmd > /dev/null 2>&1");
 		$exit_code = $? >> 8;
 		$success = ($exit_code == 0);
 
@@ -510,14 +521,32 @@ sub generate_firmware_index {
 	close($fh);
 }
 
-sub cleanup_batch {
-	my ($batch_id) = @_;
+sub cleanup_all_batches {
+	# patterns for all keys we create
+	my @patterns = (
+		"firmware_jobs_total:*",
+		"firmware_jobs_completed:*",
+		"firmware_jobs_skipped:*",
+		"firmware_jobs_failed:*",
+		"firmware_active_batches",
+		"build-lock:*",
+	);
 
-	$redis->del("firmware_jobs_total:$batch_id");
-	$redis->del("firmware_jobs_completed:$batch_id");
-	$redis->del("firmware_jobs_skipped:$batch_id");
-	$redis->del("firmware_jobs_failed:$batch_id");
+	foreach my $pattern (@patterns) {
 
-	print "Cleaned up Redis batch keys for $batch_id\n";
+		my $cursor = 0;
+
+		do {
+			my ($new_cursor, $keys) = $redis->scan($cursor, MATCH => $pattern, COUNT => 1000);
+			$cursor = $new_cursor;
+
+			foreach my $key (@$keys) {
+				print "Deleting key: $key\n";
+				$redis->del($key);
+			}
+
+		} while ($cursor != 0);
+	}
+
+	print "Cleaned up all firmware-related Redis keys\n";
 }
-
