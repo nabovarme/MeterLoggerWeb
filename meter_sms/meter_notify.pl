@@ -5,8 +5,9 @@ use warnings;
 use utf8;
 use Data::Dumper;
 use DBI;
-use Storable qw(store retrieve);
+# use Storable qw(store retrieve); # Replaced by Redis
 use File::Path qw(make_path);
+use Redis;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -29,22 +30,19 @@ my $CLOSE_THRESHOLD = 1;
 
 # --- Spam protection (max SMS per phone number per hour) ---
 my $SMS_MAX_PER_HOUR = 5;   # maximum SMS per phone number per hour
-my $STATE_DIR        = '/var/run/app_state';
-my $SMS_STATE_FILE   = "$STATE_DIR/sms_timestamps.dat";
-my %sms_timestamps;         # hash: phone_number => array of epoch times
+# my $STATE_DIR        = '/var/run/app_state'; # Replaced by Redis
+# my $SMS_STATE_FILE   = "$STATE_DIR/sms_timestamps.dat"; # Replaced by Redis
+# my %sms_timestamps;         # hash: phone_number => array of epoch times
 
-# ensure state directory exists
-make_path($STATE_DIR) unless -d $STATE_DIR;
+# --- Redis Configuration ---
+my $redis_host = $ENV{'REDIS_HOST'}
+	or die "ERROR: REDIS_HOST environment variable not set";
 
-# load previous state if it exists
-if (-f $SMS_STATE_FILE) {
-	eval {
-		%sms_timestamps = %{ retrieve($SMS_STATE_FILE) };
-	};
-	if ($@) {
-		warn "Failed to load SMS state file: $@";
-	}
-}
+my $redis_port = $ENV{'REDIS_PORT'}
+	or die "ERROR: REDIS_PORT environment variable not set";
+
+my $redis = Redis->new(server => "$redis_host:$redis_port");
+my $REDIS_SMS_PREFIX = "sms_flood";
 
 my ($dbh, $sth, $d);
 
@@ -264,12 +262,17 @@ sub sms_send {
 	my @numbers = ($d->{sms_notification} =~ /(\d+)(?:,\s?)*/g);
 	foreach my $num (@numbers) {
 		my $now = time();
+		my $redis_key = "$REDIS_SMS_PREFIX:$num";
 
-		# --- Remove timestamps older than 1 hour for this number ---
-		$sms_timestamps{$num} = [ grep { $_ > $now - 3600 } @{ $sms_timestamps{$num} // [] } ];
+		# --- Redis-based Flood Protection ---
+		# Fetch existing timestamps for this number
+		my @timestamps = $redis->lrange($redis_key, 0, -1);
+		
+		# Filter timestamps older than 1 hour
+		my @valid_timestamps = grep { $_ > $now - 3600 } @timestamps;
 
 		# --- Check hourly limit per number ---
-		if ( @{ $sms_timestamps{$num} } >= $SMS_MAX_PER_HOUR ) {
+		if ( scalar(@valid_timestamps) >= $SMS_MAX_PER_HOUR ) {
 			log_warn("SMS hourly limit reached ($SMS_MAX_PER_HOUR) for 45$num. Skipping $type SMS", { -custom_tag => 'SMS' });
 			next;
 		}
@@ -278,15 +281,12 @@ sub sms_send {
 		my $ok = send_notification($num, $message);
 
 		if ($ok) {
-			push @{ $sms_timestamps{$num} }, $now;
-
-			# --- persist state to file after each successful SMS ---
-			eval {
-				store \%sms_timestamps, $SMS_STATE_FILE;
-			};
-			if ($@) {
-				log_warn("Failed to save SMS state file: $@");
-			}
+			# Add current timestamp to Redis list
+			$redis->lpush($redis_key, $now);
+			
+			# Keep the list size efficient and set 1 hour expiration
+			$redis->ltrim($redis_key, 0, $SMS_MAX_PER_HOUR);
+			$redis->expire($redis_key, 3600);
 		} else {
 			log_warn("Failed to send SMS to 45$num", { -custom_tag => 'SMS' });
 		}
