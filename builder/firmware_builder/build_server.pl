@@ -21,6 +21,11 @@ my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
 my $REDIS_ACTIVE_BATCHES = "firmware_active_batches";
 my $REDIS_PENDING_TRIGGERS = "firmware_pending_triggers";
+my $REDIS_JOBS_TOTAL = "firmware_jobs_total";
+my $REDIS_JOBS_DONE = "firmware_jobs_completed";
+my $REDIS_JOBS_SKIP = "firmware_jobs_skipped";
+my $REDIS_JOBS_FAIL = "firmware_jobs_failed";
+my $REDIS_BUILD_LOCK = "build-lock";
 
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -126,35 +131,35 @@ print "Workers started\n";
 # Trigger listener (parent)
 while ($running) {
 
-	# 1. Listen for new triggers and put them in a pending list
+	# 1. Listen for new triggers and put them in the pending list
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
 	if ($data) {
 		my (undef, $payload) = @$data;
 		$redis->rpush($REDIS_PENDING_TRIGGERS, $payload);
-		print "New build trigger queued. Pending triggers: " . $redis->llen($REDIS_PENDING_TRIGGERS) . "\n";
+		print "Trigger added to pending queue\n";
 	}
 
-	# 2. Check if a batch is currently running
+	# 2. Check if a batch is currently active
 	my $current_batch = $redis->lindex($REDIS_ACTIVE_BATCHES, 0);
-	
+
 	if ($current_batch) {
-		# A batch is active, check if it's finished
-		my $total = $redis->get("firmware_jobs_total:$current_batch") || 0;
-		my $done  = $redis->get("firmware_jobs_completed:$current_batch") || 0;
-		my $skip  = $redis->get("firmware_jobs_skipped:$current_batch") || 0;
-		my $fail  = $redis->get("firmware_jobs_failed:$current_batch") || 0;
+		# Existing batch is running, check completion status
+		my $total = $redis->get("$REDIS_JOBS_TOTAL:$current_batch") || 0;
+		my $done  = $redis->get("$REDIS_JOBS_DONE:$current_batch") || 0;
+		my $skip  = $redis->get("$REDIS_JOBS_SKIP:$current_batch") || 0;
+		my $fail  = $redis->get("$REDIS_JOBS_FAIL:$current_batch") || 0;
 
 		if ($total > 0 && ($done + $skip + $fail) >= $total) {
-			print "Batch $current_batch fully completed. Removing from active queue.\n";
+			print "Batch $current_batch completed. Cleaning up.\n";
 			$redis->lpop($REDIS_ACTIVE_BATCHES);
 			generate_firmware_index();
 		}
 	} else {
-		# No batch is active, check if we have a pending trigger to start
-		my $pending_payload = $redis->lpop($REDIS_PENDING_TRIGGERS);
-		if ($pending_payload) {
-			my $trigger = decode_json($pending_payload);
-			print "Starting new batch processing...\n";
+		# No active batch, try to start the next pending trigger
+		my $next_payload = $redis->lpop($REDIS_PENDING_TRIGGERS);
+		if ($next_payload) {
+			my $trigger = decode_json($next_payload);
+			print "Starting new batch from pending triggers\n";
 			process_build($trigger);
 		}
 	}
@@ -260,10 +265,10 @@ sub build_flags_from_sw_version {
 sub print_progress {
 	my ($batch_id) = @_;
 
-	my $total = $redis->get("firmware_jobs_total:$batch_id") || 0;
-	my $done  = $redis->get("firmware_jobs_completed:$batch_id") || 0;
-	my $skip  = $redis->get("firmware_jobs_skipped:$batch_id") || 0;
-	my $fail  = $redis->get("firmware_jobs_failed:$batch_id") || 0;
+	my $total = $redis->get("$REDIS_JOBS_TOTAL:$batch_id") || 0;
+	my $done  = $redis->get("$REDIS_JOBS_DONE:$batch_id") || 0;
+	my $skip  = $redis->get("$REDIS_JOBS_SKIP:$batch_id") || 0;
+	my $fail  = $redis->get("$REDIS_JOBS_FAIL:$batch_id") || 0;
 
 	return if $total == 0;
 
@@ -299,10 +304,10 @@ sub process_build {
 	
 	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
 
-	my $total_key = "firmware_jobs_total:$batch_id";
-	my $done_key  = "firmware_jobs_completed:$batch_id";
-	my $skip_key  = "firmware_jobs_skipped:$batch_id";
-	my $fail_key  = "firmware_jobs_failed:$batch_id";
+	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
+	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
+	my $skip_key  = "$REDIS_JOBS_SKIP:$batch_id";
+	my $fail_key  = "$REDIS_JOBS_FAIL:$batch_id";
 
 	my $job_count = 0;
 
@@ -335,18 +340,18 @@ sub process_build {
 		$redis->rpush($REDIS_QUEUE, $job);
 	}
 
-	print "All jobs enqueued for batch $batch_id\n";
+	print "All jobs enqueued\n";
 }
 
 sub run_docker_build {
 	my ($redis, $serial, $info, $version, $build_flags, $batch_id) = @_;
 
-	my $lock_key = "build-lock:$serial";
+	my $lock_key = "$REDIS_BUILD_LOCK:$serial";
 
-	my $total_key = "firmware_jobs_total:$batch_id";
-	my $done_key  = "firmware_jobs_completed:$batch_id";
-	my $skip_key  = "firmware_jobs_skipped:$batch_id";
-	my $fail_key  = "firmware_jobs_failed:$batch_id";
+	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
+	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
+	my $skip_key  = "$REDIS_JOBS_SKIP:$batch_id";
+	my $fail_key  = "$REDIS_JOBS_FAIL:$batch_id";
 
 	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
 
@@ -583,13 +588,14 @@ sub generate_firmware_index {
 sub cleanup_all_batches {
 	# patterns for all keys we create
 	my @patterns = (
-		"firmware_jobs_total:*",
-		"firmware_jobs_completed:*",
-		"firmware_jobs_skipped:*",
-		"firmware_jobs_failed:*",
-		"firmware_active_batches",
-		"firmware_pending_triggers",
-		"build-lock:*",
+		"$REDIS_JOBS_TOTAL:*",
+		"$REDIS_JOBS_DONE:*",
+		"$REDIS_JOBS_SKIP:*",
+		"$REDIS_JOBS_FAIL:*",
+		$REDIS_QUEUE,
+		$REDIS_ACTIVE_BATCHES,
+		$REDIS_PENDING_TRIGGERS,
+		"$REDIS_BUILD_LOCK:*",
 	);
 
 	foreach my $pattern (@patterns) {
