@@ -37,68 +37,138 @@ use constant INITIAL_NO_BACKOFF => 2;
 
 use constant MAX_DATA_AGE => 86400; # seconds (e.g. 1 day)
 
+# --------------------------------------------------
+# AUTOFUSH OUTPUT ENABLED
+# --------------------------------------------------
+# $| = 1 forces immediate flushing of STDOUT.
 $| = 1;
 
+# Script name derived from invocation name ($0)
+# Used for logging / identification purposes
 my $script_name = basename($0 . ".pl");
 
-# --------------------------
-# REDIS
-# --------------------------
-# Redis stores real-time timestamps to track how long a condition has been true (anti-hysteresis)
+# ==================================================
+# REDIS INITIALIZATION (REAL-TIME STATE STORE)
+# ==================================================
+# Redis is used as a fast, ephemeral state layer for:
+#   - hysteresis timers (valve/flow stability)
+#   - alarm transition tracking
+#   - real-time sensor cache
+#
+# This is NOT long-term storage — it is temporal state only.
+
+# Redis host must be explicitly provided via environment
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
+# Redis port must also be explicitly provided
 my $redis_port = $ENV{'REDIS_PORT'}
 	or die "ERROR: REDIS_PORT environment variable not set";
 
+# Connect to Redis server
 my $redis = Redis->new(server => "$redis_host:$redis_port");
 
-# --------------------------
-# DB
-# --------------------------
-my $dbh = Nabovarme::Db->my_connect or log_die("Can't connect to DB: $!");
+# ==================================================
+# DATABASE INITIALIZATION (SYSTEM OF RECORD)
+# ==================================================
+# DB holds:
+#   - alarm definitions
+#   - meter metadata
+#   - historical sensor samples
+#
+# Unlike Redis, DB is persistent and authoritative.
+my $dbh = Nabovarme::Db->my_connect
+	or log_die("Can't connect to DB: $!");
+
+# Enable auto-reconnect to survive transient DB failures
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 log_debug("Connected to DB");
 
-# --------------------------
-# SIGNALS
-# --------------------------
+# ==================================================
+# SIGNAL HANDLING (GRACEFUL SHUTDOWN CONTROL)
+# ==================================================
+# This daemon is designed to run continuously.
+# Signals allow controlled shutdown without corrupting state.
+
 my $shutdown_requested = 0;
 
+# --------------------------------------------------
+# SIGTERM (normal service stop)
+# --------------------------------------------------
+# Used by systemd / orchestration systems
+# → finish current loop, then exit cleanly
 $SIG{TERM} = sub {
 	log_debug("SIGTERM received, will shutdown after current loop...");
 	$shutdown_requested = 1;
 };
 
+# --------------------------------------------------
+# SIGINT (manual interruption: Ctrl+C)
+# --------------------------------------------------
+# Same behavior as SIGTERM for consistency
 $SIG{INT} = sub {
 	log_debug("SIGINT received, will shutdown after current loop...");
 	$shutdown_requested = 1;
 };
 
-# SIGHUP can be used to trigger a status dump of all internal Redis timers to logs
+# --------------------------------------------------
+# SIGHUP (diagnostic trigger)
+# --------------------------------------------------
+# Does NOT stop the process.
+# Instead triggers a full Redis state dump for debugging:
+#   - valve timers
+#   - flow timers
+#   - alarm transition states
 $SIG{HUP} = sub {
 	redis_log_snapshot();
 };
 
-# --------------------------
-# CONFIG
-# --------------------------
+# ==================================================
+# RUNTIME CONFIGURATION STORE
+# ==================================================
+# Holds per-serial runtime overrides derived from DB + constants.
+# Rebuilt each cycle in process_alarms().
 my $alarm_config = {};
 
-# --------------------------
+# ==================================================
 # MAIN LOOP
-# --------------------------
+# ==================================================
+# This is a polling-based scheduler running forever:
+#
+# Cycle flow:
+#   1. generate run_id (timestamp)
+#   2. evaluate all alarms
+#   3. optionally dump debug snapshot
+#   4. sleep 60s
+#
+# Each loop is independent and stateless except Redis/DB.
+
 while (1) {
+
+	# Unique identifier for this evaluation cycle
+	# Used for logging correlation across alarms
 	my $run_id = time();
 
 	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
 		-custom_tag => "MAIN:$run_id"
 	});
 
+	# Core system function:
+	#   loads alarms → resolves state → evaluates → triggers actions
 	process_alarms($run_id);
 
+	# --------------------------------------------------
+	# GRACEFUL SHUTDOWN CHECK
+	# --------------------------------------------------
+	# Signal handlers only set a flag.
+	# Actual exit happens here between cycles.
 	last if $shutdown_requested;
+
+	# Fixed polling interval (1 minute)
+	# This defines system responsiveness vs load tradeoff:
+	#   - lower = faster reaction, more load
+	#   - higher = lower load, slower detection
 	sleep 60;
 }
 
