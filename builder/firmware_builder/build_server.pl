@@ -111,7 +111,6 @@ for (1..$workers) {
 			);
 		}
 
-		cleanup_all_batches();
 		print "Worker $$ exiting cleanly\n";
 		exit 0;
 	}
@@ -152,6 +151,7 @@ foreach my $pid (@worker_pids) {
 }
 
 print "All workers shut down cleanly\n";
+cleanup_all_batches();
 
 # =========================
 # ORIGINAL FUNCTIONS BELOW
