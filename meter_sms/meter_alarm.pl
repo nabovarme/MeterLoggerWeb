@@ -320,35 +320,72 @@ sub interpolate_variables {
 sub resolve_var {
 	my ($var, $alarm) = @_;
 
+	# Context
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
 
+	# --------------------------------------------------
+	# DIRECT FIELD MAPPINGS (no computation)
+	# --------------------------------------------------
+	# These variables come directly from the already-fetched
+	# alarm + meter JOIN query → no need for Redis/DB lookup.
 	if ($var eq 'info' || $var eq 'valve_status' || $var eq 'valve_installed' || $var eq 'last_updated') {
 		return $alarm->{$var};
 	}
 
+	# Serial is explicitly exposed for templating / conditions
 	if ($var eq 'serial') {
 		return $serial;
 	}
 
+	# --------------------------------------------------
+	# OFFLINE DETECTION
+	# --------------------------------------------------
+	# Returns "seconds since last update"
+	# → allows conditions like: $offline > 600
+	# Note: this does a DB lookup each time (potential hotspot)
 	if ($var eq 'offline') {
 		my $sth = $dbh->prepare("SELECT last_updated FROM meters WHERE serial = ?");
 		$sth->execute($serial);
 		my ($lu) = $sth->fetchrow_array;
+
+		# If no timestamp exists, treat as "just updated"
+		# (prevents false massive offline values)
 		return time() - ($lu || time());
 	}
 
+	# --------------------------------------------------
+	# VALVE STATE (already anti-hysteresis filtered upstream)
+	# --------------------------------------------------
+	# This value is precomputed by check_delayed_valve_closed()
+	# and represents a *stable* interpretation:
+	#   1 = closed (stable)
+	#   0 = open
+	#   undef = still transitioning (handled earlier)
 	if ($var eq 'closed') {
 		return $alarm->{closed_status};
 	}
 
-	# Leakage logic: requires flow to be > 0 for LEAKAGE_DELAY seconds
+	# --------------------------------------------------
+	# LEAKAGE DETECTION (time-filtered flow)
+	# --------------------------------------------------
+	# This implements temporal hysteresis:
+	#   flow must be > 0 continuously for leakage_delay seconds
+	#
+	# Returns:
+	#   0     → no leakage (or not stable yet)
+	#   >0    → leakage (actual flow value)
+	#
+	# NOTE: returns FLOW VALUE, not boolean
 	if ($var eq 'leakage') {
 
-		my $key = "flow:$serial:leak_since";
+		my $key = "flow:$serial:leak_since";  # Redis timer key
 		my $now = time();
 
-		# direct flow lookup (no recursion)
+		# --------------------------------------
+		# STEP 1: Fetch current flow value
+		# --------------------------------------
+		# Prefer Redis (fast, real-time), fallback to DB
 		my $flow;
 
 		my $redis_key = "sensor:$serial:flow:last_value";
@@ -356,6 +393,7 @@ sub resolve_var {
 
 		if (!defined $flow || $flow eq '') {
 
+			# Fallback: latest DB sample
 			my $sth = $dbh->prepare(qq[
 				SELECT flow
 				FROM samples_cache
@@ -368,35 +406,58 @@ sub resolve_var {
 			($flow) = $sth->fetchrow_array;
 		}
 
+		# Normalize undefined → 0
 		$flow ||= 0;
 
-		# no flow → reset timer
+		# --------------------------------------
+		# STEP 2: Reset if no flow
+		# --------------------------------------
+		# Any interruption cancels leakage detection
 		if ($flow <= 0) {
 			$redis->del($key);
 			return 0;
 		}
 
+		# --------------------------------------
+		# STEP 3: Check when flow started
+		# --------------------------------------
 		my $since = $redis->get($key);
 
-		# first detection → start timer
+		# First detection → start timer
 		if (!$since || $since !~ /^\d+$/) {
 			$redis->set($key, $now, 'EX', 3600);
-			return 0;
+			return 0; # not yet stable
 		}
 
-		# only count as leakage after delay
+		# --------------------------------------
+		# STEP 4: Apply delay threshold
+		# --------------------------------------
+		# Only report leakage if flow persisted long enough
 		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
 	}
 
-	# volume_day / energy_day calculated over last 24h - delay window
+	# --------------------------------------------------
+	# DAILY DELTA CALCULATIONS (volume / energy)
+	# --------------------------------------------------
+	# Computes usage over last 24h (minus delay window)
+	#
+	# Why subtract delay?
+	# → Aligns with valve hysteresis so we don't include
+	#   unstable transition periods in calculations.
+	#
+	# Uses "first value" and "last value" approach:
+	#   delta = last - first
 	if ($var eq 'volume_day' or $var eq 'energy_day') {
 
 		my $column = $var eq 'volume_day' ? 'volume' : 'energy';
 
+		# Extend window backwards by valve delay to avoid edge effects
 		my $delay = $alarm_config->{$serial}->{valve_close_delay} // VALVE_CLOSE_DELAY;
 		my $since = time() - 86400 - $delay;
 
-		# Get earliest sample after time window
+		# --------------------------------------
+		# STEP 1: Get earliest value in window
+		# --------------------------------------
 		my $sth = $dbh->prepare(qq[
 			SELECT $column
 			FROM samples_cache
@@ -410,7 +471,9 @@ sub resolve_var {
 		my ($first_val) = $sth->fetchrow_array;
 		$first_val = 0 unless defined $first_val;
 
-		# Get latest sample in same window
+		# --------------------------------------
+		# STEP 2: Get latest value in window
+		# --------------------------------------
 		$sth = $dbh->prepare(qq[
 			SELECT $column
 			FROM samples_cache
@@ -424,20 +487,36 @@ sub resolve_var {
 		my ($last_val) = $sth->fetchrow_array;
 		$last_val = 0 unless defined $last_val;
 
+		# --------------------------------------
+		# STEP 3: Compute delta
+		# --------------------------------------
 		my $delta = $last_val - $first_val;
 
-		# Protect against counter resets / rollover
+		# Protect against counter reset / rollover
+		# (e.g. meter restart or overflow)
 		$delta = 0 if $delta < 0;
 
-		return $delta + 0;
+		return $delta + 0; # force numeric
 	}
 	
-	# ---- generic sensor fallback ----
+	# --------------------------------------------------
+	# GENERIC SENSOR FALLBACK
+	# --------------------------------------------------
+	# Handles arbitrary variables like:
+	#   $temperature, $pressure, etc.
+	#
+	# Strategy:
+	#   1. Try Redis (latest real-time value)
+	#   2. Fallback to DB (median of last 5 samples)
 	my $redis_key = "sensor:$serial:$var:last_value";
 	my $val = $redis->get($redis_key);
 
+	# --------------------------------------
+	# REDIS MISS → fallback to DB
+	# --------------------------------------
 	if (!defined $val || $val eq '') {
 
+		# Backtick-quote column name to avoid SQL keyword conflicts
 		my $quoted_var = '`' . $var . '`';
 
 		my $sth = $dbh->prepare(qq[
@@ -453,17 +532,23 @@ sub resolve_var {
 
 		return undef unless @$rows;
 
+		# Extract numeric values, ignore NULLs
 		my @values = map {
 			defined $_->[0] ? $_->[0] + 0.0 : ()
 		} @$rows;
 
 		return undef unless @values;
 
+		# Use median instead of mean:
+		# → robust against spikes / outliers
 		my $median_val = median(@values);
 
 		return $median_val + 0.0;
 	}
 
+	# --------------------------------------
+	# REDIS HIT → return immediately
+	# --------------------------------------
 	return $val + 0;
 }
 
