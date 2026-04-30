@@ -80,6 +80,6 @@ COPY ./meter_sms/docker-entrypoint.sh /docker-entrypoint.sh
 RUN mkdir /var/www/nabovarme/sms_spool
 RUN chown -R www-data:www-data /var/www/nabovarme/sms_spool
 
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]

@@ -56,7 +56,7 @@ RUN for pkg in /opt/local-debs/*.deb; do \
 RUN apt-get update && apt-get -f install -y && rm -rf /var/lib/apt/lists/*
 
 # --- Environment ---
-ENV PERL5LIB=/etc/apache2/perl:${PERL5LIB}
+ENV PERL5LIB=/etc/apache2/perl
 
 # --- Logs to Docker stdout/stderr ---
 RUN ln -sf /dev/stdout /var/log/apache2/access.log \

@@ -98,4 +98,4 @@ RUN mkdir -p release
 
 COPY ./perl /meterlogger/perl
 
-CMD /docker-entrypoint.sh
+CMD ["/docker-entrypoint.sh"]
