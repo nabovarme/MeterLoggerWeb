@@ -168,7 +168,15 @@ sub evaluate_alarm {
 	my $now = time();
 	my $last_updated = $alarm->{last_updated};
 
-	# Safety: ignore data older than 24 hours
+	# --------------------------------------------------
+	# SAFETY: IGNORE STALE DATA
+	# --------------------------------------------------
+	# If meter data is too old, we skip evaluation entirely.
+	# This prevents:
+	#   - false alarms due to disconnected devices
+	#   - acting on outdated sensor values
+	#
+	# MAX_DATA_AGE acts as a hard cutoff (e.g. 24h)
 	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
@@ -176,15 +184,26 @@ sub evaluate_alarm {
 		return;
 	}
 
+	# Context
 	my $serial = $alarm->{serial};
 	my $cfg = $alarm_config->{$serial};
 
+	# --------------------------------------------------
+	# SNOOZE AUTH KEY MANAGEMENT
+	# --------------------------------------------------
+	# Each alarm notification includes a key used for snoozing.
+	# Reuse existing key if present, otherwise generate a new one.
 	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
 	my $quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
 
+	# Raw condition string from DB (e.g. "$flow > 10 && $closed")
 	my $condition = $alarm->{condition};
 
-	# Prepare messages with substituted values
+	# --------------------------------------------------
+	# MESSAGE TEMPLATE EXPANSION
+	# --------------------------------------------------
+	# Substitute variables into user-defined templates
+	# (e.g. $serial, $flow, $snooze_auth_key, etc.)
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
@@ -192,13 +211,32 @@ sub evaluate_alarm {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
 
-	# Anti-hysteresis check for valve closure
+	# --------------------------------------------------
+	# VALVE ANTI-HYSTERESIS GATE
+	# --------------------------------------------------
+	# Evaluate delayed valve state (returns: 0, 1, or undef)
+	#
+	# If result is undef:
+	#   → valve is in transition (not stable yet)
+	#   → abort evaluation entirely for this cycle
+	#
+	# This prevents evaluating alarm conditions while
+	# the valve state is still "settling".
 	my $closed_status = check_delayed_valve_closed($serial);
 	return if not defined $closed_status;
 
+	# Store stable valve state for downstream variable resolution
 	$alarm->{closed_status} = $closed_status;
 
-	# Variable interpolation: replacing tokens like $flow or $closed with real data
+	# --------------------------------------------------
+	# VARIABLE INTERPOLATION
+	# --------------------------------------------------
+	# Replace variables in condition string:
+	#   $closed → already resolved above (fast path)
+	#   $flow, $temperature, etc. → resolved dynamically
+	#
+	# NOTE: $closed is replaced explicitly first to avoid
+	# unnecessary lookup in resolve_var()
 	$condition =~ s/\$closed/$closed_status/g;
 	$condition = interpolate_variables($condition, $alarm);
 
@@ -209,7 +247,18 @@ sub evaluate_alarm {
 	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
 
-	# Safe evaluation of the condition string as Perl logic
+	# --------------------------------------------------
+	# CONDITION EVALUATION (dynamic logic)
+	# --------------------------------------------------
+	# The condition string is evaluated as Perl code.
+	# Example after interpolation:
+	#   "12 > 10 && 1"
+	#
+	# Returns truthy/falsey → used as alarm state
+	#
+	# IMPORTANT:
+	#   - strict/warnings disabled to allow flexible expressions
+	#   - errors are caught and persisted to DB
 	{
 		local $@;
 		no strict;
@@ -217,24 +266,29 @@ sub evaluate_alarm {
 
 		$eval_alarm_state = eval $condition;
 
+		# --------------------------------------
+		# ERROR HANDLING
+		# --------------------------------------
 		if ($@) {
 			log_warn("Eval error: $@");
 
 			my $err = $dbh->quote($@);
 
+			# Persist error for visibility/debugging
 			$dbh->do(qq[
 				UPDATE alarms
 				SET condition_error = $err
 				WHERE id = $quoted_id
 			]);
 
-			return;
+			return; # skip alarm handling on error
 		}
 
 		log_debug("eval_result=$eval_alarm_state condition=$condition", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
 
+		# Clear previous error if evaluation succeeds
 		$dbh->do(qq[
 			UPDATE alarms
 			SET condition_error = NULL
@@ -242,8 +296,22 @@ sub evaluate_alarm {
 		]);
 	}
 
-	# Delegate to handle_alarm for state transitions and SMS sending
-	handle_alarm($alarm, $eval_alarm_state, $down_message, $up_message, $quoted_snooze_auth_key);
+	# --------------------------------------------------
+	# STATE TRANSITION + NOTIFICATION HANDLING
+	# --------------------------------------------------
+	# Delegate to handle_alarm(), which manages:
+	#   - alarm state transitions (0 ↔ 1)
+	#   - notification sending (SMS)
+	#   - repeat intervals / exponential backoff
+	#   - snooze handling
+	#   - anti-flapping clear delay
+	handle_alarm(
+		$alarm,
+		$eval_alarm_state,
+		$down_message,
+		$up_message,
+		$quoted_snooze_auth_key
+	);
 }
 
 # --------------------------
