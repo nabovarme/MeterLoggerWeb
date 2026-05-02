@@ -762,6 +762,10 @@ sub resolve_var {
 # ALARM HANDLER
 # --------------------------
 # Manages state changes, snooze, and exponential backoff for notifications
+# --------------------------
+# ALARM HANDLER
+# --------------------------
+# Manages state changes, snooze, and exponential backoff for notifications
 sub handle_alarm {
 	my ($alarm, $state, $down, $up, $key) = @_;
 
@@ -778,7 +782,6 @@ sub handle_alarm {
 	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
 
 	# Redis key used to persist serial ↔ alarm mapping
-	# (useful for debugging / snapshot logging even if DB data is incomplete)
 	my $redis_serial_key = "alarm:$alarm->{id}:serial";
 
 	# Number of times this alarm has been triggered (used for backoff logic)
@@ -847,8 +850,8 @@ sub handle_alarm {
 				$interval = $alarm->{repeat};
 			}
 
-			# Check if enough time has passed since last notification
-			# Includes snooze delay (user-suppressed notifications)
+			# Only proceed with notification logic if we are outside the snooze window
+			# This keeps the DB "frozen" (no count increase, no timestamp update) while snoozed
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
 
 				# Send repeated alarm notification
@@ -856,9 +859,6 @@ sub handle_alarm {
 
 				# Increment occurrence count (affects future backoff)
 				$count++;
-
-				# Update in-memory timestamp (used for next iteration)
-				$alarm->{last_notification} = $now;
 
 				# Persist updated state
 				$dbh->do(qq[
