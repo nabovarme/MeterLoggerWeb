@@ -30,9 +30,6 @@ my $CLOSE_THRESHOLD = 1;
 
 # --- Spam protection (max SMS per phone number per hour) ---
 my $SMS_MAX_PER_HOUR = 5;   # maximum SMS per phone number per hour
-# my $STATE_DIR        = '/var/run/app_state'; # Replaced by Redis
-# my $SMS_STATE_FILE   = "$STATE_DIR/sms_timestamps.dat"; # Replaced by Redis
-# my %sms_timestamps;         # hash: phone_number => array of epoch times
 
 # --- Redis Configuration ---
 my $redis_host = $ENV{'REDIS_HOST'}
