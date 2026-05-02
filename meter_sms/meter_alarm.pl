@@ -887,8 +887,16 @@ sub handle_alarm {
 		# If this is the first time we see a normal state,
 		# start a timer instead of clearing immediately.
 		if (!$since) {
-			$redis->set($redis_clear_key, $now, 'EX', 3600);
-			return; # wait for stability before clearing
+    $redis->set($redis_clear_key, $now, 'EX', 3600);
+
+    # reset snooze immediately on recovery start
+    $dbh->do(qq[
+        UPDATE alarms
+        SET snooze = 0
+        WHERE id = $id
+    ]);
+
+	   return;
 		}
 
 		# --------------------------------------------------
