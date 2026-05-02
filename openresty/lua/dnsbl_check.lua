@@ -4,12 +4,13 @@ local _M = {}
 
 -- Local requires only
 local resolver = require("resty.dns.resolver")
-local lfs = require("lfs")  -- LuaFileSystem
+local lfs = require("lfs")
 local ngx = ngx
 local io = io
 local string = string
 local ipairs = ipairs
 local pcall = pcall
+local table = table
 
 -- Shared memory cache
 local cache = ngx.shared.dnsbl_cache
@@ -19,6 +20,16 @@ local dnsbls = {
 	"sbl.spamhaus.org",
 	"xbl.spamhaus.org",
 	"bl.spamcop.net"
+}
+
+-- Optional decoding for Spamhaus-style return codes
+local spamhaus_codes = {
+	["127.0.0.2"] = "Spam source",
+	["127.0.0.3"] = "Spam source (snowshoe)",
+	["127.0.0.4"] = "Open relay",
+	["127.0.0.5"] = "Known spam bot",
+	["127.0.0.6"] = "Botnet C&C",
+	["127.0.0.7"] = "Spam support service",
 }
 
 -- Directory containing .txt files with whitelisted IPs
@@ -108,10 +119,45 @@ local function is_ip_blacklisted(ip)
 
 		local answers, qerr = r:query(query, { qtype = r.TYPE_A })
 
-		if answers and not answers.errcode then
-			ngx.log(ngx.WARN, "DNSBL HIT: ", ip, " is blacklisted on ", bl)
+		if answers and #answers > 0 and not answers.errcode then
+			local codes = {}
+			local decoded = {}
+
+			for _, ans in ipairs(answers) do
+				if ans.address then
+					table.insert(codes, ans.address)
+
+					-- Decode known Spamhaus-style codes
+					if spamhaus_codes[ans.address] then
+						table.insert(decoded, spamhaus_codes[ans.address])
+					end
+				end
+			end
+
+			ngx.log(ngx.WARN,
+				"DNSBL HIT: ", ip,
+				" listed on ", bl,
+				" | codes: ", table.concat(codes, ", "),
+				" | decoded: ", (#decoded > 0 and table.concat(decoded, ", ") or "n/a")
+			)
+
+			-- Try TXT lookup for more info
+			local txt_answers = r:query(query, { qtype = r.TYPE_TXT })
+			if txt_answers and not txt_answers.errcode then
+				for _, txt in ipairs(txt_answers) do
+					if txt.txt then
+						ngx.log(ngx.WARN,
+							"DNSBL TXT info for ", ip,
+							" on ", bl, ": ",
+							table.concat(txt.txt, " ")
+						)
+					end
+				end
+			end
+
 			cache:set(cache_key, true, 3600)
 			return true
+
 		elseif qerr then
 			ngx.log(ngx.ERR, "DNSBL lookup failed for ", query, ": ", qerr)
 		else
