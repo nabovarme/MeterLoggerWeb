@@ -922,7 +922,7 @@ sub handle_alarm {
 				SET alarm_state=0,
 					alarm_count=0,
 					snooze=0,
-					snooze_auth_key=''
+					snooze_auth_key=NULL
 				WHERE id=$id
 			]);
 		}
