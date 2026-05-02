@@ -51,8 +51,9 @@ COPY openresty/lua/dnsbl_check.lua /usr/local/openresty/lualib/dnsbl_check.lua
 # Create html directory
 RUN mkdir -p /usr/local/openresty/html
 
-# Copy custom 502 page from Apache htdocs
+# Copy custom 502 and 403 page from Apache htdocs
 COPY htdocs/backend_down.html /usr/local/openresty/html/backend_down.html
+COPY htdocs/blocked_ip.html /usr/local/openresty/html/blocked_ip.html
 
 RUN mkdir /usr/local/openresty/lualib/dnsbl_whitelist
 
