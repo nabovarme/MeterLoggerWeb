@@ -504,8 +504,9 @@ document.addEventListener('DOMContentLoaded', function () {
 							</div>
 
 							<div>
-							  <strong>Predefined Aliases</strong><br>
-							  <span title="Alias for: $valve_status ne 'open' && $valve_installed">$closed</span>
+							  <strong>Predefined Variables</strong><br>
+							  <span title="Alias for: valve is stably closed (delayed/hysteresis checked)">$closed</span>,<br>
+							  <span title="Derived value: flow that has persisted over time AND only evaluates when valve is stably closed (leakage detection with hysteresis)">$leakage</span>
 							</div>
 
 							<div>
