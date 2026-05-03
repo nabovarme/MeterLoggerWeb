@@ -628,10 +628,21 @@ sub resolve_var {
 	# NOTE: returns FLOW VALUE, not boolean
 	if ($var eq 'leakage') {
 
-		my $key = "flow:$serial:leak_since";  # Redis timer key
+		# Only allow leakage evaluation if valve state is confirmed as
+		# stably CLOSED (i.e. passed hysteresis check via check_delayed_valve_closed()).
+		# Reject:
+		#   - undef → valve still transitioning (not stable yet)
+		#   - 0     → valve is open or invalid state
+		# Accept only:
+		#   - 1     → stable closed state
+
+		unless (defined $alarm->{closed_status} && $alarm->{closed_status} == 1) {
+			return 0;
+		}
+
+		my $key = "flow:$serial:leak_since";
 		my $now = time();
 
-		# Get current flow (no Redis cache used here)
 		my $sth = $dbh->prepare(qq[
 			SELECT flow
 			FROM samples_cache
@@ -643,10 +654,8 @@ sub resolve_var {
 		$sth->execute($serial);
 		my ($flow) = $sth->fetchrow_array;
 
-		# Normalize undefined → 0
 		$flow ||= 0;
 
-		# Any interruption cancels leakage detection
 		if ($flow <= 0) {
 			$redis->del($key);
 			return 0;
@@ -654,13 +663,11 @@ sub resolve_var {
 
 		my $since = $redis->get($key);
 
-		# First detection → start timer
 		if (!$since || $since !~ /^\d+$/) {
 			$redis->set($key, $now, 'EX', 3600);
-			return 0; # not yet stable
+			return 0;
 		}
 
-		# Only report leakage if flow persisted long enough
 		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
 	}
 
