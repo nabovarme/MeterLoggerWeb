@@ -1,6 +1,6 @@
 FROM debian:buster
 
-MAINTAINER Kristoffer Ek <stoffer@skulp.net>
+LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 # unrar is non-free
 RUN echo "deb http://deb.debian.org/debian buster non-free" >> /etc/apt/sources.list
