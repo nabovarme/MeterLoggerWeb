@@ -354,7 +354,7 @@ services:
     build:
       context: '.'
       dockerfile: ./builder/firmware_sdk/Dockerfile
-    image: firmware_sdk:latest
+#    image: firmware_sdk:latest
     container_name: firmware_sdk
     hostname: firmware-sdk
     volumes:
