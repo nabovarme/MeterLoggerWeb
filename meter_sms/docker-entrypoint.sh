@@ -5,8 +5,8 @@ set -e
 service postfix start
 
 # Start background scripts
-#/etc/apache2/perl/Nabovarme/bin/meter_notify.pl &
-#meter_notify_pid=$!
+/etc/apache2/perl/Nabovarme/bin/meter_notify.pl &
+meter_notify_pid=$!
 
 /etc/apache2/perl/Nabovarme/bin/meter_alarm.pl &
 meter_alarm_pid=$!
