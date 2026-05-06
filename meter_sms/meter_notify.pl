@@ -20,7 +20,7 @@ STDERR->autoflush(1);
 log_warn("Starting SMS notification script...");
 
 # --- Environment messages ---
-my $OPEN_MESSAGE           = $ENV{NOTIFICATION_OPEN_MESSAGE}           || 'Open notice: {info} open. {time_remaining} remaining, {kwh_remaining }kWh. ({serial})';
+my $OPEN_MESSAGE           = $ENV{NOTIFICATION_OPEN_MESSAGE}           || 'Open notice: {info} open. {time_remaining} remaining, {kwh_remaining}kWh. ({serial})';
 my $CLOSE_MESSAGE          = $ENV{NOTIFICATION_CLOSE_MESSAGE}          || 'Close notice: {info} closed. ({serial})';
 my $CLOSE_WARNING_MESSAGE  = $ENV{NOTIFICATION_CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining, {kwh_remaining} kWh. ({serial})';
 my $CLOSE_WARNING_TIME     = $ENV{NOTIFICATION_CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
