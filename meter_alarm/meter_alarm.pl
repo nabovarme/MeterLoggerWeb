@@ -345,9 +345,10 @@ sub evaluate_alarm {
 	# This prevents evaluating alarm conditions while
 	# the valve state is still "settling".
 	my $closed_status = check_delayed_valve_closed($serial);
-	return if not defined $closed_status;
 
-	# Store stable valve state for downstream variable resolution
+	# default-safe fallback hvis transition
+	$closed_status = 0 if !defined $closed_status;
+
 	$alarm->{closed_status} = $closed_status;
 
 	# --------------------------------------------------
