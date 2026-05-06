@@ -213,31 +213,48 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       TO_EMAIL: ${TO_EMAIL}
 
-  meter_sms:
+  meter_notify:
     build:
       context: '.'
-      dockerfile: ./meter_sms/Dockerfile
+      dockerfile: ./meter_notify/Dockerfile
+    container_name: meter_notify
+    hostname: meter-notify
     depends_on:
       db:
         condition: service_healthy
-      mqtt:
-        condition: service_healthy
       redis:
         condition: service_healthy
-    container_name: meter_sms
-    hostname: meter-sms
+      mqtt:
+        condition: service_healthy
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    restart: always
-    stop_grace_period: 30s
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       NOTIFICATION_OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
       NOTIFICATION_CLOSE_MESSAGE: ${NOTIFICATION_CLOSE_MESSAGE}
       NOTIFICATION_CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}
-      TZ: 'Europe/Copenhagen'
+      TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+    restart: always
+
+  meter_alarm:
+    build:
+      context: '.'
+      dockerfile: ./meter_alarm/Dockerfile
+    container_name: meter_alarm
+    hostname: meter-alarm
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: Europe/Copenhagen
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+    restart: always
 
   meter_cron:
     build:
