@@ -20,9 +20,9 @@ STDERR->autoflush(1);
 log_warn("Starting SMS notification script...");
 
 # --- Environment messages ---
-my $OPEN_MESSAGE           = $ENV{NOTIFICATION_OPEN_MESSAGE}           || 'Open notice: {info} open. {time_remaining} remaining. ({serial})';
+my $OPEN_MESSAGE           = $ENV{NOTIFICATION_OPEN_MESSAGE}           || 'Open notice: {info} open. {time_remaining} remaining, {kwh_remaining }kWh. ({serial})';
 my $CLOSE_MESSAGE          = $ENV{NOTIFICATION_CLOSE_MESSAGE}          || 'Close notice: {info} closed. ({serial})';
-my $CLOSE_WARNING_MESSAGE  = $ENV{NOTIFICATION_CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining. ({serial})';
+my $CLOSE_WARNING_MESSAGE  = $ENV{NOTIFICATION_CLOSE_WARNING_MESSAGE}  || 'Close warning: {info}. {time_remaining} remaining, {kwh_remaining} kWh. ({serial})';
 my $CLOSE_WARNING_TIME     = $ENV{NOTIFICATION_CLOSE_WARNING_TIME}     || 3 * 24; # 3 days in hours
 
 my $HYST = 0.5;
@@ -248,12 +248,15 @@ sub sms_send {
 	my $est = Nabovarme::EnergyEstimator::estimate_remaining_energy($dbh, $serial, 1);
 	my $time_remaining_string = $est->{time_remaining_hours_string} // '∞';
 	my $info                  = $d->{info} // '';
+	my $kwh_remaining         = $est->{kwh_remaining} // 0;
+	$kwh_remaining = int($kwh_remaining + 0.5);
 
 	# --- Substitute placeholders ---
 	my $message = $message_template;
 	$message =~ s/\{serial\}/$serial/g;
 	$message =~ s/\{info\}/$info/g;
 	$message =~ s/\{time_remaining\}/$time_remaining_string/g;
+	$message =~ s/\{kwh_remaining\}/$kwh_remaining/g;
 
 	# --- Send SMS to all numbers ---
 	my @numbers = ($d->{sms_notification} =~ /(\d+)(?:,\s?)*/g);
