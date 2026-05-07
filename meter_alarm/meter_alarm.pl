@@ -908,14 +908,16 @@ sub handle_alarm {
 		# --------------------------------------------------
 		# If this is the first time we see a normal state,
 		# start a timer instead of clearing immediately.
-		if (!$since) {
+		# Only begin clear hysteresis if alarm is currently active
+		if ($alarm->{alarm_state} == 1 && !$since) {
+
 			$redis->set($redis_clear_key, $now, 'EX', 3600);
 
 			# reset snooze immediately on recovery start
 			$dbh->do(qq[
-				UPDATE alarms
-				SET snooze = 0
-				WHERE id = $id
+			UPDATE alarms
+			SET snooze = 0
+			WHERE id = $id
 			]);
 
 			return;
