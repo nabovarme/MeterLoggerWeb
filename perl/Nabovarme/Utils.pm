@@ -18,6 +18,9 @@ our @EXPORT = qw(
 	log_warn
 	log_debug
 	log_die
+	enable_debug
+	disable_debug
+	set_debug
 );
 
 $| = 1;  # Autoflush STDOUT
@@ -28,6 +31,23 @@ binmode(STDERR, ":encoding(UTF-8)");
 
 # Get the basename of the script, without path or .pl extension
 my $script_name = basename($0, ".pl");
+
+# Runtime debug state
+our $DEBUG_ENABLED = ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true|yes)$/i;
+
+# Toggle debug logging with SIGUSR1
+$SIG{USR1} = sub {
+	local $@;
+
+	$DEBUG_ENABLED = !$DEBUG_ENABLED;
+
+	eval {
+		log_info(
+			"Debug " . ($DEBUG_ENABLED ? "enabled" : "disabled"),
+			{ -custom_tag => 'SIGNAL' }
+		);
+	};
+};
 
 # ----------------------------
 # Format seconds into readable duration
@@ -79,14 +99,14 @@ sub send_notification {
 
 		my $email = Email::MIME->create(
 			header_str => [
-				From    => 'meterlogger@meterlogger',
-				To      => '45' . $sms_number . '@meterlogger',
+				From	=> 'meterlogger@meterlogger',
+				To	=> '45' . $sms_number . '@meterlogger',
 				Subject => $message,
 			],
 			attributes => {
-				encoding      => 'quoted-printable',
-				charset       => 'UTF-8',
-				content_type  => 'text/plain',
+				encoding	=> 'quoted-printable',
+				charset	=> 'UTF-8',
+				content_type	=> 'text/plain',
 			},
 			body => '',
 		);
@@ -126,6 +146,18 @@ sub send_notification {
 	return 1;
 }
 
+sub enable_debug {
+	$DEBUG_ENABLED = 1;
+}
+
+sub disable_debug {
+	$DEBUG_ENABLED = 0;
+}
+
+sub set_debug {
+	$DEBUG_ENABLED = shift ? 1 : 0;
+}
+
 # ----------------------------
 # Logging functions
 # ----------------------------
@@ -148,7 +180,8 @@ sub log_warn {
 }
 
 sub log_debug {
-	return unless ($ENV{ENABLE_DEBUG} || '') =~ /^(1|true|yes)$/i;
+	return unless $DEBUG_ENABLED;
+
 	my (@msgs) = @_;
 	my $opts = {};
 	if (ref $msgs[-1] eq 'HASH') {
@@ -176,10 +209,10 @@ sub log_die {
 sub _log_message {
 	my ($fh, $level, $msgs_ref, $opts) = @_;
 
-	my $disable_tag        = $opts->{-no_tag};
-	my $disable_script     = $opts->{-no_script_name};
-	my $custom_tag         = $opts->{-custom_tag};          # e.g. "SMS"
-	my $custom_script_name = $opts->{-custom_script_name};  # e.g. "my_script.pl"
+	my $disable_tag		= $opts->{-no_tag};
+	my $disable_script	= $opts->{-no_script_name};
+	my $custom_tag		= $opts->{-custom_tag};		# e.g. "SMS"
+	my $custom_script_name = $opts->{-custom_script_name};	# e.g. "my_script.pl"
 
 	# Determine caller info
 	my ($caller_package, $caller_file, $caller_line) = caller(1);  # caller of log_* function
@@ -220,7 +253,6 @@ sub _log_message {
 		print $fh "$line\n";
 	}
 }
-
 
 1;
 
