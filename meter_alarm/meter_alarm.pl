@@ -336,11 +336,12 @@ sub evaluate_alarm {
 	# --------------------------------------------------
 	# VALVE ANTI-HYSTERESIS GATE
 	# --------------------------------------------------
-	# Evaluate delayed valve state (returns: 0, 1, or undef)
+	# Returns:
+	#   1     → valve has been stably closed for configured delay
+	#   0     → valve is open or not yet confirmed stable
+	#   undef → valve is transitioning (not stable yet)
 	#
-	# If result is undef:
-	#   → valve is in transition (not stable yet)
-	#
+	# Undefined is treated as 0 to avoid false positives during transition.
 	my $closed_status = check_delayed_valve_closed($serial);
 
 	$closed_status = 0 if !defined $closed_status;
