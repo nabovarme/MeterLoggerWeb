@@ -340,13 +340,9 @@ sub evaluate_alarm {
 	#
 	# If result is undef:
 	#   → valve is in transition (not stable yet)
-	#   → abort evaluation entirely for this cycle
 	#
-	# This prevents evaluating alarm conditions while
-	# the valve state is still "settling".
 	my $closed_status = check_delayed_valve_closed($serial);
 
-	# default-safe fallback hvis transition
 	$closed_status = 0 if !defined $closed_status;
 
 	$alarm->{closed_status} = $closed_status;
