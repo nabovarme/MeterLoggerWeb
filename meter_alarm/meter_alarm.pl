@@ -324,8 +324,6 @@ sub evaluate_alarm {
 	# --------------------------------------------------
 	# MESSAGE TEMPLATE EXPANSION
 	# --------------------------------------------------
-	# Substitute variables into user-defined templates
-	# (e.g. $serial, $flow, $snooze_auth_key, etc.)
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
@@ -340,9 +338,28 @@ sub evaluate_alarm {
 	#   1     → valve has been stably closed for configured delay
 	#   0     → valve is open or not yet confirmed stable
 	#   undef → valve is transitioning (not stable yet)
-	#
-	# Undefined is treated as 0 to avoid false positives during transition.
 	$alarm->{closed_status} = check_delayed_valve_closed($serial);
+
+	my $uses_closed  = ($condition =~ /\$closed\b/);
+	my $uses_leakage = ($condition =~ /\$leakage\b/);
+
+	my $closed = $alarm->{closed_status};
+
+	# --------------------------------------------------
+	# ONLY SKIP IF CONDITION DEPENDS ON VALVE STATE
+	# --------------------------------------------------
+	if ($uses_closed || $uses_leakage) {
+
+		# Valve still transitioning → skip evaluation
+		if (!defined $closed) {
+			return;
+		}
+
+		# Valve not stable closed → skip evaluation
+		if ($closed == 0) {
+			return;
+		}
+	}
 
 	# --------------------------------------------------
 	# VARIABLE INTERPOLATION
@@ -350,9 +367,6 @@ sub evaluate_alarm {
 	# Replace variables in condition string:
 	#   $closed → already resolved above (fast path)
 	#   $flow, $temperature, etc. → resolved dynamically
-	#
-	# NOTE: $closed is replaced explicitly first to avoid
-	# unnecessary lookup in resolve_var()
 	$condition = interpolate_variables($condition, $alarm);
 
 	log_debug("parsed condition: $condition", {
@@ -389,14 +403,13 @@ sub evaluate_alarm {
 
 			my $err = $dbh->quote($@);
 
-			# Persist error for visibility/debugging
 			$dbh->do(qq[
 				UPDATE alarms
 				SET condition_error = $err
 				WHERE id = $quoted_id
 			]);
 
-			return; # skip alarm handling on error
+			return;
 		}
 
 		log_debug("eval_result=$eval_alarm_state condition=$condition", {
