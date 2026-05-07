@@ -342,11 +342,7 @@ sub evaluate_alarm {
 	#   undef → valve is transitioning (not stable yet)
 	#
 	# Undefined is treated as 0 to avoid false positives during transition.
-	my $closed_status = check_delayed_valve_closed($serial);
-
-	$closed_status = 0 if !defined $closed_status;
-
-	$alarm->{closed_status} = $closed_status;
+	$alarm->{closed_status} = check_delayed_valve_closed($serial);
 
 	# --------------------------------------------------
 	# VARIABLE INTERPOLATION
@@ -357,7 +353,6 @@ sub evaluate_alarm {
 	#
 	# NOTE: $closed is replaced explicitly first to avoid
 	# unnecessary lookup in resolve_var()
-	$condition =~ s/\$closed/$closed_status/g;
 	$condition = interpolate_variables($condition, $alarm);
 
 	log_debug("parsed condition: $condition", {
@@ -637,6 +632,7 @@ sub resolve_var {
 		unless (defined $alarm->{closed_status} && $alarm->{closed_status} == 1) {
 			return 0;
 		}
+		
 
 		my $key = "flow:$serial:leak_since";
 		my $now = time();
