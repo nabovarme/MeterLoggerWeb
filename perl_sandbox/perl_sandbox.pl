@@ -25,6 +25,7 @@ while (1) {
 
 	my $raw = $redis->blpop("sandbox:requests", 0);
 	next unless $raw;
+#	use Data::Dumper; print Dumper $raw;
 
 	$processed++;
 
@@ -41,12 +42,15 @@ while (1) {
 
 	print "info: request id=$id expr=$expr\n";
 
-	# ----------------------------
-	# Map variables into Perl scope
-	# ----------------------------
-	my $flow   = $vars->{flow}   // 0;
-	my $closed = $vars->{closed} // 0;
-	my $leak   = $vars->{leak}   // 0;
+	# --------------------------------------------------
+	# Inject ONLY known variables from meter_alarm.pl
+	# Unknown variables remain as main:: symbols
+	# --------------------------------------------------
+	our $flow   = $vars->{flow}   if exists $vars->{flow};
+	our $closed = $vars->{closed} if exists $vars->{closed};
+	our $leak   = $vars->{leak}   if exists $vars->{leak};
+
+	my $result_key = $vars->{result_key};
 
 	my $result = 0;
 
@@ -56,26 +60,33 @@ while (1) {
 			print "warning: eval warn: @_";
 		};
 
+		no strict 'vars';
+		no warnings 'uninitialized';
+
 		$result = eval $expr;
 	}
 
 	if ($@) {
 		print "error: eval failed id=$id $@\n";
 
-		$redis->rpush("sandbox:results", encode_json({
+		$redis->set($result_key, encode_json({
 			id    => $id,
 			error => "$@"
 		}));
+
+		$redis->expire($result_key, 30);
 
 		next;
 	}
 
 	print "info: result id=$id => $result\n";
 
-	$redis->rpush("sandbox:results", encode_json({
+	$redis->set($result_key, encode_json({
 		id     => $id,
 		result => $result ? 1 : 0
 	}));
+
+	$redis->expire($result_key, 30);
 
 	if ($processed % 100 == 0) {
 		print "info: heartbeat processed=$processed\n";
