@@ -55,7 +55,7 @@ while (1) {
 
 		$result = eval $condition;
 
-		# FIX: capture eval error immediately
+		# capture eval error immediately
 		$error = $@ if $@;
 	}
 
