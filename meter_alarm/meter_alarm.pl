@@ -294,7 +294,6 @@ sub process_alarms {
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
 
-
 	my $now = time();
 	my $last_updated = $alarm->{last_updated};
 
@@ -392,70 +391,94 @@ sub evaluate_alarm {
 	# IMPORTANT:
 	#   - evaluation happens outside main process
 	#   - errors are caught and persisted to DB
-	{
-		my $eval_id = $alarm->{id} . ":" . $run_id . ":" . $now;
 
-		my $result_key = "sandbox:result:$eval_id";
+	my $eval_id = $alarm->{id} . ":" . $run_id . ":" . $now;
 
-		my $payload = {
-			id   => $eval_id,
-			condition => $condition,
-			result_key => $result_key
-		};
+	my $result_key = "sandbox:result:$eval_id";
 
-		redis_call('rpush', "sandbox:requests", encode_json($payload));
+	my $payload = {
+		id         => $eval_id,
+		condition  => $condition,
+		result_key => $result_key
+	};
 
-		my $start = time();
-		my $timeout = 2;
+	redis_call('rpush', "sandbox:requests", encode_json($payload));
 
-		local $@;
+	# --------------------------------------------------
+	# EVENT-DRIVEN WAIT (REPLACES POLLING LOOP)
+	# --------------------------------------------------
+	# Worker must push result into:
+	#   sandbox:wait:<eval_id>
 
-		while ((time() - $start) < $timeout) {
+	my $wait_key = "sandbox:wait:$eval_id";
 
-			my $raw = redis_call('get', $result_key);
-			next unless $raw;
+	my $raw = redis_call('blpop', $wait_key, 15);
 
-			my $data = eval { decode_json($raw) };
-			next if $@ || !$data;
+	if (!$raw) {
+		log_warn("Sandbox timeout for eval_id=$eval_id");
 
-			# --------------------------------------
-			# ERROR HANDLING
-			# --------------------------------------
-			if (defined $data->{error}) {
-				log_warn("Sandbox eval error: $data->{error}");
+		my $err = $dbh->quote("sandbox timeout");
 
-				my $err = $dbh->quote($data->{error});
-
-				$dbh->do(qq[
-					UPDATE alarms
-					SET condition_error = $err
-					WHERE id = $quoted_id
-				]);
-
-				return;
-			}
-
-			$eval_alarm_state = $data->{result} ? 1 : 0;
-			last;
-		}
-
-		# timeout
-		if (!defined $eval_alarm_state) {
-			log_warn("Sandbox timeout for alarm $alarm->{id}");
-			return;
-		}
-
-		log_debug("sandbox_result=$eval_alarm_state condition=$condition", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-		});
-
-		# Clear previous error if evaluation succeeds
 		$dbh->do(qq[
 			UPDATE alarms
-			SET condition_error = NULL
+			SET condition_error = $err
+			WHERE id = $quoted_id
+		]);
+
+		return;
+	}
+
+	my $data = eval { decode_json($raw->[1]) };
+
+	if ($@ || !$data) {
+		log_warn("Invalid sandbox response eval_id=$eval_id");
+		return;
+	}
+
+	# --------------------------------------
+	# ERROR + WARNING HANDLING (MUTUALLY EXCLUSIVE)
+	# --------------------------------------
+
+	# ERROR has highest priority
+	if (defined $data->{error}) {
+		log_warn("Sandbox eval error: $data->{error}");
+
+		my $err = $dbh->quote($data->{error});
+
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = $err
+			WHERE id = $quoted_id
+		]);
+
+		return;
+	}
+
+	# WARNING only if no error
+	if (defined $data->{warning} && $data->{warning} ne '') {
+		log_warn("Sandbox warning: $data->{warning}");
+
+		my $warn = $dbh->quote($data->{warning});
+
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = $warn
 			WHERE id = $quoted_id
 		]);
 	}
+
+	$eval_alarm_state = $data->{result} ? 1 : 0;
+
+	log_debug("sandbox_result=$eval_alarm_state condition=$condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+	});
+
+	# Clear previous error if evaluation succeeds
+	$dbh->do(qq[
+		UPDATE alarms
+		SET condition_error = NULL
+		WHERE id = $quoted_id
+	]);
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING

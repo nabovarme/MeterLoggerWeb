@@ -23,6 +23,9 @@ my $processed = 0;
 
 while (1) {
 
+	# --------------------------------------------------
+	# BLOCKING JOB FETCH
+	# --------------------------------------------------
 	my $raw = $redis->blpop("sandbox:requests", 0);
 	next unless $raw;
 
@@ -35,9 +38,9 @@ while (1) {
 		next;
 	}
 
-	my $id   = $req->{id};
-	my $condition = $req->{condition};
-	my $result_key = $req->{result_key};
+	my $id         = $req->{id};
+	my $condition   = $req->{condition};
+	my $result_key  = $req->{result_key};
 
 	print "info: request id=$id condition=$condition\n";
 
@@ -58,35 +61,40 @@ while (1) {
 
 		$result = eval $condition;
 
-		# capture eval error immediately
 		$error = $@ if $@;
 	}
+
+	# --------------------------------------------------
+	# BUILD RESPONSE
+	# --------------------------------------------------
+	my $payload = {
+		id     => $id,
+		result => $error ? 0 : $result,
+	};
 
 	if ($error) {
 		print "error: eval failed id=$id $error\n";
 
-		$redis->set($result_key, encode_json({
-			id      => $id,
-			error   => "$error",
-			warning => $warning || undef,
-		}));
-
-		$redis->expire($result_key, 30);
-
-		next;
+		$payload->{error}   = "$error";
+		$payload->{warning} = $warning if length $warning;
 	}
 
-	print "info: result id=$id => $result\n";
+	$payload->{warning} = $warning if !$error && length $warning;
 
-	my $payload = {
-		id     => $id,
-		result => $result,
-	};
+	my $encoded = encode_json($payload);
 
-	$payload->{warning} = $warning if length $warning;
+	# --------------------------------------------------
+	# EVENT NOTIFICATION
+	# --------------------------------------------------
+	# This unblocks the main daemon BLPOP:
+	# sandbox:wait:<eval_id>
 
-	$redis->set($result_key, encode_json($payload));
-	$redis->expire($result_key, 30);
+	my $wait_key = "sandbox:wait:$id";
+
+	$redis->rpush($wait_key, $encoded);
+	$redis->expire($wait_key, 30);
+
+	print "info: result published id=$id => $payload->{result}\n";
 
 	if ($processed % 100 == 0) {
 		print "info: heartbeat processed=$processed\n";
