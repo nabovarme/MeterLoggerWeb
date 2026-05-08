@@ -247,6 +247,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      perl_sandbox:
+        condition: service_started
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     environment:
@@ -255,6 +257,28 @@ services:
       TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
     restart: always
+
+  perl_sandbox:
+    build:
+      context: '.'
+      dockerfile: ./perl_sandbox/Dockerfile
+    container_name: perl_sandbox
+    hostname: perl-sandbox
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: Europe/Copenhagen
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: "0.25"
 
   meter_cron:
     build:

@@ -16,6 +16,7 @@ use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
 use Redis;
+use JSON;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -67,6 +68,10 @@ my $redis_port = $ENV{'REDIS_PORT'}
 
 # Connect to Redis server
 my $redis = Redis->new(server => "$redis_host:$redis_port");
+until ($redis->ping) {
+	log_debug("Waiting for redis...");
+	sleep 1;
+}
 
 # ==================================================
 # DATABASE INITIALIZATION (SYSTEM OF RECORD)
@@ -374,42 +379,73 @@ sub evaluate_alarm {
 	my $quoted_id = $dbh->quote($alarm->{id});
 
 	# --------------------------------------------------
-	# CONDITION EVALUATION (dynamic logic)
+	# CONDITION EVALUATION (SANDBOXED VIA REDIS)
 	# --------------------------------------------------
-	# The condition string is evaluated as Perl code.
-	# Example after interpolation:
-	#   "12 > 10 && 1"
+	# The condition string is evaluated in a sandbox worker.
 	#
 	# Returns truthy/falsey → used as alarm state
 	#
 	# IMPORTANT:
-	#   - strict/warnings disabled to allow flexible expressions
+	#   - evaluation happens outside main process
 	#   - errors are caught and persisted to DB
 	{
+		my $eval_id = $alarm->{id} . ":" . $run_id . ":" . $now;
+
+		my $payload = {
+			id   => $eval_id,
+			expr => $condition,
+			vars => {
+				flow   => $alarm->{flow} // 0,
+				closed => $closed // 0,
+				leak   => $alarm->{leakage} // 0
+			}
+		};
+
+		$redis->rpush("sandbox:requests", encode_json($payload));
+
+		my $start = time();
+		my $timeout = 2;
+
 		local $@;
-		no strict;
-		no warnings;
 
-		$eval_alarm_state = eval $condition;
+		while ((time() - $start) < $timeout) {
 
-		# --------------------------------------
-		# ERROR HANDLING
-		# --------------------------------------
-		if ($@) {
-			log_warn("Eval error: $@");
+			my $raw = $redis->blpop("sandbox:results", 1);
+			next unless $raw;
 
-			my $err = $dbh->quote($@);
+			my $data = eval { decode_json($raw->[1]) };
+			next if $@ || !$data;
 
-			$dbh->do(qq[
-				UPDATE alarms
-				SET condition_error = $err
-				WHERE id = $quoted_id
-			]);
+			next unless $data->{id} eq $eval_id;
 
-			return;
+			# --------------------------------------
+			# ERROR HANDLING
+			# --------------------------------------
+			if (defined $data->{error}) {
+				log_warn("Sandbox eval error: $data->{error}");
+
+				my $err = $dbh->quote($data->{error});
+
+				$dbh->do(qq[
+					UPDATE alarms
+					SET condition_error = $err
+					WHERE id = $quoted_id
+				]);
+
+				return;
+			}
+
+			$eval_alarm_state = $data->{result} ? 1 : 0;
+			last;
 		}
 
-		log_debug("eval_result=$eval_alarm_state condition=$condition", {
+		# timeout fallback
+		if (!defined $eval_alarm_state) {
+			log_warn("Sandbox timeout for alarm $alarm->{id}");
+			$eval_alarm_state = 0;
+		}
+
+		log_debug("sandbox_result=$eval_alarm_state condition=$condition", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
 
@@ -962,10 +998,34 @@ sub generate_snooze_key {
 	return join('', map { sprintf("%02x", irand(256)) } 1..8);
 }
 
-# --------------------------
-# REDIS STARTUP
-# --------------------------
-# Iterates through Redis to log current state of all meters and pending alarms
+sub sandbox_eval {
+	my ($id, $expr, $vars) = @_;
+
+	my $payload = encode_json({
+		id   => $id,
+		expr => $expr,
+		vars => $vars
+	});
+
+	$redis->rpush("sandbox:requests", $payload);
+
+	my $result;
+
+	while (1) {
+
+		my $raw = $redis->blpop("sandbox:results", 2);
+		next unless $raw;
+
+		my $data = decode_json($raw->[1]);
+
+		next unless $data->{id} eq $id;
+
+		return 0 if $data->{error};
+
+		return $data->{result} ? 1 : 0;
+	}
+}
+
 sub redis_log_snapshot {
 	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
 

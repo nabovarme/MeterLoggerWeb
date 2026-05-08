@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
 	libdbi-perl \
 	libconfig-simple-perl \
 	libemail-mime-perl \
+	libjson-perl \
 	default-mysql-client
 
 # Copy local repository from Docker volume
