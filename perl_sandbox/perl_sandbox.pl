@@ -25,7 +25,6 @@ while (1) {
 
 	my $raw = $redis->blpop("sandbox:requests", 0);
 	next unless $raw;
-#	use Data::Dumper; print Dumper $raw;
 
 	$processed++;
 
@@ -37,20 +36,10 @@ while (1) {
 	}
 
 	my $id   = $req->{id};
-	my $expr = $req->{expr};
-	my $vars = $req->{vars};
+	my $condition = $req->{condition};
+	my $result_key = $req->{result_key};
 
-	print "info: request id=$id expr=$expr\n";
-
-	# --------------------------------------------------
-	# Inject ONLY known variables from meter_alarm.pl
-	# Unknown variables remain as main:: symbols
-	# --------------------------------------------------
-	our $flow   = $vars->{flow}   if exists $vars->{flow};
-	our $closed = $vars->{closed} if exists $vars->{closed};
-	our $leak   = $vars->{leak}   if exists $vars->{leak};
-
-	my $result_key = $vars->{result_key};
+	print "info: request id=$id condition=$condition\n";
 
 	my $result = 0;
 
@@ -63,7 +52,7 @@ while (1) {
 		no strict 'vars';
 		no warnings 'uninitialized';
 
-		$result = eval $expr;
+		$result = eval $condition;
 	}
 
 	if ($@) {
