@@ -439,10 +439,10 @@ sub evaluate_alarm {
 			last;
 		}
 
-		# timeout fallback
+		# timeout
 		if (!defined $eval_alarm_state) {
 			log_warn("Sandbox timeout for alarm $alarm->{id}");
-			$eval_alarm_state = 0;
+			return;
 		}
 
 		log_debug("sandbox_result=$eval_alarm_state condition=$condition", {

@@ -26,6 +26,6 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl_sandbox/perl_sandbox.pl /usr/local/bin/perl_sandbox.pl
+COPY ./perl_alarm_condition_sandbox/perl_sandbox.pl /usr/local/bin/perl_sandbox.pl
 
 CMD ["perl", "/usr/local/bin/perl_sandbox.pl"]
