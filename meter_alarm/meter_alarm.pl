@@ -294,6 +294,7 @@ sub process_alarms {
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
 
+
 	my $now = time();
 	my $last_updated = $alarm->{last_updated};
 
@@ -310,6 +311,7 @@ sub evaluate_alarm {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
+
 		return;
 	}
 
@@ -393,13 +395,16 @@ sub evaluate_alarm {
 	{
 		my $eval_id = $alarm->{id} . ":" . $run_id . ":" . $now;
 
+		my $result_key = "sandbox:result:$eval_id";
+
 		my $payload = {
 			id   => $eval_id,
 			expr => $condition,
 			vars => {
 				flow   => $alarm->{flow} // 0,
-				closed => $closed // 0,
-				leak   => $alarm->{leakage} // 0
+				closed => $closed,
+				leak   => $alarm->{leakage} // 0,
+				result_key => $result_key
 			}
 		};
 
@@ -412,13 +417,11 @@ sub evaluate_alarm {
 
 		while ((time() - $start) < $timeout) {
 
-			my $raw = redis_call('blpop', "sandbox:results", 1);
+			my $raw = redis_call('get', $result_key);
 			next unless $raw;
 
-			my $data = eval { decode_json($raw->[1]) };
+			my $data = eval { decode_json($raw) };
 			next if $@ || !$data;
-
-			next unless $data->{id} eq $eval_id;
 
 			# --------------------------------------
 			# ERROR HANDLING
@@ -955,6 +958,12 @@ sub handle_alarm {
 		# --------------------------------------------------
 		# Only clear alarm if condition has remained normal
 		# continuously for alarm_clear_delay seconds
+
+		# Timer missing or invalid
+		unless (defined $since && $since =~ /^\d+$/) {
+			return;
+		}
+
 		if (($now - $since) < $cfg->{alarm_clear_delay}) {
 			return; # still within hysteresis window → do nothing
 		}
@@ -1014,6 +1023,7 @@ sub redis_call {
 
 sub sandbox_eval {
 	my ($id, $expr, $vars) = @_;
+	warn Dumper $expr, $vars;
 
 	my $payload = encode_json({
 		id   => $id,
