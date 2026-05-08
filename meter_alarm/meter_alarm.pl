@@ -12,7 +12,7 @@ use utf8;
 use Data::Dumper;
 use DBI;
 use Statistics::Basic qw(:all);
-use Math::Random::Secure qw(rand);
+use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
 use Redis;
@@ -959,7 +959,7 @@ sub sms_send {
 }
 
 sub generate_snooze_key {
-	return join('', map { sprintf("%02x", int rand(256)) } 1..8);
+	return join('', map { sprintf("%02x", irand(256)) } 1..8);
 }
 
 # --------------------------
