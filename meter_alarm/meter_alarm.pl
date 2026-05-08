@@ -399,13 +399,8 @@ sub evaluate_alarm {
 
 		my $payload = {
 			id   => $eval_id,
-			expr => $condition,
-			vars => {
-				flow   => $alarm->{flow} // 0,
-				closed => $closed,
-				leak   => $alarm->{leakage} // 0,
-				result_key => $result_key
-			}
+			condition => $condition,
+			result_key => $result_key
 		};
 
 		redis_call('rpush', "sandbox:requests", encode_json($payload));
