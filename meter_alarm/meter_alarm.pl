@@ -154,6 +154,8 @@ while (1) {
 	# Used for logging correlation across alarms
 	my $run_id = time();
 
+	redis_call('ping');
+
 	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
 		-custom_tag => "MAIN:$run_id"
 	});
@@ -401,7 +403,7 @@ sub evaluate_alarm {
 			}
 		};
 
-		$redis->rpush("sandbox:requests", encode_json($payload));
+		redis_call('rpush', "sandbox:requests", encode_json($payload));
 
 		my $start = time();
 		my $timeout = 2;
@@ -410,7 +412,7 @@ sub evaluate_alarm {
 
 		while ((time() - $start) < $timeout) {
 
-			my $raw = $redis->blpop("sandbox:results", 1);
+			my $raw = redis_call('blpop', "sandbox:results", 1);
 			next unless $raw;
 
 			my $data = eval { decode_json($raw->[1]) };
@@ -533,7 +535,7 @@ sub check_delayed_valve_closed {
 	# This ensures that "closed" must be continuous
 	# — any interruption resets the hysteresis window.
 	unless ($installed && $status =~ /close/i) {
-		$redis->del($key);
+		redis_call('del', $key);
 		return 0;
 	}
 
@@ -548,7 +550,7 @@ sub check_delayed_valve_closed {
 	#   - Start a timer in Redis
 	#   - Return undef (not stable yet)
 	if (!$closed_since || $closed_since !~ /^\d+$/) {
-		$redis->set($key, $now, 'EX', 3600);
+		redis_call('set', $key, $now, 'EX', 3600);
 
 		# undef signals:
 		#   "we are in transition, do not evaluate alarm yet"
@@ -697,14 +699,14 @@ sub resolve_var {
 		$flow ||= 0;
 
 		if ($flow <= 0) {
-			$redis->del($key);
+			redis_call('del', $key);
 			return 0;
 		}
 
 		my $since = $redis->get($key);
 
 		if (!$since || $since !~ /^\d+$/) {
-			$redis->set($key, $now, 'EX', 3600);
+			redis_call('set', $key, $now, 'EX', 3600);
 			return 0;
 		}
 
@@ -836,7 +838,7 @@ sub handle_alarm {
 
 	# Ensure serial is always available in Redis for observability/debugging
 	if (defined $serial && $serial ne '') {
-		$redis->set($redis_serial_key, $serial);
+		redis_call('set', $redis_serial_key, $serial);
 	} else {
 		# Fallback: recover serial from Redis if DB value is missing
 		$serial = $redis->get($redis_serial_key) // 'UNKNOWN';
@@ -849,7 +851,7 @@ sub handle_alarm {
 
 		# If alarm is active again, cancel any pending "clear" timer.
 		# This prevents clearing if condition briefly returned to normal.
-		$redis->del($redis_clear_key);
+		redis_call('del', $redis_clear_key);
 
 		# Determine whether exponential backoff should be used
 		# Disabled if repeat interval is very large (>= 1 day)
@@ -936,7 +938,7 @@ sub handle_alarm {
 		# Only begin clear hysteresis if alarm is currently active
 		if ($alarm->{alarm_state} == 1 && !$since) {
 
-			$redis->set($redis_clear_key, $now, 'EX', 3600);
+			redis_call('set', $redis_clear_key, $now, 'EX', 3600);
 
 			# reset snooze immediately on recovery start
 			$dbh->do(qq[
@@ -977,7 +979,7 @@ sub handle_alarm {
 		}
 
 		# Cleanup: remove clear timer after successful resolution
-		$redis->del($redis_clear_key);
+		redis_call('del', $redis_clear_key);
 	}
 }
 
@@ -998,6 +1000,18 @@ sub generate_snooze_key {
 	return join('', map { sprintf("%02x", irand(256)) } 1..8);
 }
 
+sub redis_call {
+	my ($method, @args) = @_;
+
+	my $res = eval { $redis->$method(@args) };
+
+	if ($@) {
+		log_die("Redis failure - crashing container: $@");
+	}
+
+	return $res;
+}
+
 sub sandbox_eval {
 	my ($id, $expr, $vars) = @_;
 
@@ -1013,7 +1027,7 @@ sub sandbox_eval {
 
 	while (1) {
 
-		my $raw = $redis->blpop("sandbox:results", 2);
+		my $raw = redis_call('blpop', "sandbox:results", 2);
 		next unless $raw;
 
 		my $data = decode_json($raw->[1]);
