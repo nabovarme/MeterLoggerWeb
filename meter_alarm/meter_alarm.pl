@@ -348,23 +348,12 @@ sub evaluate_alarm {
 	# --------------------------------------------------
 	# ONLY SKIP IF CONDITION DEPENDS ON VALVE STATE
 	# --------------------------------------------------
-	if ($uses_closed || $uses_leakage) {
-
-		# Valve still transitioning → skip evaluation
+	if ($uses_closed) {
 		if (!defined $closed) {
 			log_debug("Skipping evaluation: valve transition still pending", {
 				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 			});
-			
-			return;
-		}
 
-		# Valve not stable closed → skip evaluation
-		if ($closed == 0) {
-			log_debug("Skipping evaluation: valve transition still pending", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-			});
-			
 			return;
 		}
 	}
