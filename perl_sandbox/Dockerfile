@@ -3,23 +3,12 @@ FROM debian:bullseye
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 ENV DEBIAN_FRONTEND="noninteractive"
+
 RUN apt-get update && apt-get install -y \
-	aptitude \
-	bash \
-	cpanplus \
-	git \
-	inetutils-telnet \
-	joe \
-	texinfo \
-	sudo \
-	screen \
-	rsync \
-	libdbd-mysql-perl \
-	libdbi-perl \
-	libconfig-simple-perl \
-	libemail-mime-perl \
+	perl \
 	libjson-perl \
-	default-mysql-client
+	libredis-perl \
+	libtry-tiny-perl
 
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs
@@ -37,10 +26,6 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl_sandbox/perl_sandbox.pl /usr/local/bin/perl_sandbox.pl
 
-COPY ./meter_alarm/meter_alarm.pl /usr/local/bin/meter_alarm.pl
-
-ENV PERL5LIB=/etc/apache2/perl
-
-CMD ["perl", "/usr/local/bin/meter_alarm.pl"]
+CMD ["perl", "/usr/local/bin/perl_sandbox.pl"]
