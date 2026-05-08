@@ -1021,35 +1021,6 @@ sub redis_call {
 	return $res;
 }
 
-sub sandbox_eval {
-	my ($id, $expr, $vars) = @_;
-	warn Dumper $expr, $vars;
-
-	my $payload = encode_json({
-		id   => $id,
-		expr => $expr,
-		vars => $vars
-	});
-
-	$redis->rpush("sandbox:requests", $payload);
-
-	my $result;
-
-	while (1) {
-
-		my $raw = redis_call('blpop', "sandbox:results", 2);
-		next unless $raw;
-
-		my $data = decode_json($raw->[1]);
-
-		next unless $data->{id} eq $id;
-
-		return 0 if $data->{error};
-
-		return $data->{result} ? 1 : 0;
-	}
-}
-
 sub redis_log_snapshot {
 	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
 
