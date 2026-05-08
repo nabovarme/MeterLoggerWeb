@@ -42,6 +42,7 @@ while (1) {
 	print "info: request id=$id condition=$condition\n";
 
 	my $result = 0;
+	my $error;
 
 	{
 		local $@;
@@ -53,14 +54,17 @@ while (1) {
 		no warnings 'uninitialized';
 
 		$result = eval $condition;
+
+		# FIX: capture eval error immediately
+		$error = $@ if $@;
 	}
 
-	if ($@) {
-		print "error: eval failed id=$id $@\n";
+	if ($error) {
+		print "error: eval failed id=$id $error\n";
 
 		$redis->set($result_key, encode_json({
 			id    => $id,
-			error => "$@"
+			error => "$error"
 		}));
 
 		$redis->expire($result_key, 30);
