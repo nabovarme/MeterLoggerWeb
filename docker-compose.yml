@@ -247,7 +247,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      perl_sandbox:
+      perl_alarm_condition_sandbox:
         condition: service_started
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
@@ -258,12 +258,12 @@ services:
       ENABLE_DEBUG: ${ENABLE_DEBUG}
     restart: always
 
-  perl_sandbox:
+  perl_alarm_condition_sandbox:
     build:
       context: '.'
-      dockerfile: ./perl_sandbox/Dockerfile
-    container_name: perl_sandbox
-    hostname: perl-sandbox
+      dockerfile: ./perl_alarm_condition_sandbox/Dockerfile
+    container_name: perl_alarm_condition_sandbox
+    hostname: perl-alarm-condition-sandbox
     depends_on:
       redis:
         condition: service_healthy
