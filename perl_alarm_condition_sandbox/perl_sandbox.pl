@@ -41,12 +41,15 @@ while (1) {
 
 	print "info: request id=$id condition=$condition\n";
 
-	my $result = 0;
-	my $error;
+	my $result;
+	my $error   = '';
+	my $warning = '';
 
 	{
 		local $@;
+
 		local $SIG{__WARN__} = sub {
+			$warning .= join('', @_);
 			print "warning: eval warn: @_";
 		};
 
@@ -63,8 +66,9 @@ while (1) {
 		print "error: eval failed id=$id $error\n";
 
 		$redis->set($result_key, encode_json({
-			id    => $id,
-			error => "$error"
+			id      => $id,
+			error   => "$error",
+			warning => $warning || undef,
 		}));
 
 		$redis->expire($result_key, 30);
@@ -74,11 +78,14 @@ while (1) {
 
 	print "info: result id=$id => $result\n";
 
-	$redis->set($result_key, encode_json({
+	my $payload = {
 		id     => $id,
-		result => $result ? 1 : 0
-	}));
+		result => $result,
+	};
 
+	$payload->{warning} = $warning if length $warning;
+
+	$redis->set($result_key, encode_json($payload));
 	$redis->expire($result_key, 30);
 
 	if ($processed % 100 == 0) {
