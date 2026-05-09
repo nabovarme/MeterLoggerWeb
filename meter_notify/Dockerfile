@@ -36,10 +36,10 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 
 COPY ./meter_notify/meter_notify.pl /usr/local/bin/meter_notify.pl
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["perl", "/usr/local/bin/meter_notify.pl"]

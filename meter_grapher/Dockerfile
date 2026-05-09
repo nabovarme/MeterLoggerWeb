@@ -45,14 +45,14 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 
-COPY ./meter_grapher/mqtt_to_redis.pl /etc/apache2/perl/Nabovarme/bin/mqtt_to_redis.pl
-COPY ./meter_grapher/meter_grapher.pl /etc/apache2/perl/Nabovarme/bin/meter_grapher.pl
+COPY ./meter_grapher/mqtt_to_redis.pl /usr/local/bin/mqtt_to_redis.pl
+COPY ./meter_grapher/meter_grapher.pl /usr/local/bin/meter_grapher.pl
 
 COPY ./meter_grapher/docker-entrypoint.sh /docker-entrypoint.sh
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["/docker-entrypoint.sh"]
 
