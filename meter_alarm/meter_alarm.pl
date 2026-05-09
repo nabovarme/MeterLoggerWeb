@@ -317,7 +317,9 @@ sub evaluate_alarm {
 	#   - acting on outdated sensor values
 	#
 	# MAX_DATA_AGE acts as a hard cutoff (e.g. 24h)
-	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
+	my $uses_offline = ($alarm->{condition} =~ /\$offline\b/);
+	
+	if (!$uses_offline && defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
