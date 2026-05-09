@@ -39,7 +39,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpanm Number::Format
 RUN PERL_MM_USE_DEFAULT=1 cpanm Exporter::Tiny
 RUN PERL_MM_USE_DEFAULT=1 cpanm Type::Tiny
 RUN PERL_MM_USE_DEFAULT=1 cpanm Types::Standard
-
+RUN PERL_MM_USE_DEFAULT=1 cpanm Moo
 
 # Set working directory for building
 WORKDIR /build

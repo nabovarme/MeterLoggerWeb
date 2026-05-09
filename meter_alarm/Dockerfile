@@ -6,7 +6,6 @@ ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt-get update && apt-get install -y \
 	aptitude \
 	bash \
-	cpanplus \
 	git \
 	inetutils-telnet \
 	joe \
@@ -14,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 	sudo \
 	screen \
 	rsync \
+	cpanminus \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libconfig-simple-perl \
@@ -34,6 +34,8 @@ RUN for pkg in /opt/local-debs/*.deb; do \
 # Fix any missing dependencies from official repos
 RUN apt-get update && \
 	apt-get -f install -y
+
+RUN PERL_MM_USE_DEFAULT=1 cpanm Marpa::R2
 
 USER root
 

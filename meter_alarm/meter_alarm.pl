@@ -19,6 +19,8 @@ use Redis;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::AlarmConditionEngine;
+
 
 # --------------------------
 # CONSTANTS
@@ -402,7 +404,8 @@ sub evaluate_alarm {
 		no strict;
 		no warnings;
 
-		$eval_alarm_state = eval $condition;
+	#	$eval_alarm_state = eval $condition;
+		$eval_alarm_state = Nabovarme::AlarmConditionEngine::evaluate($condition, $alarm);
 
 		# --------------------------------------
 		# ERROR HANDLING
