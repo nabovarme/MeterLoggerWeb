@@ -40,82 +40,80 @@ my $redis = Redis->new(server => "$redis_host:$redis_port");
 log_debug("connected to redis\n");
 
 # --------------------------
-# SAFE EVAL WITH TIMEOUT
+# SAFE EVAL WITH TIMEOUT + IPC
 # --------------------------
 sub safe_eval {
 	my ($code, $timeout) = @_;
 
 	my $json = JSON->new->allow_nonref;
 
-	my $pid = fork();
+	pipe(my $rh, my $wh) or return (undef, "pipe failed");
 
+	my $pid = fork();
 	if (!defined $pid) {
 		return (undef, "fork failed");
 	}
 
-	# --------------------------
-	# CHILD PROCESS
-	# --------------------------
+	# ---------------- CHILD ----------------
 	if ($pid == 0) {
+		close $rh;
 
-		eval {
-			local $SIG{__WARN__} = sub { };
-			no strict 'vars';
-			no warnings 'uninitialized';
-
-			my $result = eval $code;
-			my $error  = $@;
-
-			my $payload = {
-				result => defined $result ? $result : 0,
-				error  => $error || '',
-				warning => ''
-			};
-
-			print $json->encode($payload);
+		my $payload = {
+			result  => 0,
+			error   => '',
+			warning => '',
 		};
 
-		if ($@) {
-			my $payload = {
-				result  => 0,
-				error   => $@,
-				warning => ''
+		eval {
+			local $SIG{__WARN__} = sub {
+				$payload->{warning} .= join('', @_);
 			};
 
-			print $json->encode($payload);
-		}
+			no strict;
+			no warnings;
 
+			$payload->{result} = eval $code;
+			$payload->{error}  = $@ if $@;
+		};
+
+		print $wh $json->encode($payload);
+		close $wh;
 		exit 0;
 	}
 
-	# --------------------------
-	# PARENT PROCESS (WATCHDOG)
-	# --------------------------
+	# ---------------- PARENT ----------------
+	close $wh;
+
 	my $deadline = time() + $timeout;
 
 	while (1) {
 
 		my $kid = waitpid($pid, WNOHANG);
 
-		# child finished
 		if ($kid == $pid) {
 			last;
 		}
 
-		# timeout → kill child
 		if (time() > $deadline) {
 			log_debug("timeout → killing pid=$pid\n");
-
 			kill 'KILL', $pid;
 			waitpid($pid, 0);
-
+			close $rh;
 			return (undef, "timeout");
 		}
 
 		usleep(50_000);
 	}
 
-	return (1, undef);
+	my $response = do { local $/; <$rh> };
+	close $rh;
+
+	return (undef, "invalid child response") unless $response;
+
+	my $data = eval { decode_json($response) };
+	return (undef, "invalid child response") if $@ || !$data;
+
+	return ($data, undef);
 }
 
 # --------------------------
@@ -139,32 +137,23 @@ while (1) {
 
 	my $id        = $req->{id};
 	my $condition = $req->{condition};
-	my $result_key = $req->{result_key};
 
 	log_debug("eval id=$id condition=$condition\n");
 
-	# --------------------------
-	# EXECUTE WITH HARD TIMEOUT
-	# --------------------------
-	my ($ok, $err) = safe_eval($condition, 2);
+	my ($payload, $err) = safe_eval($condition, 2);
 
-	my $payload;
-
-	if ($err) {
+	# --------------------------
+	# NORMALIZE PAYLOAD
+	# --------------------------
+	if ($err || !$payload) {
 		$payload = {
-			id     => $id,
-			result => 0,
-			error  => $err
-		};
-	} else {
-		# NOTE: result is already printed by child,
-		# but we still need a fallback structure
-		$payload = {
-			id     => $id,
-			result => 1,
-			error  => ''
+			result  => 0,
+			error   => $err || "invalid child response",
+			warning => ''
 		};
 	}
+
+	$payload->{id} = $id;
 
 	my $encoded = encode_json($payload);
 
@@ -173,7 +162,11 @@ while (1) {
 	$redis->rpush($wait_key, $encoded);
 	$redis->expire($wait_key, 30);
 
-	log_debug("published result id=$id\n");
+	log_debug(
+		"published result=$payload->{result} id=$id " . 
+		($payload->{error} ? " error=$payload->{error}" : '') . 
+		($payload->{warning} ? " warning=$payload->{warning}\n" : '')
+	);
 
 	if ($processed % 100 == 0) {
 		log_debug("heartbeat processed=$processed\n");
