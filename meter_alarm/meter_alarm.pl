@@ -127,6 +127,18 @@ $SIG{HUP} = sub {
 	redis_log_snapshot();
 };
 
+# --------------------------------------------------
+# SCHEMA CACHE (samples_cache columns)
+# --------------------------------------------------
+my $samples_cache_fields = {};
+
+my $sth = $dbh->prepare("DESCRIBE samples_cache");
+$sth->execute();
+
+while (my $row = $sth->fetchrow_hashref) {
+	$samples_cache_fields->{$row->{Field}} = 1;
+}
+
 # ==================================================
 # RUNTIME CONFIGURATION STORE
 # ==================================================
@@ -586,34 +598,26 @@ sub check_delayed_valve_closed {
 # Iterates through text to find and replace $variable tokens
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
-	my $samples_cache_fields;
-
-	# --------------------------------------------------
-	# LOAD SCHEMA
-	# --------------------------------------------------
-	my $sth = $dbh->prepare("DESCRIBE samples_cache");
-	$sth->execute();
-
-	while (my $row = $sth->fetchrow_hashref) {
-		$samples_cache_fields->{$row->{Field}} = 1;
-	}
 
 	# Extract variables like $foo, $bar
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
-		# --------------------------------------------------
-		# ONLY ALLOW REAL DB FIELDS FOR AUTO RESOLUTION
-		# --------------------------------------------------
-		next unless $samples_cache_fields->{$var};
-
 		my $value = resolve_var($var, $alarm);
 
-		# IMPORTANT: do not coerce missing values to 0
-		next unless defined $value;
+		# --------------------------------------------------
+		# PASS-THROUGH HANDLING
+		# --------------------------------------------------
+		# If resolve_var returns "$var", we leave it untouched
+		if (defined $value && $value eq "\$$var") {
+			next;
+		}
 
-		$text =~ s/\$$var\b/$value/g;
+		# --------------------------------------------------
+		# SAFE SUBSTITUTION ONLY
+		# --------------------------------------------------
+		$text =~ s/\$$var\b/$value/g if defined $value;
 	}
 
 	return $text;
@@ -701,7 +705,6 @@ sub resolve_var {
 		unless (defined $alarm->{closed_status} && $alarm->{closed_status} == 1) {
 			return 0;
 		}
-		
 
 		my $key = "flow:$serial:leak_since";
 		my $now = time();
@@ -796,36 +799,47 @@ sub resolve_var {
 
 		return $delta + 0; # force numeric
 	}
-	
+
 	# --------------------------------------------------
-	# GENERIC SENSOR FALLBACK
+	# DB SCHEMA ROUTING (DESCRIBE CACHE)
 	# --------------------------------------------------
-	# Handles arbitrary variables like:
-	#   $temperature, $pressure, etc.
-	my $sth = $dbh->prepare(qq[
-		SELECT `$var`
-		FROM samples_cache
-		WHERE serial = ?
-		ORDER BY unix_time DESC
-		LIMIT 5
-	]);
+	# If variable exists as a column in samples_cache,
+	# resolve it using latest values (median of last 5 samples).
+	if ($samples_cache_fields->{$var}) {
 
-	$sth->execute($serial);
-	my $rows = $sth->fetchall_arrayref;
+		my $sth = $dbh->prepare(qq[
+			SELECT `$var`
+			FROM samples_cache
+			WHERE serial = ?
+			ORDER BY unix_time DESC
+			LIMIT 5
+		]);
 
-	return undef unless @$rows;
+		$sth->execute($serial);
+		my $rows = $sth->fetchall_arrayref;
 
-	# Extract numeric values, ignore NULLs
-	my @values = map {
-		defined $_->[0] ? $_->[0] + 0.0 : ()
-	} @$rows;
+		# If no data exists, return variable as-is (pass-through)
+		return "\$$var" unless @$rows;
 
-	return undef unless @values;
+		# Extract numeric values, ignore NULLs
+		my @values = map {
+			defined $_->[0] ? $_->[0] + 0.0 : ()
+		} @$rows;
 
-	# Use median: robust against spikes / outliers
-	my $median_val = median(@values);
+		# If no valid numeric values, pass-through
+		return "\$$var" unless @values;
 
-	return $median_val + 0.0;
+		my $median_val = median(@values);
+
+		# Use median: robust against spikes / outliers
+		return $median_val + 0.0;
+	}
+
+	# --------------------------------------------------
+	# UNKNOWN VARIABLE → PASS THROUGH
+	# --------------------------------------------------
+	# Let Perl sandbox evaluate it as a native variable
+	return "\$$var";
 }
 
 # --------------------------
