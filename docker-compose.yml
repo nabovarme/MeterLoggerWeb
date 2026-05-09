@@ -272,6 +272,7 @@ services:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
     security_opt:
       - no-new-privileges:true
     cap_drop:
