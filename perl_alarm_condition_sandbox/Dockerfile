@@ -28,8 +28,7 @@ RUN apt-get update && \
 RUN PERL_MM_USE_DEFAULT=1 cpanm Time::Format
 RUN PERL_MM_USE_DEFAULT=1 cpanm Date::Parse
 
-#USER nobody
-USER root
+USER nobody
 
 COPY ./perl_alarm_condition_sandbox/perl_sandbox.pl /usr/local/bin/perl_sandbox.pl
 
