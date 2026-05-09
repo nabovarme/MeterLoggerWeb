@@ -6,7 +6,10 @@ use warnings;
 use JSON;
 use Redis;
 
-$| = 1;
+use IO::Handle;
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 my $redis_host = $ENV{REDIS_HOST} || die "REDIS_HOST missing";
 my $redis_port = $ENV{REDIS_PORT} || die "REDIS_PORT missing";
@@ -52,8 +55,9 @@ while (1) {
 		local $@;
 
 		local $SIG{__WARN__} = sub {
-			$warning .= join('', @_);
-			print "warning: eval warn: @_";
+			my $msg = join('', @_);
+			$warning .= $msg;
+			print "warning: eval warn: $msg";
 		};
 
 		no strict 'vars';
@@ -68,18 +72,16 @@ while (1) {
 	# BUILD RESPONSE
 	# --------------------------------------------------
 	my $payload = {
-		id     => $id,
-		result => $error ? 0 : $result,
+		id      => $id,
+		result  => defined $result ? $result : 0,
+		warning => $warning // '',
 	};
 
 	if ($error) {
 		print "error: eval failed id=$id $error\n";
 
-		$payload->{error}   = "$error";
-		$payload->{warning} = $warning if length $warning;
+		$payload->{error} = "$error";
 	}
-
-	$payload->{warning} = $warning if !$error && length $warning;
 
 	my $encoded = encode_json($payload);
 

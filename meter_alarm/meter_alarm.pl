@@ -21,6 +21,11 @@ use JSON;
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
+use IO::Handle;
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
+
 # --------------------------
 # CONSTANTS
 # --------------------------
@@ -37,12 +42,6 @@ use constant LEAKAGE_DELAY => 300;
 use constant INITIAL_NO_BACKOFF => 2;
 
 use constant MAX_DATA_AGE => 86400; # seconds (e.g. 1 day)
-
-# --------------------------------------------------
-# AUTOFUSH OUTPUT ENABLED
-# --------------------------------------------------
-# $| = 1 forces immediate flushing of STDOUT.
-$| = 1;
 
 # Script name derived from invocation name ($0)
 # Used for logging / identification purposes
@@ -416,15 +415,6 @@ sub evaluate_alarm {
 
 	if (!$raw) {
 		log_warn("Sandbox timeout for eval_id=$eval_id");
-
-		my $err = $dbh->quote("sandbox timeout");
-
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = $err
-			WHERE id = $quoted_id
-		]);
-
 		return;
 	}
 
@@ -455,7 +445,7 @@ sub evaluate_alarm {
 	}
 
 	# WARNING only if no error
-	if (defined $data->{warning} && $data->{warning} ne '') {
+	if ($data->{warning}) {
 		log_warn("Sandbox warning: $data->{warning}");
 
 		my $warn = $dbh->quote($data->{warning});
@@ -474,11 +464,13 @@ sub evaluate_alarm {
 	});
 
 	# Clear previous error if evaluation succeeds
-	$dbh->do(qq[
-		UPDATE alarms
-		SET condition_error = NULL
-		WHERE id = $quoted_id
-	]);
+	unless ($data->{warning}) {
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = NULL
+			WHERE id = $quoted_id
+		]);
+	}
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
