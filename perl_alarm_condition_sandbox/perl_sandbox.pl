@@ -11,16 +11,25 @@ use IO::Handle;
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
+my $DEBUG = ($ENV{ENABLE_DEBUG} // 0) =~ /^(1|true|yes)$/i;
+
+$SIG{USR1} = sub {
+	$DEBUG = !$DEBUG;
+
+	my $state = $DEBUG ? "enabled" : "disabled";
+	print STDERR "[DEBUG] toggled via USR1 => $state\n";
+};
+
 my $redis_host = $ENV{REDIS_HOST} || die "REDIS_HOST missing";
 my $redis_port = $ENV{REDIS_PORT} || die "REDIS_PORT missing";
 
-print "starting sandbox worker on $redis_host:$redis_port\n";
+log_debug("starting sandbox worker on $redis_host:$redis_port\n");
 
 my $redis = Redis->new(
 	server => "$redis_host:$redis_port"
 );
 
-print "connected to redis\n";
+log_debug("connected to redis\n");
 
 my $processed = 0;
 
@@ -37,7 +46,7 @@ while (1) {
 	my $req = eval { decode_json($raw->[1]) };
 
 	if ($@ || !$req) {
-		print "warning: invalid json request\n";
+		log_debug("warning: invalid json request\n");
 		next;
 	}
 
@@ -45,7 +54,7 @@ while (1) {
 	my $condition   = $req->{condition};
 	my $result_key  = $req->{result_key};
 
-	print "info: request id=$id condition=$condition\n";
+	log_debug("info: request id=$id condition=$condition\n");
 
 	my $result;
 	my $error   = '';
@@ -57,7 +66,7 @@ while (1) {
 		local $SIG{__WARN__} = sub {
 			my $msg = join('', @_);
 			$warning .= $msg;
-			print "warning: eval warn: $msg";
+			log_debug("warning: eval warn: $msg");
 		};
 
 		no strict 'vars';
@@ -78,7 +87,7 @@ while (1) {
 	};
 
 	if ($error) {
-		print "error: eval failed id=$id $error\n";
+		log_debug("error: eval failed id=$id $error\n");
 
 		$payload->{error} = "$error";
 	}
@@ -96,9 +105,14 @@ while (1) {
 	$redis->rpush($wait_key, $encoded);
 	$redis->expire($wait_key, 30);
 
-	print "info: result published id=$id => $payload->{result}\n";
+	log_debug("info: result published id=$id => $payload->{result}\n");
 
 	if ($processed % 100 == 0) {
-		print "info: heartbeat processed=$processed\n";
+		log_debug("info: heartbeat processed=$processed\n");
 	}
+}
+
+sub log_debug {
+	return unless $DEBUG;
+	print @_;
 }
