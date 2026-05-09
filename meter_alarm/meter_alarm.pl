@@ -372,7 +372,13 @@ sub process_alarms {
 
 		@eval_jobs = @remaining_jobs;
 
-		last if (time() - $start) > 15;
+		if ((time() - $start) > 15) {
+			log_warn("Sandbox evaluation timeout after 15s. Missing jobs: " . scalar(@eval_jobs), {
+				-custom_tag => "SANDBOX:TIMEOUT:$run_id"
+			});
+
+			last;
+		}
 		usleep(50_000);
 	}
 
