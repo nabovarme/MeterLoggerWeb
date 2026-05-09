@@ -600,19 +600,33 @@ sub check_delayed_valve_closed {
 # Iterates through text to find and replace $variable tokens
 sub interpolate_variables {
 	my ($text, $alarm) = @_;
+	my $samples_cache_fields;
 
-	# Extract all $variable tokens from the expression
+	# --------------------------------------------------
+	# LOAD SCHEMA
+	# --------------------------------------------------
+	my $sth = $dbh->prepare("DESCRIBE samples_cache");
+	$sth->execute();
+
+	while (my $row = $sth->fetchrow_hashref) {
+		$samples_cache_fields->{$row->{Field}} = 1;
+	}
+
+	# Extract variables like $foo, $bar
 	my @vars = ($text =~ /\$(\w+)/g);
 
 	foreach my $var (@vars) {
 
-		# Resolve each variable against alarm/meter state
+		# --------------------------------------------------
+		# ONLY ALLOW REAL DB FIELDS FOR AUTO RESOLUTION
+		# --------------------------------------------------
+		next unless $samples_cache_fields->{$var};
+
 		my $value = resolve_var($var, $alarm);
 
-		# Normalize missing/undefined values to 0 for safe evaluation
-		$value = 0 if !defined $value || $value eq '';
+		# IMPORTANT: do not coerce missing values to 0
+		next unless defined $value;
 
-		# Replace all occurrences of $var with its resolved value
 		$text =~ s/\$$var\b/$value/g;
 	}
 
