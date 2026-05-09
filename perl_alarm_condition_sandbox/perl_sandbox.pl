@@ -163,9 +163,11 @@ while (1) {
 	$redis->expire($wait_key, 30);
 
 	log_debug(
-		"published result=$payload->{result} id=$id " . 
-		($payload->{error} ? " error=$payload->{error}" : '') . 
-		($payload->{warning} ? " warning=$payload->{warning}\n" : '')
+		"published result=" . ($payload->{result}) .
+		" id=$id" .
+		($payload->{error} ? " error=$payload->{error}" : "") .
+		($payload->{warning} ? " warning=$payload->{warning}" : "") .
+		"\n"
 	);
 
 	if ($processed % 100 == 0) {
