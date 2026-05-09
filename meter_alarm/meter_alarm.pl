@@ -898,7 +898,7 @@ sub handle_alarm {
 		# If this is the first time we see a normal state,
 		# start a timer instead of clearing immediately.
 		# Only begin clear hysteresis if alarm is currently active
-		if ($alarm->{alarm_state} == 1 && !$since) {
+		if ($alarm->{alarm_state} == 1 && !defined $since) {
 
 			$redis->set($redis_clear_key, $now, 'EX', 3600);
 
@@ -917,7 +917,7 @@ sub handle_alarm {
 		# --------------------------------------------------
 		# Only clear alarm if condition has remained normal
 		# continuously for alarm_clear_delay seconds
-		if (($now - $since) < $cfg->{alarm_clear_delay}) {
+		if (defined $since && ($now - $since) < $cfg->{alarm_clear_delay}) {
 			return; # still within hysteresis window → do nothing
 		}
 
