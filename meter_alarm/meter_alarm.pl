@@ -123,6 +123,18 @@ $SIG{HUP} = sub {
 	redis_log_snapshot();
 };
 
+# --------------------------------------------------
+# SCHEMA CACHE (samples_cache columns)
+# --------------------------------------------------
+my $samples_cache_fields = {};
+
+my $sth = $dbh->prepare("DESCRIBE samples_cache");
+$sth->execute();
+
+while (my $row = $sth->fetchrow_hashref) {
+	$samples_cache_fields->{$row->{Field}} = 1;
+}
+
 # ==================================================
 # RUNTIME CONFIGURATION STORE
 # ==================================================
@@ -739,34 +751,59 @@ sub resolve_var {
 	}
 	
 	# --------------------------------------------------
-	# GENERIC SENSOR FALLBACK
+	# SCHEMA-BASED SENSOR RESOLUTION (samples_cache)
 	# --------------------------------------------------
-	# Handles arbitrary variables like:
-	#   $temperature, $pressure, etc.
-	my $sth = $dbh->prepare(qq[
-		SELECT `$var`
-		FROM samples_cache
-		WHERE serial = ?
-		ORDER BY unix_time DESC
-		LIMIT 5
-	]);
+	# If the variable matches a real column in samples_cache,
+	# it is resolved from historical sensor data.
+	#
+	# Resolution method:
+	#   - fetch last 5 samples for the variable
+	#   - compute median (robust against spikes/outliers)
+	#
+	# Behavior rules:
+	#   - if no rows exist → return "$var" (leave for eval)
+	#   - if values are all NULL → return "$var"
+	#   - otherwise → return numeric median value
+	#
+	# This ensures:
+	#   - safe fallback to expression evaluation
+	#   - stable sensor smoothing
+	#   - no hard failure on missing data
+	if ($samples_cache_fields->{$var}) {
 
-	$sth->execute($serial);
-	my $rows = $sth->fetchall_arrayref;
+		my $sth = $dbh->prepare(qq[
+			SELECT `$var`
+			FROM samples_cache
+			WHERE serial = ?
+			ORDER BY unix_time DESC
+			LIMIT 5
+		]);
 
-	return undef unless @$rows;
+		$sth->execute($serial);
+		my $rows = $sth->fetchall_arrayref;
 
-	# Extract numeric values, ignore NULLs
-	my @values = map {
-		defined $_->[0] ? $_->[0] + 0.0 : ()
-	} @$rows;
+		# If no data exists, return variable as-is (pass-through)
+		return "\$$var" unless @$rows;
 
-	return undef unless @values;
+		# Extract numeric values, ignore NULLs
+		my @values = map {
+			defined $_->[0] ? $_->[0] + 0.0 : ()
+		} @$rows;
 
-	# Use median: robust against spikes / outliers
-	my $median_val = median(@values);
+		# If no valid numeric values, pass-through
+		return "\$$var" unless @values;
 
-	return $median_val + 0.0;
+		my $median_val = median(@values);
+
+		# Use median: robust against spikes / outliers
+		return $median_val + 0.0;
+	}
+
+	# --------------------------------------------------
+	# UNKNOWN VARIABLE → PASS THROUGH
+	# --------------------------------------------------
+	# Let Perl sandbox evaluate it as a native variable
+	return "\$$var";
 }
 
 # --------------------------
