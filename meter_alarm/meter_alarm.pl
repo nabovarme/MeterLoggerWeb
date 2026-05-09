@@ -389,7 +389,6 @@ sub evaluate_alarm {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
 
-	my $eval_alarm_state;
 	my $quoted_id = $dbh->quote($alarm->{id});
 
 	# --------------------------------------------------
@@ -436,6 +435,9 @@ sub evaluate_alarm {
 		log_warn("Invalid sandbox response eval_id=$eval_id");
 		return;
 	}
+	
+	my $eval_alarm_state = $data->{result};
+	
 
 	# WARNING (always written)
 	my $warn = $data->{warning};
