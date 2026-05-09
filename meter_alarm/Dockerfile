@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
 	libdbi-perl \
 	libconfig-simple-perl \
 	libemail-mime-perl \
+	libjson-perl \
 	default-mysql-client
 
 # Copy local repository from Docker volume
@@ -36,10 +37,10 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 
 COPY ./meter_alarm/meter_alarm.pl /usr/local/bin/meter_alarm.pl
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["perl", "/usr/local/bin/meter_alarm.pl"]

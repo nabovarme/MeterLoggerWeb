@@ -2,7 +2,7 @@
 BASH_HISTORY_FILE=./utils/bash_history
 
 # All services
-ALL_SERVICES=perl_modules_builder db mqtt web meter_grapher mysql_mqtt_command_queue_receive mysql_mqtt_command_queue_send smsd meter_sms meter_cron redis postfix
+ALL_SERVICES=perl_modules_builder db mqtt web meter_grapher mysql_mqtt_command_queue_receive mysql_mqtt_command_queue_send smsd meter_alarm meter_notify meter_cron redis postfix
 OTHER_SERVICES=$(filter-out perl_modules_builder,$(ALL_SERVICES))
 
 # Default target

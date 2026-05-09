@@ -49,23 +49,23 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 COPY ./meter_cron/crontab /etc/
 
 RUN chmod 0644 /etc/crontab && \
 	touch /var/log/cron.log
 
-COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
-COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
-COPY ./meter_cron/clean_sms_auth.pl /etc/apache2/perl/Nabovarme/bin/clean_sms_auth.pl
-COPY ./meter_cron/wifi_get_location.pl /etc/apache2/perl/Nabovarme/bin/wifi_get_location.pl
-COPY ./meter_cron/update_samples_hourly_and_daily.pl /etc/apache2/perl/Nabovarme/bin/update_samples_hourly_and_daily.pl
-COPY ./meter_cron/remove_spikes.pl /etc/apache2/perl/Nabovarme/bin/remove_spikes.pl
-COPY ./meter_cron/sync_alarms_auto.pl /etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl
-COPY ./meter_cron/update_estimated_energy.pl /etc/apache2/perl/Nabovarme/bin/update_estimated_energy.pl
+COPY ./update_meters.pl /usr/local/bin/update_meters.pl
+COPY ./clean_samples_cache.pl /usr/local/bin/clean_samples_cache.pl
+COPY ./meter_cron/clean_sms_auth.pl /usr/local/bin/clean_sms_auth.pl
+COPY ./meter_cron/wifi_get_location.pl /usr/local/bin/wifi_get_location.pl
+COPY ./meter_cron/update_samples_hourly_and_daily.pl /usr/local/bin/update_samples_hourly_and_daily.pl
+COPY ./meter_cron/remove_spikes.pl /usr/local/bin/remove_spikes.pl
+COPY ./meter_cron/sync_alarms_auto.pl /usr/local/bin/sync_alarms_auto.pl
+COPY ./meter_cron/update_estimated_energy.pl /usr/local/bin/update_estimated_energy.pl
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]

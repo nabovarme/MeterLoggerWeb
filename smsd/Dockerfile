@@ -44,15 +44,15 @@ USER root
 RUN groupadd -r smsd && useradd -r -g smsd -m -s /bin/bash smsd
 
 # Copy scripts
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 
-COPY ./smsd/smtp_server.pl .
+COPY ./smsd/smtp_server.pl /usr/local/bin/smtp_server.pl
 COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Create directories and set ownership
 RUN mkdir -p /var/spool/sms/{outgoing,failed,incoming,checked,sent}
 RUN chown -R smsd:smsd /var/spool/sms
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
 CMD ["/bin/bash", "/docker-entrypoint.sh"]
