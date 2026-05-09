@@ -52,5 +52,5 @@ COPY ./mysql_mqtt_command_queue_receive/mysql_mqtt_command_queue_receive.pl /usr
 
 ENV PERL5LIB=/usr/local/lib/perl
 
-CMD ["/usr/local/lib/bin/mysql_mqtt_command_queue_receive.pl"]
+CMD ["/usr/local/bin/mysql_mqtt_command_queue_receive.pl"]
 
