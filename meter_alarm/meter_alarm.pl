@@ -437,7 +437,10 @@ sub evaluate_alarm {
 	}
 	
 	my $eval_alarm_state = $data->{result};
-	
+
+	log_debug("alarm eval result: $eval_alarm_state", {
+		-custom_tag => "ALARM:$run_id:$serial"
+	});	
 
 	# WARNING (always written)
 	my $warn = $data->{warning};
