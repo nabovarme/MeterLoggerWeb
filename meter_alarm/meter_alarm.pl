@@ -414,7 +414,7 @@ sub evaluate_alarm {
 	my $raw = redis_call('blpop', $wait_key, 15);
 
 	if (!$raw) {
-		log_warn("Sandbox timeout for eval_id=$eval_id");
+		log_warn("Sandbox timeout for eval_id=$eval_id", {-custom_tag => "ALARM:$run_id:$serial"});
 		return;
 	}
 
@@ -425,13 +425,28 @@ sub evaluate_alarm {
 		return;
 	}
 
-	# --------------------------------------
-	# ERROR + WARNING HANDLING (MUTUALLY EXCLUSIVE)
-	# --------------------------------------
+	# WARNING (always written)
+	my $warn = $data->{warning};
 
-	# ERROR has highest priority
+	if ($warn) {
+		log_warn("Sandbox warning: $warn", {
+			-custom_tag => "ALARM:$run_id:$serial"
+		});
+	};
+
+	my $quoted_warn = $dbh->quote($warn);
+
+	$dbh->do(qq[
+		UPDATE alarms
+		SET condition_warning = $quoted_warn
+		WHERE id = $quoted_id
+	]);
+
+	# ERROR (only if present)
 	if (defined $data->{error}) {
-		log_warn("Sandbox eval error: $data->{error}");
+		log_warn("Sandbox eval error: $data->{error}", {
+			-custom_tag => "ALARM:$run_id:$serial"
+		});
 
 		my $err = $dbh->quote($data->{error});
 
@@ -444,33 +459,12 @@ sub evaluate_alarm {
 		return;
 	}
 
-	# WARNING only if no error
-	if ($data->{warning}) {
-		log_warn("Sandbox warning: $data->{warning}");
-
-		my $warn = $dbh->quote($data->{warning});
-
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = $warn
-			WHERE id = $quoted_id
-		]);
-	}
-
-	$eval_alarm_state = $data->{result} ? 1 : 0;
-
-	log_debug("sandbox_result=$eval_alarm_state condition=$condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-	});
-
-	# Clear previous error if evaluation succeeds
-	unless ($data->{warning}) {
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = NULL
-			WHERE id = $quoted_id
-		]);
-	}
+	# Clear error only on success
+	$dbh->do(qq[
+		UPDATE alarms
+		SET condition_error = NULL
+		WHERE id = $quoted_id
+	]);
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
