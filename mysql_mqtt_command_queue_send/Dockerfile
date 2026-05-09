@@ -46,11 +46,11 @@ RUN apt-get update && \
 
 USER root
 
-COPY ./perl /etc/apache2/perl
+COPY ./perl /usr/local/lib/perl
 
-COPY ./mysql_mqtt_command_queue_send/mysql_mqtt_command_queue_send.pl /etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl
+COPY ./mysql_mqtt_command_queue_send/mysql_mqtt_command_queue_send.pl /usr/local/bin/mysql_mqtt_command_queue_send.pl
 
-ENV PERL5LIB=/etc/apache2/perl
+ENV PERL5LIB=/usr/local/lib/perl
 
-CMD ["/etc/apache2/perl/Nabovarme/bin/mysql_mqtt_command_queue_send.pl"]
+CMD ["/usr/local/bin/mysql_mqtt_command_queue_send.pl"]
 

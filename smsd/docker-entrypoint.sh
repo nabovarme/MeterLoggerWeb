@@ -10,4 +10,4 @@ _term() {
 trap _term SIGTERM SIGINT
 
 # Run Perl server in the foreground
-exec perl /smtp_server.pl
+exec perl /usr/local/bin/smtp_server.pl
