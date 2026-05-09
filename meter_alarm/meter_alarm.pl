@@ -399,37 +399,61 @@ sub evaluate_alarm {
 	#   - errors are caught and persisted to DB
 	{
 		local $@;
+
+		my $warning = '';
+
+		local $SIG{__WARN__} = sub {
+			$warning .= join('', @_);
+		};
+
 		no strict;
 		no warnings;
 
 		$eval_alarm_state = eval $condition;
 
-		# --------------------------------------
+		my $id = $dbh->quote($alarm->{id});
+
+		# --------------------------
 		# ERROR HANDLING
-		# --------------------------------------
+		# --------------------------
 		if ($@) {
+
 			log_warn("Eval error: $@");
 
 			my $err = $dbh->quote($@);
 
+			my $warn_sql = length($warning)
+				? $dbh->quote($warning)
+				: 'NULL';
+
 			$dbh->do(qq[
 				UPDATE alarms
-				SET condition_error = $err
-				WHERE id = $quoted_id
+				SET
+					condition_error = $err,
+					condition_warning = $warn_sql
+				WHERE id = $id
 			]);
 
 			return;
 		}
 
+		# --------------------------
+		# NORMAL PATH LOGGING
+		# --------------------------
 		log_debug("eval_result=$eval_alarm_state condition=$condition", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
 
-		# Clear previous error if evaluation succeeds
+		my $warn_sql = length($warning)
+			? $dbh->quote($warning)
+			: 'NULL';
+
 		$dbh->do(qq[
 			UPDATE alarms
-			SET condition_error = NULL
-			WHERE id = $quoted_id
+			SET
+				condition_error = NULL,
+				condition_warning = $warn_sql
+			WHERE id = $id
 		]);
 	}
 
