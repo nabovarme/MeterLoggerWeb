@@ -29,6 +29,7 @@ CPAN_MODULES=(
 	"Exporter::Tiny"
 	"Type::Tiny"
 	"Types::Standard"
+	"Moo"
 )
 
 echo "Building CPAN modules..."
