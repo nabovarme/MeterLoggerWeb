@@ -17,6 +17,7 @@ use File::Basename;
 use File::Path qw(make_path);
 use Redis;
 use JSON;
+use Time::HiRes qw(usleep);
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -187,11 +188,13 @@ while (1) {
 }
 
 # --------------------------
-# PROCESS ALARMS
+# PROCESS ALARMS (FAN-OUT / FAN-IN VERSION)
 # --------------------------
 # Fetches all enabled alarms and merges them with current meter metadata
 sub process_alarms {
 	my ($run_id) = @_;
+
+	$alarm_config = {};
 
 	# --------------------------------------------------
 	# LOAD ALL ACTIVE ALARMS + METER STATE (JOINED VIEW)
@@ -226,10 +229,12 @@ sub process_alarms {
 
 	$sth->execute;
 
-	# --------------------------------------------------
-	# PROCESS EACH ALARM INDEPENDENTLY
-	# --------------------------------------------------
-	# Each row represents a fully self-contained evaluation unit.
+	# ==================================================
+	# FAN-OUT PHASE
+	# ==================================================
+	my @eval_jobs;
+	my %alarm_by_eval;
+
 	while (my $alarm = $sth->fetchrow_hashref) {
 
 		# --------------------------------------------------
@@ -282,8 +287,10 @@ sub process_alarms {
 					: LEAKAGE_DELAY,
 		};
 
+		my $serial = $alarm->{serial};
+
 		# --------------------------------------------------
-		# CORE EVALUATION STEP
+		# VALVE PRE-CHECK (NON BLOCKING)
 		# --------------------------------------------------
 		# Each alarm is evaluated independently using:
 		#   - resolved meter state
@@ -292,9 +299,145 @@ sub process_alarms {
 		#
 		# This is the "decision engine" per alarm.
 		evaluate_alarm($alarm, $run_id);
+		$alarm->{closed_status} = check_delayed_valve_closed($serial);
+
+		my $uses_closed  = ($alarm->{condition} =~ /\$closed\b/);
+
+		if ($uses_closed && !defined $alarm->{closed_status}) {
+			next;
+		}
+
+		# --------------------------------------------------
+		# BUILD SANDBOX JOB
+		# --------------------------------------------------
+		my $eval_id = $alarm->{id} . ":" . $run_id . ":" . time();
+
+		my $condition = interpolate_variables($alarm->{condition}, $alarm);
+
+		my $result_key = "sandbox:result:$eval_id";
+
+		my $payload = {
+			id         => $eval_id,
+			condition  => $condition,
+			result_key => $result_key
+		};
+
+		# --------------------------------------------------
+		# SNOOZE AUTH KEY MANAGEMENT
+		# --------------------------------------------------
+		# Each alarm notification includes a key used for snoozing.
+		# Reuse existing key if present, otherwise generate a new one.
+		redis_call('rpush', "sandbox:requests", encode_json($payload));
+
+		push @eval_jobs, $eval_id;
+		$alarm_by_eval{$eval_id} = $alarm;
 	}
 
-	# Dump Redis state for debugging/timing verification
+	# ==================================================
+	# FAN-IN PHASE
+	# ==================================================
+	my $start = time();
+	my %results;
+
+	while (@eval_jobs) {
+
+		my @remaining_jobs;
+
+		foreach my $eval_id (@eval_jobs) {
+
+			my $wait_key = "sandbox:wait:$eval_id";
+
+			my $raw = $redis->lpop($wait_key);
+			if (!$raw) {
+				push @remaining_jobs, $eval_id;
+				next;
+			}
+
+			my $data = eval { decode_json($raw) };
+			if ($@ || !$data) {
+				push @remaining_jobs, $eval_id;
+				next;
+			}
+
+			$results{$eval_id} = $data;
+		}
+
+		@eval_jobs = @remaining_jobs;
+
+		last if (time() - $start) > 15;
+		usleep(50_000);
+	}
+
+	# ==================================================
+	# APPLY RESULTS
+	# ==================================================
+	foreach my $eval_id (keys %results) {
+
+		my $alarm = $alarm_by_eval{$eval_id};
+		my $data  = $results{$eval_id};
+
+		next unless $alarm && $data;
+
+		my $eval_alarm_state = $data->{result};
+
+		log_debug("alarm eval result: $eval_alarm_state", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		});
+
+		my $warn = $data->{warning};
+
+		if ($warn) {
+			log_warn("Sandbox warning: $warn", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			});
+		};
+
+		my $quoted_warn = $dbh->quote($warn);
+		my $quoted_id   = $dbh->quote($alarm->{id});
+
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_warning = $quoted_warn
+			WHERE id = $quoted_id
+		]);
+
+		if (defined $data->{error}) {
+
+			log_warn("Sandbox eval error: $data->{error}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			});
+
+			my $err = $dbh->quote($data->{error});
+
+			$dbh->do(qq[
+				UPDATE alarms
+				SET condition_error = $err
+				WHERE id = $quoted_id
+			]);
+
+			next;
+		}
+
+		$dbh->do(qq[
+			UPDATE alarms
+			SET condition_error = NULL
+			WHERE id = $quoted_id
+		]);
+
+		my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
+
+		my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
+		my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
+
+		handle_alarm(
+			$alarm,
+			$eval_alarm_state,
+			$down_message,
+			$up_message,
+			$dbh->quote($snooze_auth_key)
+		);
+	}
+
 	redis_log_snapshot();
 }
 
@@ -302,205 +445,59 @@ sub process_alarms {
 # EVALUATE ALARM
 # --------------------------
 # Determines if an alarm condition is met and handles notification logic
+# --------------------------
+# EVALUATE ALARM (ASYNC ONLY)
+# --------------------------
+# Only prepares sandbox job — NO blocking allowed here
 sub evaluate_alarm {
 	my ($alarm, $run_id) = @_;
 
 	my $now = time();
-	my $last_updated = $alarm->{last_updated};
+	my $serial = $alarm->{serial};
 
 	# --------------------------------------------------
 	# SAFETY: IGNORE STALE DATA
 	# --------------------------------------------------
-	# If meter data is too old, we skip evaluation entirely.
-	# This prevents:
-	#   - false alarms due to disconnected devices
-	#   - acting on outdated sensor values
-	#
-	# MAX_DATA_AGE acts as a hard cutoff (e.g. 24h)
+	my $last_updated = $alarm->{last_updated};
 	my $uses_offline = ($alarm->{condition} =~ /\$offline\b/);
-	
+
 	if (!$uses_offline && defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			-custom_tag => "ALARM:$run_id:$serial"
 		});
 
 		return;
 	}
-
-	# Context
-	my $serial = $alarm->{serial};
-	my $cfg = $alarm_config->{$serial};
-
-	# --------------------------------------------------
-	# SNOOZE AUTH KEY MANAGEMENT
-	# --------------------------------------------------
-	# Each alarm notification includes a key used for snoozing.
-	# Reuse existing key if present, otherwise generate a new one.
-	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
-	my $quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
-
-	# Raw condition string from DB (e.g. "$flow > 10 && $closed")
-	my $condition = $alarm->{condition};
-
-	# --------------------------------------------------
-	# MESSAGE TEMPLATE EXPANSION
-	# --------------------------------------------------
-	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
-	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
-
-	log_debug("raw condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-	});
 
 	# --------------------------------------------------
 	# VALVE ANTI-HYSTERESIS GATE
 	# --------------------------------------------------
-	# Returns:
-	#   1     → valve has been stably closed for configured delay
-	#   0     → valve is open or not yet confirmed stable
-	#   undef → valve is transitioning (not stable yet)
 	$alarm->{closed_status} = check_delayed_valve_closed($serial);
 
-	my $uses_closed  = ($condition =~ /\$closed\b/);
-	my $uses_leakage = ($condition =~ /\$leakage\b/);
+	my $uses_closed = ($alarm->{condition} =~ /\$closed\b/);
 
-	my $closed = $alarm->{closed_status};
-
-	# --------------------------------------------------
-	# ONLY SKIP IF CONDITION DEPENDS ON VALVE STATE
-	# --------------------------------------------------
-	if ($uses_closed) {
-		if (!defined $closed) {
-			log_debug("Skipping evaluation: valve transition still pending", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-			});
-
-			return;
-		}
+	if ($uses_closed && !defined $alarm->{closed_status}) {
+		return;
 	}
 
 	# --------------------------------------------------
-	# VARIABLE INTERPOLATION
+	# BUILD SANDBOX JOB
 	# --------------------------------------------------
-	# Replace variables in condition string:
-	#   $closed → already resolved above (fast path)
-	#   $flow, $temperature, etc. → resolved dynamically
-	$condition = interpolate_variables($condition, $alarm);
-
-	log_debug("parsed condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-	});
-
-	my $quoted_id = $dbh->quote($alarm->{id});
-
-	# --------------------------------------------------
-	# CONDITION EVALUATION (SANDBOXED VIA REDIS)
-	# --------------------------------------------------
-	# The condition string is evaluated in a sandbox worker.
-	#
-	# Returns truthy/falsey → used as alarm state
-	#
-	# IMPORTANT:
-	#   - evaluation happens outside main process
-	#   - errors are caught and persisted to DB
+	my $condition = interpolate_variables($alarm->{condition}, $alarm);
 
 	my $eval_id = $alarm->{id} . ":" . $run_id . ":" . $now;
-
-	my $result_key = "sandbox:result:$eval_id";
 
 	my $payload = {
 		id         => $eval_id,
 		condition  => $condition,
-		result_key => $result_key
+		result_key => "sandbox:result:$eval_id"
 	};
 
 	redis_call('rpush', "sandbox:requests", encode_json($payload));
 
-	# --------------------------------------------------
-	# EVENT-DRIVEN WAIT (REPLACES POLLING LOOP)
-	# --------------------------------------------------
-	# Worker must push result into:
-	#   sandbox:wait:<eval_id>
-
-	my $wait_key = "sandbox:wait:$eval_id";
-
-	my $raw = redis_call('blpop', $wait_key, 15);
-
-	if (!$raw) {
-		log_warn("Sandbox timeout for eval_id=$eval_id", {-custom_tag => "ALARM:$run_id:$serial"});
-		return;
-	}
-
-	my $data = eval { decode_json($raw->[1]) };
-
-	if ($@ || !$data) {
-		log_warn("Invalid sandbox response eval_id=$eval_id");
-		return;
-	}
-	
-	my $eval_alarm_state = $data->{result};
-
-	log_debug("alarm eval result: $eval_alarm_state", {
-		-custom_tag => "ALARM:$run_id:$serial"
-	});	
-
-	# WARNING (always written)
-	my $warn = $data->{warning};
-
-	if ($warn) {
-		log_warn("Sandbox warning: $warn", {
-			-custom_tag => "ALARM:$run_id:$serial"
-		});
-	};
-
-	my $quoted_warn = $dbh->quote($warn);
-
-	$dbh->do(qq[
-		UPDATE alarms
-		SET condition_warning = $quoted_warn
-		WHERE id = $quoted_id
-	]);
-
-	# ERROR (only if present)
-	if (defined $data->{error}) {
-		log_warn("Sandbox eval error: $data->{error}", {
-			-custom_tag => "ALARM:$run_id:$serial"
-		});
-
-		my $err = $dbh->quote($data->{error});
-
-		$dbh->do(qq[
-			UPDATE alarms
-			SET condition_error = $err
-			WHERE id = $quoted_id
-		]);
-
-		return;
-	}
-
-	# Clear error only on success
-	$dbh->do(qq[
-		UPDATE alarms
-		SET condition_error = NULL
-		WHERE id = $quoted_id
-	]);
-
-	# --------------------------------------------------
-	# STATE TRANSITION + NOTIFICATION HANDLING
-	# --------------------------------------------------
-	# Delegate to handle_alarm(), which manages:
-	#   - alarm state transitions (0 ↔ 1)
-	#   - notification sending (SMS)
-	#   - repeat intervals / exponential backoff
-	#   - snooze handling
-	#   - anti-flapping clear delay
-	handle_alarm(
-		$alarm,
-		$eval_alarm_state,
-		$down_message,
-		$up_message,
-		$quoted_snooze_auth_key
-	);
+	# IMPORTANT:
+	# no waiting, no BLPOP, no blocking
+	return;
 }
 
 # --------------------------
@@ -1117,6 +1114,7 @@ sub redis_log_snapshot {
 			}
 
 			my ($age, $delay, $state);
+			$delay //= 0;
 
 			$state = "STATIC";
 
