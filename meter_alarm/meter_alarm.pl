@@ -802,11 +802,8 @@ sub resolve_var {
 		return $median_val + 0.0;
 	}
 
-	# --------------------------------------------------
-	# UNKNOWN VARIABLE → PASS THROUGH
-	# --------------------------------------------------
-	# Let Perl sandbox evaluate it as a native variable
-	return "\$$var";
+	log_warn("Unknown variable '$var' in alarm condition for serial $serial");
+	return 0;
 }
 
 # --------------------------

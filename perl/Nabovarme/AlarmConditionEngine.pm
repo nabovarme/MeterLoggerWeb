@@ -4,126 +4,104 @@ use strict;
 use warnings;
 use Marpa::R2;
 
-# ==================================================
-# PUBLIC API
-# ==================================================
 sub evaluate {
-	my ($expr, $alarm) = @_;
+    my ($expr) = @_;
 
-	my $tokens = _lex($expr);
+    return 0 unless defined $expr;
 
-	my $grammar = _grammar();
+    my $grammar = _grammar();
 
-	my $recce = Marpa::R2::Recognizer->new({
-		grammar => $grammar,
-		semantics_package => 'Nabovarme::AlarmConditionEngine::Semantics'
-	});
+    my $slg = Marpa::R2::Scanless::G->new({ source => \$grammar });
 
-	$recce->read($tokens);
+    my $slr = Marpa::R2::Scanless::R->new({ grammar => $slg });
 
-	my $value = Marpa::R2::Value->new(
-		grammar => $grammar,
-		recognizer => $recce,
-		semantics_package => 'Nabovarme::AlarmConditionEngine::Semantics'
-	);
+    $slr->read(\$expr);
 
-	return $value->value($alarm);
+    my $value_ref = $slr->value();
+
+    return defined $value_ref ? $$value_ref : 0;
 }
-
-# ==================================================
-# LEXER (turn expression into tokens)
-# ==================================================
-sub _lex {
-	my ($expr) = @_;
-
-	my @tokens;
-
-	while ($expr =~ /\G\s*(\d+(?:\.\d+)?|\$?\w+|>=|<=|==|!=|&&|\|\||[()<>+\-*\/])\s*/gc) {
-		push @tokens, $1;
-	}
-
-	return \@tokens;
-}
-
-# ==================================================
-# GRAMMAR (Marpa SLIF format - CORRECT)
-# ==================================================
-my $grammar;
 
 sub _grammar {
-	return $grammar if $grammar;
 
-	$grammar = Marpa::R2::Grammar->new({
-		start => 'Expression',
+return <<'GRAMMAR';
 
-		rules => [
-			{ lhs => 'Expression', rhs => ['Expression', '||', 'Term'] },
-			{ lhs => 'Expression', rhs => ['Term'] },
+:default ::= action => ::first
 
-			{ lhs => 'Term', rhs => ['Term', '&&', 'Factor'] },
-			{ lhs => 'Term', rhs => ['Factor'] },
+:start ::= Expression
 
-			{ lhs => 'Factor', rhs => ['(', 'Expression', ')'] },
-			{ lhs => 'Factor', rhs => ['Comparison'] },
-			{ lhs => 'Factor', rhs => ['Value'] },
+# -------------------------
+# EXPRESSION
+# -------------------------
+Expression ::= Expression OR Term   action => do_or
+              | Term
 
-			{ lhs => 'Comparison', rhs => ['Value', 'COMP', 'Value'] },
-		]
-	});
+Term ::= Term GT Factor             action => do_gt
+        | Term LT Factor            action => do_lt
+        | Term GE Factor            action => do_ge
+        | Term LE Factor            action => do_le
+        | Term EQ Factor            action => do_eq
+        | Term NE Factor            action => do_ne
+        | Factor
 
-	$grammar->precompute();
-	return $grammar;
+# -------------------------
+# MATH
+# -------------------------
+Factor ::= Factor PLUS Value        action => do_add
+          | Factor MINUS Value      action => do_sub
+          | Value
+
+Value ::= Value TIMES Atom          action => do_mul
+        | Value DIV Atom            action => do_div
+        | Atom
+
+Atom ::= NUMBER
+       | LPAREN Expression RPAREN
+
+# -------------------------
+# TERMINALS
+# -------------------------
+NUMBER  ~ [0-9]+ ('.' [0-9]+)?
+VARIABLE ~ '$' [a-zA-Z_] [a-zA-Z0-9_]*
+
+PLUS   ~ '+'
+MINUS  ~ '-'
+TIMES  ~ '*'
+DIV    ~ '/'
+
+GT     ~ '>'
+LT     ~ '<'
+GE     ~ '>='
+LE     ~ '<='
+EQ     ~ '=='
+NE     ~ '!='
+
+OR     ~ '||'
+
+LPAREN ~ '('
+RPAREN ~ ')'
+
+:discard ~ whitespace
+whitespace ~ [\s]+
+
+GRAMMAR
 }
 
-1;
+# -------------------------
+# ACTIONS
+# -------------------------
+sub do_or  { $_[1] || $_[3] ? 1 : 0 }
 
-# ==================================================
-# SEMANTICS (evaluation logic)
-# ==================================================
-package Nabovarme::AlarmConditionEngine::Semantics;
+sub do_gt { $_[1] > $_[3] ? 1 : 0 }
+sub do_lt { $_[1] < $_[3] ? 1 : 0 }
+sub do_ge { $_[1] >= $_[3] ? 1 : 0 }
+sub do_le { $_[1] <= $_[3] ? 1 : 0 }
+sub do_eq { $_[1] == $_[3] ? 1 : 0 }
+sub do_ne { $_[1] != $_[3] ? 1 : 0 }
 
-use strict;
-use warnings;
-
-sub Value {
-	my ($v, $alarm) = @_;
-
-	# number
-	return $v if defined $v && $v =~ /^\d+(\.\d+)?$/;
-
-	# variable ($flow -> resolve_var(flow))
-	$v =~ s/^\$// if defined $v;
-	return main::resolve_var($v, $alarm);
-}
-
-sub Comparison {
-	my ($left, $op, $right) = @_;
-
-	return $left >  $right if $op eq '>';
-	return $left <  $right if $op eq '<';
-	return $left >= $right if $op eq '>=';
-	return $left <= $right if $op eq '<=';
-	return $left == $right if $op eq '==';
-	return $left != $right if $op eq '!=';
-
-	return 0;
-}
-
-sub Factor {
-	return $_[0];
-}
-
-sub Term {
-	my ($l, $op, $r) = @_;
-
-	return $l && $r if $op eq '&&';
-	return $l || $r if $op eq '||';
-
-	return $r;
-}
-
-sub Expression {
-	return $_[0];
-}
+sub do_add { $_[1] + $_[3] }
+sub do_sub { $_[1] - $_[3] }
+sub do_mul { $_[1] * $_[3] }
+sub do_div { $_[3] ? $_[1] / $_[3] : 0 }
 
 1;
