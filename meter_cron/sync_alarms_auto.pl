@@ -39,13 +39,13 @@ sub sync_auto_alarms {
 	log_info("Starting auto-alarm sync...");
 
 	# Delete alarms for serials that no longer exist
-	my $deleted_meters = $dbh->do(q{
+	my $deleted = $dbh->do(q{
 		DELETE FROM alarms
 		WHERE serial NOT IN (SELECT serial FROM meters)
 	});
 
-	my $num_deleted_meters = ($deleted_meters && $deleted_meters eq '0E0') ? 0 : $deleted_meters;
-	log_info("Deleted $num_deleted_meters alarms with missing meters");
+	my $num_deleted = ($deleted && $deleted eq '0E0') ? 0 : $deleted;
+	log_info("Deleted $num_deleted alarms with missing meters");
 
 	# Delete alarms whose auto template no longer exists OR is disabled
 	my $deleted_auto = $dbh->do(q{
