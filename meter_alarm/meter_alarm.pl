@@ -15,7 +15,6 @@ use Statistics::Basic qw(:all);
 use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
-use Redis;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -46,27 +45,6 @@ $| = 1;
 # Script name derived from invocation name ($0)
 # Used for logging / identification purposes
 my $script_name = basename($0 . ".pl");
-
-# ==================================================
-# REDIS INITIALIZATION (REAL-TIME STATE STORE)
-# ==================================================
-# Redis is used as a fast, ephemeral state layer for:
-#   - hysteresis timers (valve/flow stability)
-#   - alarm transition tracking
-#   - real-time sensor cache
-#
-# This is NOT long-term storage — it is temporal state only.
-
-# Redis host must be explicitly provided via environment
-my $redis_host = $ENV{'REDIS_HOST'}
-	or die "ERROR: REDIS_HOST environment variable not set";
-
-# Redis port must also be explicitly provided
-my $redis_port = $ENV{'REDIS_PORT'}
-	or die "ERROR: REDIS_PORT environment variable not set";
-
-# Connect to Redis server
-my $redis = Redis->new(server => "$redis_host:$redis_port");
 
 # ==================================================
 # DATABASE INITIALIZATION (SYSTEM OF RECORD)
@@ -110,17 +88,6 @@ $SIG{TERM} = sub {
 $SIG{INT} = sub {
 	log_debug("SIGINT received, will shutdown after current loop...");
 	$shutdown_requested = 1;
-};
-
-# --------------------------------------------------
-# SIGHUP (diagnostic trigger)
-# --------------------------------------------------
-# Triggers a full Redis state dump for debugging:
-#   - valve timers
-#   - flow timers
-#   - alarm transition states
-$SIG{HUP} = sub {
-	redis_log_snapshot();
 };
 
 # --------------------------------------------------
@@ -168,7 +135,6 @@ while (1) {
 	# Core system function:
 	#   loads alarms → resolves state → evaluates → triggers actions
 	process_alarms($run_id);
-	cleanup_orphan_redis_keys();
 	
 
 	# --------------------------------------------------
@@ -213,6 +179,9 @@ sub process_alarms {
 			alarms.valve_close_delay,
 			alarms.initial_no_backoff,
 			alarms.leakage_delay,
+			alarms.clear_pending_since,
+			alarms.valve_closed_since,
+			alarms.leak_since,
 			meters.info, meters.valve_status, meters.valve_installed,
 			meters.last_updated
 		FROM alarms
@@ -290,8 +259,6 @@ sub process_alarms {
 		evaluate_alarm($alarm, $run_id);
 	}
 
-	# Dump Redis state for debugging/timing verification
-	redis_log_snapshot();
 }
 
 # --------------------------
@@ -511,12 +478,22 @@ sub check_delayed_valve_closed {
 	#
 	# NOTE: This is intentionally not cached in Redis,
 	# since correctness is more important than speed here.
-	my $sth = $dbh->prepare("SELECT valve_status, valve_installed FROM meters WHERE serial = ?");
-	$sth->execute($serial);
-	my ($status, $installed) = $sth->fetchrow_array;
+	my $sth = $dbh->prepare(q[
+		SELECT
+			m.valve_status,
+			m.valve_installed,
+			a.id,
+			a.valve_closed_since
+		FROM meters m
+		JOIN alarms a ON a.serial = m.serial
+		WHERE m.serial = ?
+		LIMIT 1
+	]);
 
-	# Redis key used to track *when* the valve was first observed closed
-	my $key = "valve:$serial:closed_since";
+	$sth->execute($serial);
+
+	my ($status, $installed, $alarm_id, $closed_since)
+		= $sth->fetchrow_array;
 
 	my $now = time();
 
@@ -535,7 +512,13 @@ sub check_delayed_valve_closed {
 	# This ensures that "closed" must be continuous
 	# — any interruption resets the hysteresis window.
 	unless ($installed && $status =~ /close/i) {
-		$redis->del($key);
+
+		$dbh->do(qq[
+			UPDATE alarms
+			SET valve_closed_since = NULL
+			WHERE id = ?
+		], undef, $alarm_id);
+
 		return 0;
 	}
 
@@ -543,17 +526,19 @@ sub check_delayed_valve_closed {
 	# CASE 2: VALVE JUST BECAME CLOSED (start timing)
 	# --------------------------------------------------
 	# Check when we first observed "closed"
-	my $closed_since = $redis->get($key);
 
 	# If no valid timestamp exists:
 	#   - This is the FIRST detection of closed state
 	#   - Start a timer in Redis
 	#   - Return undef (not stable yet)
 	if (!$closed_since || $closed_since !~ /^\d+$/) {
-		$redis->set($key, $now, 'EX', 3600);
 
-		# undef signals:
-		#   "we are in transition, do not evaluate alarm yet"
+		$dbh->do(qq[
+			UPDATE alarms
+			SET valve_closed_since = ?
+			WHERE id = ?
+		], undef, $now, $alarm_id);
+
 		return undef;
 	}
 
@@ -570,7 +555,9 @@ sub check_delayed_valve_closed {
 	# Return values:
 	#   1     → closed (stable)
 	#   undef → still waiting for stability
-	return ($now - $closed_since >= $cfg->{valve_close_delay}) ? 1 : undef;
+	return ($now - $closed_since >= $cfg->{valve_close_delay})
+		? 1
+		: undef;
 }
 
 # --------------------------
@@ -680,10 +667,20 @@ sub resolve_var {
 		unless (defined $alarm->{closed_status} && $alarm->{closed_status} == 1) {
 			return 0;
 		}
-		
 
-		my $key = "flow:$serial:leak_since";
 		my $now = time();
+
+		my $alarm_id = $alarm->{id};
+
+		my $sth2 = $dbh->prepare(q[
+			SELECT leak_since
+			FROM alarms
+			WHERE id = ?
+		]);
+
+		$sth2->execute($alarm_id);
+
+		my ($since) = $sth2->fetchrow_array;
 
 		my $sth = $dbh->prepare(qq[
 			SELECT flow
@@ -694,23 +691,36 @@ sub resolve_var {
 		]);
 
 		$sth->execute($serial);
+
 		my ($flow) = $sth->fetchrow_array;
 
 		$flow ||= 0;
 
 		if ($flow <= 0) {
-			$redis->del($key);
+
+			$dbh->do(q[
+				UPDATE alarms
+				SET leak_since = NULL
+				WHERE id = ?
+			], undef, $alarm_id);
+
 			return 0;
 		}
-
-		my $since = $redis->get($key);
 
 		if (!$since || $since !~ /^\d+$/) {
-			$redis->set($key, $now, 'EX', 3600);
+
+			$dbh->do(q[
+				UPDATE alarms
+				SET leak_since = ?
+				WHERE id = ?
+			], undef, $now, $alarm_id);
+
 			return 0;
 		}
 
-		return ($now - $since >= $cfg->{leakage_delay}) ? $flow : 0;
+		return ($now - $since >= $cfg->{leakage_delay})
+			? $flow
+			: 0;
 	}
 
 	# --------------------------------------------------
@@ -851,33 +861,13 @@ sub handle_alarm {
 	my $id   = $dbh->quote($alarm->{id});
 	my $now  = time();
 
-	# Redis key used to track when a "normal" (non-alarm) condition started.
-	# This enables delayed clearing (anti-flapping).
-	my $redis_clear_key = "alarm:$alarm->{id}:clear_pending_since";
-
-	# Redis key used to persist serial ↔ alarm mapping
-	my $redis_serial_key = "alarm:$alarm->{id}:serial";
-
 	# Number of times this alarm has been triggered (used for backoff logic)
 	my $count = $alarm->{alarm_count} || 0;
-
-	# Ensure serial is always available in Redis for observability/debugging
-	if (defined $serial && $serial ne '') {
-		$redis->set($redis_serial_key, $serial);
-	} else {
-		# Fallback: recover serial from Redis if DB value is missing
-		$serial = $redis->get($redis_serial_key) // 'UNKNOWN';
-	}
 
 	# ==================================================
 	# ALARM ACTIVE STATE (condition is TRUE)
 	# ==================================================
 	if ($state) {
-
-		# If alarm is active again, cancel any pending "clear" timer.
-		# This prevents clearing if condition briefly returned to normal.
-		$redis->del($redis_clear_key);
-
 		# Determine whether exponential backoff should be used
 		# Disabled if repeat interval is very large (>= 1 day)
 		my $use_backoff = ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) ? 1 : 0;
@@ -886,7 +876,6 @@ sub handle_alarm {
 		# FIRST ACTIVATION (alarm transitions from 0 → 1)
 		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 0) {
-
 			# Send initial alarm notification immediately
 			sms_send($alarm->{sms_notification}, $down);
 
@@ -953,7 +942,7 @@ sub handle_alarm {
 	} else {
 
 		# Check when the system first observed a "normal" condition
-		my $since = $redis->get($redis_clear_key);
+		my $since = $alarm->{clear_pending_since};
 
 		# --------------------------------------------------
 		# STEP 1: Start clear timer
@@ -963,14 +952,13 @@ sub handle_alarm {
 		# Only begin clear hysteresis if alarm is currently active
 		if ($alarm->{alarm_state} == 1 && !defined $since) {
 
-			$redis->set($redis_clear_key, $now, 'EX', 3600);
-
-			# reset snooze immediately on recovery start
 			$dbh->do(qq[
-			UPDATE alarms
-			SET snooze = 0
-			WHERE id = $id
-			]);
+				UPDATE alarms
+				SET
+					clear_pending_since = ?,
+					snooze = 0
+				WHERE id = ?
+			], undef, $now, $alarm->{id});
 
 			return;
 		}
@@ -1002,9 +990,6 @@ sub handle_alarm {
 				WHERE id=$id
 			]);
 		}
-
-		# Cleanup: remove clear timer after successful resolution
-		$redis->del($redis_clear_key);
 	}
 }
 
@@ -1023,242 +1008,4 @@ sub sms_send {
 
 sub generate_snooze_key {
 	return join('', map { sprintf("%02x", irand(256)) } 1..8);
-}
-
-sub cleanup_orphan_redis_keys {
-
-	# --------------------------------------
-	# BUILD VALID SETS (FRESH EACH CALL)
-	# --------------------------------------
-	my %valid_alarms;
-	my %valid_serials;
-
-	# VALID ALARMS
-	my $sth = $dbh->prepare("SELECT id FROM alarms WHERE enabled = 1");
-	$sth->execute();
-
-	while (my ($id) = $sth->fetchrow_array) {
-		$valid_alarms{$id} = 1;
-	}
-
-	# VALID METERS (SERIALS)
-	$sth = $dbh->prepare("SELECT serial FROM meters");
-	$sth->execute();
-
-	while (my ($serial) = $sth->fetchrow_array) {
-		$valid_serials{$serial} = 1;
-	}
-
-	# --------------------------------------
-	# SCAN REDIS
-	# --------------------------------------
-	my $cursor = 0;
-
-	do {
-		my ($new_cursor, $keys) = $redis->scan($cursor, 'COUNT', 500);
-		$cursor = $new_cursor;
-
-		foreach my $key (@$keys) {
-
-			# --------------------------------------
-			# ALARM KEYS
-			# --------------------------------------
-			if ($key =~ /^alarm:(\d+):/) {
-
-				my $id = $1;
-
-				unless ($valid_alarms{$id}) {
-					log_debug("GC delete orphan alarm key: $key");
-					$redis->del($key);
-				}
-			}
-
-			# --------------------------------------
-			# SERIAL-BASED KEYS
-			# --------------------------------------
-			elsif ($key =~ /^(valve|flow|sensor):(\d+):/) {
-
-				my $serial = $2;
-
-				unless ($valid_serials{$serial}) {
-					log_debug("GC delete orphan serial key: $key");
-					$redis->del($key);
-				}
-			}
-		}
-
-	} while ($cursor != 0);
-}
-
-sub redis_log_snapshot {
-	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
-
-	my $cursor = 0;
-	my $now = time();
-
-	my %meters;
-	my %alarms;
-
-	# --------------------------
-	# SCAN REDIS
-	# --------------------------
-	do {
-		my ($new_cursor, $keys) = $redis->scan($cursor, 'COUNT', 500);
-		$cursor = $new_cursor;
-
-		foreach my $key (@$keys) {
-
-			if ($key =~ /^(sensor|valve|flow):(\d+):/) {
-
-				my $serial = $2;
-				my $val = $redis->get($key);
-
-				$meters{$serial}{$key} = $val;
-			}
-
-			elsif ($key =~ /^alarm:(\d+):(.*)$/) {
-
-				my $alarm_id = $1;
-				my $field    = $2;
-				my $val      = $redis->get($key);
-
-				$alarms{$alarm_id}{$field} = $val;
-			}
-		}
-
-	} while ($cursor != 0);
-
-	# ==================================================
-	# METERS
-	# ==================================================
-	log_debug("---- METER STATE BY SERIAL ----");
-
-	foreach my $serial (sort { $a <=> $b } keys %meters) {
-
-		log_debug("== SERIAL $serial ==");
-
-		foreach my $key (sort keys %{ $meters{$serial} }) {
-
-			my $val = $meters{$serial}{$key};
-
-			if (!defined $val || $val eq '') {
-				log_debug("  $key => <empty>");
-				next;
-			}
-
-			my ($age, $delay, $state);
-
-			$state = "STATIC";
-
-			if ($key =~ /_since$/) {
-				$age = $now - $val;
-
-				if ($key =~ /valve/) {
-					$delay = VALVE_CLOSE_DELAY;
-					$state = ($age >= $delay) ? "STABLE" : "TRANSITION";
-				}
-				elsif ($key =~ /flow/) {
-					$delay = LEAKAGE_DELAY;
-					$state = ($age >= $delay) ? "STABLE" : "TRANSITION";
-				}
-				else {
-					$state = "TIMED_EVENT";
-				}
-			}
-
-			if (defined $age) {
-				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
-					$key, $val, $state, $age, ($delay // 0), (($delay // 0) - $age)
-				));
-			} else {
-				log_debug("  $key => $val (state=$state)");
-			}
-		}
-	}
-
-	# ==================================================
-	# ALARMS
-	# ==================================================
-	log_debug("---- ALARM STATE ----");
-
-	foreach my $alarm_id (sort { $a <=> $b } keys %alarms) {
-
-		my $serial = $alarms{$alarm_id}{serial};
-
-		if (!defined $serial || $serial eq '') {
-			log_warn("Alarm $alarm_id missing serial in Redis snapshot, skipping");
-			next;
-		}
-
-		my $alarm_state = $alarms{$alarm_id}{alarm_state} // 0;
-
-		log_debug("== ALARM $alarm_id (SERIAL $serial) ==");
-
-		my $cfg = $alarm_config->{$serial} // {};
-
-		log_debug(sprintf(
-			"  CONFIG: alarm_clear_delay=%ds, valve_close_delay=%ds, leakage_delay=%ds, initial_no_backoff=%s",
-			($cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY),
-			($cfg->{valve_close_delay} // VALVE_CLOSE_DELAY),
-			($cfg->{leakage_delay} // LEAKAGE_DELAY),
-			($cfg->{initial_no_backoff} // INITIAL_NO_BACKOFF),
-		));
-
-		my $base_delay = $cfg->{alarm_clear_delay} // ALARM_CLEAR_DELAY;
-
-		my $clear_since = $alarms{$alarm_id}{clear_pending_since};
-		my $clear_age;
-
-		if (defined $clear_since && $clear_since =~ /^\d+$/) {
-			$clear_age = $now - $clear_since;
-		}
-
-		my $state = "IDLE";
-
-		if ($alarm_state) {
-			$state = "ACTIVE";
-		}
-
-		if ($alarm_state && defined $clear_since) {
-			$state = "CLEARING";
-		}
-		elsif (!$alarm_state && defined $clear_since && defined $clear_age && $clear_age < $base_delay) {
-			$state = "WAITING";
-		}
-
-		foreach my $key (sort keys %{ $alarms{$alarm_id} }) {
-
-			my $val = $alarms{$alarm_id}{$key};
-			next unless defined $val && $val ne '';
-
-			my ($age, $effective_delay);
-
-			$effective_delay = $base_delay;
-
-			if ($key =~ /_since$/) {
-				$age = $now - $val;
-			}
-
-			if ($key =~ /valve/) {
-				$effective_delay = $cfg->{valve_close_delay} // VALVE_CLOSE_DELAY;
-			}
-			elsif ($key =~ /flow/) {
-				$effective_delay = $cfg->{leakage_delay} // LEAKAGE_DELAY;
-			}
-
-			if (defined $age) {
-				log_debug(sprintf(
-					"  %s => %s (state=%s, age=%ds, delay=%ds, remaining=%ds)",
-					$key, $val, $state, $age, $effective_delay, ($effective_delay - $age)
-				));
-			}
-			else {
-				log_debug(sprintf(
-					"  %s => %s (state=%s)",
-					$key, $val, $state
-				));
-			}
-		}
-	}
 }
