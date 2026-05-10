@@ -168,6 +168,8 @@ while (1) {
 	# Core system function:
 	#   loads alarms → resolves state → evaluates → triggers actions
 	process_alarms($run_id);
+	cleanup_orphan_redis_keys();
+	
 
 	# --------------------------------------------------
 	# GRACEFUL SHUTDOWN CHECK
@@ -1023,10 +1025,71 @@ sub generate_snooze_key {
 	return join('', map { sprintf("%02x", irand(256)) } 1..8);
 }
 
-# --------------------------
-# REDIS STARTUP
-# --------------------------
-# Iterates through Redis to log current state of all meters and pending alarms
+sub cleanup_orphan_redis_keys {
+
+	# --------------------------------------
+	# BUILD VALID SETS (FRESH EACH CALL)
+	# --------------------------------------
+	my %valid_alarms;
+	my %valid_serials;
+
+	# VALID ALARMS
+	my $sth = $dbh->prepare("SELECT id FROM alarms WHERE enabled = 1");
+	$sth->execute();
+
+	while (my ($id) = $sth->fetchrow_array) {
+		$valid_alarms{$id} = 1;
+	}
+
+	# VALID METERS (SERIALS)
+	$sth = $dbh->prepare("SELECT serial FROM meters");
+	$sth->execute();
+
+	while (my ($serial) = $sth->fetchrow_array) {
+		$valid_serials{$serial} = 1;
+	}
+
+	# --------------------------------------
+	# SCAN REDIS
+	# --------------------------------------
+	my $cursor = 0;
+
+	do {
+		my ($new_cursor, $keys) = $redis->scan($cursor, 'COUNT', 500);
+		$cursor = $new_cursor;
+
+		foreach my $key (@$keys) {
+
+			# --------------------------------------
+			# ALARM KEYS
+			# --------------------------------------
+			if ($key =~ /^alarm:(\d+):/) {
+
+				my $id = $1;
+
+				unless ($valid_alarms{$id}) {
+					log_debug("GC delete orphan alarm key: $key");
+					$redis->del($key);
+				}
+			}
+
+			# --------------------------------------
+			# SERIAL-BASED KEYS
+			# --------------------------------------
+			elsif ($key =~ /^(valve|flow|sensor):(\d+):/) {
+
+				my $serial = $2;
+
+				unless ($valid_serials{$serial}) {
+					log_debug("GC delete orphan serial key: $key");
+					$redis->del($key);
+				}
+			}
+		}
+
+	} while ($cursor != 0);
+}
+
 sub redis_log_snapshot {
 	log_debug("===== REDIS LOG SNAPSHOT BEGIN =====");
 
