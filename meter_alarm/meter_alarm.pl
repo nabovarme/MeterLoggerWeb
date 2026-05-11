@@ -249,7 +249,7 @@ sub process_alarms {
 		# TIME WINDOW GATE
 		# --------------------------------------------------
 		# Skip all evaluation if alarm is outside its active window
-		unless (is_in_active_window($alarm)) {
+		unless (process_active_window($alarm)) {
 			log_debug("Skipping alarm outside active window", {
 				-custom_tag => "ALARM:$run_id:$alarm->{serial}",
 				id => $alarm->{id},
@@ -1026,7 +1026,7 @@ sub handle_alarm {
 #   1 = inside allowed window (or no window defined)
 #   0 = outside window or misconfigured
 # --------------------------------------------------
-sub is_in_active_window {
+sub process_active_window {
 	my ($alarm) = @_;
 
 	my $now = time();
@@ -1059,13 +1059,74 @@ sub is_in_active_window {
 		return 1;
 	}
 
+	# compute CURRENT state
+	my $inside;
+
 	# normal window (e.g. 05:00 → 14:00)
 	if ($from <= $to) {
-		return ($now_sec >= $from && $now_sec <= $to) ? 1 : 0;
+		$inside = ($now_sec >= $from && $now_sec <= $to) ? 1 : 0;
+	}
+	# overnight window (e.g. 22:00 → 06:00)
+	else {
+		$inside = ($now_sec >= $from || $now_sec <= $to) ? 1 : 0;
 	}
 
-	# overnight window (e.g. 22:00 → 06:00)
-	return ($now_sec >= $from || $now_sec <= $to) ? 1 : 0;
+	# previous DB state
+	my $prev = $alarm->{in_active_window};
+
+	# --------------------------------------------------
+	# FIRST TIME INITIALIZATION
+	# --------------------------------------------------
+	if (!defined $prev) {
+
+		$dbh->do(q[
+			UPDATE alarms
+			SET in_active_window = ?
+			WHERE id = ?
+		], undef, $inside ? 1 : 0, $alarm->{id});
+
+		return $inside;
+	}
+
+	# --------------------------------------------------
+	# 0 → 1 TRANSITION (ENTER ACTIVE WINDOW)
+	# --------------------------------------------------
+	if (!$prev && $inside) {
+
+		# Reset counter to 1 (first occurrence)
+		my $count = 1;
+
+		$dbh->do(q[
+			UPDATE alarms
+			SET
+				in_active_window = 1,
+				alarm_count = ?
+			WHERE id = ?
+		], undef, $count, $alarm->{id});
+
+		log_debug("Entered active window → reset alarm_count", {
+			-custom_tag => "ALARM:$alarm->{id}:$alarm->{serial}"
+		});
+
+		return 1;
+	}
+
+	# --------------------------------------------------
+	# 1 → 0 TRANSITION (EXIT ACTIVE WINDOW)
+	# --------------------------------------------------
+	if ($prev && !$inside) {
+
+		$dbh->do(q[
+			UPDATE alarms
+			SET in_active_window = 0
+			WHERE id = ?
+		], undef, $alarm->{id});
+	}
+
+	# --------------------------------------------------
+	# NO TRANSITION
+	# --------------------------------------------------
+	return $inside;
 }
 
 # --------------------------
