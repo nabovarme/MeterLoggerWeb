@@ -6,70 +6,74 @@ use warnings;
 use Exporter 'import';
 our @EXPORT_OK = qw(evaluate);
 
-# ----------------------------
-# Public API
-# ----------------------------
+# ==================================================
+# PUBLIC API
+# ==================================================
 sub evaluate {
 	my ($expr) = @_;
 
-	return 0 unless defined $expr;
+	my $out = {
+		result  => 0,
+		error   => undef,
+		warning => undef,
+		rpn	 => undef,
+	};
 
-	$expr = _normalize($expr);
+	return _fail($out, "undef expression") unless defined $expr;
 
-	my @tokens = _tokenize($expr);
-	my @rpn	= _to_rpn(@tokens);
+	$expr =~ s/\s+//g;
 
-	return _eval_rpn(@rpn);
+	my ($tokens, $err) = _tokenize($expr);
+	return _fail($out, $err) if $err;
+
+	my @rpn = _to_rpn(@$tokens);
+	$out->{rpn} = \@rpn;   # optional debug trace
+
+	my ($result, $warn) = _eval_rpn(@rpn);
+
+	$out->{result}  = $result ? 1 : 0;
+	$out->{warning} = $warn if $warn;
+
+	return $out;
 }
 
-# ----------------------------
-# Normalize expression
-# ----------------------------
-sub _normalize {
-	my ($e) = @_;
-
-	$e =~ s/\s+//g;
-
-	return $e;
-}
-
-# ----------------------------
-# Tokenizer
-# ----------------------------
+# ==================================================
+# TOKENIZER
+# ==================================================
 sub _tokenize {
 	my ($expr) = @_;
 
-	my @t;
+	my @tokens;
 
 	while ($expr ne '') {
 
 		# numbers
 		if ($expr =~ s/^(\d+(?:\.\d+)?)//) {
-			push @t, $1;
+			push @tokens, $1;
 			next;
 		}
 
 		# multi-char operators
 		if ($expr =~ s/^(>=|<=|==|!=|&&|\|\|)//) {
-			push @t, $1;
+			push @tokens, $1;
 			next;
 		}
 
 		# single-char tokens
 		if ($expr =~ s/^([><()])//) {
-			push @t, $1;
+			push @tokens, $1;
 			next;
 		}
 
-		die "Invalid token in expression near: [$expr]";
+		return (undef, "Invalid token near: $expr");
 	}
 
-	return @t;
+	return (\@tokens, undef);
 }
 
-# ----------------------------
-# Precedence
-# ----------------------------
+# ==================================================
+# OPERATOR PRECEDENCE
+# ==================================================
 my %PREC = (
 	'||' => 1,
 	'&&' => 2,
@@ -81,20 +85,20 @@ my %PREC = (
 	'!=' => 3,
 );
 
-# ----------------------------
-# Shunting-yard: infix → RPN
-# ----------------------------
+# ==================================================
+# SHUNTING-YARD (INFIX → RPN)
+# ==================================================
 sub _to_rpn {
 	my @tokens = @_;
 
-	my @out;
+	my @output;
 	my @stack;
 
 	for my $t (@tokens) {
 
 		# number
 		if ($t =~ /^\d/) {
-			push @out, $t;
+			push @output, $t;
 			next;
 		}
 
@@ -107,7 +111,7 @@ sub _to_rpn {
 				last if $top eq '(';
 				last if $PREC{$top} < $PREC{$t};
 
-				push @out, pop @stack;
+				push @output, pop @stack;
 			}
 
 			push @stack, $t;
@@ -123,7 +127,7 @@ sub _to_rpn {
 		# )
 		if ($t eq ')') {
 			while (@stack && $stack[-1] ne '(') {
-				push @out, pop @stack;
+				push @output, pop @stack;
 			}
 
 			pop @stack; # remove '('
@@ -131,14 +135,14 @@ sub _to_rpn {
 		}
 	}
 
-	push @out, reverse @stack;
+	push @output, reverse @stack;
 
-	return @out;
+	return @output;
 }
 
-# ----------------------------
-# RPN evaluator
-# ----------------------------
+# ==================================================
+# RPN EVALUATOR
+# ==================================================
 sub _eval_rpn {
 	my @stack;
 
@@ -153,17 +157,21 @@ sub _eval_rpn {
 		my $b = pop @stack;
 		my $a = pop @stack;
 
+		unless (defined $a && defined $b) {
+			return (0, "stack underflow in expression");
+		}
+
 		my $r = _apply($a, $t, $b);
 
 		push @stack, $r;
 	}
 
-	return pop @stack ? 1 : 0;
+	return (pop @stack ? 1 : 0, undef);
 }
 
-# ----------------------------
-# Operator logic
-# ----------------------------
+# ==================================================
+# OPERATORS
+# ==================================================
 sub _apply {
 	my ($a, $op, $b) = @_;
 
@@ -180,6 +188,18 @@ sub _apply {
 	if ($op eq '!=') { return ($a != $b) ? 1 : 0; }
 
 	return 0;
+}
+
+# ==================================================
+# ERROR HANDLING
+# ==================================================
+sub _fail {
+	my ($out, $msg) = @_;
+
+	$out->{error}  = $msg;
+	$out->{result} = 0;
+
+	return $out;
 }
 
 1;
