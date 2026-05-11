@@ -126,11 +126,12 @@ my $alarm_config = {};
 #
 # Each loop is independent and stateless except Redis/DB.
 
+my $run_id;
 while (1) {
 
 	# Unique identifier for this evaluation cycle
 	# Used for logging correlation across alarms
-	my $run_id = time();
+	$run_id = time();
 
 	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
 		-custom_tag => "MAIN:$run_id"
@@ -158,6 +159,9 @@ while (1) {
 # Fetches all enabled alarms and merges them with current meter metadata
 sub process_alarms {
 	my ($run_id) = @_;
+	
+	# reset per-cycle config cache
+	$alarm_config = {};
 
 	# --------------------------------------------------
 	# LOAD ALL ACTIVE ALARMS + METER STATE (JOINED VIEW)
@@ -608,7 +612,7 @@ sub evaluate_alarm {
 
 		my $res = eval { JSON->new->decode($output) };
 
-		my ($eval_alarm_state, $err_sql, $warn_sql);
+		my ($err_sql, $warn_sql);
 
 		# =========================
 		# TIMEOUT HANDLING
@@ -1144,23 +1148,45 @@ sub handle_alarm {
 	# Number of times this alarm has been triggered (used for backoff logic)
 	my $count = $alarm->{alarm_count} || 0;
 
+	log_debug("handle_alarm start alarm_id=$alarm->{id} serial=$serial state=$state alarm_state=$alarm->{alarm_state} count=$count", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+	});
+
 	# ==================================================
 	# ALARM ACTIVE STATE (condition is TRUE)
 	# ==================================================
 	if ($state) {
+
+		log_debug("state TRUE alarm_id=$alarm->{id}", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+		});
+
 		# Determine whether exponential backoff should be used
 		# Disabled if repeat interval is very large (>= 1 day)
 		my $use_backoff = ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) ? 1 : 0;
+
+		log_debug("backoff=" . ($use_backoff ? "enabled" : "disabled") . " alarm_id=$alarm->{id}", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+		});
 
 		# --------------------------------------------------
 		# FIRST ACTIVATION (alarm transitions from 0 → 1)
 		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 0) {
 			# Send initial alarm notification immediately
+
+			log_debug("first activation alarm_id=$alarm->{id}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
 			sms_send($alarm->{sms_notification}, $down);
 
 			# Reset counter to 1 (first occurrence)
 			$count = 1;
+
+			log_debug("db update first activation alarm_id=$alarm->{id} count=$count", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
 
 			# Persist new alarm state in DB
 			$dbh->do(qq[
@@ -1177,6 +1203,10 @@ sub handle_alarm {
 		# --------------------------------------------------
 		} elsif ($alarm->{repeat}) {
 
+			log_debug("repeat check alarm_id=$alarm->{id} count=$count", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
 			my $interval;
 
 			# Apply exponential backoff after N initial notifications
@@ -1184,18 +1214,39 @@ sub handle_alarm {
 			#   repeat = 60s, initial_no_backoff = 2
 			#   → 60s, 60s, 120s, 240s, 480s, ...
 			if ($use_backoff && $count >= $cfg->{initial_no_backoff}) {
-				$interval = $alarm->{repeat} * (2 ** ($count - $cfg->{initial_no_backoff}));
 
 				# Cap interval to 24 hours to avoid excessive silence
+				$interval = $alarm->{repeat} * (2 ** ($count - $cfg->{initial_no_backoff}));
 				$interval = 86400 if $interval > 86400;
-			} else {
+
+				log_debug("backoff interval=$interval alarm_id=$alarm->{id}", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+
+			}
+			else {
+
 				# Fixed repeat interval (no backoff yet)
 				$interval = $alarm->{repeat};
+
+				log_debug("fixed interval=$interval alarm_id=$alarm->{id}", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
 			}
 
 			# Only proceed with notification logic if we are outside the snooze window
 			# This keeps the DB "frozen" (no count increase, no timestamp update) while snoozed
-			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
+			my $next_allowed = $alarm->{last_notification} + $interval + $alarm->{snooze};
+
+			log_debug("timing check next_allowed=$next_allowed now=$now alarm_id=$alarm->{id}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
+			if ($next_allowed < $now) {
+
+				log_debug("sending repeat alarm_id=$alarm->{id}", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
 
 				# Send repeated alarm notification
 				sms_send($alarm->{sms_notification}, $down);
@@ -1204,6 +1255,10 @@ sub handle_alarm {
 				$count++;
 
 				# Persist updated state
+				log_debug("db update repeat alarm_id=$alarm->{id} count=$count", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+
 				$dbh->do(qq[
 					UPDATE alarms
 					SET last_notification=$now,
@@ -1213,6 +1268,12 @@ sub handle_alarm {
 						snooze_auth_key=$key
 					WHERE id=$id
 				]);
+
+			} else {
+
+				log_debug("skip repeat alarm_id=$alarm->{id}", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
 			}
 		}
 
@@ -1222,6 +1283,10 @@ sub handle_alarm {
 	} else {
 
 		# Check when the system first observed a "normal" condition
+		log_debug("state FALSE alarm_id=$alarm->{id}", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+		});
+
 		my $since = $alarm->{clear_pending_since};
 
 		# --------------------------------------------------
@@ -1230,12 +1295,19 @@ sub handle_alarm {
 		# If this is the first time we see a normal state,
 		# start a timer instead of clearing immediately.
 		# Only begin clear hysteresis if alarm is currently active
+		log_debug("clear_pending_since=" . ($since // 'undef') . " alarm_id=$alarm->{id}", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+		});
+
 		if ($alarm->{alarm_state} == 1 && !defined $since) {
+
+			log_debug("start clear timer alarm_id=$alarm->{id}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
 
 			$dbh->do(qq[
 				UPDATE alarms
-				SET
-					clear_pending_since = ?,
+				SET clear_pending_since = ?,
 					snooze = 0
 				WHERE id = ?
 			], undef, $now, $alarm->{id});
@@ -1249,6 +1321,11 @@ sub handle_alarm {
 		# Only clear alarm if condition has remained normal
 		# continuously for alarm_clear_delay seconds
 		if (defined $since && ($now - $since) < $cfg->{alarm_clear_delay}) {
+
+			log_debug("skip clear (hysteresis) alarm_id=$alarm->{id}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
 			return; # still within hysteresis window → do nothing
 		}
 
@@ -1256,6 +1333,10 @@ sub handle_alarm {
 		# STEP 3: Clear alarm if it was previously active
 		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 1) {
+
+			log_debug("clearing alarm alarm_id=$alarm->{id}", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
 
 			# Send "recovery" / "back to normal" notification
 			sms_send($alarm->{sms_notification}, $up);
@@ -1271,6 +1352,10 @@ sub handle_alarm {
 			]);
 		}
 	}
+
+	log_debug("handle_alarm end alarm_id=$alarm->{id}", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+	});
 }
 
 # --------------------------
