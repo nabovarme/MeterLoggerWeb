@@ -1059,39 +1059,39 @@ sub process_active_window {
 		return 1;
 	}
 
-	# compute CURRENT state
-	my $inside;
+	# compute current state
+	my $cur_state;
 
 	# normal window (e.g. 05:00 → 14:00)
 	if ($from <= $to) {
-		$inside = ($now_sec >= $from && $now_sec <= $to) ? 1 : 0;
+		$cur_state = ($now_sec >= $from && $now_sec <= $to) ? 1 : 0;
 	}
 	# overnight window (e.g. 22:00 → 06:00)
 	else {
-		$inside = ($now_sec >= $from || $now_sec <= $to) ? 1 : 0;
+		$cur_state = ($now_sec >= $from || $now_sec <= $to) ? 1 : 0;
 	}
 
 	# previous DB state
-	my $prev = $alarm->{in_active_window};
+	my $prev_state = $alarm->{in_active_window};
 
 	# --------------------------------------------------
 	# FIRST TIME INITIALIZATION
 	# --------------------------------------------------
-	if (!defined $prev) {
+	if (!defined $prev_state) {
 
 		$dbh->do(q[
 			UPDATE alarms
 			SET in_active_window = ?
 			WHERE id = ?
-		], undef, $inside ? 1 : 0, $alarm->{id});
+		], undef, $cur_state ? 1 : 0, $alarm->{id});
 
-		return $inside;
+		return $cur_state;
 	}
 
 	# --------------------------------------------------
 	# 0 → 1 TRANSITION (ENTER ACTIVE WINDOW)
 	# --------------------------------------------------
-	if (!$prev && $inside) {
+	if (!$prev_state && $cur_state) {
 
 		# Reset counter to 1 (first occurrence)
 		my $count = 1;
@@ -1114,7 +1114,7 @@ sub process_active_window {
 	# --------------------------------------------------
 	# 1 → 0 TRANSITION (EXIT ACTIVE WINDOW)
 	# --------------------------------------------------
-	if ($prev && !$inside) {
+	if ($prev_state && !$cur_state) {
 
 		$dbh->do(q[
 			UPDATE alarms
@@ -1126,7 +1126,7 @@ sub process_active_window {
 	# --------------------------------------------------
 	# NO TRANSITION
 	# --------------------------------------------------
-	return $inside;
+	return $cur_state;
 }
 
 # --------------------------
