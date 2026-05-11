@@ -828,8 +828,8 @@ sub resolve_var {
 		$sth->execute($serial);
 		my $rows = $sth->fetchall_arrayref;
 
-		# If no data exists, return variable as-is (pass-through)
-		return "\$$var" unless @$rows;
+		# If no data exists, return 0 as default
+		return 0 unless @$rows;
 
 		# Extract numeric values, ignore NULLs
 		my @values = map {
