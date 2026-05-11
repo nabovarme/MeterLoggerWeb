@@ -19,6 +19,7 @@ use DateTime;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::ConditionEvaluator qw(evaluate);
 
 # --------------------------
 # CONSTANTS
