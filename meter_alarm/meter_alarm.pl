@@ -366,80 +366,75 @@ sub evaluate_alarm {
 		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 	});
 
-	my $eval_alarm_state;
+	my $eval_alarm_state = 0;
 	my $quoted_id = $dbh->quote($alarm->{id});
 
 	# --------------------------------------------------
-	# CONDITION EVALUATION (dynamic logic)
+	# CONDITION EVALUATION (safe logic engine)
 	# --------------------------------------------------
-	# The condition string is evaluated as Perl code.
+	# The condition string is evaluated using the
+	# Nabovarme::ConditionEvaluator module.
+	#
 	# Example after interpolation:
 	#   "12 > 10 && 1"
 	#
-	# Returns truthy/falsey → used as alarm state
+	# Returns structured result:
+	#   {
+	#       result  => 0|1,
+	#       error   => undef|string,
+	#       warning => undef|string,
+	#       rpn     => [...]
+	#   }
 	#
 	# IMPORTANT:
-	#   - strict/warnings disabled to allow flexible expressions
-	#   - errors are caught and persisted to DB
-	{
-		local $@;
+	#   - no Perl eval
+	#   - no code execution possible
+	#   - deterministic logic evaluation
+	my $res = Nabovarme::ConditionEvaluator::evaluate($condition);
 
-		my $warning = '';
+	$eval_alarm_state = $res->{result};
 
-		local $SIG{__WARN__} = sub {
-			$warning .= join('', @_);
-		};
+	my $warn_sql = defined $res->{warning} && length $res->{warning}
+		? $dbh->quote($res->{warning})
+		: 'NULL';
 
-		no strict;
-		no warnings;
+	# --------------------------
+	# ERROR HANDLING
+	# --------------------------
+	if ($res->{error}) {
 
-		$eval_alarm_state = eval $condition;
-
-		my $id = $dbh->quote($alarm->{id});
-
-		# --------------------------
-		# ERROR HANDLING
-		# --------------------------
-		if ($@) {
-
-			log_warn("Eval error: $@");
-
-			my $err = $dbh->quote($@);
-
-			my $warn_sql = length($warning)
-				? $dbh->quote($warning)
-				: 'NULL';
-
-			$dbh->do(qq[
-				UPDATE alarms
-				SET
-					condition_error = $err,
-					condition_warning = $warn_sql
-				WHERE id = $id
-			]);
-
-			return;
-		}
-
-		# --------------------------
-		# NORMAL PATH LOGGING
-		# --------------------------
-		log_debug("eval_result=$eval_alarm_state condition=$condition", {
+		log_warn("Condition evaluation error: $res->{error}", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
 
-		my $warn_sql = length($warning)
-			? $dbh->quote($warning)
-			: 'NULL';
+		my $err = $dbh->quote($res->{error});
 
 		$dbh->do(qq[
 			UPDATE alarms
 			SET
-				condition_error = NULL,
+				condition_error = $err,
 				condition_warning = $warn_sql
-			WHERE id = $id
+			WHERE id = $quoted_id
 		]);
+
+		return;
 	}
+
+	# --------------------------
+	# NORMAL PATH LOGGING
+	# --------------------------
+	log_debug("eval_result=$eval_alarm_state condition=$condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}",
+		rpn => $res->{rpn},
+	});
+
+	$dbh->do(qq[
+		UPDATE alarms
+		SET
+			condition_error = NULL,
+			condition_warning = $warn_sql
+		WHERE id = $quoted_id
+	]);
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
