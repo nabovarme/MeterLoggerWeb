@@ -170,18 +170,17 @@ sub process_alarms {
 	# of both rule + sensor state.
 	my $sth = $dbh->prepare(qq[
 		SELECT
-			alarms.id, alarms.enabled, alarms.auto_id, alarms.serial,
-			alarms.condition, alarms.alarm_state, alarms.condition_error, alarms.condition_warning,
+			alarms.id, alarms.enabled, alarms.auto_id, alarms.serial, alarms.condition,
+			alarms.alarm_state, alarms.condition_error, alarms.condition_warning,
 			alarms.last_notification, alarms.repeat, alarms.alarm_count,
 			alarms.exp_backoff_enabled, alarms.initial_no_backoff,
 			alarms.alarm_clear_delay, alarms.valve_close_delay, alarms.leakage_delay,
 			alarms.clear_pending_since, alarms.valve_closed_since, alarms.leak_since,
 			alarms.snooze, alarms.default_snooze, alarms.snooze_auth_key,
 			alarms.sms_notification, alarms.down_message, alarms.up_message,
-			alarms.active_from_sec, alarms.active_to_sec, alarms.timezone,
-			alarms.comment,
-			meters.info, meters.valve_status, meters.valve_installed,
-			meters.last_updated
+			alarms.in_active_window, alarms.active_from_sec, alarms.active_to_sec,
+			alarms.timezone, alarms.comment,
+			meters.info, meters.valve_status, meters.valve_installed, meters.last_updated
 		FROM alarms
 		JOIN meters ON alarms.serial = meters.serial
 		WHERE alarms.enabled
