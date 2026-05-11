@@ -15,6 +15,7 @@ use Statistics::Basic qw(:all);
 use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
+use DateTime;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -169,19 +170,17 @@ sub process_alarms {
 	# of both rule + sensor state.
 	my $sth = $dbh->prepare(qq[
 		SELECT
-			alarms.id, alarms.serial,
-			alarms.condition, alarms.last_notification, alarms.alarm_state,
+			alarms.id, alarms.enabled, alarms.auto_id, alarms.serial,
+			alarms.condition, alarms.condition_error, alarms.condition_warning,
+			alarms.last_notification, alarms.alarm_state,
 			alarms.repeat, alarms.alarm_count, alarms.exp_backoff_enabled,
-			alarms.snooze, alarms.default_snooze,
-			alarms.snooze_auth_key, alarms.sms_notification,
-			alarms.down_message, alarms.up_message,
-			alarms.alarm_clear_delay,
-			alarms.valve_close_delay,
 			alarms.initial_no_backoff,
-			alarms.leakage_delay,
-			alarms.clear_pending_since,
-			alarms.valve_closed_since,
-			alarms.leak_since,
+			alarms.alarm_clear_delay, alarms.valve_close_delay, alarms.leakage_delay,
+			alarms.clear_pending_since, alarms.valve_closed_since, alarms.leak_since,
+			alarms.snooze, alarms.default_snooze, alarms.snooze_auth_key,
+			alarms.sms_notification, alarms.down_message, alarms.up_message,
+			alarms.active_from_sec, alarms.active_to_sec, alarms.timezone,
+			alarms.comment,
 			meters.info, meters.valve_status, meters.valve_installed,
 			meters.last_updated
 		FROM alarms
@@ -246,6 +245,12 @@ sub process_alarms {
 					? $alarm->{leakage_delay}
 					: LEAKAGE_DELAY,
 		};
+		
+		# --------------------------------------------------
+		# TIME WINDOW GATE
+		# --------------------------------------------------
+		# Skip all evaluation if alarm is outside its active window
+		next unless is_in_active_window($alarm);
 
 		# --------------------------------------------------
 		# CORE EVALUATION STEP
@@ -991,6 +996,66 @@ sub handle_alarm {
 			]);
 		}
 	}
+}
+
+# --------------------------------------------------
+# TIME WINDOW GATE (ALARM SCHEDULING)
+# --------------------------------------------------
+# Determines whether an alarm is allowed to evaluate
+# based on a daily active time window in a specific timezone.
+#
+# Uses:
+#   - active_from_sec / active_to_sec (seconds since midnight)
+#   - timezone (IANA timezone, DST-safe via DateTime)
+#
+# Supports:
+#   - normal windows (e.g. 05:00 → 14:00)
+#   - overnight windows (e.g. 22:00 → 06:00)
+#
+# Return:
+#   1 = inside allowed window (or no window defined)
+#   0 = outside window or misconfigured
+# --------------------------------------------------
+sub is_in_active_window {
+	my ($alarm) = @_;
+
+	my $now = time();
+
+	# no window = always active
+	return 1 unless defined $alarm->{active_from_sec}
+		&& defined $alarm->{active_to_sec};
+
+	# missing timezone is a configuration error
+	if (!$alarm->{timezone}) {
+		log_warn("ALARM:$alarm->{id} missing timezone, disabling time window check");
+		return 0;
+	}
+
+	# convert epoch → local time (DST handled automatically)
+	my $dt = DateTime->from_epoch(epoch => $now);
+	$dt->set_time_zone($alarm->{timezone});
+
+	my $now_sec =
+		$dt->hour * 3600 +
+		$dt->minute * 60 +
+		$dt->second;
+
+	my $from = $alarm->{active_from_sec};
+	my $to   = $alarm->{active_to_sec};
+
+	# invalid configuration guard
+	if (!defined $from || !defined $to || $from < 0 || $to < 0 || $from >= 86400 || $to >= 86400) {
+		log_warn("ALARM:$alarm->{id} invalid active window ($from,$to), ignoring window constraint");
+		return 1;
+	}
+
+	# normal window (e.g. 05:00 → 14:00)
+	if ($from <= $to) {
+		return ($now_sec >= $from && $now_sec <= $to) ? 1 : 0;
+	}
+
+	# overnight window (e.g. 22:00 → 06:00)
+	return ($now_sec >= $from || $now_sec <= $to) ? 1 : 0;
 }
 
 # --------------------------
