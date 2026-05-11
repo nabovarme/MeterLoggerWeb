@@ -45,6 +45,7 @@ services:
   db:
     image: mariadb:10.5
     container_name: db
+    hostname: db
     depends_on:
       - db_config
     ports:
@@ -69,6 +70,7 @@ services:
   mqtt:
     image: eclipse-mosquitto:latest
     container_name: mqtt
+    hostname: mqtt
     ports:
       - "${MQTT_PORT:-1883}:1883"
     volumes:
@@ -90,6 +92,7 @@ services:
       db:
         condition: service_healthy
     container_name: web
+    hostname: web
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
       - ./sms_spool:/var/www/nabovarme/sms_spool
@@ -115,6 +118,7 @@ services:
       mqtt:
         condition: service_healthy
     container_name: meter_grapher
+    hostname: meter-grapher
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
@@ -174,6 +178,7 @@ services:
       db:
         condition: service_healthy
     container_name: smsd
+    hostname: smsd
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     privileged: true
@@ -279,6 +284,7 @@ services:
   redis:
     image: redis:latest
     container_name: redis
+    hostname: redis
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
@@ -298,6 +304,7 @@ services:
       context: postfix/
       dockerfile: Dockerfile
     container_name: postfix
+    hostname: postfix
     ports:
       - "${POSTFIX_PORT:-25}:25"
     volumes:
@@ -316,6 +323,7 @@ services:
       context: '.'
       dockerfile: ./openresty/Dockerfile
     container_name: openresty
+    hostname: openresty
     depends_on:
       web:
         condition: service_healthy
@@ -332,6 +340,7 @@ services:
       context: '.'
       dockerfile: ./utils/Dockerfile
     container_name: utils
+    hostname: utils
     volumes:
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
