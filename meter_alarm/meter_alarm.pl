@@ -171,10 +171,9 @@ sub process_alarms {
 	my $sth = $dbh->prepare(qq[
 		SELECT
 			alarms.id, alarms.enabled, alarms.auto_id, alarms.serial,
-			alarms.condition, alarms.condition_error, alarms.condition_warning,
-			alarms.last_notification, alarms.alarm_state,
-			alarms.repeat, alarms.alarm_count, alarms.exp_backoff_enabled,
-			alarms.initial_no_backoff,
+			alarms.condition, alarms.alarm_state, alarms.condition_error, alarms.condition_warning,
+			alarms.last_notification, alarms.repeat, alarms.alarm_count,
+			alarms.exp_backoff_enabled, alarms.initial_no_backoff,
 			alarms.alarm_clear_delay, alarms.valve_close_delay, alarms.leakage_delay,
 			alarms.clear_pending_since, alarms.valve_closed_since, alarms.leak_since,
 			alarms.snooze, alarms.default_snooze, alarms.snooze_auth_key,
@@ -250,7 +249,18 @@ sub process_alarms {
 		# TIME WINDOW GATE
 		# --------------------------------------------------
 		# Skip all evaluation if alarm is outside its active window
-		next unless is_in_active_window($alarm);
+		unless (is_in_active_window($alarm)) {
+			log_debug("Skipping alarm outside active window", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}",
+				id => $alarm->{id},
+				serial => $alarm->{serial},
+				active_from => $alarm->{active_from_sec},
+				active_to   => $alarm->{active_to_sec},
+				timezone    => $alarm->{timezone},
+			});
+
+			next;
+		}
 
 		# --------------------------------------------------
 		# CORE EVALUATION STEP
