@@ -19,7 +19,8 @@ RUN apt-get update && apt-get install -y \
 	libconfig-simple-perl \
 	libemail-mime-perl \
 	libjson-perl \
-	default-mysql-client
+	default-mysql-client \
+	libbsd-resource-perl
 
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs

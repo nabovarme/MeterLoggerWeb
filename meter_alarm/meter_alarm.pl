@@ -36,6 +36,10 @@ use constant INITIAL_NO_BACKOFF => 2;
 
 use constant MAX_DATA_AGE => 86400; # seconds (e.g. 1 day)
 
+use constant CONDITION_EVAL_TIMEOUT => 10;		# seconds
+use constant CHILD_CPU_LIMIT => 2;				# seconds CPU time
+use constant CHILD_MEM_LIMIT => 150_000_000;	# bytes (~150 MB address space)
+
 # --------------------------------------------------
 # AUTOFUSH OUTPUT ENABLED
 # --------------------------------------------------
@@ -282,7 +286,7 @@ sub evaluate_alarm {
 	# MAX_DATA_AGE acts as a hard cutoff (e.g. 24h)
 	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
 		return;
 	}
@@ -308,8 +312,8 @@ sub evaluate_alarm {
 	my $down_message = fill_template($alarm->{down_message} || 'alarm', $alarm, $snooze_auth_key);
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
-	log_debug("raw condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+	log_debug("Raw condition: $condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 	});
 
 	# --------------------------------------------------
@@ -332,7 +336,7 @@ sub evaluate_alarm {
 	if ($uses_closed) {
 		if (!defined $closed) {
 			log_debug("Skipping evaluation: valve transition still pending", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 			});
 
 			return;
@@ -347,8 +351,8 @@ sub evaluate_alarm {
 	#   $flow, $temperature, etc. → resolved dynamically
 	$condition = interpolate_variables($condition, $alarm);
 
-	log_debug("parsed condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+	log_debug("Parsed condition: $condition", {
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 	});
 
 	my $eval_alarm_state;
@@ -367,64 +371,340 @@ sub evaluate_alarm {
 	#   - strict/warnings disabled to allow flexible expressions
 	#   - errors are caught and persisted to DB
 	{
-		local $@;
+		# =========================
+		# MANUAL PIPE SETUP
+		# =========================
+		# Separate pipes for:
+		#   - STDOUT (structured JSON result)
+		#   - STDERR (runtime warnings/errors)
+		#
+		# This avoids stream corruption and allows
+		# clean JSON decoding in the parent process.
 
-		my $warning = '';
-
-		local $SIG{__WARN__} = sub {
-			$warning .= join('', @_);
+		pipe(my $stdout_r, my $stdout_w) or do {
+			log_warn("STDOUT pipe failed: $!");
+			return;
 		};
 
-		no strict;
-		no warnings;
+		pipe(my $stderr_r, my $stderr_w) or do {
+			log_warn("STDERR pipe failed: $!");
+			return;
+		};
 
-		$eval_alarm_state = eval $condition;
+		# =========================
+		# FORK CHILD PROCESS
+		# =========================
+		my $pid = fork();
 
-		my $id = $dbh->quote($alarm->{id});
+		if (!defined $pid) {
+			log_warn("Fork failed: $!");
+			return;
+		}
 
-		# --------------------------
-		# ERROR HANDLING
-		# --------------------------
-		if ($@) {
+		my $child_killed_error = undef;
 
-			log_warn("Eval error: $@");
+		# =========================
+		# CHILD PROCESS
+		# =========================
+		if ($pid == 0) {
 
-			my $err = $dbh->quote($@);
+			use BSD::Resource;
 
-			my $warn_sql = length($warning)
-				? $dbh->quote($warning)
-				: 'NULL';
+			# Hard CPU limit (prevents runaway computation)
+			if (!setrlimit(RLIMIT_CPU, CHILD_CPU_LIMIT, CHILD_CPU_LIMIT)) {
+				warn "setrlimit RLIMIT_CPU failed: $!";
+			}
+
+			# Hard memory limit (address space cap)
+			if (!setrlimit(RLIMIT_AS, CHILD_MEM_LIMIT, CHILD_MEM_LIMIT)) {
+				warn "setrlimit RLIMIT_AS failed: $!";
+			}
+
+			# Child only writes
+			close $stdout_r;
+			close $stderr_r;
+
+			# Redirect STDOUT/STDERR into pipes
+			open STDOUT, '>&', $stdout_w or die "dup STDOUT failed: $!";
+			open STDERR, '>&', $stderr_w or die "dup STDERR failed: $!";
+
+			# Autoflush child streams
+			select(STDOUT);
+			$| = 1;
+
+			select(STDERR);
+			$| = 1;
+
+			use JSON;
+
+			my $json = JSON->new->utf8->canonical(1);
+
+			my $warning = "";
+			my $result;
+			my $error = "";
+
+			# =========================
+			# CAPTURE WARNINGS
+			# =========================
+			local $SIG{__WARN__} = sub {
+				$warning .= join('', @_);
+			};
+
+			# =========================
+			# EVALUATE CONDITION
+			# =========================
+			eval {
+				my $code = qq{
+					no strict;
+					no warnings;
+
+					$condition
+				};
+
+				$result = eval $code;
+
+				$error = $@ // "";
+			};
+
+			# =========================
+			# SAFETY NORMALIZATION
+			# =========================
+			$result = 0 if !defined $result;
+
+			$error   = "" unless defined $error;
+			$warning = "" unless defined $warning;
+
+			# =========================
+			# JSON PAYLOAD
+			# =========================
+			my $payload = {
+				result  => $result,
+				error   => $error,
+				warning => $warning,
+			};
+
+			my $out = eval { $json->encode($payload) };
+
+			# Never allow empty/invalid output
+			if ($@ || !defined $out || $out eq '') {
+				print STDOUT "{\"result\":0,\"error\":\"json_encode_failed\",\"warning\":\"\"}";
+			} else {
+				print STDOUT $out;
+			}
+
+			close $stdout_w;
+			close $stderr_w;
+
+			exit 0;
+		}
+
+		# =========================
+		# PARENT PROCESS
+		# =========================
+
+		# Parent only reads
+		close $stdout_w;
+		close $stderr_w;
+
+		my $output = "";
+		my $errout = "";
+		my $timed_out = 0;
+
+		eval {
+
+			local $SIG{ALRM} = sub {
+				kill 'KILL', $pid;
+				$timed_out = 1;
+				die "timeout";
+			};
+
+			alarm(CONDITION_EVAL_TIMEOUT);
+
+			# =========================
+			# READ STDOUT
+			# =========================
+			while (<$stdout_r>) {
+				$output .= $_;
+			}
+
+			# =========================
+			# READ STDERR
+			# =========================
+			while (<$stderr_r>) {
+				$errout .= $_;
+			}
+
+			alarm(0);
+		};
+
+		close $stdout_r;
+		close $stderr_r;
+
+		waitpid($pid, 0);
+
+		# =========================
+		# EXIT ANALYSIS
+		# =========================
+
+		my $exit_code = $? >> 8;
+		my $sig       = $? & 127;
+
+		if ($sig || $exit_code != 0) {
+
+			if ($sig == 24) {
+				$child_killed_error = 'Child killed by SIGXCPU (CPU limit hit)';
+				log_warn("Killed by SIGXCPU (CPU limit hit)", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+			}
+			elsif ($sig == 9) {
+				$child_killed_error = 'Child killed by SIGKILL (likely memory/forced kill)';
+				log_warn("Killed by SIGKILL (likely memory/forced kill)", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+			}
+			else {
+				$child_killed_error = "Child killed by signal $sig (exit=$exit_code)";
+				log_warn("Killed by signal $sig (exit=$exit_code)", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+			}
+		}
+
+		# =========================
+		# STRONG OOM / PANIC DETECTION
+		# =========================
+		if (!$child_killed_error) {
+
+			if ($errout =~ /Out of memory|Allowed memory size exhausted|gen_constant_list JMPENV_PUSH|panic:/i) {
+				$child_killed_error = 'Died due to OOM/panic signature';
+
+				log_warn("Died due to OOM/panic signature", {
+					-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+				});
+			}
+		}
+
+		my $alarm_id = $alarm->{id};
+
+		# =========================
+		# HANDLE KILLED CHILD EARLY
+		# =========================
+		if ($child_killed_error) {
 
 			$dbh->do(qq[
 				UPDATE alarms
-				SET
-					condition_error = $err,
-					condition_warning = $warn_sql
-				WHERE id = $id
-			]);
+				SET condition_error = ?,
+					condition_warning = ?
+				WHERE id = ?
+			], undef,
+				$child_killed_error,
+				$errout,
+				$alarm_id
+			);
 
 			return;
 		}
 
-		# --------------------------
-		# NORMAL PATH LOGGING
-		# --------------------------
-		log_debug("eval_result=$eval_alarm_state condition=$condition", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
-		});
+		my $res = eval { JSON->new->decode($output) };
 
-		my $warn_sql = length($warning)
-			? $dbh->quote($warning)
-			: 'NULL';
+		my ($eval_alarm_state, $err_sql, $warn_sql);
 
+		# =========================
+		# TIMEOUT HANDLING
+		# =========================
+		if ($timed_out) {
+
+			log_warn("Condition eval timed out: $condition", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
+			$dbh->do(qq[
+				UPDATE alarms
+				SET condition_error = 'timeout',
+					condition_warning = ?
+				WHERE id = ?
+			], undef,
+				$errout,
+				$alarm_id
+			);
+
+			return;
+		}
+
+		# =========================
+		# DECODE FAILURE HANDLING
+		# =========================
+		if ($@ || !$res) {
+
+			log_warn("JSON decode failed: $@ | stdout=$output | stderr=$errout", {
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			});
+
+			$dbh->do(qq[
+				UPDATE alarms
+				SET condition_error = ?,
+					condition_warning = ?
+				WHERE id = ?
+			], undef,
+				"decode_error",
+				$errout,
+				$alarm_id
+			);
+
+			return;
+		}
+
+		# =========================
+		# EXTRACT RESULTS
+		# =========================
+		$eval_alarm_state = $res->{result};
+
+		$err_sql  = $res->{error};
+		$warn_sql = $res->{warning};
+
+		$err_sql  = undef if defined $err_sql  && $err_sql eq '';
+		$warn_sql = undef if defined $warn_sql && $warn_sql eq '';
+
+		log_debug(
+			"Eval result: " . (defined $eval_alarm_state ? $eval_alarm_state : 'undef')
+			. (
+				defined $warn_sql && $warn_sql ne ''
+					? "; warning: $warn_sql"
+					: ""
+			)
+			. (
+				defined $err_sql && $err_sql ne ''
+					? "; error: $err_sql"
+					: ""
+			),
+			{
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+			}
+		);
+
+		# =========================
+		# OPTIONAL STDERR LOGGING
+		# =========================
+		if ($errout) {
+			log_warn("child stderr: $errout");
+		}
+
+		# =========================
+		# SINGLE SOURCE OF TRUTH DB UPDATE
+		# =========================
 		$dbh->do(qq[
 			UPDATE alarms
-			SET
-				condition_error = NULL,
-				condition_warning = $warn_sql
-			WHERE id = $id
-		]);
+			SET condition_error = ?,
+				condition_warning = ?
+			WHERE id = ?
+		], undef,
+			$err_sql,
+			$warn_sql,
+			$alarm_id
+		);
 	}
+	
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
