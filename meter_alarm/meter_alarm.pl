@@ -12,7 +12,7 @@ use strict;
 use utf8;
 use Data::Dumper;
 use DBI;
-use Statistics::Basic qw(:all);
+use Statistics::Basic qw(median);
 use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
