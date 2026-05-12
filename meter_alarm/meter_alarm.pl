@@ -1088,16 +1088,14 @@ sub process_active_window {
 	# --------------------------------------------------
 	if (!$prev_state && $cur_state) {
 
-		# Reset counter to 1 (first occurrence)
-		my $count = 1;
-
+		# Reset counter
 		$dbh->do(q[
 			UPDATE alarms
 			SET
 				in_active_window = 1,
-				alarm_count = ?
+				alarm_count = 1
 			WHERE id = ?
-		], undef, $count, $alarm->{id});
+		], undef, $alarm->{id});
 
 		log_debug("Entered active window → reset alarm_count", {
 			-custom_tag => "ALARM:$alarm->{id}:$alarm->{serial}"
