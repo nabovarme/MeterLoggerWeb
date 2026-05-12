@@ -120,17 +120,21 @@ sub handler {
 sub prepare_alarm_data {
 	my ($alarm) = @_;
 	return {
-		id => $alarm->{id} || '',
-		serial => $alarm->{serial} || '',
-		info => $alarm->{info} || '',
-		sms_notification => $alarm->{sms_notification} || '',
-		condition => $alarm->{condition} || '',
-		condition_error => $alarm->{condition_error} || '',
-		alarm_state => $alarm->{alarm_state} || '',
-		enabled => $alarm->{enabled} || '',
-		repeat => $alarm->{repeat} || '',
-		snooze => $alarm->{snooze} || '',
-		comment => $alarm->{comment} || '',
+		id => $alarm->{id} // '',
+		serial => $alarm->{serial} // '',
+		info => $alarm->{info} // '',
+		alarm_state => $alarm->{alarm_state} // '',
+		enabled => $alarm->{enabled} // '',
+		in_active_window => $alarm->{in_active_window} // '',
+		condition => $alarm->{condition} // '',
+		condition_error => $alarm->{condition_error} // '',
+		sms_notification => $alarm->{sms_notification} // '',
+		comment => $alarm->{comment} // '',
+		repeat => $alarm->{repeat} // '',
+		snooze => $alarm->{snooze} // '',
+		active_from_sec => $alarm->{active_from_sec} // '',
+		active_to_sec => $alarm->{active_to_sec} // '',
+		timezone => $alarm->{timezone} // '',
 	};
 }
 

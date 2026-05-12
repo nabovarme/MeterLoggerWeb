@@ -44,6 +44,21 @@
 			$quoted_down_message = $dbh->quote($fdat{down_message});
 			$quoted_comment = $dbh->quote($fdat{comment});
 
+
+			# Active window
+			$active_from_sec = hhmm_to_sec($fdat{active_from});
+			$active_to_sec   = hhmm_to_sec($fdat{active_to});
+			
+			$quoted_active_from_sec =
+				defined $active_from_sec
+					? $dbh->quote($active_from_sec)
+					: 'NULL';
+			
+			$quoted_active_to_sec =
+				defined $active_to_sec
+					? $dbh->quote($active_to_sec)
+					: 'NULL';
+
 			# Perform the UPDATE query
 			$dbh->do(qq[
 				UPDATE alarms SET 
@@ -54,7 +69,9 @@
 					default_snooze = $quoted_default_snooze, 
 					up_message = $quoted_up_message, 
 					down_message = $quoted_down_message,
-					`comment` = $quoted_comment
+					`comment` = $quoted_comment,
+					active_from_sec = $quoted_active_from_sec,
+					active_to_sec = $quoted_active_to_sec
 				WHERE `id` = $id
 			]);
 		}
@@ -69,6 +86,33 @@
 		$sth->execute($id);
 		$d = $sth->fetchrow_hashref;
 	}
+-]
+[-
+
+sub sec_to_hhmm {
+	my ($sec) = @_;
+
+	return '' unless defined $sec && $sec =~ /^\d+$/;
+
+	my $h = int($sec / 3600);
+	my $m = int(($sec % 3600) / 60);
+
+	return sprintf("%02d:%02d", $h, $m);
+}
+
+sub hhmm_to_sec {
+	my ($hhmm) = @_;
+
+	return undef unless defined $hhmm;
+	return undef unless $hhmm =~ /^(\d{1,2}):(\d{2})$/;
+
+	my ($h, $m) = ($1, $2);
+
+	return undef if $h > 23 || $m > 59;
+
+	return ($h * 3600) + ($m * 60);
+}
+
 -]
 [- 
 	$sth_alarm_templates = $dbh->prepare(qq[
@@ -522,6 +566,35 @@ document.addEventListener('DOMContentLoaded', function () {
 				</label>
 				<textarea [$ if ($d->{condition_error}) $]class="label-red-border"[$ endif $]name="condition" id="conditionField">[+ $d->{condition} +]</textarea>
 				<div id="condition-popup"></div>
+
+				<label>Active Window</label>
+				
+				<div style="display:flex; gap:10px; align-items:center;">
+					<input
+						type="time"
+						name="active_from"
+						value="[+ sec_to_hhmm($d->{active_from_sec}) +]"
+					>
+				
+					<span style="font-weight:bold;">→</span>
+				
+					<input
+						type="time"
+						name="active_to"
+						value="[+ sec_to_hhmm($d->{active_to_sec}) +]"
+					>
+				</div>
+				
+				<div class="label-hint">
+					Leave both empty for always active.
+					Supports overnight windows (example: 22:00 → 06:00).
+				</div>
+				<label>Timezone</label>
+				<input
+					type="text"
+					name="timezone"
+					value="[+ $d->{timezone} || 'Europe/Copenhagen' +]"
+				>
 
 				<!-- Show last notification if any -->
 				[$ if ($d->{alarm_state}) $]
