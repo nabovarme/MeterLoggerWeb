@@ -36,6 +36,38 @@ document.addEventListener('DOMContentLoaded', () => {
 		return `${h}:${m}`;
 	}
 
+	// =========================
+	// URL STATE HANDLING (NEW)
+	// =========================
+
+	function updateURLState(searchText, activeOnly) {
+		const params = new URLSearchParams(window.location.search);
+
+		if (searchText) {
+			params.set('q', searchText);
+		} else {
+			params.delete('q');
+		}
+
+		if (activeOnly) {
+			params.set('active', '1');
+		} else {
+			params.delete('active');
+		}
+
+		const newUrl = `${window.location.pathname}?${params.toString()}`;
+		history.replaceState(null, '', newUrl);
+	}
+
+	function loadStateFromURL() {
+		const params = new URLSearchParams(window.location.search);
+
+		return {
+			search: params.get('q') || '',
+			activeOnly: params.get('active') === '1'
+		};
+	}
+
 	// Fetch alarms from API
 	async function fetchAlarms() {
 		try {
@@ -152,6 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		const searchText = filterInput.value.toLowerCase();
 		const activeOnly = activeCheckbox.checked;
 
+		// NEW: sync URL state
+		updateURLState(searchText, activeOnly);
+
 		const filteredData = allAlarmsData.map(group => {
 			const groupMatches = group.group_name.toLowerCase().includes(searchText);
 
@@ -215,7 +250,17 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Initialize app
 	async function init() {
 		await fetchAlarms();
+
+		// NEW: load state from URL
+		const urlState = loadStateFromURL();
+
 		renderAlarms(allAlarmsData);
+
+		filterInput.value = urlState.search;
+		activeCheckbox.checked = urlState.activeOnly;
+
+		// Apply initial filter (important so URL state is respected)
+		filterAlarms();
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
