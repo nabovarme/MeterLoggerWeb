@@ -50,7 +50,7 @@ sub _tokenize {
 	while ($expr ne '') {
 
 		# numbers
-		if ($expr =~ s/^(\d+(?:\.\d+)?)//) {
+		if ($expr =~ s/^([-]?\d+(?:\.\d+)?)//) {
 			push @tokens, $1;
 			next;
 		}
