@@ -1,3 +1,5 @@
+let wifiDebounceTimeout = null;
+
 async function loadWifi() {
 	try {
 		const resp = await fetch('/api/wifi_pending');
@@ -7,7 +9,20 @@ async function loadWifi() {
 		const tbody = document.querySelector('#wifi_table tbody');
 		tbody.innerHTML = ''; // clear existing rows
 
+		// =========================
+		// URL STATE (READ)
+		// =========================
+		const params = new URLSearchParams(window.location.search);
+		const search = (params.get('q') || '').toLowerCase();
+
 		for (const row of data) {
+
+			// filter by search (serial + info + ssid)
+			if (search) {
+				const text = `${row.serial || ''} ${row.info || ''} ${row.ssid || ''}`.toLowerCase();
+				if (!text.includes(search)) continue;
+			}
+
 			const tr = document.createElement('tr');
 			tr.align = 'left';
 			tr.valign = 'top';
@@ -25,11 +40,52 @@ async function loadWifi() {
 				<td>&nbsp;</td>
 				<td align="left"><span class="default">${row.time}</span></td>
 			`;
+
 			tbody.appendChild(tr);
 		}
+
 	} catch (err) {
 		console.error('Failed to load wifi:', err);
 	}
+}
+
+// =========================
+// DEBOUNCED RELOAD
+// =========================
+
+function reloadWifiDebounced() {
+	clearTimeout(wifiDebounceTimeout);
+
+	wifiDebounceTimeout = setTimeout(() => {
+		loadWifi();
+	}, 300);
+}
+
+// =========================
+// EVENT BINDING (DIRECT)
+// =========================
+
+const wifiInput = document.getElementById('wifiPendingSearch');
+
+if (wifiInput) {
+	// restore from URL
+	const params = new URLSearchParams(window.location.search);
+	wifiInput.value = params.get('q') || '';
+
+	wifiInput.addEventListener('input', () => {
+		const val = wifiInput.value;
+
+		// update URL
+		const p = new URLSearchParams(window.location.search);
+
+		if (val) p.set('q', val);
+		else p.delete('q');
+
+		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+
+		// debounce reload
+		reloadWifiDebounced();
+	});
 }
 
 // Initial load

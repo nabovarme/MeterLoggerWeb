@@ -1,3 +1,5 @@
+let paymentDebounceTimeout = null;
+
 async function loadPayments() {
 	try {
 		const resp = await fetch('/api/payments_pending');
@@ -11,7 +13,19 @@ async function loadPayments() {
 		const tbody = document.querySelector('#payments_table tbody');
 		tbody.innerHTML = ''; // clear existing rows
 
+		// =========================
+		// URL STATE (READ)
+		// =========================
+		const params = new URLSearchParams(window.location.search);
+		const search = (params.get('q') || '').toLowerCase();
+
 		for (const row of meters) {
+
+			if (search) {
+				const text = `${row.serial || ''} ${row.info || ''}`.toLowerCase();
+				if (!text.includes(search)) continue;
+			}
+
 			const tr = document.createElement('tr');
 			tr.align = 'left';
 			tr.valign = 'top';
@@ -38,11 +52,52 @@ async function loadPayments() {
 				<td>&nbsp;</td>
 				<td align="left"><span class="default">${row.time}</span></td>
 			`;
+
 			tbody.appendChild(tr);
 		}
+
 	} catch (err) {
 		console.error('Failed to load payments:', err);
 	}
+}
+
+// =========================
+// DEBOUNCE WRAPPER
+// =========================
+
+function reloadPaymentsDebounced() {
+	clearTimeout(paymentDebounceTimeout);
+
+	paymentDebounceTimeout = setTimeout(() => {
+		loadPayments();
+	}, 300);
+}
+
+// =========================
+// EVENT BINDING (DIRECT)
+// =========================
+
+const input = document.getElementById('paymentsPendingSearch');
+
+if (input) {
+	// restore from URL
+	const params = new URLSearchParams(window.location.search);
+	input.value = params.get('q') || '';
+
+	input.addEventListener('input', () => {
+		const val = input.value;
+
+		// update URL
+		const p = new URLSearchParams(window.location.search);
+
+		if (val) p.set('q', val);
+		else p.delete('q');
+
+		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+
+		// debounce reload
+		reloadPaymentsDebounced();
+	});
 }
 
 // Initial load

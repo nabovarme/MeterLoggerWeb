@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// =========================
-	// URL STATE HANDLING (NEW)
+	// URL STATE HANDLING
 	// =========================
 
 	function updateURLState(searchText, activeOnly) {
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		const searchText = filterInput.value.toLowerCase();
 		const activeOnly = activeCheckbox.checked;
 
-		// NEW: sync URL state
+		// sync URL state
 		updateURLState(searchText, activeOnly);
 
 		const filteredData = allAlarmsData.map(group => {
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	async function init() {
 		await fetchAlarms();
 
-		// NEW: load state from URL
+		// load state from URL
 		const urlState = loadStateFromURL();
 
 		renderAlarms(allAlarmsData);
