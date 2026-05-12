@@ -286,6 +286,9 @@ sub evaluate_alarm {
 	my $now = time();
 	my $last_updated = $alarm->{last_updated};
 
+	# Raw condition string from DB (e.g. "$flow > 10 && $closed")
+	my $condition = $alarm->{condition};
+
 	# --------------------------------------------------
 	# SAFETY: IGNORE STALE DATA
 	# --------------------------------------------------
@@ -295,10 +298,16 @@ sub evaluate_alarm {
 	#   - acting on outdated sensor values
 	#
 	# MAX_DATA_AGE acts as a hard cutoff (e.g. 24h)
-	if (defined $last_updated && ($now - $last_updated) > MAX_DATA_AGE) {
+	my $uses_offline = ($condition =~ /\$offline\b/);
+
+	if (defined $last_updated
+		&& ($now - $last_updated) > MAX_DATA_AGE
+		&& !$uses_offline) {
+
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		    -custom_tag => "ALARM:$run_id:$alarm->{serial}"
 		});
+
 		return;
 	}
 
@@ -313,9 +322,6 @@ sub evaluate_alarm {
 	# Reuse existing key if present, otherwise generate a new one.
 	my $snooze_auth_key = $alarm->{snooze_auth_key} || generate_snooze_key();
 	my $quoted_snooze_auth_key = $dbh->quote($snooze_auth_key);
-
-	# Raw condition string from DB (e.g. "$flow > 10 && $closed")
-	my $condition = $alarm->{condition};
 
 	# --------------------------------------------------
 	# MESSAGE TEMPLATE EXPANSION
