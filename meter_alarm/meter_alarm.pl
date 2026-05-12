@@ -512,6 +512,8 @@ sub check_delayed_valve_closed {
 	my ($status, $installed, $alarm_id, $closed_since)
 		= $sth->fetchrow_array;
 
+	return unless defined $alarm_id;
+
 	my $now = time();
 
 	# --------------------------------------------------
