@@ -67,7 +67,7 @@ sub sync_auto_alarms {
 	my $sth_aa = $dbh->prepare("SELECT * FROM alarms_auto WHERE enabled=1");
 	$sth_aa->execute;
 
-	# Fetch all enabled meters with valve_installed=1
+	# Fetch all enabled meters
 	my $sth_m = $dbh->prepare("SELECT serial FROM meters WHERE enabled=1");
 	$sth_m->execute;
 
