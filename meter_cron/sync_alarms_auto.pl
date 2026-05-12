@@ -59,10 +59,6 @@ sub sync_auto_alarms {
 	my $num_deleted_auto = ($deleted_auto && $deleted_auto eq '0E0') ? 0 : $deleted_auto;
 	log_info("Deleted $num_deleted_auto alarms with missing/disabled auto templates");
 
-	# Normalize DBI 0E0 value to 0 for printing
-	my $num_deleted = ($deleted && $deleted eq '0E0') ? 0 : $deleted;
-	log_info("Deleted $num_deleted alarms with missing meters");
-
 	# Fetch all enabled auto alarms
 	my $sth_aa = $dbh->prepare("SELECT * FROM alarms_auto WHERE enabled=1");
 	$sth_aa->execute;
