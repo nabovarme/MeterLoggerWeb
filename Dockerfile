@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -y \
 	libtime-duration-perl \
 	libjson-xs-perl \
 	libemail-mime-perl \
+	libdatetime-perl \
 	default-mysql-client\
 	software-properties-common \
 	texlive \
