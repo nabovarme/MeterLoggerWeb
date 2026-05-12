@@ -124,11 +124,12 @@ my $alarm_config = {};
 #
 # Each loop is independent and stateless except Redis/DB.
 
+my $run_id;
 while (1) {
 
 	# Unique identifier for this evaluation cycle
 	# Used for logging correlation across alarms
-	my $run_id = time();
+	$run_id = time();
 
 	log_debug("===== MAIN LOOP START run_id=$run_id =====", {
 		-custom_tag => "MAIN:$run_id"
@@ -251,7 +252,7 @@ sub process_alarms {
 		# Skip all evaluation if alarm is outside its active window
 		unless (process_active_window($alarm)) {
 			log_debug("Skipping alarm outside active window", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}",
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}",
 				id => $alarm->{id},
 				serial => $alarm->{serial},
 				active_from => $alarm->{active_from_sec},
@@ -305,7 +306,7 @@ sub evaluate_alarm {
 		&& !$uses_offline) {
 
 		log_debug("Skipping alarm due to stale DB data (age=" . ($now - $last_updated) . "s)", {
-		    -custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
 
 		return;
@@ -330,7 +331,7 @@ sub evaluate_alarm {
 	my $up_message   = fill_template($alarm->{up_message}   || 'normal', $alarm, $snooze_auth_key);
 
 	log_debug("raw condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 	});
 
 	# --------------------------------------------------
@@ -353,7 +354,7 @@ sub evaluate_alarm {
 	if ($uses_closed) {
 		if (!defined $closed) {
 			log_debug("Skipping evaluation: valve transition still pending", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 			});
 
 			return;
@@ -369,7 +370,7 @@ sub evaluate_alarm {
 	$condition = interpolate_variables($condition, $alarm);
 
 	log_debug("parsed condition: $condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 	});
 
 	my $eval_alarm_state = 0;
@@ -410,7 +411,7 @@ sub evaluate_alarm {
 	if ($res->{error}) {
 
 		log_warn("Condition evaluation error: $res->{error}", {
-			-custom_tag => "ALARM:$run_id:$alarm->{serial}"
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
 
 		my $err = $dbh->quote($res->{error});
@@ -430,7 +431,7 @@ sub evaluate_alarm {
 	# NORMAL PATH LOGGING
 	# --------------------------
 	log_debug("eval_result=$eval_alarm_state condition=$condition", {
-		-custom_tag => "ALARM:$run_id:$alarm->{serial}",
+		-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}",
 		rpn => $res->{rpn},
 	});
 
@@ -1104,7 +1105,7 @@ sub process_active_window {
 		], undef, $alarm->{id});
 
 		log_debug("Entered active window → reset alarm_count", {
-			-custom_tag => "ALARM:$alarm->{id}:$alarm->{serial}"
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
 
 		return 1;
