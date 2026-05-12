@@ -18,6 +18,38 @@ document.addEventListener('DOMContentLoaded', () => {
 		return searchText === '' || textToCheck.includes(searchText);
 	};
 
+	// =========================
+	// URL STATE HANDLING
+	// =========================
+
+	function updateURLState(searchText, disabledOnly) {
+		const params = new URLSearchParams(window.location.search);
+
+		if (searchText) {
+			params.set('q', searchText);
+		} else {
+			params.delete('q');
+		}
+
+		if (disabledOnly) {
+			params.set('disabled', '1');
+		} else {
+			params.delete('disabled');
+		}
+
+		const newUrl = `${window.location.pathname}?${params.toString()}`;
+		history.replaceState(null, '', newUrl);
+	}
+
+	function loadStateFromURL() {
+		const params = new URLSearchParams(window.location.search);
+
+		return {
+			search: params.get('q') || '',
+			disabledOnly: params.get('disabled') === '1'
+		};
+	}
+
 	// Fetch meters from API
 	async function fetchMeters() {
 		try {
@@ -103,6 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		const searchText = filterInput.value.toLowerCase();
 		const disabledOnly = disabledCheckbox.checked;
 
+		// sync URL state
+		updateURLState(searchText, disabledOnly);
+
 		const filteredData = allMetersData.map(group => {
 			const groupMatches = group.group_name.toLowerCase().includes(searchText);
 
@@ -167,7 +202,16 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Initialize app
 	async function init() {
 		await fetchMeters();
+
+		// load state from URL
+		const urlState = loadStateFromURL();
+
 		renderMeters(allMetersData);
+
+		filterInput.value = urlState.search;
+		disabledCheckbox.checked = urlState.disabledOnly;
+
+		filterMeters();
 
 		filterInput.addEventListener('input', debounce(filterMeters));
 		disabledCheckbox.addEventListener('change', filterMeters);

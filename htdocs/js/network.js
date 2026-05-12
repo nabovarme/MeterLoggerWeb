@@ -135,10 +135,12 @@ function filterTree(treeData, query, showOnlyOffline = false) {
 	const lowerQuery = query.toLowerCase();
 
 	function nodeMatches(meter) {
-		const matchesQuery = meter?.info?.toLowerCase().includes(lowerQuery)
-			|| meter?.serial?.toLowerCase().includes(lowerQuery)
-			|| meter?.ssid?.toLowerCase().includes(lowerQuery)
-			|| meter?.sw_version?.toLowerCase().includes(lowerQuery);
+		const matchesQuery =
+			meter?.info?.toLowerCase().includes(lowerQuery) ||
+			meter?.serial?.toLowerCase().includes(lowerQuery) ||
+			meter?.ssid?.toLowerCase().includes(lowerQuery) ||
+			meter?.sw_version?.toLowerCase().includes(lowerQuery);
+
 		const offlineMatch = !showOnlyOffline || isOffline(meter);
 		return matchesQuery && offlineMatch;
 	}
@@ -181,9 +183,46 @@ function debounce(fn, delay) {
 	};
 }
 
+//
+// =========================
+// URL STATE HANDLING (NEW)
+// =========================
+//
+
+function updateURLState(searchText, offlineOnly) {
+	const params = new URLSearchParams(window.location.search);
+
+	if (searchText) {
+		params.set('q', searchText);
+	} else {
+		params.delete('q');
+	}
+
+	if (offlineOnly) {
+		params.set('offline', '1');
+	} else {
+		params.delete('offline');
+	}
+
+	const newUrl = `${window.location.pathname}?${params.toString()}`;
+	history.replaceState(null, '', newUrl);
+}
+
+function loadStateFromURL() {
+	const params = new URLSearchParams(window.location.search);
+
+	return {
+		search: params.get('q') || '',
+		offlineOnly: params.get('offline') === '1'
+	};
+}
+
 const renderFilteredTrees = debounce(function () {
 	const query = document.getElementById('networkSearch').value.trim();
 	const showOfflineOnly = document.getElementById('offlineMeters').checked;
+
+	// sync URL
+	updateURLState(query, showOfflineOnly);
 
 	const shouldFilter = query.length > 0 || showOfflineOnly;
 	const filteredData = shouldFilter
@@ -194,9 +233,19 @@ const renderFilteredTrees = debounce(function () {
 	window.scrollTo({ top: 0, behavior: 'smooth' });
 }, 300);
 
-// ✅ Load everything *after* the window fully loads
+// =========================
+// INIT
+// =========================
+
 window.addEventListener('load', () => {
 	const filterInput = document.getElementById('networkSearch');
+	const offlineCheckbox = document.getElementById('offlineMeters');
+
+	// load from URL
+	const urlState = loadStateFromURL();
+
+	filterInput.value = urlState.search;
+	offlineCheckbox.checked = urlState.offlineOnly;
 
 	filterInput.focus();
 
@@ -209,6 +258,11 @@ window.addEventListener('load', () => {
 	});
 
 	filterInput.addEventListener('input', renderFilteredTrees);
-	document.getElementById('offlineMeters').addEventListener('change', renderFilteredTrees);
+	offlineCheckbox.addEventListener('change', renderFilteredTrees);
+
 	fetchAndRenderTrees();
+
+	setTimeout(() => {
+		renderFilteredTrees();
+	}, 0);
 });
