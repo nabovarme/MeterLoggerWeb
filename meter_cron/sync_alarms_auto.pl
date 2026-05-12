@@ -64,7 +64,11 @@ sub sync_auto_alarms {
 	$sth_aa->execute;
 
 	# Fetch all enabled meters
-	my $sth_m = $dbh->prepare("SELECT serial FROM meters WHERE enabled=1");
+	my $sth_m = $dbh->prepare("
+		SELECT serial, valve_installed
+		FROM meters
+		WHERE enabled=1
+	");
 	$sth_m->execute;
 
 	# Process each auto alarm
@@ -75,6 +79,18 @@ sub sync_auto_alarms {
 
 			# Skip if serial is missing or empty
 			next unless defined $serial && length $serial;
+
+			# Skip leakage/closed alarms if valve is NOT installed
+			if (
+				(!$m->{valve_installed})
+				&& defined $aa->{condition}
+				&& (
+					$aa->{condition} =~ /\$leakage/
+					|| $aa->{condition} =~ /\$closed/
+				)
+			) {
+				next;
+			}
 
 			# Check if the alarm already exists for this serial and auto_id
 			my ($exists) = $dbh->selectrow_array(
