@@ -1,6 +1,7 @@
  [- 
 	# Load required Perl modules
 	use Time::Duration;
+	use DateTime;
 
 	# Load internal application modules
 	use Nabovarme::Db;
@@ -111,6 +112,114 @@ sub hhmm_to_sec {
 	return undef if $h > 23 || $m > 59;
 
 	return ($h * 3600) + ($m * 60);
+}
+
+sub next_notification_in {
+	my ($alarm) = @_;
+
+	return '' unless $alarm->{alarm_state};
+
+	my $now = time();
+
+	# --------------------------------------------------
+	# BASE NEXT NOTIFICATION
+	# --------------------------------------------------
+	my $next =
+		($alarm->{last_notification} || 0) +
+		($alarm->{repeat} || 0) +
+		($alarm->{snooze} || 0);
+
+	# --------------------------------------------------
+	# NO ACTIVE WINDOW
+	# --------------------------------------------------
+	unless (
+		defined $alarm->{active_from_sec}
+		&& defined $alarm->{active_to_sec}
+		&& $alarm->{timezone}
+	) {
+		my $remaining = $next - $now;
+		$remaining = 0 if $remaining < 0;
+		return duration($remaining);
+	}
+
+	# --------------------------------------------------
+	# TIMEZONE-AWARE CONTEXT
+	# --------------------------------------------------
+	my $tz = $alarm->{timezone};
+
+	my $dt_next = DateTime->from_epoch(
+		epoch     => $next,
+		time_zone => $tz,
+	);
+
+	my $next_sec =
+		$dt_next->hour * 3600 +
+		$dt_next->minute * 60 +
+		$dt_next->second;
+
+	my $from = $alarm->{active_from_sec};
+	my $to   = $alarm->{active_to_sec};
+
+	my $inside;
+
+	# --------------------------------------------------
+	# CHECK WHETHER *NEXT TIME* IS INSIDE WINDOW
+	# --------------------------------------------------
+
+	# normal window
+	if ($from <= $to) {
+
+		$inside =
+			($next_sec >= $from && $next_sec <= $to)
+				? 1 : 0;
+	}
+	# overnight window
+	else {
+
+		$inside =
+			($next_sec >= $from || $next_sec <= $to)
+				? 1 : 0;
+	}
+
+	# --------------------------------------------------
+	# OUTSIDE WINDOW → SNAP TO NEXT WINDOW START
+	# --------------------------------------------------
+	if (!$inside) {
+
+		my $next_open = $dt_next->clone;
+
+		# before today's window
+		if ($next_sec < $from) {
+
+			$next_open->set(
+				hour   => int($from / 3600),
+				minute => int(($from % 3600) / 60),
+				second => 0,
+			);
+		}
+		else {
+
+			# move to next day
+			$next_open->add(days => 1);
+
+			$next_open->set(
+				hour   => int($from / 3600),
+				minute => int(($from % 3600) / 60),
+				second => 0,
+			);
+		}
+
+		$next = $next_open->epoch;
+	}
+
+	# --------------------------------------------------
+	# FINAL RESULT
+	# --------------------------------------------------
+	my $remaining = $next - $now;
+
+	$remaining = 0 if $remaining < 0;
+
+	return duration($remaining);
 }
 
 -]
@@ -609,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				<!-- Show current snooze info if relevant -->
 				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
 				<label>Snoozed</label>
-				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +], next in [+ duration(time() - ($d->{last_notification} + $d->{snooze})) +]</textarea>
+				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +], next in [+ next_notification_in($d) +]</textarea>				
 				[$ endif $]
 
 				<!-- Default snooze interval -->
