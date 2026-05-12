@@ -48,6 +48,7 @@ html, body {
 		minmax(100px, 1fr)         /* Condition */
 		minmax(80px, 120px)        /* Repeating */
 		minmax(80px, 120px)        /* Snoozed */
+		minmax(100px, 140px)       /* Active window (From → To) */
 		minmax(100px, 1fr);        /* Comment */
 	gap: 6px;
 	padding: 6px;

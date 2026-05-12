@@ -23,6 +23,19 @@ document.addEventListener('DOMContentLoaded', () => {
 		return searchText === '' || textToCheck.includes(searchText);
 	};
 
+	// Convert seconds since midnight → HH:MM
+	function secToHHMM(sec) {
+		if (sec === null || sec === undefined || sec === '') return '';
+
+		const s = Number(sec);
+		if (isNaN(s)) return '';
+
+		const h = String(Math.floor(s / 3600)).padStart(2, '0');
+		const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+
+		return `${h}:${m}`;
+	}
+
 	// Fetch alarms from API
 	async function fetchAlarms() {
 		try {
@@ -55,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			// Group alarms by serial, maintaining order
 			const alarmsBySerial = {};
 			const serialOrder = [];
+
 			group.alarms.forEach(alarm => {
 				if (!alarmsBySerial[alarm.serial]) {
 					alarmsBySerial[alarm.serial] = [];
@@ -85,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					<div>Condition</div>
 					<div>Repeating</div>
 					<div>Snoozed</div>
+					<div>Active window</div>
 					<div>Comment</div>
 				`;
 				tableWrapper.appendChild(columnsDiv);
@@ -98,6 +113,20 @@ document.addEventListener('DOMContentLoaded', () => {
 					const repeat = alarm.repeat ? `every ${alarm.repeat}` : 'no';
 					const snooze = alarm.snooze || 'no';
 
+					const from = secToHHMM(alarm.active_from_sec);
+					const to = secToHHMM(alarm.active_to_sec);
+
+					let windowText = '';
+					if (from && to) {
+						windowText = `${from} → ${to}`;
+					} else if (from) {
+						windowText = `${from} →`;
+					} else if (to) {
+						windowText = `→ ${to}`;
+					} else {
+						windowText = '';
+					}
+
 					rowDiv.innerHTML = `
 						<div><a href="alarms_detail.epl?id=${alarm.id}">${alarm.id || ''}</a></div>
 						<div>${alarm.sms_notification || ''}</div>
@@ -106,6 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
 						</div>
 						<div>${repeat}</div>
 						<div>${snooze}</div>
+						<div>${windowText}</div>
 						<div>${alarm.comment || ''}</div>
 					`;
 
