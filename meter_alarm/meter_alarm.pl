@@ -7,6 +7,7 @@
 # 2) Alarm state: cleared only after a stable normal condition for ALARM_CLEAR_DELAY
 #    to prevent rapid alarm flapping due to transient conditions.
 
+use warnings;
 use strict;
 use utf8;
 use Data::Dumper;
