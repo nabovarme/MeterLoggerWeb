@@ -16,7 +16,7 @@ sub evaluate {
 		result  => 0,
 		error   => undef,
 		warning => undef,
-		rpn	 => undef,
+		rpn     => undef,
 	};
 
 	return _fail($out, "undef expression") unless defined $expr;
@@ -26,10 +26,12 @@ sub evaluate {
 	my ($tokens, $err) = _tokenize($expr);
 	return _fail($out, $err) if $err;
 
-	my @rpn = _to_rpn(@$tokens);
-	$out->{rpn} = \@rpn;   # optional debug trace
+	my ($rpn_ref, $err2) = _to_rpn($tokens);
+	return _fail($out, $err2) if $err2;
 
-	my ($result, $warn) = _eval_rpn(@rpn);
+	$out->{rpn} = $rpn_ref;
+
+	my ($result, $warn) = _eval_rpn($rpn_ref);
 
 	$out->{result}  = $result ? 1 : 0;
 	$out->{warning} = $warn if $warn;
@@ -72,7 +74,7 @@ sub _tokenize {
 }
 
 # ==================================================
-# OPERATOR PRECEDENCE
+# PRECEDENCE
 # ==================================================
 my %PREC = (
 	'||' => 1,
@@ -86,15 +88,15 @@ my %PREC = (
 );
 
 # ==================================================
-# SHUNTING-YARD (INFIX → RPN)
+# SHUNTING YARD (INFIX -> RPN)
 # ==================================================
 sub _to_rpn {
-	my @tokens = @_;
+	my ($tokens) = @_;
 
 	my @output;
 	my @stack;
 
-	for my $t (@tokens) {
+	for my $t (@$tokens) {
 
 		# number
 		if ($t =~ /^\d/) {
@@ -126,45 +128,61 @@ sub _to_rpn {
 
 		# )
 		if ($t eq ')') {
-			while (@stack && $stack[-1] ne '(') {
-				push @output, pop @stack;
+			my $found_paren = 0;
+
+			while (@stack) {
+				my $op = pop @stack;
+
+				if ($op eq '(') {
+					$found_paren = 1;
+					last;
+				}
+
+				push @output, $op;
 			}
 
-			pop @stack; # remove '('
+			return (undef, "mismatched parentheses") unless $found_paren;
 			next;
 		}
 	}
 
-	push @output, reverse @stack;
+	# flush stack correctly (NO reverse!)
+	while (@stack) {
+		my $op = pop @stack;
 
-	return @output;
+		return (undef, "mismatched parentheses") if $op eq '(';
+
+		push @output, $op;
+	}
+
+	return (\@output, undef);
 }
 
 # ==================================================
 # RPN EVALUATOR
 # ==================================================
 sub _eval_rpn {
+	my ($rpn) = @_;
+
 	my @stack;
 
-	for my $t (@_) {
+	for my $t (@$rpn) {
 
 		# number
 		if ($t =~ /^\d/) {
-			push @stack, $t + 0;
+			push @stack, 0 + $t;
 			next;
 		}
 
 		my $b = pop @stack;
 		my $a = pop @stack;
 
-		unless (defined $a && defined $b) {
-			return (0, "stack underflow in expression");
-		}
+		return (0, "stack underflow in expression") unless defined $a && defined $b;
 
-		my $r = _apply($a, $t, $b);
-
-		push @stack, $r;
+		push @stack, _apply($a, $t, $b);
 	}
+
+	return (0, "invalid expression stack") if @stack != 1;
 
 	return (pop @stack ? 1 : 0, undef);
 }
@@ -177,15 +195,15 @@ sub _apply {
 
 	return 0 unless defined $a && defined $b;
 
-	if ($op eq '&&') { return ($a && $b) ? 1 : 0; }
-	if ($op eq '||') { return ($a || $b) ? 1 : 0; }
+	return ($a && $b) ? 1 : 0 if $op eq '&&';
+	return ($a || $b) ? 1 : 0 if $op eq '||';
 
-	if ($op eq '>')  { return ($a >  $b) ? 1 : 0; }
-	if ($op eq '<')  { return ($a <  $b) ? 1 : 0; }
-	if ($op eq '>=') { return ($a >= $b) ? 1 : 0; }
-	if ($op eq '<=') { return ($a <= $b) ? 1 : 0; }
-	if ($op eq '==') { return ($a == $b) ? 1 : 0; }
-	if ($op eq '!=') { return ($a != $b) ? 1 : 0; }
+	return ($a >  $b) ? 1 : 0 if $op eq '>';
+	return ($a <  $b) ? 1 : 0 if $op eq '<';
+	return ($a >= $b) ? 1 : 0 if $op eq '>=';
+	return ($a <= $b) ? 1 : 0 if $op eq '<=';
+	return ($a == $b) ? 1 : 0 if $op eq '==';
+	return ($a != $b) ? 1 : 0 if $op eq '!=';
 
 	return 0;
 }
