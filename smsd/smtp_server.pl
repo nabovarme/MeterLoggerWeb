@@ -9,6 +9,8 @@ use Carp;
 use Encode qw(encode decode is_utf8);
 use Email::Simple;
 use Email::MIME;
+
+use Redis;
 use Digest::SHA qw(sha1_hex);
 use File::Basename;
 
@@ -52,6 +54,17 @@ my $dbh = Nabovarme::Db->my_connect;
 log_die("DB connection failed", {-no_script_name => 1}) unless $dbh;
 log_info("Connected to DB for SMS logging", {-no_script_name => 1});
 
+# --- Connect to redis server
+my $redis_host = $ENV{'REDIS_HOST'}
+	or die "ERROR: REDIS_HOST environment variable not set";
+
+my $redis_port = $ENV{'REDIS_PORT'}
+	or die "ERROR: REDIS_PORT environment variable not set";
+
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+);
+
 # --- Dry run mode ---
 my $dry_run = ($ENV{SMSD_DRY_RUN} || '') =~ /^(1|true|yes)$/i;
 
@@ -70,14 +83,7 @@ my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable",
 
 my @to_list = split /[\s,]+/, $to_email;
 
-# --- Global flag to prevent concurrent send_sms/read_sms ---
-my $sms_busy :shared = 0;
-my %sent_sms :shared;
-my $sent_sms_ttl = 3600; # 1 hour
-
-# --- Shared globals to track the current active session for logout ---
-my $current_qsess :shared;   # current router session ID
-my $current_ua;               # current LWP::UserAgent
+my $current_ua;               # current LWP::UserAgent	XXX DEBUG is it thread safe?
 
 # --- Handle Docker / SIGTERM / Ctrl+C ---
 $SIG{INT}  = \&cleanup_and_exit;
@@ -86,26 +92,29 @@ $SIG{TERM} = \&cleanup_and_exit;
 sub cleanup_and_exit {
 	log_info("Caught termination signal, attempting logout...", {-no_script_name => 1, -custom_tag => 'EXIT' });
 
-	if ($current_qsess && $current_ua) {
+	my $qsess = $redis->get("sms:qsess");
+
+	if ($qsess && $current_ua) {
 		eval {
 			my $logout_resp = $current_ua->post(
 				"https://$router/logout",
-				Authorization => "Bearer $current_qsess"
+				Authorization => "Bearer $qsess"
 			);
+
 			log_info($logout_resp->is_success ? "Logout successful" : "Logout failed: " . $logout_resp->status_line,
 				{-no_script_name => 1, -custom_tag => 'EXIT' });
 		};
+
 		if ($@) {
 			log_warn("Logout during signal handling failed: $@", {-no_script_name => 1, -custom_tag => 'EXIT' });
 		}
 	}
 
-	# Unlock SMS if it was busy
-	{
-		lock($sms_busy);
-		$sms_busy = 0;
-		cond_broadcast($sms_busy);
-	}
+	# Clear Redis session state
+	$redis->del("sms:qsess");
+
+	# Unlock SMS busy flag (Redis replacement)
+	$redis->del("sms:busy");
 
 	exit 0;
 }
@@ -150,19 +159,13 @@ sub log_sms_to_db {
 sub send_sms {
 	my ($phone, $message) = @_;
 
-	# Lock other SMS actions
-	{
-		lock($sms_busy);
-		return 0 if $sms_busy;
-		$sms_busy = 1;
+	# Lock other SMS actions with Redis-based lock
+	while (!$redis->set("sms:busy", 1, "NX", "EX", 300)) {
+		sleep(1);
 	}
 
 	unless ($phone && $message) {
-		{
-			lock($sms_busy);
-			$sms_busy = 0;
-			cond_broadcast($sms_busy);
-		}
+		$redis->del("sms:busy");
 		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
@@ -176,12 +179,10 @@ sub send_sms {
 			$phone,
 			$message
 		);
-		{
-			lock($sms_busy);
-			$sms_busy = 0;
-			cond_broadcast($sms_busy);
-		}
-		sleep 20;
+
+		$redis->del("sms:busy");
+
+		sleep(20);
 		return 1;
 	}
 
@@ -191,6 +192,7 @@ sub send_sms {
 	my $success = 0;
 	eval {
 		log_info("Logging in as $username", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+
 		my $login_resp = $ua->post(
 			"https://$router/api/login",
 			Content_Type => "application/json",
@@ -201,23 +203,19 @@ sub send_sms {
 			my $resp_content = $login_resp->decoded_content // '';
 			log_warn("❌ Login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
 				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
-			{
-				lock($sms_busy);
-				$sms_busy = 0;
-				cond_broadcast($sms_busy);
-			}
+
+			$redis->del("sms:busy");
 			log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 
 		# --- Extract token ---
 		my $login_data = decode_json($login_resp->decoded_content);
-		my $token = $login_data->{data}->{token} or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+		my $token = $login_data->{data}->{token}
+			or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 		# Track global session for signal handling
-		{
-			lock($current_qsess);
-			$current_qsess = $token;
-		}
+		$redis->set("sms:qsess", $token);
+
 		$current_ua = $ua;
 
 		# --- Prepare SMS payload ---
@@ -231,6 +229,7 @@ sub send_sms {
 
 		# --- Send SMS ---
 		log_info("Sending SMS to $phone", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+
 		my $sms_resp = $ua->post(
 			"https://$router/api/messages/actions/send",
 			Content_Type  => "application/json",
@@ -264,10 +263,12 @@ sub send_sms {
 
 		# --- Logout ---
 		log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
+
 		my $logout_resp = $ua->post(
 			"https://$router/logout",
 			Authorization => "Bearer $token"
 		);
+
 		unless ($logout_resp->is_success) {
 			my $resp_content = $logout_resp->decoded_content // '';
 			log_warn("Logout failed: " . $logout_resp->status_line . " | Content: $resp_content",
@@ -276,24 +277,16 @@ sub send_sms {
 			log_info("Logout successful", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 	};
+
 	if ($@) {
 		log_warn("Error in send_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
-	
 
 	# Clear global session after proper logout
-	{
-		lock($current_qsess);
-		$current_qsess = undef;
-	}
-	$current_ua = undef;
+	$redis->del("sms:qsess");
 
 	# Unlock SMS
-	{
-		lock($sms_busy);
-		$sms_busy = 0;
-		cond_broadcast($sms_busy);
-	}
+	$redis->del("sms:busy");
 
 	return $success;
 }
@@ -302,20 +295,19 @@ sub send_sms {
 sub read_sms {
 	my ($dbh_thread) = @_;
 
-	# Lock other SMS actions
-	{
-		lock($sms_busy);
-		while ($sms_busy) {
-			cond_wait($sms_busy);  # wait until unlocked
-		}
-		$sms_busy = 1;
+	# Redis-based lock
+	while (!$redis->set("sms:busy", 1, "NX", "EX", 30)) {
+		sleep(1);
 	}
 
 	my $ua = make_ua();
 
+	my $sms_list;
+
 	eval {
 		# --- Login ---
 		log_info("Logging in for SMS read", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
 		my $login_resp = $ua->post(
 			"https://$router/api/login",
 			Content_Type => "application/json",
@@ -323,6 +315,7 @@ sub read_sms {
 		);
 
 		my $login_data;
+
 		if ($login_resp->is_success) {
 			$login_data = decode_json($login_resp->decoded_content);
 
@@ -330,27 +323,31 @@ sub read_sms {
 			unless ($login_data->{success}) {
 				my $err = $login_data->{errors}[0]{error} // 'Unknown login error';
 				log_warn("Login API error: $err", {-no_script_name => 1, -custom_tag => 'SMS IN'});
+
+				$redis->del("sms:busy");
 				die "Login API failed: $err";
 			}
 		} else {
 			my $resp_content = $login_resp->decoded_content // '';
 			log_warn("❌ SMS read login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
 				{-no_script_name => 1, -custom_tag => 'SMS IN'});
+
+			$redis->del("sms:busy");
 			die "SMS read login HTTP failed: " . $login_resp->status_line;
 		}
 
 		# --- Extract token ---
-		my $token = $login_data->{data}->{token} or die "No token returned from login";
+		my $token = $login_data->{data}->{token}
+			or die "No token returned from login";
 
-		# Track global session
-		{
-			lock($current_qsess);
-			$current_qsess = $token;
-		}
+		# Store session in Redis
+		$redis->set("sms:qsess", $token);
+
 		$current_ua = $ua;
 
 		# --- Fetch inbox ---
 		log_info("Fetching inbox messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
 		my $resp = $ua->get(
 			"https://$router/api/messages/status",
 			Authorization => "Bearer $token"
@@ -360,14 +357,18 @@ sub read_sms {
 			my $resp_content = $resp->decoded_content // '';
 			log_warn("❌ SMS read HTTP failed: " . $resp->status_line . " | Content: $resp_content",
 				{-no_script_name => 1, -custom_tag => 'SMS IN'});
+
 			die "SMS read HTTP failed: " . $resp->status_line;
 		}
 
 		my $sms_list_json = decode_json($resp->decoded_content);
-		my $sms_list = $sms_list_json->{data} || [];
-		log_info("Received " . scalar(@$sms_list) . " messages", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+		$sms_list = $sms_list_json->{data} || [];
+
+		log_info("Received " . scalar(@$sms_list) . " messages",
+			{-no_script_name => 1, -custom_tag => 'SMS IN' });
 
 		for my $msg (@$sms_list) {
+
 			my $phone    = $msg->{sender}   || '';
 			my $date     = $msg->{date}     || '';
 			my $id       = $msg->{id};
@@ -409,6 +410,7 @@ sub read_sms {
 					. $del_resp->status_line
 					. " | Content: $resp_content",
 					{-no_script_name => 1, -custom_tag => 'SMS IN'});
+
 				next;
 			}
 
@@ -426,6 +428,7 @@ sub read_sms {
 
 		# --- Logout ---
 		log_info("Logging out session $token", {-no_script_name => 1, -custom_tag => 'SMS IN' });
+
 		my $logout_resp = $ua->post(
 			"https://$router/logout",
 			Authorization => "Bearer $token"
@@ -439,25 +442,22 @@ sub read_sms {
 			log_info("Logout successful", {-no_script_name => 1, -custom_tag => 'SMS IN'});
 		}
 
-		# Clear global session after proper logout
-		{
-			lock($current_qsess);
-			$current_qsess = undef;
-		}
-		$current_ua = undef;
-
-		return $sms_list;
 	};
 
 	if ($@) {
 		log_warn("Error in read_sms: $@", {-no_script_name => 1, -custom_tag => 'SMS IN' });
 	}
 
-	{
-		lock($sms_busy);
-		$sms_busy = 0;
-		cond_broadcast($sms_busy);
-	}
+	# Cleanup local UA (preserved original behavior)
+	$current_ua = undef;
+
+	# Clear Redis session
+	$redis->del("sms:qsess");
+
+	# Unlock SMS (Redis)
+	$redis->del("sms:busy");
+
+	return $sms_list;
 }
 
 # --- Forward SMS via email ---
@@ -465,11 +465,10 @@ sub forward_sms_email {
 	my ($phone, $message) = @_;
 
 	my $key = sha1_hex($phone . "|" . $message);
-	{
-		lock(%sent_sms);
-		return if exists $sent_sms{$key}
-			&& (time() - $sent_sms{$key}) < $sent_sms_ttl;
-	}
+	my $redis_key = "sms:sent:$key";
+
+	# Redis-based dedup (replaces %sent_sms lock + TTL hash)
+	return if $redis->exists($redis_key);
 
 	eval {
 		# Normalize line endings to CRLF for SMTP compliance
@@ -492,6 +491,7 @@ sub forward_sms_email {
 
 		# Loop over each recipient and send individually
 		foreach my $recipient (@to_list) {
+
 			# Connect to SMTP server
 			my $smtp = Net::SMTP->new(
 				$smtp_host,
@@ -569,19 +569,14 @@ sub forward_sms_email {
 			);
 		}
 
-		{
-			# Mark as sent to avoid duplicate forwarding
-			lock(%sent_sms);
-			$sent_sms{$key} = time();
+		# Mark as sent (Redis TTL replaces manual cleanup loop)
+		$redis->set($redis_key, time());
+		$redis->expire($redis_key, $sent_sms_ttl);
 
-			# cleanup old entries
-			for my $k (keys %sent_sms) {
-				delete $sent_sms{$k} if (time() - $sent_sms{$k}) > $sent_sms_ttl;
-			}
-		}
 	};
 
-	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP' }) if $@;
+	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP'})
+		if $@;
 }
 
 # --- Background thread to read SMS ---
