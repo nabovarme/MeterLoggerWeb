@@ -514,17 +514,52 @@ sub forward_sms_email {
 			}
 
 			# Set sender and recipient
-			$smtp->mail($smtp_user || $from_email) or log_die("SMTP MAIL FROM failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
-			$smtp->to($recipient) or log_die("SMTP RCPT TO failed for $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
+			unless ($smtp->mail($smtp_user || $from_email)) {
+				log_warn("SMTP MAIL FROM failed: " . ($smtp->message // 'no message'),
+					{-no_script_name => 1, -custom_tag => 'SMTP'}
+				);
+				$smtp->quit;
+				next;
+			}
 
-			$smtp->data() or log_die("SMTP DATA failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
-			$smtp->datasend($email->as_string) or log_die("SMTP DATASEND failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
-			$smtp->dataend() or log_die("SMTP DATAEND failed", {-no_script_name => 1, -custom_tag => 'SMTP' });
+			unless ($smtp->to($recipient)) {
+				log_warn("SMTP RCPT TO failed for $recipient: " . ($smtp->message // 'no message'),
+					{-no_script_name => 1, -custom_tag => 'SMTP'}
+				);
+				$smtp->quit;
+				next;
+			}
+
+			unless ($smtp->data()) {
+				log_warn("SMTP DATA failed: " . ($smtp->message // 'no message'),
+					{-no_script_name => 1, -custom_tag => 'SMTP'}
+				);
+				$smtp->quit;
+				next;
+			}
+
+			unless ($smtp->datasend($email->as_string)) {
+				log_warn("SMTP DATASEND failed: " . ($smtp->message // 'no message'),
+					{-no_script_name => 1, -custom_tag => 'SMTP'}
+				);
+				$smtp->quit;
+				next;
+			}
+
+			unless ($smtp->dataend()) {
+				log_warn("SMTP DATAEND failed: " . ($smtp->message // 'no message'),
+					{-no_script_name => 1, -custom_tag => 'SMTP'}
+				);
+				$smtp->quit;
+				next;
+			}
 
 			# Close SMTP session
 			$smtp->quit();
 
-			log_info("Forwarded SMS from $phone to: $recipient", {-no_script_name => 1, -custom_tag => 'SMTP' });
+			log_info("Forwarded SMS from $phone to: $recipient",
+				{-no_script_name => 1, -custom_tag => 'SMTP' }
+			);
 		}
 
 		# Mark as sent to avoid duplicate forwarding
