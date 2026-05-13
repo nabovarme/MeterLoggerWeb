@@ -9,7 +9,7 @@ use Carp;
 use Encode qw(encode decode is_utf8);
 use Email::Simple;
 use Email::MIME;
-use Data::Dumper;
+use Digest::SHA qw(sha1_hex);
 use File::Basename;
 
 use Net::Server::Mail::SMTP;
@@ -24,6 +24,8 @@ use File::Spec;
 use Time::HiRes qw(sleep);
 use threads;
 use threads::shared;
+
+use Data::Dumper;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -70,7 +72,7 @@ my @to_list = split /[\s,]+/, $to_email;
 
 # --- Global flag to prevent concurrent send_sms/read_sms ---
 my $sms_busy :shared = 0;
-my %sent_sms;
+my %sent_sms :shared;
 my $sent_sms_ttl = 3600; # 1 hour
 
 # --- Shared globals to track the current active session for logout ---
@@ -404,9 +406,9 @@ sub read_sms {
 			} else {
 				my $resp_content = $del_resp->decoded_content // '';
 				log_warn("❌ DELETE FAILED for SMS ID=$id from $phone: "
-				         . $del_resp->status_line
-				         . " | Content: $resp_content",
-				         {-no_script_name => 1, -custom_tag => 'SMS IN'});
+					. $del_resp->status_line
+					. " | Content: $resp_content",
+					{-no_script_name => 1, -custom_tag => 'SMS IN'});
 				next;
 			}
 
@@ -461,8 +463,13 @@ sub read_sms {
 # --- Forward SMS via email ---
 sub forward_sms_email {
 	my ($phone, $message) = @_;
-	return if exists $sent_sms{$message}
-		&& (time() - $sent_sms{$message}) < $sent_sms_ttl;
+
+	my $key = sha1_hex($phone . "|" . $message);
+	{
+		lock(%sent_sms);
+		return if exists $sent_sms{$key}
+			&& (time() - $sent_sms{$key}) < $sent_sms_ttl;
+	}
 
 	eval {
 		# Normalize line endings to CRLF for SMTP compliance
@@ -562,12 +569,15 @@ sub forward_sms_email {
 			);
 		}
 
-		# Mark as sent to avoid duplicate forwarding
-		$sent_sms{$message} = time();
-		
-		# cleanup %sent_sms
-		for my $k (keys %sent_sms) {
-			delete $sent_sms{$k} if (time() - $sent_sms{$k}) > $sent_sms_ttl;
+		{
+			# Mark as sent to avoid duplicate forwarding
+			lock(%sent_sms);
+			$sent_sms{$key} = time();
+
+			# cleanup old entries
+			for my $k (keys %sent_sms) {
+				delete $sent_sms{$k} if (time() - $sent_sms{$k}) > $sent_sms_ttl;
+			}
 		}
 	};
 
