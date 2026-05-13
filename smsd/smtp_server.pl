@@ -175,6 +175,18 @@ sub send_sms {
 		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
+	# --- deduplication for sending SMS ---
+	my $dedup_key = REDIS_SENT_BASE . sha1_hex($phone . "|" . $message);
+
+	if ($redis->exists($dedup_key)) {
+		log_info(
+			"Skipping SMS send (duplicate detected) to $phone",
+			{-no_script_name => 1, -custom_tag => 'SMS OUT'}
+		);
+		$redis->del(REDIS_BUSY_KEY);
+		return 0;
+	}
+
 	if ($dry_run) {
 		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 
@@ -251,6 +263,11 @@ sub send_sms {
 			if ($resp_json->{success}) {
 				# --- Log success to DB ---
 				log_sms_to_db($dbh, 'sent', $phone, $message);
+
+				# --- mark dedup after successful send ---
+				$redis->set($dedup_key, time());
+				$redis->expire($dedup_key, $sent_sms_ttl);
+
 				log_info("✔ SMS to $phone sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 				$success = 1;
 			} else {
@@ -470,12 +487,6 @@ sub read_sms {
 sub forward_sms_email {
 	my ($phone, $message) = @_;
 
-	my $key = sha1_hex($phone . "|" . $message);
-	my $redis_key = REDIS_SENT_BASE . $key;
-
-	# Redis-based dedup (replaces %sent_sms lock + TTL hash)
-	return if $redis->exists($redis_key);
-
 	eval {
 		# Normalize line endings to CRLF for SMTP compliance
 		$message =~ s/\r?\n/\r\n/g;
@@ -574,11 +585,6 @@ sub forward_sms_email {
 				{-no_script_name => 1, -custom_tag => 'SMTP' }
 			);
 		}
-
-		# Mark as sent (Redis TTL replaces manual cleanup loop)
-		$redis->set($redis_key, time());
-		$redis->expire($redis_key, $sent_sms_ttl);
-
 	};
 
 	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP'})

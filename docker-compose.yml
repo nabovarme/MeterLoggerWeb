@@ -179,6 +179,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      postfix:
+        condition: service_healthy
     container_name: smsd
     hostname: smsd
     volumes:
@@ -200,6 +202,7 @@ services:
       TO_EMAIL: ${TO_EMAIL}
       FROM_EMAIL: ${FROM_EMAIL}
       TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
 
   smsd_watchdog:
     build:
@@ -352,6 +355,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
     restart: always
 
   prometheus_exporter:
