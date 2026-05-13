@@ -252,7 +252,7 @@ sub next_notification_in {
 
 	<!-- style and js for burger menu -->
 	<link rel="stylesheet" href="/css/menu.css">
-	<script src="/js/menu.js.epl" defer></script>	
+	<script src="/js/menu.js.epl" defer></script>
 
 	<!-- Inline CSS for form layout and visuals -->
 <style>
@@ -653,12 +653,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				[$ if ($d->{alarm_state}) $]
 				<label>Last notification</label>
 
-				<textarea name="last_notification" readonly>
-				[+ duration(time() - $d->{last_notification}) +] ago
-				[$ if ($d->{repeat}) $]
-				, next in [+ next_notification_in($d) +]
-				[$ endif $]
-				</textarea>
+				<textarea name="last_notification" readonly>[+ duration(time() - $d->{last_notification}) +] ago[$ if ($d->{repeat}) $], next in [+ next_notification_in($d) +][$ endif $]</textarea>
 				[$ endif $]
 
 				<!-- Repeat interval -->
@@ -668,9 +663,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				<!-- Show current snooze info if relevant -->
 				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
 				<label>Snoozed</label>
-				<textarea name="snooze" readonly>
-				[+ duration($d->{snooze}) +]
-				</textarea>				
+				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +]</textarea>
 				[$ endif $]
 
 				<!-- Default snooze interval -->
