@@ -83,7 +83,9 @@ my $to_email   = $ENV{TO_EMAIL}      or log_die("Missing TO_EMAIL env variable",
 
 my @to_list = split /[\s,]+/, $to_email;
 
-my $current_ua;               # current LWP::UserAgent	XXX DEBUG is it thread safe?
+my $sent_sms_ttl = 3600;	# 1 hour
+
+my $current_ua;				# current LWP::UserAgent
 
 # --- Handle Docker / SIGTERM / Ctrl+C ---
 $SIG{INT}  = \&cleanup_and_exit;
