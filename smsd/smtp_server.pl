@@ -198,6 +198,10 @@ sub send_sms {
 			$message
 		);
 
+		# mark dedup key in dry-run for consistency
+		$redis->set($dedup_key, time());
+		$redis->expire($dedup_key, $sent_sms_ttl);
+
 		$redis->del(REDIS_BUSY_KEY);
 
 		sleep(20);
