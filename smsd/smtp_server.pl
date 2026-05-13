@@ -529,8 +529,6 @@ sub forward_sms_email {
 
 		# Mark as sent to avoid duplicate forwarding
 		$sent_sms{$message} = time();
-
-		$sent_sms{$message} = time();
 		
 		# cleanup %sent_sms
 		for my $k (keys %sent_sms) {
