@@ -71,6 +71,7 @@ my @to_list = split /[\s,]+/, $to_email;
 # --- Global flag to prevent concurrent send_sms/read_sms ---
 my $sms_busy :shared = 0;
 my %sent_sms;
+my $sent_sms_ttl = 3600; # 1 hour
 
 # --- Shared globals to track the current active session for logout ---
 my $current_qsess :shared;   # current router session ID
@@ -460,7 +461,8 @@ sub read_sms {
 # --- Forward SMS via email ---
 sub forward_sms_email {
 	my ($phone, $message) = @_;
-	return if $sent_sms{$message};
+	return if exists $sent_sms{$message}
+		&& (time() - $sent_sms{$message}) < $sent_sms_ttl;
 
 	eval {
 		# Normalize line endings to CRLF for SMTP compliance
@@ -526,7 +528,14 @@ sub forward_sms_email {
 		}
 
 		# Mark as sent to avoid duplicate forwarding
-		$sent_sms{$message} = 1;
+		$sent_sms{$message} = time();
+
+		$sent_sms{$message} = time();
+		
+		# cleanup %sent_sms
+		for my $k (keys %sent_sms) {
+			delete $sent_sms{$k} if (time() - $sent_sms{$k}) > $sent_sms_ttl;
+		}
 	};
 
 	log_warn("Failed to send email for SMS from $phone: $@", {-no_script_name => 1, -custom_tag => 'SMTP' }) if $@;
