@@ -117,7 +117,7 @@ sub hhmm_to_sec {
 sub next_notification_in {
 	my ($alarm) = @_;
 
-	return '' unless $alarm->{alarm_state};
+	return '' unless ($alarm->{alarm_state} && ($alarm->{repeat} || 0) > 0);
 
 	my $now = time();
 
