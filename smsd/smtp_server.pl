@@ -69,6 +69,8 @@ my $redis = Redis->new(
 	server => "$redis_host:$redis_port",
 );
 
+my $redis_busy_key_expire_time = 300;
+
 # --- Dry run mode ---
 my $dry_run = ($ENV{SMSD_DRY_RUN} || '') =~ /^(1|true|yes)$/i;
 
@@ -166,7 +168,7 @@ sub send_sms {
 	my ($phone, $message) = @_;
 
 	# Lock other SMS actions with Redis-based lock
-	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", 300)) {
+	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", $redis_busy_key_expire_time)) {
 		sleep(1);
 	}
 
@@ -323,7 +325,7 @@ sub read_sms {
 	my ($dbh_thread) = @_;
 
 	# Redis-based lock
-	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", 30)) {
+	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", $redis_busy_key_expire_time)) {
 		sleep(1);
 	}
 
