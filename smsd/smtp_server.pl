@@ -32,8 +32,12 @@ use Data::Dumper;
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
-use constant USER  => 'smsd';
-use constant GROUP => 'smsd';
+use constant USER             => 'smsd';
+use constant GROUP            => 'smsd';
+
+use constant REDIS_BUSY_KEY   => 'sms:busy';
+use constant REDIS_SESSION_KEY   => 'sms:qsess';
+use constant REDIS_SENT_BASE  => 'sms:sent:';
 
 $| = 1;  # autoflush STDOUT
 
@@ -94,7 +98,7 @@ $SIG{TERM} = \&cleanup_and_exit;
 sub cleanup_and_exit {
 	log_info("Caught termination signal, attempting logout...", {-no_script_name => 1, -custom_tag => 'EXIT' });
 
-	my $qsess = $redis->get("sms:qsess");
+	my $qsess = $redis->get(REDIS_SESSION_KEY);
 
 	if ($qsess && $current_ua) {
 		eval {
@@ -113,10 +117,10 @@ sub cleanup_and_exit {
 	}
 
 	# Clear Redis session state
-	$redis->del("sms:qsess");
+	$redis->del(REDIS_SESSION_KEY);
 
 	# Unlock SMS busy flag (Redis replacement)
-	$redis->del("sms:busy");
+	$redis->del(REDIS_BUSY_KEY);
 
 	exit 0;
 }
@@ -162,12 +166,12 @@ sub send_sms {
 	my ($phone, $message) = @_;
 
 	# Lock other SMS actions with Redis-based lock
-	while (!$redis->set("sms:busy", 1, "NX", "EX", 300)) {
+	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", 300)) {
 		sleep(1);
 	}
 
 	unless ($phone && $message) {
-		$redis->del("sms:busy");
+		$redis->del(REDIS_BUSY_KEY);
 		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
@@ -182,7 +186,7 @@ sub send_sms {
 			$message
 		);
 
-		$redis->del("sms:busy");
+		$redis->del(REDIS_BUSY_KEY);
 
 		sleep(20);
 		return 1;
@@ -206,7 +210,7 @@ sub send_sms {
 			log_warn("❌ Login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
 				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
 
-			$redis->del("sms:busy");
+			$redis->del(REDIS_BUSY_KEY);
 			log_die("Login failed", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 		}
 
@@ -216,7 +220,7 @@ sub send_sms {
 			or log_die("No token returned from RUT901", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 
 		# Track global session for signal handling
-		$redis->set("sms:qsess", $token);
+		$redis->set(REDIS_SESSION_KEY, $token);
 
 		$current_ua = $ua;
 
@@ -285,10 +289,10 @@ sub send_sms {
 	}
 
 	# Clear global session after proper logout
-	$redis->del("sms:qsess");
+	$redis->del(REDIS_SESSION_KEY);
 
 	# Unlock SMS
-	$redis->del("sms:busy");
+	$redis->del(REDIS_BUSY_KEY);
 
 	return $success;
 }
@@ -298,7 +302,7 @@ sub read_sms {
 	my ($dbh_thread) = @_;
 
 	# Redis-based lock
-	while (!$redis->set("sms:busy", 1, "NX", "EX", 30)) {
+	while (!$redis->set(REDIS_BUSY_KEY, 1, "NX", "EX", 30)) {
 		sleep(1);
 	}
 
@@ -326,7 +330,7 @@ sub read_sms {
 				my $err = $login_data->{errors}[0]{error} // 'Unknown login error';
 				log_warn("Login API error: $err", {-no_script_name => 1, -custom_tag => 'SMS IN'});
 
-				$redis->del("sms:busy");
+				$redis->del(REDIS_BUSY_KEY);
 				die "Login API failed: $err";
 			}
 		} else {
@@ -334,7 +338,7 @@ sub read_sms {
 			log_warn("❌ SMS read login HTTP failed: " . $login_resp->status_line . " | Content: $resp_content",
 				{-no_script_name => 1, -custom_tag => 'SMS IN'});
 
-			$redis->del("sms:busy");
+			$redis->del(REDIS_BUSY_KEY);
 			die "SMS read login HTTP failed: " . $login_resp->status_line;
 		}
 
@@ -343,7 +347,7 @@ sub read_sms {
 			or die "No token returned from login";
 
 		# Store session in Redis
-		$redis->set("sms:qsess", $token);
+		$redis->set(REDIS_SESSION_KEY, $token);
 
 		$current_ua = $ua;
 
@@ -454,10 +458,10 @@ sub read_sms {
 	$current_ua = undef;
 
 	# Clear Redis session
-	$redis->del("sms:qsess");
+	$redis->del(REDIS_SESSION_KEY);
 
 	# Unlock SMS (Redis)
-	$redis->del("sms:busy");
+	$redis->del(REDIS_BUSY_KEY);
 
 	return $sms_list;
 }
@@ -467,7 +471,7 @@ sub forward_sms_email {
 	my ($phone, $message) = @_;
 
 	my $key = sha1_hex($phone . "|" . $message);
-	my $redis_key = "sms:sent:$key";
+	my $redis_key = REDIS_SENT_BASE . $key;
 
 	# Redis-based dedup (replaces %sent_sms lock + TTL hash)
 	return if $redis->exists($redis_key);
