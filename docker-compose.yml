@@ -177,6 +177,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     container_name: smsd
     hostname: smsd
     volumes:
@@ -185,6 +187,8 @@ services:
     restart: always
     stop_grace_period: 30s
     environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       RUT901_ROUTER_IP: ${RUT901_ROUTER_IP}
       RUT901_ROUTER_USER: ${RUT901_ROUTER_USER}
       RUT901_ROUTER_PASS: ${RUT901_ROUTER_PASS}
