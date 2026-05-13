@@ -125,7 +125,7 @@ my $alarm_config = {};
 #
 # Each loop is independent and stateless except Redis/DB.
 
-my $run_id;
+my $run_id = 0;
 while (1) {
 
 	# Unique identifier for this evaluation cycle
