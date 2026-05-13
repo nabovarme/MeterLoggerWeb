@@ -413,80 +413,16 @@ sub next_notification_in {
 </HEAD>
 
 <script>
-(function() {
-	const textarea = document.getElementById('conditionField');
-	const popup = document.getElementById('condition-popup');
-
-	// List of predefined options
-	const options = [
-		[+ $alarm_templates +]
-	];
-
-	let triggerIndex = -1;
-
-	textarea.addEventListener('input', function(e) {
-		const cursorPos = textarea.selectionStart;
-		const text = textarea.value;
-		const lastAt = text.lastIndexOf('@', cursorPos - 1);
-
-		if (lastAt !== -1 && (cursorPos - lastAt <= 30)) {
-			triggerIndex = lastAt;
-			showPopup();
-		} else {
-			hidePopup();
-		}
-	});
-
-	function showPopup() {
-		popup.innerHTML = '';
-		options.forEach(opt => {
-			const div = document.createElement('div');
-			div.className = 'popup-item';
-			div.innerHTML = `<div class="popup-label">${opt.label}</div>`;
-			div.onclick = () => {
-				insertCondition(opt.condition);
-				hidePopup();
-			};
-			popup.appendChild(div);
-		});
-
-		const rect = textarea.getBoundingClientRect();
-		popup.style.left = rect.left + window.scrollX + "px";
-		popup.style.top = (rect.top + textarea.offsetHeight + window.scrollY) + "px";
-		popup.style.display = 'block';
-	}
-
-	function hidePopup() {
-		popup.style.display = 'none';
-	}
-
-	function insertCondition(condition) {
-		const text = textarea.value;
-		const before = text.substring(0, triggerIndex);
-		const after = text.substring(textarea.selectionEnd);
-		textarea.value = before + condition + " " + after;
-
-		const pos = (before + condition + " ").length;
-		textarea.focus();
-		textarea.setSelectionRange(pos, pos);
-	}
-
-	// Hide popup if clicking elsewhere
-	document.addEventListener('click', (e) => {
-		if (!popup.contains(e.target) && e.target !== textarea) {
-			hidePopup();
-		}
-	});
-})();
-</script>
-<script>
 document.addEventListener('DOMContentLoaded', function () {
+
 	const textarea = document.getElementById('conditionField');
 	const popup = document.getElementById('condition-popup');
 
 	const options = [
 		[+ $alarm_templates +]
 	];
+
+	if (!textarea || !popup) return;
 
 	let triggerIndex = -1;
 
@@ -503,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
 		'textTransform', 'wordSpacing', 'lineHeight', 'tabSize', 'MozTabSize'
 	];
+
 	properties.forEach(prop => {
 		mirrorDiv.style[prop] = style[prop];
 	});
@@ -514,10 +451,54 @@ document.addEventListener('DOMContentLoaded', function () {
 	mirrorDiv.style.top = '0';
 	mirrorDiv.style.left = '-9999px';
 
-	textarea.addEventListener('input', onInput);
-	textarea.addEventListener('scroll', onInput); // reposition on scroll
+	function showPopupAtCaret(cursorPos) {
+		popup.innerHTML = '';
 
-	function onInput(e) {
+		// NOTE: options assumed to exist globally from your template
+		if (typeof options !== 'undefined') {
+			options.forEach(opt => {
+				const div = document.createElement('div');
+				div.className = 'popup-item';
+				div.innerHTML = `<div class="popup-label">${opt.label}</div>`;
+
+				div.onclick = () => {
+					insertCondition(opt.condition);
+					hidePopup();
+				};
+
+				popup.appendChild(div);
+			});
+		}
+
+		const caret = getCaretCoordinates(textarea, cursorPos);
+		const rect = textarea.getBoundingClientRect();
+
+		popup.style.left = rect.left + window.scrollX + caret.left + 'px';
+		popup.style.top = rect.top + window.scrollY + caret.top + 'px';
+		popup.style.display = 'block';
+	}
+
+	function hidePopup() {
+		popup.style.display = 'none';
+	}
+
+	function insertCondition(condition) {
+		const text = textarea.value;
+		const before = text.substring(0, triggerIndex);
+		const after = text.substring(textarea.selectionEnd);
+
+		textarea.value = before + condition + " " + after;
+
+		const pos = (before + condition + " ").length;
+		textarea.focus();
+		textarea.setSelectionRange(pos, pos);
+	}
+
+	// Hide popup if clicking outside
+	textarea.addEventListener('input', onInput);
+	textarea.addEventListener('scroll', onInput);
+
+	function onInput() {
 		const cursorPos = textarea.selectionStart;
 		const text = textarea.value;
 		const lastAt = text.lastIndexOf('@', cursorPos - 1);
@@ -530,48 +511,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
-	function showPopupAtCaret(cursorPos) {
-		popup.innerHTML = '';
-		options.forEach(opt => {
-			const div = document.createElement('div');
-			div.className = 'popup-item';
-			div.innerHTML = `<div class="popup-label">${opt.label}</div>`;
-			div.onclick = () => {
-				insertCondition(opt.condition);
-				hidePopup();
-			};
-			popup.appendChild(div);
-		});
-
-		const caret = getCaretCoordinates(textarea, cursorPos);
-		const textareaRect = textarea.getBoundingClientRect();
-
-		// Position popup right next to caret on same line
-		const left = textareaRect.left + window.scrollX + caret.left;
-		const top = textareaRect.top + window.scrollY + caret.top;
-
-		popup.style.left = left + 'px';
-		popup.style.top = top + 'px';
-		popup.style.display = 'block';
-	}
-
-	function hidePopup() {
-		popup.style.display = 'none';
-	}
-
-	function insertCondition(condition) {
-		const text = textarea.value;
-		const before = text.substring(0, triggerIndex);
-		const after = text.substring(textarea.selectionEnd);
-		textarea.value = before + condition + " " + after;
-
-		const pos = (before + condition + " ").length;
-		textarea.focus();
-		textarea.setSelectionRange(pos, pos);
-	}
-
-	// Hide popup if clicking outside
 	document.addEventListener('click', (e) => {
+		if (!popup || !textarea) return;
+
 		if (!popup.contains(e.target) && e.target !== textarea) {
 			hidePopup();
 		}
@@ -586,7 +528,9 @@ document.addEventListener('DOMContentLoaded', function () {
 		const value = element.value.substring(0, position);
 
 		// Replace spaces with &nbsp; to replicate rendering
-		const safeValue = value.replace(/\n$/g, '\n\u200b').replace(/ /g, '\u00a0');
+		const safeValue = value
+			.replace(/\n$/g, '\n\u200b')
+			.replace(/ /g, '\u00a0');
 
 		div.textContent = safeValue;
 
@@ -601,9 +545,9 @@ document.addEventListener('DOMContentLoaded', function () {
 			top: span.offsetTop
 		};
 	}
+
 });
 </script>
-
 
 <BODY>
 <div class="container">
