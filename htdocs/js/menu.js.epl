@@ -1,3 +1,7 @@
+[-
+	$req_rec->content_type('application/javascript; charset=UTF-8');
+-]
+
 [- 
 	# Load internal application modules
 	use Nabovarme::Db;
@@ -27,7 +31,7 @@ const menuItems = [
 [$ if ($is_admin) $]
 	{ text: "Firmware flasher", href: "/flasher/index.html" },
 [$ endif $]
-	{ separator: true },
+	{ type: "separator" },
 	{ text: "Logout", href: "/logout" }
 ];
 
@@ -48,7 +52,7 @@ function insertMenu() {
 	menu.setAttribute("aria-hidden", "true");
 
 	menuItems.forEach(item => {
-		if (item.separator) {
+		if (item.type === "separator") {
 			const hr = document.createElement("hr");
 			hr.style.border = "0";
 			hr.style.height = "1px";
