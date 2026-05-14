@@ -73,8 +73,10 @@ sub sync_auto_alarms {
 
 	# Process each auto alarm
 	while (my $aa = $sth_aa->fetchrow_hashref) {
+
 		# Process each meter
 		while (my $m = $sth_m->fetchrow_hashref) {
+
 			my $serial = $m->{serial};
 
 			# Skip if serial is missing or empty
@@ -99,6 +101,7 @@ sub sync_auto_alarms {
 			);
 
 			if ($exists) {
+
 				# Update the alarm to reflect changes in the template
 				$dbh->do(q[
 					UPDATE alarms
@@ -110,7 +113,7 @@ sub sync_auto_alarms {
 						`default_snooze` = ?,
 						`sms_notification` = ?,
 						`comment` = ?
-					WHERE serial = ? AND auto_id = ?
+					WHERE serial = ? AND auto_id = ? AND ignore_auto_update = 0
 				], undef,
 					$aa->{condition},
 					$aa->{down_message} || 'alarm',
@@ -124,12 +127,14 @@ sub sync_auto_alarms {
 				);
 
 				log_info("Updated auto-alarm for serial $serial from template $aa->{id}");
+
 			} else {
+
 				# Insert new alarm, using description for comment and sms_notification
 				$dbh->do(q[
 					INSERT INTO alarms
-						(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`)
-					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+						(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`, `ignore_auto_update`)
+					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
 				], undef,
 					$serial,
 					$aa->{condition},
@@ -142,7 +147,7 @@ sub sync_auto_alarms {
 					$aa->{description} || ''
 				);
 
-				log_info("Created auto-alarm for serial $serial from template $aa->{id}"); # <---- XXX DEBUG: meter_cron  | Use of uninitialized value $serial in concatenation (.) or string at /etc/apache2/perl/Nabovarme/bin/sync_alarms_auto.pl line 115, <FH> line 17.
+				log_info("Created auto-alarm for serial $serial from template $aa->{id}");
 
 			}
 		}

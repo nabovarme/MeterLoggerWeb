@@ -1,4 +1,4 @@
- [- 
+[-
 	# Load required Perl modules
 	use Time::Duration;
 	use DateTime;
@@ -9,7 +9,7 @@
 
 	# Instantiate admin checker
 	$admin = new Nabovarme::Admin;
-	
+
 	$is_admin = 0;
 
 	# Get alarm ID from form data
@@ -18,15 +18,135 @@
 	# Connect to database
 	$dbh = Nabovarme::Db->my_connect;
 
+	# --------------------------------------------------
+	# Helper: detect changes + apply update + set ignore flag
+	# --------------------------------------------------
+	sub update_alarm_and_set_ignore_if_changed {
+		my ($dbh, $id, $fdat, $active_from_sec, $active_to_sec) = @_;
+
+		# --------------------------------------------------
+		# Load existing alarm
+		# --------------------------------------------------
+		my $sth = $dbh->prepare(qq[
+			SELECT *
+			FROM alarms
+			WHERE id = ?
+		]);
+		$sth->execute($id);
+		my $old = $sth->fetchrow_hashref;
+
+		return 0 unless $old;
+
+		# --------------------------------------------------
+		# Checkbox semantics:
+		# ignore_auto_update = 1 => MANUAL OVERRIDE
+		# ignore_auto_update = 0 => AUTO SYNC ENABLED
+		# --------------------------------------------------
+		my $old_ignore = $old->{ignore_auto_update} ? 1 : 0;
+
+		# FIX: unchecked checkbox MUST become 0 (not "keep old value")
+		my $new_ignore = $fdat->{ignore_auto_update} ? 1 : 0;
+
+		# --------------------------------------------------
+		# IMPORTANT FIX:
+		# Remove mode flag from change detection
+		# (prevents checkbox flip-back bug)
+		# --------------------------------------------------
+		my %cmp = %$fdat;
+		delete $cmp{ignore_auto_update};
+
+		# --------------------------------------------------
+		# Detect changes (only real field changes)
+		# --------------------------------------------------
+		my $changed = 0;
+
+		$changed ||= ($old->{enabled} != ($cmp{enabled} ? 1 : 0));
+		$changed ||= (($old->{sms_notification} // '') ne ($cmp->{sms_notification} // ''));
+		$changed ||= (($old->{condition} // '') ne ($cmp->{condition} // ''));
+		$changed ||= (($old->{repeat} // 0) != ($cmp->{repeat} // 0));
+		$changed ||= (($old->{default_snooze} // 0) != ($cmp->{default_snooze} // 0));
+		$changed ||= (($old->{up_message} // '') ne ($cmp->{up_message} // ''));
+		$changed ||= (($old->{down_message} // '') ne ($cmp->{down_message} // ''));
+		$changed ||= (($old->{comment} // '') ne ($cmp->{comment} // ''));
+		$changed ||= (($old->{active_from_sec} // '') ne ($active_from_sec // ''));
+		$changed ||= (($old->{active_to_sec} // '') ne ($active_to_sec // ''));
+
+		# --------------------------------------------------
+		# AUTO → MANUAL on ANY field change
+		# --------------------------------------------------
+		if ($old_ignore == 0 && $changed) {
+			$new_ignore = 1;
+		}
+
+		# --------------------------------------------------
+		# MANUAL → AUTO (checkbox unchecked)
+		# MUST reload from alarms_auto
+		# --------------------------------------------------
+		if ($old_ignore == 1 && $new_ignore == 0 && $old->{auto_id}) {
+
+			my $aa = $dbh->selectrow_hashref(
+				"SELECT * FROM alarms_auto WHERE id = ? AND enabled = 1",
+				undef,
+				$old->{auto_id}
+			);
+
+			if ($aa) {
+
+				$fdat->{enabled}          = 1;
+				$fdat->{sms_notification} = $aa->{sms_notification} || '';
+				$fdat->{condition}        = $aa->{condition};
+				$fdat->{repeat}           = $aa->{repeat} || 0;
+				$fdat->{default_snooze}   = $aa->{default_snooze} || 1800;
+				$fdat->{up_message}       = $aa->{up_message} || 'normal';
+				$fdat->{down_message}     = $aa->{down_message} || 'alarm';
+				$fdat->{comment}          = $aa->{description} || '';
+			}
+		}
+
+		# --------------------------------------------------
+		# UPDATE
+		# --------------------------------------------------
+		$dbh->do(qq[
+			UPDATE alarms SET
+				enabled = ?,
+				sms_notification = ?,
+				`condition` = ?,
+				`repeat` = ?,
+				default_snooze = ?,
+				up_message = ?,
+				down_message = ?,
+				`comment` = ?,
+				active_from_sec = ?,
+				active_to_sec = ?,
+				ignore_auto_update = ?
+			WHERE id = ?
+		], undef,
+			$fdat->{enabled} ? 1 : 0,
+			$fdat->{sms_notification},
+			$fdat->{condition},
+			$fdat->{repeat} || 0,
+			$fdat->{default_snooze} || 0,
+			$fdat->{up_message},
+			$fdat->{down_message},
+			$fdat->{comment},
+			$active_from_sec,
+			$active_to_sec,
+			$new_ignore,
+			$id
+		);
+
+		return $changed;
+	}
+
 	if ($dbh && $id) {
+
 		# Lookup serial number tied to alarm ID
-		$quoted_id = $dbh->quote($id);
 		$sth = $dbh->prepare(qq[
 			SELECT `serial`
 			FROM alarms
-			WHERE `id` = $quoted_id
+			WHERE `id` = ?
 		]);
-		$sth->execute;
+		$sth->execute($id);
 
 		# Check admin cookie permission for this serial
 		if ($sth->rows) {
@@ -36,45 +156,17 @@
 
 		# If admin and update flag set, process form input and update alarm
 		if ($is_admin && $fdat{update}) {
-			$enabled = $fdat{enabled} ? 1 : 0;
-			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
-			$quoted_condition = $dbh->quote($fdat{condition});
-			$quoted_repeat = $dbh->quote($fdat{repeat});
-			$quoted_default_snooze = $dbh->quote($fdat{default_snooze});
-			$quoted_up_message = $dbh->quote($fdat{up_message});
-			$quoted_down_message = $dbh->quote($fdat{down_message});
-			$quoted_comment = $dbh->quote($fdat{comment});
 
-
-			# Active window
 			$active_from_sec = hhmm_to_sec($fdat{active_from});
 			$active_to_sec   = hhmm_to_sec($fdat{active_to});
-			
-			$quoted_active_from_sec =
-				defined $active_from_sec
-					? $dbh->quote($active_from_sec)
-					: 'NULL';
-			
-			$quoted_active_to_sec =
-				defined $active_to_sec
-					? $dbh->quote($active_to_sec)
-					: 'NULL';
 
-			# Perform the UPDATE query
-			$dbh->do(qq[
-				UPDATE alarms SET 
-					enabled = $enabled,
-					sms_notification = $quoted_sms_notification,
-					`condition` = $quoted_condition, 
-					`repeat` = $quoted_repeat, 
-					default_snooze = $quoted_default_snooze, 
-					up_message = $quoted_up_message, 
-					down_message = $quoted_down_message,
-					`comment` = $quoted_comment,
-					active_from_sec = $quoted_active_from_sec,
-					active_to_sec = $quoted_active_to_sec
-				WHERE `id` = $id
-			]);
+			update_alarm_and_set_ignore_if_changed(
+				$dbh,
+				$id,
+				\%fdat,
+				$active_from_sec,
+				$active_to_sec
+			);
 		}
 
 		# Fetch updated alarm details for display
@@ -85,11 +177,12 @@
 			WHERE alarms.`id` = ?
 		]);
 		$sth->execute($id);
+
 		$d = $sth->fetchrow_hashref;
 	}
 -]
-[-
 
+[- 
 sub sec_to_hhmm {
 	my ($sec) = @_;
 
@@ -229,6 +322,7 @@ sub next_notification_in {
 }
 
 -]
+
 [- 
 	$sth_alarm_templates = $dbh->prepare(qq[
 		SELECT `description`, `condition`
@@ -574,6 +668,19 @@ document.addEventListener('DOMContentLoaded', function () {
 					<input type="checkbox" name="enabled" value="1" [$ if ($d->{enabled}) $]checked[$ endif $]>
 					Enabled
 				</label>
+
+				<label style="margin-top:8px;">
+					<input type="checkbox" name="ignore_auto_update" value="1" [$ if ($d->{ignore_auto_update}) $]checked[$ endif $]>
+					Manual override
+				</label>
+
+				<span class="label-hint">
+					[$ if ($d->{ignore_auto_update}) $]
+						⚠ This alarm is manually managed (not synced with template)
+					[$ else $]
+						✓ This alarm follows template updates
+					[$ endif $]
+				</span>
 
 				<!-- Alarm target contact(s) -->
 				<label>Alarm receiver</label>
