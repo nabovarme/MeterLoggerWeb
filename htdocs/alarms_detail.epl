@@ -167,6 +167,14 @@
 				$active_from_sec,
 				$active_to_sec
 			);
+
+			# Redirect after update to clean the URL and remove form/query parameters,
+			# and to prevent accidental resubmission if the user refreshes the page (Post/Redirect/Get pattern).
+			
+			$req_rec->headers_out->set("Location" => "alarms_detail.epl?id=$id");
+			$req_rec->status(302);
+
+			return;
 		}
 
 		# Fetch updated alarm details for display
