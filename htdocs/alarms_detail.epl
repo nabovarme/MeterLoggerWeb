@@ -1,4 +1,4 @@
- [- 
+[- 
 	# Load required Perl modules
 	use Time::Duration;
 	use DateTime;
@@ -17,6 +17,78 @@
 
 	# Connect to database
 	$dbh = Nabovarme::Db->my_connect;
+
+	# --------------------------------------------------
+	# Helper: detect changes + apply update + set ignore flag
+	# --------------------------------------------------
+	sub update_alarm_and_set_ignore_if_changed {
+		my ($dbh, $id, $fdat, $active_from_sec, $active_to_sec) = @_;
+
+		my $sth = $dbh->prepare(qq[
+			SELECT
+				enabled,
+				sms_notification,
+				`condition`,
+				`repeat`,
+				default_snooze,
+				up_message,
+				down_message,
+				`comment`,
+				active_from_sec,
+				active_to_sec
+			FROM alarms
+			WHERE id = ?
+		]);
+
+		$sth->execute($id);
+		my $old = $sth->fetchrow_hashref;
+
+		return 0 unless $old;
+
+		my $changed = 0;
+
+		$changed ||= ($old->{enabled} != ($fdat->{enabled} ? 1 : 0));
+		$changed ||= (($old->{sms_notification} // '') ne ($fdat->{sms_notification} // ''));
+		$changed ||= (($old->{condition} // '') ne ($fdat->{condition} // ''));
+		$changed ||= (($old->{repeat} // 0) != ($fdat->{repeat} // 0));
+		$changed ||= (($old->{default_snooze} // 0) != ($fdat->{default_snooze} // 0));
+		$changed ||= (($old->{up_message} // '') ne ($fdat->{up_message} // ''));
+		$changed ||= (($old->{down_message} // '') ne ($fdat->{down_message} // ''));
+		$changed ||= (($old->{comment} // '') ne ($fdat->{comment} // ''));
+		$changed ||= (($old->{active_from_sec} // '') ne ($active_from_sec // ''));
+		$changed ||= (($old->{active_to_sec} // '') ne ($active_to_sec // ''));
+
+		$dbh->do(qq[
+			UPDATE alarms SET 
+				enabled = ?,
+				sms_notification = ?,
+				`condition` = ?, 
+				`repeat` = ?, 
+				default_snooze = ?, 
+				up_message = ?, 
+				down_message = ?,
+				`comment` = ?,
+				active_from_sec = ?,
+				active_to_sec = ?,
+				ignore_auto_update = ?
+			WHERE id = ?
+		], undef,
+			$fdat->{enabled} ? 1 : 0,
+			$fdat->{sms_notification},
+			$fdat->{condition},
+			$fdat->{repeat} || 0,
+			$fdat->{default_snooze} || 0,
+			$fdat->{up_message},
+			$fdat->{down_message},
+			$fdat->{comment},
+			$active_from_sec,
+			$active_to_sec,
+			$changed ? 1 : 0,
+			$id
+		);
+
+		return $changed;
+	}
 
 	if ($dbh && $id) {
 		# Lookup serial number tied to alarm ID
@@ -45,7 +117,6 @@
 			$quoted_down_message = $dbh->quote($fdat{down_message});
 			$quoted_comment = $dbh->quote($fdat{comment});
 
-
 			# Active window
 			$active_from_sec = hhmm_to_sec($fdat{active_from});
 			$active_to_sec   = hhmm_to_sec($fdat{active_to});
@@ -60,21 +131,14 @@
 					? $dbh->quote($active_to_sec)
 					: 'NULL';
 
-			# Perform the UPDATE query
-			$dbh->do(qq[
-				UPDATE alarms SET 
-					enabled = $enabled,
-					sms_notification = $quoted_sms_notification,
-					`condition` = $quoted_condition, 
-					`repeat` = $quoted_repeat, 
-					default_snooze = $quoted_default_snooze, 
-					up_message = $quoted_up_message, 
-					down_message = $quoted_down_message,
-					`comment` = $quoted_comment,
-					active_from_sec = $quoted_active_from_sec,
-					active_to_sec = $quoted_active_to_sec
-				WHERE `id` = $id
-			]);
+			# update + ignore_auto_update logic
+			update_alarm_and_set_ignore_if_changed(
+				$dbh,
+				$id,
+				\%fdat,
+				$active_from_sec,
+				$active_to_sec
+			);
 		}
 
 		# Fetch updated alarm details for display
@@ -88,8 +152,8 @@
 		$d = $sth->fetchrow_hashref;
 	}
 -]
-[-
 
+[- 
 sub sec_to_hhmm {
 	my ($sec) = @_;
 
@@ -223,6 +287,7 @@ sub next_notification_in {
 }
 
 -]
+
 [- 
 	$sth_alarm_templates = $dbh->prepare(qq[
 		SELECT `description`, `condition`
