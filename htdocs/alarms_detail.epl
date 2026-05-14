@@ -35,7 +35,8 @@
 				down_message,
 				`comment`,
 				active_from_sec,
-				active_to_sec
+				active_to_sec,
+				ignore_auto_update
 			FROM alarms
 			WHERE id = ?
 		]);
@@ -44,6 +45,12 @@
 		my $old = $sth->fetchrow_hashref;
 
 		return 0 unless $old;
+
+		# IMPORTANT: checkbox semantics (explicit override only if present)
+		my $ui_ignore_defined = exists $fdat->{ignore_auto_update};
+		my $ui_ignore = $ui_ignore_defined
+			? ($fdat->{ignore_auto_update} ? 1 : 0)
+			: $old->{ignore_auto_update};
 
 		my $changed = 0;
 
@@ -57,6 +64,12 @@
 		$changed ||= (($old->{comment} // '') ne ($fdat->{comment} // ''));
 		$changed ||= (($old->{active_from_sec} // '') ne ($active_from_sec // ''));
 		$changed ||= (($old->{active_to_sec} // '') ne ($active_to_sec // ''));
+
+		# AUTO-LOGIC:
+		# if anything changed AND user has NOT explicitly controlled lock → auto-lock
+		if (!$ui_ignore_defined) {
+			$ui_ignore = $changed ? 1 : $old->{ignore_auto_update};
+		}
 
 		$dbh->do(qq[
 			UPDATE alarms SET 
@@ -83,7 +96,7 @@
 			$fdat->{comment},
 			$active_from_sec,
 			$active_to_sec,
-			$changed ? 1 : 0,
+			$ui_ignore,
 			$id
 		);
 
@@ -108,6 +121,7 @@
 
 		# If admin and update flag set, process form input and update alarm
 		if ($is_admin && $fdat{update}) {
+
 			$enabled = $fdat{enabled} ? 1 : 0;
 			$quoted_sms_notification = $dbh->quote($fdat{sms_notification});
 			$quoted_condition = $dbh->quote($fdat{condition});
@@ -131,7 +145,7 @@
 					? $dbh->quote($active_to_sec)
 					: 'NULL';
 
-			# update + ignore_auto_update logic
+			# Call unified update handler
 			update_alarm_and_set_ignore_if_changed(
 				$dbh,
 				$id,
@@ -633,6 +647,19 @@ document.addEventListener('DOMContentLoaded', function () {
 					<input type="checkbox" name="enabled" value="1" [$ if ($d->{enabled}) $]checked[$ endif $]>
 					Enabled
 				</label>
+
+				<label style="margin-top:8px;">
+					<input type="checkbox" name="ignore_auto_update" value="1" [$ if ($d->{ignore_auto_update}) $]checked[$ endif $]>
+					Manual override
+				</label>
+
+				<span class="label-hint">
+					[$ if ($d->{ignore_auto_update}) $]
+						⚠ This alarm is manually managed (not synced with template)
+					[$ else $]
+						✓ This alarm follows template updates
+					[$ endif $]
+				</span>
 
 				<!-- Alarm target contact(s) -->
 				<label>Alarm receiver</label>
