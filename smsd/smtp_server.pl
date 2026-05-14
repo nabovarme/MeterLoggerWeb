@@ -654,21 +654,38 @@ while (my $client = $socket->accept()) {
 				last;
 			}
 		}
+
 		$body //= $mime->body;  # fallback if no parts
+
+		# Ensure both are defined scalars
+		$subject ||= '';
+		$body    ||= '';
 
 		# Combine subject + body
 		my $message = join(" ", grep { defined $_ && length($_) } ($subject, $body));
 
-		# Ensure Perl UTF-8
-		unless (is_utf8($message)) {
-			log_warn(" Message is NOT flagged as UTF-8 internally, decoding...", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
-			$message = decode('UTF-8', $message);
-		} else {
-			log_warn(" Message is already flagged as UTF-8 internally", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		# normalize UTF-8 safely
+		if (defined $message) {
+			if (!Encode::is_utf8($message)) {
+				eval {
+					$message = decode('UTF-8', $message, Encode::FB_DEFAULT);
+				};
+			}
 		}
 
+		log_warn(" Message is " . (is_utf8($message) ? "UTF-8 flagged" : "NOT UTF-8 flagged"),
+			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+
+		# Ensure destination exists BEFORE calling send_sms
 		my $dest = $session->{_sms_to};
 
+		unless ($dest && $message) {
+			log_warn("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
+			$smtp->reply(421, "Missing SMS data");
+			return 0;
+		}
+
+		# IMPORTANT: DO NOT re-encode before send_sms
 		my $ok = send_sms($dest, $message);
 
 		if ($ok) {
