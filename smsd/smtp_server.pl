@@ -673,7 +673,12 @@ while (my $client = $socket->accept()) {
 			}
 		}
 
-		log_warn(" Message is " . (is_utf8($message) ? "UTF-8 flagged" : "NOT UTF-8 flagged"),
+		# Force safe UTF-8 byte output (CRITICAL FIX)
+		if (Encode::is_utf8($message)) {
+			$message = encode('UTF-8', $message, Encode::FB_CROAK);
+		}
+
+		log_warn(" Message is " . (Encode::is_utf8($message) ? "UTF-8 flagged" : "NOT UTF-8 flagged"),
 			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
 
 		# Ensure destination exists BEFORE calling send_sms
@@ -685,7 +690,20 @@ while (my $client = $socket->accept()) {
 			return 0;
 		}
 
-		# IMPORTANT: DO NOT re-encode before send_sms
+		# Ensure message is Perl character string (NOT UTF-8 bytes)
+		if (Encode::is_utf8($message)) {
+			log_warn(" Message is already UTF-8 flagged",
+				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+		} else {
+			log_warn(" Message is NOT UTF-8 flagged, decoding...",
+				{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+
+			$message = decode('UTF-8', $message, Encode::FB_CROAK);
+		}
+
+		log_warn(" Message is now " . (Encode::is_utf8($message) ? "UTF-8 flagged" : "NOT UTF-8 flagged"),
+			{-no_script_name => 1, -custom_tag => 'SMS OUT'});
+
 		my $ok = send_sms($dest, $message);
 
 		if ($ok) {
