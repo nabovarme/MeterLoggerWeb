@@ -124,10 +124,16 @@ sub next_notification_in {
 	# --------------------------------------------------
 	# BASE NEXT NOTIFICATION
 	# --------------------------------------------------
-	my $next =
-		($alarm->{last_notification} || 0) +
-		($alarm->{repeat} || 0) +
-		($alarm->{snooze} || 0);
+	my $base = $alarm->{last_notification} || time();
+
+	my $next;
+
+	if ($alarm->{snooze}) {
+		$next = $base + $alarm->{snooze};
+	}
+	else {
+		$next = $base + ($alarm->{repeat} || 0);
+	}
 
 	# --------------------------------------------------
 	# NO ACTIVE WINDOW
