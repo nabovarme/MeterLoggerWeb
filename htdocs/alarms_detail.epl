@@ -669,6 +669,8 @@ document.addEventListener('DOMContentLoaded', function () {
 					Enabled
 				</label>
 
+				[$ if ($d->{auto_id}) $]
+
 				<label style="margin-top:8px;">
 					<input type="checkbox" name="ignore_auto_update" value="1" [$ if ($d->{ignore_auto_update}) $]checked[$ endif $]>
 					Manual override
@@ -681,6 +683,8 @@ document.addEventListener('DOMContentLoaded', function () {
 						✓ This alarm follows template updates
 					[$ endif $]
 				</span>
+
+				[$ endif $]
 
 				<!-- Alarm target contact(s) -->
 				<label>Alarm receiver</label>
