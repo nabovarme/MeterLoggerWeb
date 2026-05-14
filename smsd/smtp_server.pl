@@ -655,7 +655,7 @@ while (my $client = $socket->accept()) {
 			}
 		}
 
-		$body //= $mime->body;  # fallback if no parts
+		$body //= $mime->body_str;  # fallback if no parts
 
 		# Ensure both are defined scalars
 		$subject ||= '';
