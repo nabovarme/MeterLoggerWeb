@@ -248,22 +248,6 @@ sub process_alarms {
 		};
 		
 		# --------------------------------------------------
-		# TIME WINDOW GATE
-		# --------------------------------------------------
-		$alarm->{inside_active_window} = process_active_window($alarm);
-
-		unless ($alarm->{inside_active_window}) {
-			log_debug("Alarm outside active window (condition still evaluated)", {
-				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}",
-				id => $alarm->{id},
-				serial => $alarm->{serial},
-				active_from => $alarm->{active_from_sec},
-				active_to   => $alarm->{active_to_sec},
-				timezone    => $alarm->{timezone},
-			});
-		}
-
-		# --------------------------------------------------
 		# CORE EVALUATION STEP
 		# --------------------------------------------------
 		# Each alarm is evaluated independently using:
@@ -351,7 +335,7 @@ sub evaluate_alarm {
 	# --------------------------------------------------
 	# ONLY SKIP IF CONDITION DEPENDS ON VALVE STATE
 	# --------------------------------------------------
-	if ($uses_closed) {
+	if ($uses_closed || $uses_leakage) {
 		if (!defined $closed) {
 			log_debug("Skipping evaluation: valve transition still pending", {
 				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
@@ -402,6 +386,18 @@ sub evaluate_alarm {
 	$eval_alarm_state = $res->{result};
 
 	# --------------------------
+	# CONDITION STATE (ALWAYS UPDATED)
+	# --------------------------
+	# condition_state mirrors evaluated alarm logic
+	# but is updated even outside active window and
+	# does not affect notifications by itself
+	my $condition_state = $eval_alarm_state ? 1 : 0;
+
+	my $warn_sql = defined $res->{warning} && length $res->{warning}
+		? $dbh->quote($res->{warning})
+		: 'NULL';
+
+	# --------------------------
 	# ERROR HANDLING
 	# --------------------------
 	if ($res->{error}) {
@@ -410,65 +406,19 @@ sub evaluate_alarm {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
 
-		my $warn_sql = defined $res->{warning} && length $res->{warning}
-			? $dbh->quote($res->{warning})
-			: 'NULL';
-
 		my $err = $dbh->quote($res->{error});
 
 		$dbh->do(qq[
 			UPDATE alarms
 			SET
 				condition_error = $err,
-				condition_warning = $warn_sql
+				condition_warning = $warn_sql,
+				condition_state = $condition_state
 			WHERE id = $quoted_id
 		]);
 
 		return;
 	}
-
-	# --------------------------------------------------
-	# ALWAYS UPDATE RAW CONDITION STATE
-	# --------------------------------------------------
-	my $old_condition_state = defined $alarm->{condition_state}
-		? $alarm->{condition_state}
-		: 0;
-
-	my $condition_changed =
-		($old_condition_state ? 1 : 0)
-		!=
-		($eval_alarm_state ? 1 : 0);
-
-	if ($condition_changed) {
-
-		$dbh->do(q[
-			UPDATE alarms
-			SET
-				condition_state = ?,
-				condition_last_changed = ?
-			WHERE id = ?
-		], undef,
-			$eval_alarm_state ? 1 : 0,
-			time(),
-			$alarm->{id}
-		);
-
-	} else {
-
-		$dbh->do(q[
-			UPDATE alarms
-			SET
-				condition_state = ?
-			WHERE id = ?
-		], undef,
-			$eval_alarm_state ? 1 : 0,
-			$alarm->{id}
-		);
-	}
-
-	my $warn_sql = defined $res->{warning} && length $res->{warning}
-		? $dbh->quote($res->{warning})
-		: 'NULL';
 
 	# --------------------------
 	# NORMAL PATH LOGGING
@@ -482,29 +432,30 @@ sub evaluate_alarm {
 		UPDATE alarms
 		SET
 			condition_error = NULL,
-			condition_warning = $warn_sql
+			condition_warning = $warn_sql,
+			condition_state = $condition_state
 		WHERE id = $quoted_id
 	]);
 
 	# --------------------------------------------------
-	# ACTIVE WINDOW GATE
+	# TIME WINDOW GATE (ALARM LOGIC ONLY)
 	# --------------------------------------------------
 	# condition_state is always updated,
 	# but alarm notifications/state only run
 	# inside active window
-	unless ($alarm->{inside_active_window}) {
+	my $in_window = process_active_window($alarm);
+
+	if (!$in_window) {
+		log_debug("Outside active window (alarm_state skipped, condition_state still updated)", {
+			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+		});
+
 		return;
 	}
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
 	# --------------------------------------------------
-	# Delegate to handle_alarm(), which manages:
-	#   - alarm state transitions (0 ↔ 1)
-	#   - notification sending (SMS)
-	#   - repeat intervals / exponential backoff
-	#   - snooze handling
-	#   - anti-flapping clear delay
 	handle_alarm(
 		$alarm,
 		$eval_alarm_state,
