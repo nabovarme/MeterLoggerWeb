@@ -117,7 +117,7 @@ sub hhmm_to_sec {
 sub next_notification_in {
 	my ($alarm) = @_;
 
-	return '' unless ($alarm->{alarm_state} && $alarm->{repeat});
+	return '' unless ($alarm->{condition_state} && $alarm->{repeat});
 
 	my $now = time();
 
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	[$ else $]
 		<!-- Alarm form, optionally styled if alarm is active -->
-		<div class="[$ if ($d->{alarm_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
+		<div class="[$ if ($d->{condition_state} && $d->{'enabled'}) $]alarm-state[$ endif $]">
 			<div class="default-headline"><a href="detail.epl?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a> [+ $d->{info} +]</div>
 			[$ if ($is_admin) $]<form method="GET">[$ endif $]
 				<input type="hidden" name="id" value="[+ $id +]">
@@ -656,7 +656,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				>
 
 				<!-- Show last notification if any -->
-				[$ if ($d->{alarm_state}) $]
+				[$ if ($d->{condition_state}) $]
 				<label>Last notification</label>
 
 				<textarea name="last_notification" readonly>[+ duration(time() - $d->{last_notification}) +] ago[$ if ($d->{repeat}) $], next in [+ next_notification_in($d) +][$ endif $]</textarea>
@@ -667,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				<textarea name="repeat">[+ $d->{repeat} +]</textarea>
 
 				<!-- Show current snooze info if relevant -->
-				[$ if ($d->{repeat} && $d->{snooze} && $d->{alarm_state}) $]
+				[$ if ($d->{repeat} && $d->{snooze} && $d->{condition_state}) $]
 				<label>Snoozed</label>
 				<textarea name="snooze" readonly>[+ duration($d->{snooze}) +]</textarea>
 				[$ endif $]
