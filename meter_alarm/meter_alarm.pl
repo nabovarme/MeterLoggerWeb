@@ -174,7 +174,7 @@ sub process_alarms {
 	my $sth = $dbh->prepare(qq[
 		SELECT
 			alarms.id, alarms.enabled, alarms.auto_id, alarms.serial, alarms.condition,
-			alarms.alarm_state, alarms.condition_error, alarms.condition_warning,
+			alarms.alarm_state, alarms.condition_state, alarms.condition_error, alarms.condition_warning,
 			alarms.last_notification, alarms.repeat, alarms.alarm_count,
 			alarms.exp_backoff_enabled, alarms.initial_no_backoff,
 			alarms.alarm_clear_delay, alarms.valve_close_delay, alarms.leakage_delay,
@@ -250,9 +250,10 @@ sub process_alarms {
 		# --------------------------------------------------
 		# TIME WINDOW GATE
 		# --------------------------------------------------
-		# Skip all evaluation if alarm is outside its active window
-		unless (process_active_window($alarm)) {
-			log_debug("Skipping alarm outside active window", {
+		$alarm->{inside_active_window} = process_active_window($alarm);
+
+		unless ($alarm->{inside_active_window}) {
+			log_debug("Alarm outside active window (condition still evaluated)", {
 				-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}",
 				id => $alarm->{id},
 				serial => $alarm->{serial},
@@ -260,8 +261,6 @@ sub process_alarms {
 				active_to   => $alarm->{active_to_sec},
 				timezone    => $alarm->{timezone},
 			});
-
-			next;
 		}
 
 		# --------------------------------------------------
@@ -402,10 +401,6 @@ sub evaluate_alarm {
 
 	$eval_alarm_state = $res->{result};
 
-	my $warn_sql = defined $res->{warning} && length $res->{warning}
-		? $dbh->quote($res->{warning})
-		: 'NULL';
-
 	# --------------------------
 	# ERROR HANDLING
 	# --------------------------
@@ -414,6 +409,10 @@ sub evaluate_alarm {
 		log_warn("Condition evaluation error: $res->{error}", {
 			-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
 		});
+
+		my $warn_sql = defined $res->{warning} && length $res->{warning}
+			? $dbh->quote($res->{warning})
+			: 'NULL';
 
 		my $err = $dbh->quote($res->{error});
 
@@ -427,6 +426,49 @@ sub evaluate_alarm {
 
 		return;
 	}
+
+	# --------------------------------------------------
+	# ALWAYS UPDATE RAW CONDITION STATE
+	# --------------------------------------------------
+	my $old_condition_state = defined $alarm->{condition_state}
+		? $alarm->{condition_state}
+		: 0;
+
+	my $condition_changed =
+		($old_condition_state ? 1 : 0)
+		!=
+		($eval_alarm_state ? 1 : 0);
+
+	if ($condition_changed) {
+
+		$dbh->do(q[
+			UPDATE alarms
+			SET
+				condition_state = ?,
+				condition_last_changed = ?
+			WHERE id = ?
+		], undef,
+			$eval_alarm_state ? 1 : 0,
+			time(),
+			$alarm->{id}
+		);
+
+	} else {
+
+		$dbh->do(q[
+			UPDATE alarms
+			SET
+				condition_state = ?
+			WHERE id = ?
+		], undef,
+			$eval_alarm_state ? 1 : 0,
+			$alarm->{id}
+		);
+	}
+
+	my $warn_sql = defined $res->{warning} && length $res->{warning}
+		? $dbh->quote($res->{warning})
+		: 'NULL';
 
 	# --------------------------
 	# NORMAL PATH LOGGING
@@ -443,6 +485,16 @@ sub evaluate_alarm {
 			condition_warning = $warn_sql
 		WHERE id = $quoted_id
 	]);
+
+	# --------------------------------------------------
+	# ACTIVE WINDOW GATE
+	# --------------------------------------------------
+	# condition_state is always updated,
+	# but alarm notifications/state only run
+	# inside active window
+	unless ($alarm->{inside_active_window}) {
+		return;
+	}
 
 	# --------------------------------------------------
 	# STATE TRANSITION + NOTIFICATION HANDLING
