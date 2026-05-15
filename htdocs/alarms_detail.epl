@@ -63,7 +63,6 @@
 		# --------------------------------------------------
 		my $changed = 0;
 
-		$changed ||= ($old->{enabled} != ($cmp{enabled} ? 1 : 0));
 		$changed ||= (($old->{sms_notification} // '') ne ($cmp->{sms_notification} // ''));
 		$changed ||= (($old->{condition} // '') ne ($cmp->{condition} // ''));
 		$changed ||= (($old->{repeat} // 0) != ($cmp->{repeat} // 0));
