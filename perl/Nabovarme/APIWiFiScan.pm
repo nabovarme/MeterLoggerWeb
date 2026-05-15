@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS ();
+use JSON ();
 
 use Nabovarme::Db;
 
@@ -156,8 +156,9 @@ sub handler {
 	# Step 5: sort final results by RSSI descending
 	@result = sort { $b->{rssi} <=> $a->{rssi} } @result;
 
-	my $json = JSON::XS->new->utf8->canonical->encode(\@result);
-	$r->print($json);
+	$r->print(
+		JSON->new->utf8->canonical->encode(\@result)
+	);
 
 	return Apache2::Const::OK;
 }

@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS ();
+use JSON ();
 
 use lib qw(/etc/apache2/perl);
 use Nabovarme::Db;
@@ -111,8 +111,9 @@ sub handler {
 
 		_sort_clients_recursively($_) for @roots;
 
-		my $json = JSON::XS->new->utf8->canonical->encode(\@roots);
-		$r->print($json);
+		$r->print(
+			JSON->new->utf8->canonical->encode(\@roots)
+		);
 
 		return Apache2::Const::OK;
 	}

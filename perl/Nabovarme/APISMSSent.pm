@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE HTTP_FORBIDDEN);
 use HTTP::Date;
-use JSON::XS;
+use JSON ();
 
 use Nabovarme::Db;
 use Nabovarme::Admin;
@@ -24,7 +24,7 @@ sub handler {
 	unless ($auth_phone) {
 		$r->status(Apache2::Const::HTTP_FORBIDDEN);
 		$r->content_type("application/json; charset=utf-8");
-		$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
+		$r->print(JSON->new->utf8->encode({ error => "Forbidden" }));
 		return Apache2::Const::OK;
 	}
 
@@ -46,7 +46,7 @@ sub handler {
 	unless (@phones) {
 		$r->status(Apache2::Const::HTTP_FORBIDDEN);
 		$r->content_type("application/json; charset=utf-8");
-		$r->print(JSON::XS->new->utf8->encode({ error => "Forbidden" }));
+		$r->print(JSON->new->utf8->encode({ error => "Forbidden" }));
 		return Apache2::Const::OK;
 	}
 
@@ -82,15 +82,17 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my $json = JSON::XS->new->utf8->canonical;
 		my @rows;
 
 		while (my $row = $sth->fetchrow_hashref) {
 			$row->{message} =~ s/(SMS Code: )(\d+)/$1 . ('*' x length($2))/e;
-			push @rows, $json->encode($row);
+			push @rows, $row;
 		}
 
-		$r->print('[' . join(',', @rows) . ']');
+		$r->print(
+			JSON->new->utf8->canonical->encode(\@rows)
+		);
+
 		return Apache2::Const::OK;
 	}
 

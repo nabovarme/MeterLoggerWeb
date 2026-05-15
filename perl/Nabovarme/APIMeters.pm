@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS;
+use JSON ();
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -138,8 +138,9 @@ sub handler {
 			};
 		}
 
-		my $json_obj = JSON::XS->new->utf8->canonical;
-		$r->print($json_obj->encode(\@groups));
+		$r->print(
+			JSON->new->utf8->canonical->encode(\@groups)
+		);
 
 		return Apache2::Const::OK;
 	}

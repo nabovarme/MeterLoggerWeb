@@ -30,8 +30,7 @@ RUN apt-get update && apt-get install -y \
 	default-mysql-client \
 	libparallel-forkmanager-perl \
 	libproc-pid-file-perl \
-	libemail-mime-perl \
-	libjson-parse-perl
+	libemail-mime-perl
 
 # Copy local repository from Docker volume
 RUN mkdir -p /opt/local-debs

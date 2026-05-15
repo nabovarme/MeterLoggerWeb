@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS ();
+use JSON ();
 
 use Nabovarme::Db;
 
@@ -31,11 +31,12 @@ sub handler {
 	);
 
 	unless (defined $current_ssid && $current_ssid ne '') {
-		my $json = JSON::XS->new->utf8->canonical->encode({
-			serial => $serial,
-			error  => "No current SSID"
-		});
-		$r->print($json);
+		$r->print(
+			JSON->new->utf8->canonical->encode({
+				serial => $serial,
+				error  => "No current SSID"
+			})
+		);
 		return Apache2::Const::OK;
 	}
 
@@ -78,14 +79,14 @@ sub handler {
 		}
 	}
 
-	my $json = JSON::XS->new->utf8->canonical->encode({
-		serial        => $serial,
-		weakest_rssi  => $min_rssi,
-		hop_count     => $hop,
-		chain         => \@chain
-	});
-
-	$r->print($json);
+	$r->print(
+		JSON->new->utf8->canonical->encode({
+			serial        => $serial,
+			weakest_rssi  => $min_rssi,
+			hop_count     => $hop,
+			chain         => \@chain
+		})
+	);
 
 	return Apache2::Const::OK;
 }

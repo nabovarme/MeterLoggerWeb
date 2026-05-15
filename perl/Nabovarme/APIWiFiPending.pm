@@ -7,7 +7,7 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use HTTP::Date;
-use JSON::XS;
+use JSON ();
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -35,18 +35,18 @@ sub handler {
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 
-		my $json_obj = JSON::XS->new->utf8->canonical;
+		# Collect decoded rows
+		my @rows;
 
-		# Collect encoded rows (JSON strings)
-		my @encoded_rows;
 		while (my $row = $sth->fetchrow_hashref) {
 			# Format ssid=network&pwd=pass
 			($row->{ssid}) = $row->{ssid} =~ /ssid=([^&]+)/;
-			push @encoded_rows, $json_obj->encode($row);
+			push @rows, $row;
 		}
 
-		# Join all encoded JSON objects with commas inside a JSON array
-		$r->print('[' . join(',', @encoded_rows) . ']');
+		$r->print(
+			JSON->new->utf8->canonical->encode(\@rows)
+		);
 
 		return Apache2::Const::OK;
 	}
