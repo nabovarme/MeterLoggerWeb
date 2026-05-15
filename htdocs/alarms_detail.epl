@@ -787,7 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				[$ if ($d->{condition_state}) $]
 				<label>Last notification</label>
 
-				<textarea name="last_notification" readonly>[$ if (defined $d->{last_notification} && $d->{last_notification} > 0) $][+ duration(time() - $d->{last_notification}) +] ago[$ else $]Never[$ endif $][$ if ($d->{repeat}) $], next in [+ next_notification_in($d) +][$ endif $]</textarea>
+				<textarea name="last_notification" readonly>[$ if (defined $d->{last_notification} && $d->{last_notification} > 0) $][+ duration(time() - $d->{last_notification}) +] ago[$ else $]Never[$ endif $][$ if ($d->{enabled} && $d->{repeat}) $], next in [+ next_notification_in($d) +][$ endif $]</textarea>
 				[$ endif $]
 
 				<!-- Repeat interval -->
