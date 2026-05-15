@@ -24,14 +24,14 @@ RUN apt-get update && apt-get install -y \
 RUN PERL_MM_USE_DEFAULT=1 cpanm Math::Random::Secure
 RUN PERL_MM_USE_DEFAULT=1 cpanm Statistics::Basic
 RUN PERL_MM_USE_DEFAULT=1 cpanm Time::Format
-RUN PERL_MM_USE_DEFAULT=1 cpanm JSON::Create
+RUN PERL_MM_USE_DEFAULT=1 cpanm JSON
+RUN PERL_MM_USE_DEFAULT=1 cpanm Cpanel::JSON::XS
 RUN PERL_MM_USE_DEFAULT=1 cpanm Redis
 RUN PERL_MM_USE_DEFAULT=1 cpanm File::chown
 RUN PERL_MM_USE_DEFAULT=1 cpanm Test2::V0
 RUN PERL_MM_USE_DEFAULT=1 cpanm Test::Deep
 RUN PERL_MM_USE_DEFAULT=1 cpanm Math::Random::ISAAC
 RUN PERL_MM_USE_DEFAULT=1 cpanm Crypt::Random::Source::Factory
-RUN PERL_MM_USE_DEFAULT=1 cpanm JSON::Create
 RUN PERL_MM_USE_DEFAULT=1 cpanm IO::Socket::Timeout
 RUN PERL_MM_USE_DEFAULT=1 cpanm Module::Find
 RUN PERL_MM_USE_DEFAULT=1 cpanm PerlIO::via::Timeout

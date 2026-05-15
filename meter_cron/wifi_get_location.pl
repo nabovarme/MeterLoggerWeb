@@ -4,8 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use LWP::UserAgent;
-use JSON::Create 'create_json';
-use JSON::Parse 'parse_json';
+use JSON qw(encode_json decode_json);
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -103,7 +102,7 @@ sub get_location {
 		wifiAccessPoints  => $wifi_data
 	};
 	
-	my $json_request = create_json($request_data);
+	my $json_request = encode_json($request_data);
 	my $response = send_geolocation_request($json_request);
 	
 	return parse_location_response($response) if $response;
@@ -138,7 +137,7 @@ sub parse_location_response {
 	my ($response) = @_;
 	
 	log_info("Parsing location response...");
-	my $location_data = parse_json($response->decoded_content);
+	my $location_data = decode_json($response->decoded_content);
 	
 	if ($location_data->{location}) {
 		return $location_data->{location};

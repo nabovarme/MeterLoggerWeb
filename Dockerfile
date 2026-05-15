@@ -35,7 +35,6 @@ RUN apt-get update && apt-get install -y \
 	libdbi-perl \
 	libconfig-simple-perl \
 	libtime-duration-perl \
-	libjson-xs-perl \
 	libemail-mime-perl \
 	libdatetime-perl \
 	default-mysql-client\

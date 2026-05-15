@@ -6,7 +6,7 @@ use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const;
-use JSON::XS;
+use JSON qw(encode_json decode_json);
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -108,8 +108,9 @@ sub handler {
 		account                     => \@account,
 	};
 
-	my $json_obj = JSON::XS->new->utf8->canonical;
-	$r->print($json_obj->encode($response));
+	$r->print(
+		JSON->new->utf8->canonical->encode($response)
+	);
 
 	return Apache2::Const::OK;
 }
