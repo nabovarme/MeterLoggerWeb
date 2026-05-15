@@ -44,8 +44,8 @@
 		# --------------------------------------------------
 		my $old_ignore = $old->{ignore_auto_update} ? 1 : 0;
 
-		# unchecked checkbox MUST become 0 (not "keep old value")
-		my $new_ignore = $fdat->{ignore_auto_update} ? 1 : 0;
+		# Only allow manual override if alarm has auto_id
+		my $new_ignore = ($old->{auto_id} && $fdat->{ignore_auto_update}) ? 1 : 0;
 
 		# --------------------------------------------------
 		# NORMALIZE INPUT
@@ -62,9 +62,9 @@
 		# CMP
 		# --------------------------------------------------
 		my %cmp = %$fdat;
-		delete $cmp{ignore_auto_update};
 
 		# Remove mode flag from change detection
+		delete $cmp{ignore_auto_update};
 		delete $cmp{enabled};
 		delete $cmp{update};
 		delete $cmp{id};
@@ -85,9 +85,9 @@
 		$changed ||= (($old->{active_to_sec} // 0) != ($cmp{active_to_sec} // 0));
 
 		# --------------------------------------------------
-		# DECISION
+		# AUTO → MANUAL toggle logic
 		# --------------------------------------------------
-		if ($old_ignore == 0 && $changed) {
+		if ($old->{auto_id} && $old_ignore == 0 && $changed) {
 			$new_ignore = 1;
 		}
 
