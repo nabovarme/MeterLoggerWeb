@@ -100,6 +100,8 @@
 				$fdat->{up_message}       = $aa->{up_message} || 'normal';
 				$fdat->{down_message}     = $aa->{down_message} || 'alarm';
 				$fdat->{comment}          = $aa->{description} || '';
+				$fdat->{active_from_sec}  = $aa->{active_from_sec};
+				$fdat->{active_to_sec}    = $aa->{active_to_sec};
 			}
 		}
 

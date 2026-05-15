@@ -112,7 +112,9 @@ sub sync_auto_alarms {
 						`repeat` = ?,
 						`default_snooze` = ?,
 						`sms_notification` = ?,
-						`comment` = ?
+						`comment` = ?,
+						`active_from_sec` = ?,
+						`active_to_sec` = ?
 					WHERE serial = ? AND auto_id = ? AND ignore_auto_update = 0
 				], undef,
 					$aa->{condition},
@@ -122,6 +124,8 @@ sub sync_auto_alarms {
 					$aa->{default_snooze} || 1800,
 					$aa->{sms_notification} || '',
 					$aa->{description} || '',
+					$aa->{active_from_sec},
+					$aa->{active_to_sec},
 					$serial,
 					$aa->{id}
 				);
@@ -132,19 +136,25 @@ sub sync_auto_alarms {
 
 				# Insert new alarm, using description for comment and sms_notification
 				$dbh->do(q[
-					INSERT INTO alarms
-						(`serial`, `condition`, `down_message`, `up_message`, `repeat`, `default_snooze`, `enabled`, `auto_id`, `sms_notification`, `comment`, `ignore_auto_update`)
-					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
+					INSERT INTO alarms (
+						`serial`, `condition`, `down_message`, `up_message`,
+						`repeat`, `default_snooze`, `enabled`, `auto_id`,
+						`sms_notification`, `comment`, `ignore_auto_update`,
+						`active_from_sec`, `active_to_sec`
+					)
+					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, ?, ?)
 				], undef,
-					$serial,
-					$aa->{condition},
-					$aa->{down_message} || 'alarm',
-					$aa->{up_message}   || 'normal',
-					$aa->{repeat}       || 0,
-					$aa->{default_snooze} || 1800,
-					$aa->{id},
-					$aa->{sms_notification} || '',
-					$aa->{description} || ''
+				    $serial,
+				    $aa->{condition},
+				    $aa->{down_message} || 'alarm',
+				    $aa->{up_message}   || 'normal',
+				    $aa->{repeat}       || 0,
+				    $aa->{default_snooze} || 1800,
+				    $aa->{id},
+				    $aa->{sms_notification} || '',
+				    $aa->{description} || '',
+				    $aa->{active_from_sec},
+				    $aa->{active_to_sec}
 				);
 
 				log_info("Created auto-alarm for serial $serial from template $aa->{id}");
