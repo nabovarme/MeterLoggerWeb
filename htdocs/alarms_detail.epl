@@ -44,37 +44,48 @@
 		# --------------------------------------------------
 		my $old_ignore = $old->{ignore_auto_update} ? 1 : 0;
 
-		# FIX: unchecked checkbox MUST become 0 (not "keep old value")
+		# unchecked checkbox MUST become 0 (not "keep old value")
 		my $new_ignore = $fdat->{ignore_auto_update} ? 1 : 0;
+
+		# --------------------------------------------------
+		# NORMALIZE INPUT
+		# --------------------------------------------------
+		$fdat->{sms_notification} ||= '';
+		$fdat->{condition}        ||= '';
+		$fdat->{repeat}           = $fdat->{repeat} + 0 if defined $fdat->{repeat};
+		$fdat->{default_snooze}   = $fdat->{default_snooze} + 0 if defined $fdat->{default_snooze};
 
 		$fdat->{active_from_sec} = hhmm_to_sec($fdat->{active_from});
 		$fdat->{active_to_sec}   = hhmm_to_sec($fdat->{active_to});
 
 		# --------------------------------------------------
-		# IMPORTANT FIX:
-		# Remove mode flag from change detection
-		# (prevents checkbox flip-back bug)
+		# CMP
 		# --------------------------------------------------
 		my %cmp = %$fdat;
 		delete $cmp{ignore_auto_update};
+
+		# Remove mode flag from change detection
+		delete $cmp{enabled};
+		delete $cmp{update};
+		delete $cmp{id};
 
 		# --------------------------------------------------
 		# Detect changes (only real field changes)
 		# --------------------------------------------------
 		my $changed = 0;
 
-		$changed ||= (($old->{sms_notification} // '') ne ($cmp->{sms_notification} // ''));
-		$changed ||= (($old->{condition} // '') ne ($cmp->{condition} // ''));
-		$changed ||= (($old->{repeat} // 0) != ($cmp->{repeat} // 0));
-		$changed ||= (($old->{default_snooze} // 0) != ($cmp->{default_snooze} // 0));
-		$changed ||= (($old->{up_message} // '') ne ($cmp->{up_message} // ''));
-		$changed ||= (($old->{down_message} // '') ne ($cmp->{down_message} // ''));
-		$changed ||= (($old->{comment} // '') ne ($cmp->{comment} // ''));
-		$changed ||= (($old->{active_from_sec} // '') ne ($cmp->{active_from_sec} // ''));
-		$changed ||= (($old->{active_to_sec} // '') ne ($cmp->{active_to_sec} // ''));
+		$changed ||= (($old->{sms_notification} // '') ne ($cmp{sms_notification} // ''));
+		$changed ||= (($old->{condition} // '') ne ($cmp{condition} // ''));
+		$changed ||= (($old->{repeat} + 0) != ($cmp{repeat} + 0));
+		$changed ||= (($old->{default_snooze} + 0) != ($cmp{default_snooze} + 0));
+		$changed ||= (($old->{up_message} // '') ne ($cmp{up_message} // ''));
+		$changed ||= (($old->{down_message} // '') ne ($cmp{down_message} // ''));
+		$changed ||= (($old->{comment} // '') ne ($cmp{comment} // ''));
+		$changed ||= (($old->{active_from_sec} // 0) != ($cmp{active_from_sec} // 0));
+		$changed ||= (($old->{active_to_sec} // 0) != ($cmp{active_to_sec} // 0));
 
 		# --------------------------------------------------
-		# AUTO → MANUAL on ANY field change
+		# DECISION
 		# --------------------------------------------------
 		if ($old_ignore == 0 && $changed) {
 			$new_ignore = 1;
@@ -93,7 +104,6 @@
 			);
 
 			if ($aa) {
-
 				$fdat->{enabled}          = 1;
 				$fdat->{sms_notification} = $aa->{sms_notification} || '';
 				$fdat->{condition}        = $aa->{condition};
