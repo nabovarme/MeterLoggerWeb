@@ -11,7 +11,6 @@ use Email::Simple;
 use Email::MIME;
 
 use Redis;
-use Digest::SHA qw(sha1_hex);
 use File::Basename;
 
 use Net::Server::Mail::SMTP;
@@ -37,7 +36,6 @@ use constant GROUP            => 'smsd';
 
 use constant REDIS_BUSY_KEY   => 'sms:busy';
 use constant REDIS_SESSION_KEY   => 'sms:qsess';
-use constant REDIS_SENT_BASE  => 'sms:sent:';
 
 $| = 1;  # autoflush STDOUT
 
@@ -177,18 +175,6 @@ sub send_sms {
 		log_die("Missing phone or message", {-no_script_name => 1, -custom_tag => 'SMS OUT' });
 	}
 
-	# --- deduplication for sending SMS ---
-	my $dedup_key = REDIS_SENT_BASE . sha1_hex($phone . "|" . $message);
-
-	if ($redis->exists($dedup_key)) {
-		log_info(
-			"Skipping SMS send (duplicate detected) to $phone",
-			{-no_script_name => 1, -custom_tag => 'SMS OUT'}
-		);
-		$redis->del(REDIS_BUSY_KEY);
-		return 0;
-	}
-
 	if ($dry_run) {
 		log_info("DRY RUN: send_sms called for $phone with message: $message", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 
@@ -199,10 +185,6 @@ sub send_sms {
 			$phone,
 			$message
 		);
-
-		# mark dedup key in dry-run for consistency
-		$redis->set($dedup_key, time());
-		$redis->expire($dedup_key, $sent_sms_ttl);
 
 		$redis->del(REDIS_BUSY_KEY);
 
@@ -269,10 +251,6 @@ sub send_sms {
 			if ($resp_json->{success}) {
 				# --- Log success to DB ---
 				log_sms_to_db($dbh, 'sent', $phone, $message);
-
-				# --- mark dedup after successful send ---
-				$redis->set($dedup_key, time());
-				$redis->expire($dedup_key, $sent_sms_ttl);
 
 				log_info("✔ SMS to $phone sent successfully", {-no_script_name => 1, -custom_tag => 'SMS OUT'});
 				$success = 1;
