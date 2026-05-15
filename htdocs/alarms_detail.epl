@@ -227,113 +227,133 @@ sub hhmm_to_sec {
 sub next_notification_in {
 	my ($alarm) = @_;
 
-	return '' unless ($alarm->{condition_state} && $alarm->{repeat});
+	# --------------------------------------------------
+	# Only calculate if alarm is currently active
+	# --------------------------------------------------
+	return '' unless $alarm->{condition_state};
 
 	my $now = time();
 
 	# --------------------------------------------------
-	# BASE NEXT NOTIFICATION
+	# Resolve interval:
+	# snooze has priority over repeat
+	# must be strictly > 0 or we cannot schedule
 	# --------------------------------------------------
-	my $base = $alarm->{last_notification} || time();
+	my $interval = $alarm->{snooze} || $alarm->{repeat};
 
-	my $next;
+	return '' unless defined $interval && $interval > 0;
 
-	if ($alarm->{snooze}) {
-		$next = $base + $alarm->{snooze};
+	# --------------------------------------------------
+	# BASE TIME:
+	# last_notification is the last real event timestamp
+	# fallback to 0 so we can safely compute forward
+	# --------------------------------------------------
+	my $last = $alarm->{last_notification} || 0;
+
+	# --------------------------------------------------
+	# INITIAL NEXT CANDIDATE:
+	# simple deterministic schedule: last + interval
+	# --------------------------------------------------
+	my $next = $last + $interval;
+
+	# --------------------------------------------------
+	# HARD GUARANTEE:
+	# next must NEVER be in the past
+	#
+	# If system is delayed or alarm is stale, we fast-forward
+	# to the first valid future interval slot.
+	# --------------------------------------------------
+	if ($next <= $now) {
+
+		my $diff  = $now - $next;
+		my $steps = int($diff / $interval) + 1;
+
+		$next += $steps * $interval;
 	}
-	else {
-		$next = $base + ($alarm->{repeat} || 0);
-	}
 
 	# --------------------------------------------------
-	# NO ACTIVE WINDOW
+	# OPTIONAL ACTIVE WINDOW LOGIC:
+	# If no window is configured, we are done here.
 	# --------------------------------------------------
-	unless (
+	if (
 		defined $alarm->{active_from_sec}
 		&& defined $alarm->{active_to_sec}
 		&& $alarm->{timezone}
 	) {
-		my $remaining = $next - $now;
-		$remaining = 0 if $remaining < 0;
-		return duration($remaining);
-	}
 
-	# --------------------------------------------------
-	# TIMEZONE-AWARE CONTEXT
-	# --------------------------------------------------
-	my $tz = $alarm->{timezone};
+		my $tz = $alarm->{timezone};
 
-	my $dt_next = DateTime->from_epoch(
-		epoch     => $next,
-		time_zone => $tz,
-	);
+		# Convert next timestamp into local timezone context
+		my $dt = DateTime->from_epoch(
+			epoch     => $next,
+			time_zone => $tz,
+		);
 
-	my $next_sec =
-		$dt_next->hour * 3600 +
-		$dt_next->minute * 60 +
-		$dt_next->second;
+		# Convert to "seconds of day" for window comparison
+		my $sec =
+			$dt->hour * 3600 +
+			$dt->minute * 60 +
+			$dt->second;
 
-	my $from = $alarm->{active_from_sec};
-	my $to   = $alarm->{active_to_sec};
+		my $from = $alarm->{active_from_sec};
+		my $to   = $alarm->{active_to_sec};
 
-	my $inside;
+		# --------------------------------------------------
+		# WINDOW CHECK:
+		# handles both normal and overnight windows
+		# --------------------------------------------------
+		my $inside =
+			($from <= $to)
+				? ($sec >= $from && $sec <= $to)
+				: ($sec >= $from || $sec <= $to);
 
-	# --------------------------------------------------
-	# CHECK WHETHER *NEXT TIME* IS INSIDE WINDOW
-	# --------------------------------------------------
+		# --------------------------------------------------
+		# OUTSIDE WINDOW:
+		# we ONLY move forward in time (never backwards)
+		# --------------------------------------------------
+		if (!$inside) {
 
-	# normal window
-	if ($from <= $to) {
+			my $dt2 = $dt->clone;
 
-		$inside =
-			($next_sec >= $from && $next_sec <= $to)
-				? 1 : 0;
-	}
-	# overnight window
-	else {
+			# If we're before today's window start,
+			# snap forward to today at "from"
+			if ($sec < $from) {
 
-		$inside =
-			($next_sec >= $from || $next_sec <= $to)
-				? 1 : 0;
-	}
+				$dt2->set(
+					hour   => int($from / 3600),
+					minute => int(($from % 3600) / 60),
+					second => 0,
+				);
+			}
+			else {
 
-	# --------------------------------------------------
-	# OUTSIDE WINDOW → SNAP TO NEXT WINDOW START
-	# --------------------------------------------------
-	if (!$inside) {
+				# Otherwise we are past today's window
+				# so move to next day window start
+				$dt2->add(days => 1);
 
-		my $next_open = $dt_next->clone;
+				$dt2->set(
+					hour   => int($from / 3600),
+					minute => int(($from % 3600) / 60),
+					second => 0,
+				);
+			}
 
-		# before today's window
-		if ($next_sec < $from) {
+			$next = $dt2->epoch;
 
-			$next_open->set(
-				hour   => int($from / 3600),
-				minute => int(($from % 3600) / 60),
-				second => 0,
-			);
+			# Safety: ensure we never return a past timestamp
+			$next = $now if $next < $now;
 		}
-		else {
-
-			# move to next day
-			$next_open->add(days => 1);
-
-			$next_open->set(
-				hour   => int($from / 3600),
-				minute => int(($from % 3600) / 60),
-				second => 0,
-			);
-		}
-
-		$next = $next_open->epoch;
 	}
 
 	# --------------------------------------------------
-	# FINAL RESULT
+	# FINAL OUTPUT:
+	# duration() expects a positive delta
+	#
+	# We also clamp to minimum 1 second to avoid UI "0"
 	# --------------------------------------------------
 	my $remaining = $next - $now;
 
-	$remaining = 0 if $remaining < 0;
+	$remaining = 1 if $remaining < 1;
 
 	return duration($remaining);
 }
