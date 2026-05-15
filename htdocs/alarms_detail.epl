@@ -22,7 +22,7 @@
 	# Helper: detect changes + apply update + set ignore flag
 	# --------------------------------------------------
 	sub update_alarm_and_set_ignore_if_changed {
-		my ($dbh, $id, $fdat, $active_from_sec, $active_to_sec) = @_;
+		my ($dbh, $id, $fdat) = @_;
 
 		# --------------------------------------------------
 		# Load existing alarm
@@ -47,6 +47,9 @@
 		# FIX: unchecked checkbox MUST become 0 (not "keep old value")
 		my $new_ignore = $fdat->{ignore_auto_update} ? 1 : 0;
 
+		$fdat->{active_from_sec} = hhmm_to_sec($fdat->{active_from});
+		$fdat->{active_to_sec}   = hhmm_to_sec($fdat->{active_to});
+
 		# --------------------------------------------------
 		# IMPORTANT FIX:
 		# Remove mode flag from change detection
@@ -68,8 +71,8 @@
 		$changed ||= (($old->{up_message} // '') ne ($cmp->{up_message} // ''));
 		$changed ||= (($old->{down_message} // '') ne ($cmp->{down_message} // ''));
 		$changed ||= (($old->{comment} // '') ne ($cmp->{comment} // ''));
-		$changed ||= (($old->{active_from_sec} // '') ne ($active_from_sec // ''));
-		$changed ||= (($old->{active_to_sec} // '') ne ($active_to_sec // ''));
+		$changed ||= (($old->{active_from_sec} // '') ne ($cmp->{active_from_sec} // ''));
+		$changed ||= (($old->{active_to_sec} // '') ne ($cmp->{active_to_sec} // ''));
 
 		# --------------------------------------------------
 		# AUTO → MANUAL on ANY field change
@@ -131,8 +134,8 @@
 			$fdat->{up_message},
 			$fdat->{down_message},
 			$fdat->{comment},
-			$active_from_sec,
-			$active_to_sec,
+			$fdat->{active_from_sec},
+			$fdat->{active_to_sec},
 			$new_ignore,
 			$id
 		);
@@ -159,15 +162,10 @@
 		# If admin and update flag set, process form input and update alarm
 		if ($is_admin && $fdat{update}) {
 
-			$active_from_sec = hhmm_to_sec($fdat{active_from});
-			$active_to_sec   = hhmm_to_sec($fdat{active_to});
-
 			update_alarm_and_set_ignore_if_changed(
 				$dbh,
 				$id,
-				\%fdat,
-				$active_from_sec,
-				$active_to_sec
+				\%fdat
 			);
 
 			# Redirect after update to clean the URL and remove form/query parameters,
