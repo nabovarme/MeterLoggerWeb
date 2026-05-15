@@ -40,7 +40,7 @@ sub handler {
 				FROM alarms
 				JOIN meters ON alarms.serial = meters.serial
 				WHERE meters.group = $group_id
-				ORDER BY meters.info ASC, alarms.enabled DESC, alarms.alarm_state DESC, alarms.sms_notification ASC
+				ORDER BY meters.info ASC, alarms.enabled DESC, alarms.condition_state DESC, alarms.sms_notification ASC
 			]);
 			$sth_alarms->execute;
 
@@ -80,7 +80,7 @@ sub handler {
 			FROM alarms
 			LEFT JOIN meters ON alarms.serial = meters.serial
 			WHERE meters.serial IS NULL
-			ORDER BY alarms.alarm_state DESC, alarms.sms_notification ASC
+			ORDER BY alarms.condition_state DESC, alarms.sms_notification ASC
 		]);
 		$sth_orphans->execute;
 
@@ -124,6 +124,7 @@ sub prepare_alarm_data {
 		serial => $alarm->{serial} // '',
 		info => $alarm->{info} // '',
 		alarm_state => $alarm->{alarm_state} // '',
+		condition_state => $alarm->{condition_state} // '',
 		enabled => $alarm->{enabled} // '',
 		in_active_window => $alarm->{in_active_window} // '',
 		condition => $alarm->{condition} // '',
