@@ -56,10 +56,41 @@ async function loadPayments() {
 			tbody.appendChild(tr);
 		}
 
+		// =========================
+		// SCROLL RESTORE (AFTER FULL RENDER)
+		// =========================
+		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('paymentsScrollY') ?? 0;
+
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				window.scrollTo(0, Number(savedScroll));
+			});
+		});
+
 	} catch (err) {
 		console.error('Failed to load payments:', err);
 	}
 }
+
+// =========================
+// SCROLL PERSISTENCE
+// =========================
+
+window.addEventListener('scroll', () => {
+	const p = new URLSearchParams(window.location.search);
+
+	history.replaceState(
+		{
+			scrollY: window.scrollY
+		},
+		'',
+		`${window.location.pathname}?${p.toString()}`
+	);
+});
+
+window.addEventListener('beforeunload', () => {
+	sessionStorage.setItem('paymentsScrollY', window.scrollY);
+});
 
 // =========================
 // DEBOUNCE WRAPPER
@@ -93,7 +124,15 @@ if (input) {
 		if (val) p.set('q', val);
 		else p.delete('q');
 
-		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+		const newUrl = `${window.location.pathname}?${p.toString()}`;
+
+		history.replaceState(
+			{
+				scrollY: window.scrollY
+			},
+			'',
+			newUrl
+		);
 
 		// debounce reload
 		reloadPaymentsDebounced();
