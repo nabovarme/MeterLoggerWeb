@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const disabledCheckbox = document.getElementById('disabledMeters');
 	const container = document.getElementById('meterContainer');
 
-	const savedScrollTop = history.state?.scrollTop ?? 0;
+	// IMPORTANT: body is the real scroll container in your layout
+	const scrollEl = document.body;
 
 	// Helper: Check if meter is active
 	const isActiveMeter = meter => meter.enabled > 0;
@@ -42,9 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
 
 		history.replaceState(
-			{
-				scrollTop: window.scrollY
-			},
+			{},
 			'',
 			newUrl
 		);
@@ -58,6 +57,25 @@ document.addEventListener('DOMContentLoaded', () => {
 			disabledOnly: params.get('disabled') === '1'
 		};
 	}
+
+	// =========================
+	// SCROLLING
+	// =========================
+
+	function saveScroll() {
+		sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
+	}
+
+	function restoreScroll() {
+		const y = Number(sessionStorage.getItem('meters_scroll') || 0);
+
+		requestAnimationFrame(() => {
+			scrollEl.scrollTop = y;
+		});
+	}
+
+	// Listen on REAL scroll container
+	scrollEl.addEventListener('scroll', saveScroll, { passive: true });
 
 	// Fetch meters from API
 	async function fetchMeters() {
@@ -115,9 +133,6 @@ document.addEventListener('DOMContentLoaded', () => {
 				const rowDiv = document.createElement('div');
 				rowDiv.className = 'meter-row';
 
-				if (!isActiveMeter(meter)) {
-					rowDiv.classList.add('meter-disabled');
-				}
 				if (meter.enabled === 0) {
 					rowDiv.classList.add('meter-disabled');
 				}
@@ -154,12 +169,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			if (groupMatches) {
 				filteredMeters = group.meters.filter(meter =>
-					(disabledOnly ? !isActiveMeter(meter) : true)
+					(disabledOnly ? meter.enabled === 0 : true)
 				);
 			} else {
 				filteredMeters = group.meters.filter(meter =>
 					matchesSearch(meter, searchText) &&
-					(disabledOnly ? !isActiveMeter(meter) : true)
+					(disabledOnly ? meter.enabled === 0 : true)
 				);
 			}
 
@@ -168,10 +183,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderMeters(filteredData);
 
-		// restore scroll unless explicitly resetting
-		if (resetScroll) {
-			window.scrollTo(0, 0);
-		}
+		// restore scroll after DOM update
+		requestAnimationFrame(() => {
+			restoreScroll();
+		});
 
 		// Reset keyboard navigation efter filter
 		currentLinkIndex = -1;
@@ -189,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Keyboard navigation using Arrow Up / Arrow Down
 	function getVisibleSerialLinks() {
 		return Array.from(document.querySelectorAll('.meter-row a'))
-			.filter(link => link.offsetParent !== null); // only visible links
+			.filter(link => link.offsetParent !== null);
 	}
 
 	document.addEventListener('keydown', (e) => {
@@ -219,19 +234,15 @@ document.addEventListener('DOMContentLoaded', () => {
 		// load state from URL
 		const urlState = loadStateFromURL();
 
-		renderMeters(allMetersData);
-
 		filterInput.value = urlState.search;
 		disabledCheckbox.checked = urlState.disabledOnly;
 
+		renderMeters(allMetersData);
+
 		filterMeters(false);
 
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScrollTop));
-		});
-
-		filterInput.addEventListener('input', debounce(filterMeters));
-		disabledCheckbox.addEventListener('change', filterMeters);
+		filterInput.addEventListener('input', debounce(() => filterMeters(false)));
+		disabledCheckbox.addEventListener('change', () => filterMeters(false));
 
 		// Focus search input on page load
 		filterInput.focus();
@@ -246,4 +257,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	init();
+
+	window.addEventListener('beforeunload', () => {
+		sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
+	});
 });

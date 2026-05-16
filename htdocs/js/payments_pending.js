@@ -1,5 +1,32 @@
 let paymentDebounceTimeout = null;
 
+function getScrollY() {
+	return window.scrollY || document.documentElement.scrollTop;
+}
+
+// =========================
+// SCROLL PERSISTENCE (FIXED)
+// =========================
+
+function saveScroll() {
+	sessionStorage.setItem('payments_scroll', getScrollY());
+}
+
+function restoreScroll() {
+	const y = Number(sessionStorage.getItem('payments_scroll') || 0);
+
+	requestAnimationFrame(() => {
+		window.scrollTo(0, y);
+	});
+}
+
+window.addEventListener('scroll', saveScroll, { passive: true });
+window.addEventListener('beforeunload', saveScroll);
+
+// =========================
+// LOAD PAYMENTS
+// =========================
+
 async function loadPayments() {
 	try {
 		const resp = await fetch('/api/payments_pending');
@@ -56,13 +83,11 @@ async function loadPayments() {
 			tbody.appendChild(tr);
 		}
 
-		// =========================
-		// SCROLL RESTORE (AFTER FULL RENDER)
-		// =========================
-		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('paymentsScrollY') ?? 0;
-
+		// IMPORTANT: restore AFTER DOM is fully painted
 		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
+			requestAnimationFrame(() => {
+				restoreScroll();
+			});
 		});
 
 	} catch (err) {
@@ -71,27 +96,22 @@ async function loadPayments() {
 }
 
 // =========================
-// SCROLL PERSISTENCE
+// URL UPDATE
 // =========================
 
-window.addEventListener('scroll', () => {
+function updateURL(value) {
 	const p = new URLSearchParams(window.location.search);
 
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
-});
+	if (value) p.set('q', value);
+	else p.delete('q');
 
-window.addEventListener('beforeunload', () => {
-	sessionStorage.setItem('paymentsScrollY', window.scrollY);
-});
+	const newUrl = `${window.location.pathname}?${p.toString()}`;
+
+	history.replaceState({}, '', newUrl);
+}
 
 // =========================
-// DEBOUNCE WRAPPER
+// DEBOUNCE RELOAD
 // =========================
 
 function reloadPaymentsDebounced() {
@@ -103,7 +123,7 @@ function reloadPaymentsDebounced() {
 }
 
 // =========================
-// EVENT BINDING (DIRECT)
+// INPUT BINDING
 // =========================
 
 const input = document.getElementById('paymentsPendingSearch');
@@ -117,25 +137,13 @@ if (input) {
 		const val = input.value;
 
 		// update URL
-		const p = new URLSearchParams(window.location.search);
-
-		if (val) p.set('q', val);
-		else p.delete('q');
-
-		const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-		history.replaceState(
-			{
-				scrollY: window.scrollY
-			},
-			'',
-			newUrl
-		);
-
-		// debounce reload
+		updateURL(val);
 		reloadPaymentsDebounced();
 	});
 }
 
-// Initial load
+// =========================
+// INIT
+// =========================
+
 loadPayments();

@@ -41,6 +41,37 @@
 	}
 	</style>
 
+	<!-- =========================
+	SCROLL PERSISTENCE
+	========================= -->
+	<script>
+	(function () {
+
+		function getScrollY() {
+			return window.scrollY || document.documentElement.scrollTop;
+		}
+
+		function saveScroll() {
+			sessionStorage.setItem('valve_control_scroll', getScrollY());
+		}
+
+		function restoreScroll() {
+			const y = Number(sessionStorage.getItem('valve_control_scroll') || 0);
+
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					window.scrollTo(0, y);
+				});
+			});
+		}
+
+		window.addEventListener('scroll', saveScroll, { passive: true });
+		window.addEventListener('beforeunload', saveScroll);
+		window.addEventListener('load', restoreScroll);
+
+	})();
+	</script>
+
 	</HEAD>
 	<BODY>
 	[- 
