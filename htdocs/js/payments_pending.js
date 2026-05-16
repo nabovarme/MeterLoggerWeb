@@ -62,9 +62,7 @@ async function loadPayments() {
 		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('paymentsScrollY') ?? 0;
 
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				window.scrollTo(0, Number(savedScroll));
-			});
+			window.scrollTo(0, Number(savedScroll));
 		});
 
 	} catch (err) {
