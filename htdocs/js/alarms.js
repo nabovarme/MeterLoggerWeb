@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	// IMPORTANT: body is the real scroll container in this layout
 	const scrollEl = document.body;
 
+	let isInitialLoad = true;
+
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
 		Number(alarm.enabled) > 0 &&
@@ -226,9 +228,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderAlarms(filteredData);
 
-		// Scroll container to last saved
+		if (!isInitialLoad) {
+			sessionStorage.removeItem('alarms_scroll');
+			scrollEl.scrollTop = 0;
+		}
+
 		requestAnimationFrame(() => {
-			restoreScroll();
+			if (isInitialLoad) {
+				restoreScroll();
+				isInitialLoad = false;
+			}
 		});
 
 		// Reset keyboard navigation
@@ -284,10 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		// Apply initial filter (important so URL state is respected)
 		filterAlarms(false);
-
-		requestAnimationFrame(() => {
-			restoreScroll();
-		});
 
 		filterInput.addEventListener('input', debounce(() => filterAlarms(false)));
 		activeCheckbox.addEventListener('change', () => filterAlarms(false));

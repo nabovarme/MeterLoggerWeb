@@ -1,4 +1,5 @@
 let wifiDebounceTimeout = null;
+let isInitialLoad = true;
 
 function getScrollY() {
 	return window.scrollY || document.documentElement.scrollTop;
@@ -9,7 +10,12 @@ function getScrollY() {
 // =========================
 
 function saveScroll() {
-	sessionStorage.setItem('wifi_scroll', getScrollY());
+	const params = new URLSearchParams(window.location.search);
+	const hasFilter = params.get('q');
+
+	if (hasFilter) {
+		sessionStorage.setItem('wifi_scroll', getScrollY());
+	}
 }
 
 function restoreScroll() {
@@ -71,10 +77,23 @@ async function loadWifi() {
 			tbody.appendChild(tr);
 		}
 
-		// IMPORTANT: restore AFTER DOM paint + table render
+		// =========================
+		// SCROLL RESTORE LOGIC
+		// =========================
+
+		const isResetState = !search;
+
+		if (isResetState && !isInitialLoad) {
+			sessionStorage.removeItem('wifi_scroll');
+			window.scrollTo(0, 0);
+		}
+
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
-				restoreScroll();
+				if (isInitialLoad) {
+					restoreScroll();
+					isInitialLoad = false;
+				}
 			});
 		});
 
@@ -126,6 +145,10 @@ if (wifiInput) {
 
 		updateURL(val);
 		reloadWifiDebounced();
+
+		// reset scroll immediately on any change
+		sessionStorage.removeItem('wifi_scroll');
+		window.scrollTo(0, 0);
 	});
 }
 
