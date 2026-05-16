@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const disabledCheckbox = document.getElementById('disabledMeters');
 	const container = document.getElementById('meterContainer');
 
+	const savedScrollTop = history.state?.scrollTop ?? 0;
+
 	// Helper: Check if meter is active
 	const isActiveMeter = meter => meter.enabled > 0;
 
@@ -38,7 +40,14 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-		history.replaceState(null, '', newUrl);
+
+		history.replaceState(
+			{
+				scrollTop: container.scrollTop
+			},
+			'',
+			newUrl
+		);
 	}
 
 	function loadStateFromURL() {
@@ -131,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter meters and re-render
-	function filterMeters() {
+	function filterMeters(resetScroll = true) {
 		const searchText = filterInput.value.toLowerCase();
 		const disabledOnly = disabledCheckbox.checked;
 
@@ -158,7 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		}).filter(group => group.meters.length > 0);
 
 		renderMeters(filteredData);
-		container.scrollTop = 0;
+
+		// restore scroll unless explicitly resetting
+		if (resetScroll) {
+			container.scrollTop = 0;
+		}
 
 		// Reset keyboard navigation efter filter
 		currentLinkIndex = -1;
@@ -199,6 +212,18 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	container.addEventListener('scroll', () => {
+		const params = new URLSearchParams(window.location.search);
+
+		history.replaceState(
+			{
+				scrollTop: container.scrollTop
+			},
+			'',
+			`${window.location.pathname}?${params.toString()}`
+		);
+	});
+
 	// Initialize app
 	async function init() {
 		await fetchMeters();
@@ -211,7 +236,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterInput.value = urlState.search;
 		disabledCheckbox.checked = urlState.disabledOnly;
 
-		filterMeters();
+		filterMeters(false);
+
+		requestAnimationFrame(() => {
+			container.scrollTop = savedScrollTop;
+		});
 
 		filterInput.addEventListener('input', debounce(filterMeters));
 		disabledCheckbox.addEventListener('change', filterMeters);

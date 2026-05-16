@@ -286,7 +286,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterAlarms(false);
 
 		requestAnimationFrame(() => {
-			container.scrollTop = savedScrollTop;
+			requestAnimationFrame(() => {
+				container.scrollTop = savedScrollTop;
+			});
 		});
 
 		filterInput.addEventListener('input', debounce(filterAlarms));

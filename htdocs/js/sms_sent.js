@@ -85,6 +85,17 @@ async function loadSMS() {
 			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
 		});
 
+		// =========================
+		// SCROLL RESTORE (AFTER FULL RENDER + PAINT)
+		// =========================
+		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('smsScrollY') ?? 0;
+
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				window.scrollTo(0, Number(savedScroll));
+			});
+		});
+
 	} catch (err) {
 		console.error('Failed to load SMS list:', err);
 	}
@@ -100,8 +111,36 @@ function updateURL(value) {
 	if (value) p.set('q', value);
 	else p.delete('q');
 
-	history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+	const newUrl = `${window.location.pathname}?${p.toString()}`;
+
+	history.replaceState(
+		{
+			scrollY: window.scrollY
+		},
+		'',
+		newUrl
+	);
 }
+
+// =========================
+// SCROLL PERSISTENCE
+// =========================
+
+window.addEventListener('scroll', () => {
+	const p = new URLSearchParams(window.location.search);
+
+	history.replaceState(
+		{
+			scrollY: window.scrollY
+		},
+		'',
+		`${window.location.pathname}?${p.toString()}`
+	);
+});
+
+window.addEventListener('beforeunload', () => {
+	sessionStorage.setItem('smsScrollY', window.scrollY);
+});
 
 // =========================
 // DEBOUNCE RELOAD
