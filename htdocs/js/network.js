@@ -1,19 +1,24 @@
 let originalTreeData = [];
 
-function getScrollY() {
-	return window.scrollY || document.documentElement.scrollTop;
+// =========================
+// BODY SCROLL HANDLING
+// =========================
+
+function getScrollEl() {
+	return document.body;
 }
 
 function saveScroll() {
-	sessionStorage.setItem('network_tree_scroll', getScrollY());
+	sessionStorage.setItem('network_tree_scroll', getScrollEl().scrollTop);
 }
 
 function restoreScroll() {
+	const el = getScrollEl();
 	const y = Number(sessionStorage.getItem('network_tree_scroll') || 0);
 
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
-			window.scrollTo(0, y);
+			el.scrollTop = y;
 		});
 	});
 }
@@ -146,7 +151,6 @@ function renderTrees(data) {
 		container.appendChild(treeDiv);
 	});
 
-	// Wait for DOM layout to stabilize
 	setTimeout(() => {
 		data.forEach((routerObj, i) => {
 			const config = createTreeConfig(routerObj, i);
@@ -209,24 +213,17 @@ function debounce(fn, delay) {
 
 //
 // =========================
-// URL STATE HANDLING (NEW)
+// URL STATE HANDLING
 // =========================
 //
-
 function updateURLState(searchText, offlineOnly) {
 	const params = new URLSearchParams(window.location.search);
 
-	if (searchText) {
-		params.set('q', searchText);
-	} else {
-		params.delete('q');
-	}
+	if (searchText) params.set('q', searchText);
+	else params.delete('q');
 
-	if (offlineOnly) {
-		params.set('offline', '1');
-	} else {
-		params.delete('offline');
-	}
+	if (offlineOnly) params.set('offline', '1');
+	else params.delete('offline');
 
 	const newUrl = `${window.location.pathname}?${params.toString()}`;
 	history.replaceState(null, '', newUrl);
@@ -245,7 +242,6 @@ const renderFilteredTrees = debounce(function () {
 	const query = document.getElementById('networkSearch').value.trim();
 	const showOfflineOnly = document.getElementById('offlineMeters').checked;
 
-	// sync URL
 	updateURLState(query, showOfflineOnly);
 
 	const shouldFilter = query.length > 0 || showOfflineOnly;
@@ -255,15 +251,15 @@ const renderFilteredTrees = debounce(function () {
 
 	renderTrees(filteredData);
 
-	window.scrollTo(0, 0);
-	saveScroll();
+	requestAnimationFrame(() => {
+		restoreScroll();
+	});
 
 }, 300);
 
 // =========================
 // INIT
 // =========================
-
 window.addEventListener('load', () => {
 	const filterInput = document.getElementById('networkSearch');
 	const offlineCheckbox = document.getElementById('offlineMeters');
