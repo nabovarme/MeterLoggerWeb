@@ -45,14 +45,12 @@ async function loadWifi() {
 		}
 
 		// =========================
-		// SCROLL RESTORE (AFTER FULL RENDER)
+		// SCROLL RESTORE
 		// =========================
-		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('wifiScrollY') ?? 0;
+		const savedScroll = history.state?.scrollY ?? 0;
 
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				window.scrollTo(0, Number(savedScroll));
-			});
+			window.scrollTo(0, Number(savedScroll));
 		});
 
 	} catch (err) {
@@ -74,10 +72,6 @@ window.addEventListener('scroll', () => {
 		'',
 		`${window.location.pathname}?${p.toString()}`
 	);
-});
-
-window.addEventListener('beforeunload', () => {
-	sessionStorage.setItem('wifiScrollY', window.scrollY);
 });
 
 // =========================

@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		history.replaceState(
 			{
-				scrollTop: container.scrollTop
+				scrollTop: window.scrollY
 			},
 			'',
 			newUrl
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		// Scroll container to top after rendering filtered alarms
 		if (resetScroll) {
-			container.scrollTop = 0;
+			window.scrollTo(0, 0);
 		}
 
 		// Reset keyboard navigation
@@ -258,18 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
-	container.addEventListener('scroll', () => {
-		const params = new URLSearchParams(window.location.search);
-
-		history.replaceState(
-			{
-				scrollTop: container.scrollTop
-			},
-			'',
-			`${window.location.pathname}?${params.toString()}`
-		);
-	});
-
 	// Initialize app
 	async function init() {
 		await fetchAlarms();
@@ -286,9 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterAlarms(false);
 
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				container.scrollTop = savedScrollTop;
-			});
+			window.scrollTo(0, Number(savedScrollTop));
 		});
 
 		filterInput.addEventListener('input', debounce(filterAlarms));

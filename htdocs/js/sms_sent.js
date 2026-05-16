@@ -86,14 +86,13 @@ async function loadSMS() {
 		});
 
 		// =========================
-		// SCROLL RESTORE (AFTER FULL RENDER + PAINT)
+		// SCROLL RESTORE
 		// =========================
-		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('smsScrollY') ?? 0;
+		const savedScroll =
+			history.state?.scrollY ?? 0;
 
 		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				window.scrollTo(0, Number(savedScroll));
-			});
+			window.scrollTo(0, Number(savedScroll));
 		});
 
 	} catch (err) {
@@ -138,10 +137,6 @@ window.addEventListener('scroll', () => {
 	);
 });
 
-window.addEventListener('beforeunload', () => {
-	sessionStorage.setItem('smsScrollY', window.scrollY);
-});
-
 // =========================
 // DEBOUNCE RELOAD
 // =========================
@@ -170,6 +165,7 @@ if (input) {
 
 		updateURL(val);
 		debounceReload();
+		filterRows(val.toLowerCase());
 	});
 }
 
