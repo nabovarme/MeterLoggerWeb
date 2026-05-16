@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
 
+	const savedScrollTop = history.state?.scrollTop ?? 0;
+
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
 		Number(alarm.enabled) > 0 &&
@@ -56,7 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-		history.replaceState(null, '', newUrl);
+
+		history.replaceState(
+			{
+				scrollTop: container.scrollTop
+			},
+			'',
+			newUrl
+		);
 	}
 
 	function loadStateFromURL() {
@@ -180,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter alarms and re-render
-	function filterAlarms() {
+	function filterAlarms(resetScroll = true) {
 		const searchText = filterInput.value.toLowerCase();
 		const activeOnly = activeCheckbox.checked;
 
@@ -206,7 +215,9 @@ document.addEventListener('DOMContentLoaded', () => {
 		renderAlarms(filteredData);
 
 		// Scroll container to top after rendering filtered alarms
-		container.scrollTop = 0;
+		if (resetScroll) {
+			container.scrollTop = 0;
+		}
 
 		// Reset keyboard navigation
 		currentLinkIndex = -1;
@@ -247,6 +258,18 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	container.addEventListener('scroll', () => {
+		const params = new URLSearchParams(window.location.search);
+
+		history.replaceState(
+			{
+				scrollTop: container.scrollTop
+			},
+			'',
+			`${window.location.pathname}?${params.toString()}`
+		);
+	});
+
 	// Initialize app
 	async function init() {
 		await fetchAlarms();
@@ -260,7 +283,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		activeCheckbox.checked = urlState.activeOnly;
 
 		// Apply initial filter (important so URL state is respected)
-		filterAlarms();
+		filterAlarms(false);
+
+		requestAnimationFrame(() => {
+			container.scrollTop = savedScrollTop;
+		});
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
