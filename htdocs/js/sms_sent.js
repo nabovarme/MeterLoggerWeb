@@ -1,5 +1,34 @@
 let smsDebounceTimeout = null;
 
+function getScrollEl() {
+	return document.scrollingElement || document.documentElement;
+}
+
+// =========================
+// SCROLL PERSISTENCE
+// =========================
+
+function saveScroll() {
+	const el = getScrollEl();
+	sessionStorage.setItem('sms_scroll', el.scrollTop);
+}
+
+function restoreScroll() {
+	const el = getScrollEl();
+	const y = Number(sessionStorage.getItem('sms_scroll') || 0);
+
+	requestAnimationFrame(() => {
+		el.scrollTop = y;
+	});
+}
+
+window.addEventListener('scroll', saveScroll, { passive: true });
+window.addEventListener('beforeunload', saveScroll);
+
+// =========================
+// MAIN LOAD
+// =========================
+
 async function loadSMS() {
 	try {
 		const resp = await fetch('/api/sms_sent');
@@ -79,20 +108,17 @@ async function loadSMS() {
 			});
 		});
 
-		// Update row colors
+		// zebra striping
 		const rows = tbody.querySelectorAll('tr');
 		rows.forEach((row, index) => {
 			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
 		});
 
-		// =========================
-		// SCROLL RESTORE
-		// =========================
-		const savedScroll =
-			history.state?.scrollY ?? 0;
-
+		// IMPORTANT: restore scroll AFTER DOM paint + table render
 		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
+			requestAnimationFrame(() => {
+				restoreScroll();
+			});
 		});
 
 	} catch (err) {
@@ -112,30 +138,8 @@ function updateURL(value) {
 
 	const newUrl = `${window.location.pathname}?${p.toString()}`;
 
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		newUrl
-	);
+	history.replaceState({}, '', newUrl);
 }
-
-// =========================
-// SCROLL PERSISTENCE
-// =========================
-
-window.addEventListener('scroll', () => {
-	const p = new URLSearchParams(window.location.search);
-
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
-});
 
 // =========================
 // DEBOUNCE RELOAD
@@ -150,7 +154,7 @@ function debounceReload() {
 }
 
 // =========================
-// INIT EVENT BINDING
+// INPUT INIT
 // =========================
 
 const input = document.getElementById('smsSentSearch');
@@ -169,5 +173,5 @@ if (input) {
 	});
 }
 
-// --- Initial load ---
+// initial load
 loadSMS();

@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
 
-	const savedScrollTop = history.state?.scrollTop ?? 0;
+	// IMPORTANT: body is the real scroll container in this layout
+	const scrollEl = document.body;
 
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
@@ -59,13 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
 
-		history.replaceState(
-			{
-				scrollTop: window.scrollY
-			},
-			'',
-			newUrl
-		);
+		history.replaceState({}, '', newUrl);
 	}
 
 	function loadStateFromURL() {
@@ -76,6 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
 			activeOnly: params.get('active') === '1'
 		};
 	}
+
+	// =========================
+	// SCROLLING (BODY MODE)
+	// =========================
+
+	function saveScroll() {
+		sessionStorage.setItem('alarms_scroll', scrollEl.scrollTop);
+	}
+
+	function restoreScroll() {
+		const y = Number(sessionStorage.getItem('alarms_scroll') || 0);
+
+		requestAnimationFrame(() => {
+			scrollEl.scrollTop = y;
+		});
+	}
+
+	scrollEl.addEventListener('scroll', saveScroll, { passive: true });
+	window.addEventListener('beforeunload', saveScroll);
 
 	// Fetch alarms from API
 	async function fetchAlarms() {
@@ -164,8 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
 						windowText = `${from} →`;
 					} else if (to) {
 						windowText = `→ ${to}`;
-					} else {
-						windowText = '';
 					}
 
 					rowDiv.innerHTML = `
@@ -214,10 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderAlarms(filteredData);
 
-		// Scroll container to top after rendering filtered alarms
-		if (resetScroll) {
-			window.scrollTo(0, 0);
-		}
+		// Scroll container to last saved
+		requestAnimationFrame(() => {
+			restoreScroll();
+		});
 
 		// Reset keyboard navigation
 		currentLinkIndex = -1;
@@ -274,11 +286,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterAlarms(false);
 
 		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScrollTop));
+			restoreScroll();
 		});
 
-		filterInput.addEventListener('input', debounce(filterAlarms));
-		activeCheckbox.addEventListener('change', filterAlarms);
+		filterInput.addEventListener('input', debounce(() => filterAlarms(false)));
+		activeCheckbox.addEventListener('change', () => filterAlarms(false));
 
 		// Focus search input on page load
 		filterInput.focus();

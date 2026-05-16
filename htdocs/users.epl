@@ -13,7 +13,39 @@
 	<script src="/js/menu.js.epl" defer></script>	
 
 	<link rel="stylesheet" href="/css/users.css" />
+
+	<!-- =========================
+	SCROLL PERSISTENCE
+	========================= -->
+	<script>
+	(function () {
+
+		function getScrollY() {
+			return window.scrollY || document.documentElement.scrollTop;
+		}
+
+		function saveScroll() {
+			sessionStorage.setItem('users_scroll', getScrollY());
+		}
+
+		function restoreScroll() {
+			const y = Number(sessionStorage.getItem('users_scroll') || 0);
+
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					window.scrollTo(0, y);
+				});
+			});
+		}
+
+		window.addEventListener('scroll', saveScroll, { passive: true });
+		window.addEventListener('beforeunload', saveScroll);
+		window.addEventListener('load', restoreScroll);
+
+	})();
+	</script>
 	</HEAD>
+
 	<BODY>
 	<script src="/js/search_users.js" defer></script>
 
@@ -26,6 +58,7 @@
 			style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
 		/>
 	</div>
+
 	[- 
 	# get all meters
 		if ($dbh = Nabovarme::Db->my_connect) {
@@ -55,8 +88,10 @@
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">User agent</span></td>
 	</tr>
+
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
+
 [- 
 	# get details about every meter
 	$name_info = '';

@@ -1,5 +1,26 @@
 let originalTreeData = [];
 
+function getScrollY() {
+	return window.scrollY || document.documentElement.scrollTop;
+}
+
+function saveScroll() {
+	sessionStorage.setItem('network_tree_scroll', getScrollY());
+}
+
+function restoreScroll() {
+	const y = Number(sessionStorage.getItem('network_tree_scroll') || 0);
+
+	requestAnimationFrame(() => {
+		requestAnimationFrame(() => {
+			window.scrollTo(0, y);
+		});
+	});
+}
+
+window.addEventListener('scroll', saveScroll, { passive: true });
+window.addEventListener('beforeunload', saveScroll);
+
 function isOffline(meter) {
 	if (!meter || !meter.last_updated) return false;
 	const updatedTime = new Date(meter.last_updated * 1000);
@@ -105,6 +126,9 @@ async function fetchAndRenderTrees() {
 		});
 
 		renderTrees(data);
+
+		restoreScroll();
+
 	} catch (err) {
 		document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
 		console.error(err);
@@ -230,7 +254,10 @@ const renderFilteredTrees = debounce(function () {
 		: originalTreeData;
 
 	renderTrees(filteredData);
-	window.scrollTo({ top: 0, behavior: 'smooth' });
+
+	window.scrollTo(0, 0);
+	saveScroll();
+
 }, 300);
 
 // =========================

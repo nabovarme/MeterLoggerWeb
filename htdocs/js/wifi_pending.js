@@ -1,5 +1,32 @@
 let wifiDebounceTimeout = null;
 
+function getScrollY() {
+	return window.scrollY || document.documentElement.scrollTop;
+}
+
+// =========================
+// SCROLL PERSISTENCE
+// =========================
+
+function saveScroll() {
+	sessionStorage.setItem('wifi_scroll', getScrollY());
+}
+
+function restoreScroll() {
+	const y = Number(sessionStorage.getItem('wifi_scroll') || 0);
+
+	requestAnimationFrame(() => {
+		window.scrollTo(0, y);
+	});
+}
+
+window.addEventListener('scroll', saveScroll, { passive: true });
+window.addEventListener('beforeunload', saveScroll);
+
+// =========================
+// LOAD WIFI
+// =========================
+
 async function loadWifi() {
 	try {
 		const resp = await fetch('/api/wifi_pending');
@@ -44,13 +71,11 @@ async function loadWifi() {
 			tbody.appendChild(tr);
 		}
 
-		// =========================
-		// SCROLL RESTORE
-		// =========================
-		const savedScroll = history.state?.scrollY ?? 0;
-
+		// IMPORTANT: restore AFTER DOM paint + table render
 		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
+			requestAnimationFrame(() => {
+				restoreScroll();
+			});
 		});
 
 	} catch (err) {
@@ -59,20 +84,19 @@ async function loadWifi() {
 }
 
 // =========================
-// SCROLL PERSISTENCE
+// URL UPDATE
 // =========================
 
-window.addEventListener('scroll', () => {
+function updateURL(value) {
 	const p = new URLSearchParams(window.location.search);
 
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
-});
+	if (value) p.set('q', value);
+	else p.delete('q');
+
+	const newUrl = `${window.location.pathname}?${p.toString()}`;
+
+	history.replaceState({}, '', newUrl);
+}
 
 // =========================
 // DEBOUNCED RELOAD
@@ -87,7 +111,7 @@ function reloadWifiDebounced() {
 }
 
 // =========================
-// EVENT BINDING (DIRECT)
+// INPUT BINDING
 // =========================
 
 const wifiInput = document.getElementById('wifiPendingSearch');
@@ -100,26 +124,13 @@ if (wifiInput) {
 	wifiInput.addEventListener('input', () => {
 		const val = wifiInput.value;
 
-		// update URL
-		const p = new URLSearchParams(window.location.search);
-
-		if (val) p.set('q', val);
-		else p.delete('q');
-
-		const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-		history.replaceState(
-			{
-				scrollY: window.scrollY
-			},
-			'',
-			newUrl
-		);
-
-		// debounce reload
+		updateURL(val);
 		reloadWifiDebounced();
 	});
 }
 
-// Initial load
+// =========================
+// INIT
+// =========================
+
 loadWifi();
