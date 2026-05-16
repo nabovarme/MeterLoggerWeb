@@ -1,15 +1,21 @@
 let paymentDebounceTimeout = null;
+let isInitialLoad = true;
 
 function getScrollY() {
 	return window.scrollY || document.documentElement.scrollTop;
 }
 
 // =========================
-// SCROLL PERSISTENCE (FIXED)
+// SCROLL PERSISTENCE
 // =========================
 
 function saveScroll() {
-	sessionStorage.setItem('payments_scroll', getScrollY());
+	const params = new URLSearchParams(window.location.search);
+	const hasFilter = params.get('q');
+
+	if (hasFilter) {
+		sessionStorage.setItem('payments_scroll', getScrollY());
+	}
 }
 
 function restoreScroll() {
@@ -83,10 +89,23 @@ async function loadPayments() {
 			tbody.appendChild(tr);
 		}
 
-		// IMPORTANT: restore AFTER DOM is fully painted
+		// =========================
+		// SCROLL RESTORE LOGIC
+		// =========================
+
+		const isResetState = !search;
+
+		if (isResetState && !isInitialLoad) {
+			sessionStorage.removeItem('payments_scroll');
+			window.scrollTo(0, 0);
+		}
+
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
-				restoreScroll();
+				if (isInitialLoad) {
+					restoreScroll();
+					isInitialLoad = false;
+				}
 			});
 		});
 
@@ -139,6 +158,10 @@ if (input) {
 		// update URL
 		updateURL(val);
 		reloadPaymentsDebounced();
+
+		// reset scroll immediately on any change
+		sessionStorage.removeItem('payments_scroll');
+		window.scrollTo(0, 0);
 	});
 }
 

@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
 	// IMPORTANT: body is the real scroll container in your layout
 	const scrollEl = document.body;
 
+	let isInitialLoad = true;
+
 	// Helper: Check if meter is active
 	const isActiveMeter = meter => meter.enabled > 0;
 
@@ -63,7 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	// =========================
 
 	function saveScroll() {
-		sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
+		if (filterInput.value || disabledCheckbox.checked) {
+			sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
+		}
 	}
 
 	function restoreScroll() {
@@ -183,9 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderMeters(filteredData);
 
-		// restore scroll after DOM update
+		// Always scroll to top on ANY filter change (except initial load restore)
+		if (!isInitialLoad) {
+			sessionStorage.removeItem('meters_scroll');
+			scrollEl.scrollTop = 0;
+		}
+
 		requestAnimationFrame(() => {
-			restoreScroll();
+			if (isInitialLoad) {
+				restoreScroll();
+				isInitialLoad = false;
+			}
 		});
 
 		// Reset keyboard navigation efter filter
