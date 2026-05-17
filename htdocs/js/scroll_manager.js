@@ -161,13 +161,13 @@ function enableAutoRestore(key) {
 	});
 
 	// reveal after scroll is naturally restored/animated
-	const observer = new MutationObserver(() => {
-		// safety fallback: reveal if something goes wrong
-		document.body.classList.remove('scroll-hidden');
-		document.body.classList.add('scroll-ready');
-	});
-
-	setTimeout(() => {
-		observer.disconnect();
-	}, 3000);
+//	const observer = new MutationObserver(() => {
+//		// safety fallback: reveal if something goes wrong
+//		document.body.classList.remove('scroll-hidden');
+//		document.body.classList.add('scroll-ready');
+//	});
+//
+//	setTimeout(() => {
+//		observer.disconnect();
+//	}, 3000);
 }
