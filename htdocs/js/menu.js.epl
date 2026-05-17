@@ -65,7 +65,10 @@ function insertMenu() {
 			a.dataset.text = item.text;
 			a.innerHTML = item.text;
 			a.tabIndex = -1;
-			a.addEventListener("click", () => closeMenu());
+			a.addEventListener("click", () => {
+				sessionStorage.setItem("force_scroll_top", "1");
+				closeMenu();
+			});
 			menu.appendChild(a);
 		}
 	});
