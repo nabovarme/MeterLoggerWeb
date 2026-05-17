@@ -4,7 +4,7 @@
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
 	use Data::Dumper;
-	
+
 	$admin = new Nabovarme::Admin;
 -]
 <HTML>
@@ -16,7 +16,7 @@
 	<!-- style and js for burger menu -->
 	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js.epl" defer></script>	
-	
+
 	<style type="text/css">
 	.top {
 		position: absolute;
@@ -40,63 +40,90 @@
 		font-size: 120%;
 	}
 	</style>
+</HEAD>
+
+<BODY>
 
 	<!-- =========================
-	SCROLL PERSISTENCE
+	CORE SCRIPTS
+	========================= -->
+	<script src="/js/scroll_manager.js" defer></script>
+	<script src="/js/url_state.js" defer></script>
+
+	<!-- =========================
+	SCROLL INIT
 	========================= -->
 	<script>
-	(function () {
+	document.addEventListener('DOMContentLoaded', () => {
 
-		function getScrollY() {
-			return window.scrollY || document.documentElement.scrollTop;
-		}
+		const SCROLL_KEY = 'valve_control_scroll';
 
-		function saveScroll() {
-			sessionStorage.setItem('valve_control_scroll', getScrollY());
-		}
+		bindScrollPersistence(SCROLL_KEY);
+		enableAutoRestore(SCROLL_KEY);
 
-		function restoreScroll() {
-			const y = Number(sessionStorage.getItem('valve_control_scroll') || 0);
+		// =========================
+		// ADDED: explicit restore (non-BFCache navigation support)
+		// =========================
+		setTimeout(() => {
+			restoreScroll(SCROLL_KEY, SCROLL_MODE);
+		}, 80);
 
-			requestAnimationFrame(() => {
-				requestAnimationFrame(() => {
-					window.scrollTo(0, y);
-				});
+		// =========================
+		// ADDED: ensure scroll state saved on form submit
+		// =========================
+		const form = document.querySelector('form');
+		if (form) {
+			form.addEventListener('submit', () => {
+				saveScroll(SCROLL_KEY, SCROLL_MODE);
 			});
 		}
 
-		window.addEventListener('scroll', saveScroll, { passive: true });
-		window.addEventListener('beforeunload', saveScroll);
-		window.addEventListener('load', restoreScroll);
-
-	})();
+	});
 	</script>
 
-	</HEAD>
-	<BODY>
-	[- 
+	[-
 	# get all meters
 	if ($dbh = Nabovarme::Db->my_connect) {
-		$sth = $dbh->prepare(qq[SELECT meter_groups.`group` as `group`, meters.`type`, meters.`serial`, meters.`valve_status`, meters.`info`, meters.`valve_installed`, meters.`comment` FROM meters, meter_groups WHERE meters.`sw_version` LIKE '%NO_AUTO_CLOSE%' AND meters.`group` = meter_groups.`id` ORDER BY meters.`group`, meters.`info`, meters.`serial`]);
+		$sth = $dbh->prepare(qq[
+			SELECT
+				meter_groups.`group` as `group`,
+				meters.`type`,
+				meters.`serial`,
+				meters.`valve_status`,
+				meters.`info`,
+				meters.`valve_installed`,
+				meters.`comment`
+			FROM meters, meter_groups
+			WHERE meters.`sw_version` LIKE '%NO_AUTO_CLOSE%'
+			  AND meters.`group` = meter_groups.`id`
+			ORDER BY meters.`group`, meters.`info`, meters.`serial`
+		]);
 		$sth->execute;
 	}
+
 	$last_group = '';
 	$is_first = 1;
 	-]
+
 	<form method="POST" action="">
 	<table border="0" align="left" cellpadding="0" cellspacing="6" class="top">
+
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
+
 [-
 	$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $d->{serial});
+
 	if ($is_admin && ($fdat{update})) {
 		my $key = 'valve_status_' . $d->{serial};
+
 		if ($fdat{$key} ne $d->{valve_status}) {
 			# changed value
 			$admin->meter_change_valve_status($d->{serial}, $fdat{$key});
 		}
 	}
 -]
+
 [$ if (($last_group ne $d->{'group'}) and ($is_first == 0)) $]
 	<tr>
 		<td>&nbsp;</td>
@@ -106,25 +133,43 @@
 		<td>&nbsp;</td>
 	</tr>
 [$ endif $]
+
 [- $is_first = 0; -]
+
 [$ if ($last_group ne $d->{'group'}) $]
 	<tr>
-		<td align="left" colspan=5><span class="default-group">[+ $d->{'group'} +]</span></td>
+		<td align="left" colspan="5">
+			<span class="default-group">[+ $d->{'group'} +]</span>
+		</td>
 	</tr>
+
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default-bold">Serial</span></td>
-		<td align="left"><span class="default-bold">Info</span></td>
+		<td><span class="default-bold">Serial</span></td>
+		<td><span class="default-bold">Info</span></td>
 		<td align="right"><span class="default-bold">State</span></td>
 		<td>&nbsp;</td>
 		<td>&nbsp;</td>
 	</tr>
 [$ endif $]
+
 	<tr align="left" valign="bottom">
-		<td align="left"><span class="default"><a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">[+ $d->{serial} +]</a></span></td>
-		<td align="left"><span class="default">[+ $d->{info} +]</span></td>
+
+		<td>
+			<span class="default">
+				<a href="[$ if ($d->{type} =~ /^water$/i) $]detail_volume_acc.epl[$ else $]detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">
+					[+ $d->{serial} +]
+				</a>
+			</span>
+		</td>
+
+		<td>
+			<span class="default">[+ $d->{info} +]</span>
+		</td>
+
 		<td align="right">
 			[$ if ($is_admin) $]
 				<select name="valve_status_[+ $d->{serial} +]">
+
 				[$ if ($d->{valve_status} =~ /open/i) $]
 					<option value="open" selected>On</option>
 					<option value="close">Off</option>
@@ -132,6 +177,7 @@
 					<option value="open">On</option>
 					<option value="close" selected>Off</option>
 				[$ endif $]
+
 				</select>
 			[$ else $]
 				[$ if ($d->{valve_status} =~ /open/i) $]
@@ -141,32 +187,39 @@
 				[$ endif $]
 			[$ endif $]
 		</td>
+
 		<td>&nbsp;</td>
-		<td align="left">
-			<span class="default-small">[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</span>
+
+		<td>
+			<span class="default-small">
+				[$ if ($d->{valve_installed} == 0) $]
+					No thermo actuator installed.
+				[$ endif $]
+				[+ $d->{comment} +]
+			</span>
 		</td>
+
 	</tr>
 
-[- $last_group = $d->{'group'};  -]
+[- $last_group = $d->{'group'}; -]
+
 [$ endwhile $]
 [$ endif $]
+
+	<tr><td colspan="5">&nbsp;</td></tr>
+
 	<tr>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
-	</tr>
-	<tr>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
+		<td></td>
+		<td></td>
 		<td align="right">
 			<input type="submit" name="update" value="Update" style="width: 100px;">
 		</td>
-		<td>&nbsp;</td>
-		<td>&nbsp;</td>
+		<td></td>
+		<td></td>
 	</tr>
+
 	</table>
 	</form>
-	</BODY>
+
+</BODY>
 </HTML>

@@ -1,37 +1,14 @@
-let wifiDebounceTimeout = null;
 let isInitialLoad = true;
 
-function getScrollY() {
-	return window.scrollY || document.documentElement.scrollTop;
-}
+const SCROLL_KEY = 'wifi_scroll';
+
+let wifiDebounceTimeout = null;
 
 // =========================
-// SCROLL PERSISTENCE
+// SCROLL (global manager)
 // =========================
-
-function saveScroll() {
-	const params = new URLSearchParams(window.location.search);
-	const hasFilter = params.get('q');
-
-	if (hasFilter) {
-		sessionStorage.setItem('wifi_scroll', getScrollY());
-	}
-}
-
-function restoreScroll() {
-	const y = Number(sessionStorage.getItem('wifi_scroll') || 0);
-
-	requestAnimationFrame(() => {
-		window.scrollTo(0, y);
-	});
-}
-
-window.addEventListener('scroll', saveScroll, { passive: true });
-window.addEventListener('beforeunload', saveScroll);
-
-// =========================
-// LOAD WIFI
-// =========================
+bindScrollPersistence(SCROLL_KEY);
+enableAutoRestore(SCROLL_KEY);
 
 async function loadWifi() {
 	try {
@@ -77,44 +54,9 @@ async function loadWifi() {
 			tbody.appendChild(tr);
 		}
 
-		// =========================
-		// SCROLL RESTORE LOGIC
-		// =========================
-
-		const isResetState = !search;
-
-		if (isResetState && !isInitialLoad) {
-			sessionStorage.removeItem('wifi_scroll');
-			window.scrollTo(0, 0);
-		}
-
-		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				if (isInitialLoad) {
-					restoreScroll();
-					isInitialLoad = false;
-				}
-			});
-		});
-
 	} catch (err) {
 		console.error('Failed to load wifi:', err);
 	}
-}
-
-// =========================
-// URL UPDATE
-// =========================
-
-function updateURL(value) {
-	const p = new URLSearchParams(window.location.search);
-
-	if (value) p.set('q', value);
-	else p.delete('q');
-
-	const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-	history.replaceState({}, '', newUrl);
 }
 
 // =========================
@@ -130,7 +72,7 @@ function reloadWifiDebounced() {
 }
 
 // =========================
-// INPUT BINDING
+// EVENT BINDING (DIRECT)
 // =========================
 
 const wifiInput = document.getElementById('wifiPendingSearch');
@@ -143,17 +85,18 @@ if (wifiInput) {
 	wifiInput.addEventListener('input', () => {
 		const val = wifiInput.value;
 
-		updateURL(val);
-		reloadWifiDebounced();
+		// update URL
+		const p = new URLSearchParams(window.location.search);
 
-		// reset scroll immediately on any change
-		sessionStorage.removeItem('wifi_scroll');
-		window.scrollTo(0, 0);
+		if (val) p.set('q', val);
+		else p.delete('q');
+
+		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+
+		// debounce reload
+		reloadWifiDebounced();
 	});
 }
 
-// =========================
-// INIT
-// =========================
-
+// Initial load
 loadWifi();

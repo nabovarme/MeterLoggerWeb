@@ -1,33 +1,12 @@
 let smsDebounceTimeout = null;
 
-function getScrollEl() {
-	return document.scrollingElement || document.documentElement;
-}
+const SCROLL_KEY = 'sms_sent_scroll';
 
 // =========================
-// SCROLL PERSISTENCE
+// SCROLL (global manager)
 // =========================
-
-function saveScroll() {
-	const el = getScrollEl();
-	sessionStorage.setItem('sms_scroll', el.scrollTop);
-}
-
-function restoreScroll() {
-	const el = getScrollEl();
-	const y = Number(sessionStorage.getItem('sms_scroll') || 0);
-
-	requestAnimationFrame(() => {
-		el.scrollTop = y;
-	});
-}
-
-window.addEventListener('scroll', saveScroll, { passive: true });
-window.addEventListener('beforeunload', saveScroll);
-
-// =========================
-// MAIN LOAD
-// =========================
+bindScrollPersistence(SCROLL_KEY);
+enableAutoRestore(SCROLL_KEY);
 
 async function loadSMS() {
 	try {
@@ -108,17 +87,10 @@ async function loadSMS() {
 			});
 		});
 
-		// zebra striping
+		// Update row colors
 		const rows = tbody.querySelectorAll('tr');
 		rows.forEach((row, index) => {
 			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
-		});
-
-		// IMPORTANT: restore scroll AFTER DOM paint + table render
-		requestAnimationFrame(() => {
-			requestAnimationFrame(() => {
-				restoreScroll();
-			});
 		});
 
 	} catch (err) {
@@ -136,9 +108,7 @@ function updateURL(value) {
 	if (value) p.set('q', value);
 	else p.delete('q');
 
-	const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-	history.replaceState({}, '', newUrl);
+	history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
 }
 
 // =========================
@@ -154,7 +124,7 @@ function debounceReload() {
 }
 
 // =========================
-// INPUT INIT
+// INIT EVENT BINDING
 // =========================
 
 const input = document.getElementById('smsSentSearch');
@@ -169,9 +139,8 @@ if (input) {
 
 		updateURL(val);
 		debounceReload();
-		filterRows(val.toLowerCase());
 	});
 }
 
-// initial load
+// --- Initial load ---
 loadSMS();

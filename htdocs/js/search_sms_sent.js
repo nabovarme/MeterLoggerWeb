@@ -1,4 +1,3 @@
-// --- Global filtering function ---
 function filterRows(query) {
 	const input = document.getElementById('smsSentSearch');
 	if (!query) query = input.value.toLowerCase();
@@ -12,49 +11,44 @@ function filterRows(query) {
 		row.style.display = matchesSearch ? '' : 'none';
 	});
 
-	// Update row colors for visible rows
+	// Re-apply zebra striping ONLY on visible rows
 	const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+
 	visibleRows.forEach((row, index) => {
 		row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
 	});
 
-	// Optional: scroll to top after filtering
-	window.scrollTo(0, 0);
+	// ❌ REMOVED: window.scrollTo(0, 0);
+	// (this was breaking scroll restoration system)
 }
 
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('smsSentSearch');
-	const table = document.getElementById('sms_table');
-	let debounceTimeout;
+
 	let refreshTimeout;
 
-	// --- Refresh logic ---
+	// =========================
+	// AUTO REFRESH LOOP
+	// =========================
+
 	function scheduleRefresh() {
 		refreshTimeout = setTimeout(async () => {
 			const query = input.value.toLowerCase();
 
-			// Reload table data
 			if (typeof loadSMS === 'function') {
 				await loadSMS();
 			}
 
-			// Re-apply filter after reload
 			filterRows(query);
 
-			// Schedule next refresh
 			scheduleRefresh();
-		}, 60000); // refresh every 60 seconds
+		}, 60000); // 60 seconds
 	}
 
-	// --- Debounced input handler ---
-	input.addEventListener('input', () => {
-		clearTimeout(debounceTimeout);
-		debounceTimeout = setTimeout(() => {
-			filterRows();
-		}, 300);
-	});
+	// =========================
+	// KEYBOARD SHORTCUT
+	// =========================
 
-	// --- Ctrl+F / Alt+F shortcut to focus search ---
 	document.addEventListener('keydown', (e) => {
 		if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.altKey) && !e.metaKey) {
 			e.preventDefault();
@@ -62,7 +56,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
-	// --- Initial setup ---
+	// =========================
+	// INIT
+	// =========================
+
 	input.focus();
 	scheduleRefresh();
 });
