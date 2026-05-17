@@ -1,12 +1,12 @@
 let allMetersData = []; // global, preserved
 let currentLinkIndex = -1; // index for keyboard navigation
 
+const SCROLL_KEY = 'meters_scroll';
+
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('meterSearch');
 	const disabledCheckbox = document.getElementById('disabledMeters');
 	const container = document.getElementById('meterContainer');
-
-	const savedScrollTop = history.state?.scrollTop ?? 0;
 
 	// Helper: Check if meter is active
 	const isActiveMeter = meter => meter.enabled > 0;
@@ -40,14 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-
-		history.replaceState(
-			{
-				scrollTop: window.scrollY
-			},
-			'',
-			newUrl
-		);
+		history.replaceState(null, '', newUrl);
 	}
 
 	function loadStateFromURL() {
@@ -58,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
 			disabledOnly: params.get('disabled') === '1'
 		};
 	}
+
+	// =========================
+	// SCROLL (global manager)
+	// =========================
+	bindScrollPersistence(SCROLL_KEY);
+	enableAutoRestore(SCROLL_KEY);
 
 	// Fetch meters from API
 	async function fetchMeters() {
@@ -140,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter meters and re-render
-	function filterMeters(resetScroll = true) {
+	function filterMeters() {
 		const searchText = filterInput.value.toLowerCase();
 		const disabledOnly = disabledCheckbox.checked;
 
@@ -167,11 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}).filter(group => group.meters.length > 0);
 
 		renderMeters(filteredData);
-
-		// restore scroll unless explicitly resetting
-		if (resetScroll) {
-			window.scrollTo(0, 0);
-		}
+		container.scrollTop = 0;
 
 		// Reset keyboard navigation efter filter
 		currentLinkIndex = -1;
@@ -224,11 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterInput.value = urlState.search;
 		disabledCheckbox.checked = urlState.disabledOnly;
 
-		filterMeters(false);
-
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScrollTop));
-		});
+		filterMeters();
 
 		filterInput.addEventListener('input', debounce(filterMeters));
 		disabledCheckbox.addEventListener('change', filterMeters);

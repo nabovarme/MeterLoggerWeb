@@ -1,4 +1,14 @@
+let isInitialLoad = true;
+
+const SCROLL_KEY = 'wifi_scroll';
+
 let wifiDebounceTimeout = null;
+
+// =========================
+// SCROLL (global manager)
+// =========================
+bindScrollPersistence(SCROLL_KEY);
+enableAutoRestore(SCROLL_KEY);
 
 async function loadWifi() {
 	try {
@@ -44,35 +54,10 @@ async function loadWifi() {
 			tbody.appendChild(tr);
 		}
 
-		// =========================
-		// SCROLL RESTORE
-		// =========================
-		const savedScroll = history.state?.scrollY ?? 0;
-
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
-		});
-
 	} catch (err) {
 		console.error('Failed to load wifi:', err);
 	}
 }
-
-// =========================
-// SCROLL PERSISTENCE
-// =========================
-
-window.addEventListener('scroll', () => {
-	const p = new URLSearchParams(window.location.search);
-
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
-});
 
 // =========================
 // DEBOUNCED RELOAD
@@ -106,15 +91,7 @@ if (wifiInput) {
 		if (val) p.set('q', val);
 		else p.delete('q');
 
-		const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-		history.replaceState(
-			{
-				scrollY: window.scrollY
-			},
-			'',
-			newUrl
-		);
+		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
 
 		// debounce reload
 		reloadWifiDebounced();

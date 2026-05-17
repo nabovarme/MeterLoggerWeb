@@ -1,141 +1,113 @@
 let paymentDebounceTimeout = null;
 
-async function loadPayments() {
-	try {
-		const resp = await fetch('/api/payments_pending');
-		if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
-		const data = await resp.json();
+const SCROLL_KEY = 'payments_pending_scroll';
 
-		// Extract meters and the close_warning_threshold_hours
-		const meters = data.meters || [];
-		const warningThreshold = data.close_warning_threshold_hours || 3 * 24; // fallback 3 days
+document.addEventListener('DOMContentLoaded', () => {
+	const input = document.getElementById('paymentsPendingSearch');
 
-		const tbody = document.querySelector('#payments_table tbody');
-		tbody.innerHTML = ''; // clear existing rows
+	// =========================
+	// SCROLL (global manager)
+	// =========================
+	bindScrollPersistence(SCROLL_KEY);
+	enableAutoRestore(SCROLL_KEY);
 
-		// =========================
-		// URL STATE (READ)
-		// =========================
-		const params = new URLSearchParams(window.location.search);
-		const search = (params.get('q') || '').toLowerCase();
+	// =========================
+	// LOAD DATA
+	// =========================
+	async function loadPayments() {
+		try {
+			const resp = await fetch('/api/payments_pending');
+			if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+			const data = await resp.json();
 
-		for (const row of meters) {
+			// Extract meters and the close_warning_threshold_hours
+			const meters = data.meters || [];
+			const warningThreshold = data.close_warning_threshold_hours || 3 * 24; // fallback 3 days
 
-			if (search) {
-				const text = `${row.serial || ''} ${row.info || ''}`.toLowerCase();
-				if (!text.includes(search)) continue;
-			}
+			const tbody = document.querySelector('#payments_table tbody');
+			tbody.innerHTML = ''; // clear existing rows
 
-			const tr = document.createElement('tr');
-			tr.align = 'left';
-			tr.valign = 'top';
+			// =========================
+			// URL STATE (READ)
+			// =========================
+			const params = new URLSearchParams(window.location.search);
+			const search = (params.get('q') || '').toLowerCase();
 
-			// --- Assign classes based on time_remaining_hours ---
-			if (row.time_remaining_hours !== null && row.time_remaining_hours !== undefined) {
-				if (row.time_remaining_hours <= 0) {
-					tr.classList.add('time-zero'); // red
-				} else if (row.time_remaining_hours <= warningThreshold) {
-					tr.classList.add('time-low'); // yellow
+			for (const row of meters) {
+
+				if (search) {
+					const text = `${row.serial || ''} ${row.info || ''}`.toLowerCase();
+					if (!text.includes(search)) continue;
 				}
+
+				const tr = document.createElement('tr');
+				tr.align = 'left';
+				tr.valign = 'top';
+
+				// --- Assign classes based on time_remaining_hours ---
+				if (row.time_remaining_hours !== null && row.time_remaining_hours !== undefined) {
+					if (row.time_remaining_hours <= 0) {
+						tr.classList.add('time-zero'); // red
+					} else if (row.time_remaining_hours <= warningThreshold) {
+						tr.classList.add('time-low'); // yellow
+					}
+				}
+
+				tr.innerHTML = `
+					<td align="left">
+						<a href="detail_acc.epl?serial=${encodeURIComponent(row.serial || '')}">
+							<span class="default">${row.serial}</span>
+						</a>
+					</td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${row.info}</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${row.open_until.toFixed(2)}</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${row.time}</span></td>
+				`;
+
+				tbody.appendChild(tr);
 			}
 
-			tr.innerHTML = `
-				<td align="left">
-					<a href="detail_acc.epl?serial=${encodeURIComponent(row.serial || '')}">
-						<span class="default">${row.serial}</span>
-					</a>
-				</td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.info}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.open_until.toFixed(2)}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.time}</span></td>
-			`;
-
-			tbody.appendChild(tr);
+		} catch (err) {
+			console.error('Failed to load payments:', err);
 		}
-
-		// =========================
-		// SCROLL RESTORE (AFTER FULL RENDER)
-		// =========================
-		const savedScroll = history.state?.scrollY ?? sessionStorage.getItem('paymentsScrollY') ?? 0;
-
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
-		});
-
-	} catch (err) {
-		console.error('Failed to load payments:', err);
 	}
-}
 
-// =========================
-// SCROLL PERSISTENCE
-// =========================
+	// =========================
+	// INLINE DEBOUNCE (NO HELPER FILE)
+	// =========================
+	function debounce(fn, delay = 300) {
+		let timeoutId;
 
-window.addEventListener('scroll', () => {
-	const p = new URLSearchParams(window.location.search);
+		return (...args) => {
+			clearTimeout(timeoutId);
+			timeoutId = setTimeout(() => fn(...args), delay);
+		};
+	}
 
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
+	const reloadPaymentsDebounced = debounce(loadPayments, 300);
+
+	// =========================
+	// SEARCH INPUT
+	// =========================
+	if (input) {
+
+		// restore from URL
+		input.value = getQueryParam('q');
+
+		input.addEventListener('input', () => {
+			const val = input.value;
+
+			setQueryParam('q', val);
+
+			reloadPaymentsDebounced();
+		});
+	}
+
+	// =========================
+	// INIT
+	// =========================
+	loadPayments();
 });
-
-window.addEventListener('beforeunload', () => {
-	sessionStorage.setItem('paymentsScrollY', window.scrollY);
-});
-
-// =========================
-// DEBOUNCE WRAPPER
-// =========================
-
-function reloadPaymentsDebounced() {
-	clearTimeout(paymentDebounceTimeout);
-
-	paymentDebounceTimeout = setTimeout(() => {
-		loadPayments();
-	}, 300);
-}
-
-// =========================
-// EVENT BINDING (DIRECT)
-// =========================
-
-const input = document.getElementById('paymentsPendingSearch');
-
-if (input) {
-	// restore from URL
-	const params = new URLSearchParams(window.location.search);
-	input.value = params.get('q') || '';
-
-	input.addEventListener('input', () => {
-		const val = input.value;
-
-		// update URL
-		const p = new URLSearchParams(window.location.search);
-
-		if (val) p.set('q', val);
-		else p.delete('q');
-
-		const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-		history.replaceState(
-			{
-				scrollY: window.scrollY
-			},
-			'',
-			newUrl
-		);
-
-		// debounce reload
-		reloadPaymentsDebounced();
-	});
-}
-
-// Initial load
-loadPayments();

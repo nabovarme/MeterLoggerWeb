@@ -72,11 +72,10 @@ sub handler {
 				message,
 				FROM_UNIXTIME(unix_time, '%e.%c.%Y %H:%i') AS `time`
 			FROM sms_messages
-			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 1 YEAR)
+			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
 			  AND unix_time < UNIX_TIMESTAMP()
 			  AND ( ] . join(' OR ', @like_clauses) . q[ )
 			ORDER BY unix_time DESC
-			LIMIT 1000
 		];
 
 		$sth = $dbh->prepare($sql);

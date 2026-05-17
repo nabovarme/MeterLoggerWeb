@@ -1,5 +1,13 @@
 let smsDebounceTimeout = null;
 
+const SCROLL_KEY = 'sms_sent_scroll';
+
+// =========================
+// SCROLL (global manager)
+// =========================
+bindScrollPersistence(SCROLL_KEY);
+enableAutoRestore(SCROLL_KEY);
+
 async function loadSMS() {
 	try {
 		const resp = await fetch('/api/sms_sent');
@@ -17,83 +25,92 @@ async function loadSMS() {
 		const params = new URLSearchParams(window.location.search);
 		const search = (params.get('q') || '').toLowerCase();
 
-		for (const row of data) {
+		// =========================
+		// CHUNKED RENDERING (NEW)
+		// =========================
+		const BATCH_SIZE = 50;
+		let index = 0;
 
-			// optional filter (phone + message + direction)
-			if (search) {
-				const text = `${row.phone || ''} ${row.message || ''} ${row.direction || ''}`.toLowerCase();
-				if (!text.includes(search)) continue;
+		function renderBatch() {
+			const end = Math.min(index + BATCH_SIZE, data.length);
+
+			for (; index < end; index++) {
+				const row = data[index];
+
+				// optional filter (phone + message + direction)
+				if (search) {
+					const text = `${row.phone || ''} ${row.message || ''} ${row.direction || ''}`.toLowerCase();
+					if (!text.includes(search)) continue;
+				}
+
+				const tr = document.createElement('tr');
+				tr.align = 'left';
+				tr.valign = 'top';
+
+				// --- Phone link ---
+				const phoneLink = `
+					<a 
+						href="#" 
+						class="phone-link" 
+						data-phone="${row.phone}"
+					>
+						${row.phone}
+					</a>
+				`;
+
+				// --- Convert all "(number)" patterns in message to clickable links ---
+				let messageHTML = row.message;
+
+				messageHTML = messageHTML.replace(/\((\d+)\)/g, (_, serial) => {
+					return `(<a href="/detail_acc.epl?serial=${serial}">${serial}</a>)`;
+				});
+
+				tr.innerHTML = `
+					<td align="left">${phoneLink}</td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${messageHTML}</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${row.direction}</span></td>
+					<td>&nbsp;</td>
+					<td align="left"><span class="default">${row.time}</span></td>
+				`;
+
+				tbody.appendChild(tr);
 			}
 
-			const tr = document.createElement('tr');
-			tr.align = 'left';
-			tr.valign = 'top';
-
-			// --- Phone link ---
-			const phoneLink = `
-				<a 
-					href="#" 
-					class="phone-link" 
-					data-phone="${row.phone}"
-				>
-					${row.phone}
-				</a>
-			`;
-
-			// --- Convert all "(number)" patterns in message to clickable links ---
-			let messageHTML = row.message;
-
-			// Replace every "(digits)" with "(<a href=...>digits</a>)"
-			messageHTML = messageHTML.replace(/\((\d+)\)/g, (_, serial) => {
-				return `(<a href="/detail_acc.epl?serial=${serial}">${serial}</a>)`;
-			});
-
-			tr.innerHTML = `
-				<td align="left">${phoneLink}</td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${messageHTML}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.direction}</span></td>
-				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.time}</span></td>
-			`;
-
-			tbody.appendChild(tr);
+			if (index < data.length) {
+				requestAnimationFrame(renderBatch);
+			} else {
+				finalizeTable();
+			}
 		}
 
-		// Add click handlers for phone links
-		document.querySelectorAll('.phone-link').forEach(link => {
-			link.addEventListener('click', function (e) {
-				e.preventDefault();
+		renderBatch();
 
-				const last8 = this.dataset.phone.slice(-8);
-				const input = document.getElementById('smsSentSearch');
+		function finalizeTable() {
+			// Add click handlers for phone links (delegated improvement removed per request scope)
+			document.querySelectorAll('.phone-link').forEach(link => {
+				link.addEventListener('click', function (e) {
+					e.preventDefault();
 
-				if (input) {
-					input.value = last8;
-					updateURL(last8);
-					debounceReload();
-					filterRows(last8.toLowerCase());
-					input.focus();
-				}
+					const last8 = this.dataset.phone.slice(-8);
+					const input = document.getElementById('smsSentSearch');
+
+					if (input) {
+						input.value = last8;
+						updateURL(last8);
+						debounceReload();
+						input.focus();
+					}
+				});
 			});
-		});
 
-		// Update row colors
-		const rows = tbody.querySelectorAll('tr');
-		rows.forEach((row, index) => {
-			row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
-		});
-
-		// =========================
-		// SCROLL RESTORE
-		// =========================
-		const savedScroll =
-			history.state?.scrollY ?? 0;
-
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScroll));
-		});
+			// Update row colors
+			const rows = tbody.querySelectorAll('tr');
+			rows.forEach((row, index) => {
+				row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
+			});
+		}
 
 	} catch (err) {
 		console.error('Failed to load SMS list:', err);
@@ -110,32 +127,8 @@ function updateURL(value) {
 	if (value) p.set('q', value);
 	else p.delete('q');
 
-	const newUrl = `${window.location.pathname}?${p.toString()}`;
-
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		newUrl
-	);
+	history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
 }
-
-// =========================
-// SCROLL PERSISTENCE
-// =========================
-
-window.addEventListener('scroll', () => {
-	const p = new URLSearchParams(window.location.search);
-
-	history.replaceState(
-		{
-			scrollY: window.scrollY
-		},
-		'',
-		`${window.location.pathname}?${p.toString()}`
-	);
-});
 
 // =========================
 // DEBOUNCE RELOAD
@@ -165,7 +158,6 @@ if (input) {
 
 		updateURL(val);
 		debounceReload();
-		filterRows(val.toLowerCase());
 	});
 }
 

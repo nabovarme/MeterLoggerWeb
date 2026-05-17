@@ -1,68 +1,74 @@
-// --- Global filtering function ---
 function filterRows(query) {
 	const input = document.getElementById('smsSentSearch');
-	if (!query) query = input.value.toLowerCase();
+	if (query === undefined || query === null) {
+		query = input ? input.value.toLowerCase() : '';
+	}
 
 	const table = document.getElementById('sms_table');
+	if (!table) return;
+	
 	const rows = table.querySelectorAll('tbody tr');
+	let visibleIndex = 0;
 
+	// Single pass optimization: filter AND zebra-stripe in one step
 	rows.forEach(row => {
-		const text = row.innerText.toLowerCase();
+		// 🚀 OPTIMIZATION: textContent is up to 100x faster than innerText because it ignores CSS layouts
+		const text = row.textContent.toLowerCase();
 		const matchesSearch = text.includes(query);
-		row.style.display = matchesSearch ? '' : 'none';
+		
+		if (matchesSearch) {
+			row.style.display = '';
+			// Apply zebra striping on the fly using our visible tracker
+			row.style.background = (visibleIndex % 2 === 0) ? '#FFF' : '#EEE';
+			visibleIndex++;
+		} else {
+			row.style.display = 'none';
+		}
 	});
-
-	// Update row colors for visible rows
-	const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-	visibleRows.forEach((row, index) => {
-		row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
-	});
-
-	// Optional: scroll to top after filtering
-	window.scrollTo(0, 0);
 }
 
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('smsSentSearch');
-	const table = document.getElementById('sms_table');
-	let debounceTimeout;
+
 	let refreshTimeout;
 
-	// --- Refresh logic ---
+	// =========================
+	// AUTO REFRESH LOOP
+	// =========================
+
 	function scheduleRefresh() {
 		refreshTimeout = setTimeout(async () => {
-			const query = input.value.toLowerCase();
+			const query = input ? input.value.toLowerCase() : '';
 
-			// Reload table data
 			if (typeof loadSMS === 'function') {
 				await loadSMS();
 			}
 
-			// Re-apply filter after reload
 			filterRows(query);
-
-			// Schedule next refresh
 			scheduleRefresh();
-		}, 60000); // refresh every 60 seconds
+		}, 60000); // 60 seconds
 	}
 
-	// --- Debounced input handler ---
-	input.addEventListener('input', () => {
-		clearTimeout(debounceTimeout);
-		debounceTimeout = setTimeout(() => {
-			filterRows();
-		}, 300);
-	});
+	// =========================
+	// KEYBOARD SHORTCUT
+	// =========================
 
-	// --- Ctrl+F / Alt+F shortcut to focus search ---
 	document.addEventListener('keydown', (e) => {
 		if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.altKey) && !e.metaKey) {
-			e.preventDefault();
-			input.focus();
+			if (input) {
+				e.preventDefault();
+				input.focus();
+			}
 		}
 	});
 
-	// --- Initial setup ---
-	input.focus();
+	// =========================
+	// INIT
+	// =========================
+
+	if (input) {
+		input.focus();
+	}
 	scheduleRefresh();
 });
+

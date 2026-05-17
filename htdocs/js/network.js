@@ -1,5 +1,14 @@
 let originalTreeData = [];
 
+// =========================
+// BODY SCROLL HANDLING
+// =========================
+
+//const SCROLL_KEY = 'network_tree_scroll';
+
+//bindScrollPersistence(SCROLL_KEY);
+//enableAutoRestore(SCROLL_KEY);
+
 function isOffline(meter) {
 	if (!meter || !meter.last_updated) return false;
 	const updatedTime = new Date(meter.last_updated * 1000);
