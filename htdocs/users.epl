@@ -1,6 +1,5 @@
-﻿[-
+﻿[- 
 	use Nabovarme::Db;
-	
 -]
 <HTML>
 	<HEAD>
@@ -13,9 +12,40 @@
 	<script src="/js/menu.js.epl" defer></script>	
 
 	<link rel="stylesheet" href="/css/users.css" />
-	</HEAD>
-	<BODY>
+</HEAD>
+
+<BODY>
+
+	<!-- =========================
+	CORE SCRIPTS
+	========================= -->
+	<script src="/js/scroll_manager.js" defer></script>
+	<script src="/js/url_state.js" defer></script>
+
 	<script src="/js/search_users.js" defer></script>
+
+	<!-- =========================
+	SCROLL INIT
+	========================= -->
+	<script>
+	document.addEventListener('DOMContentLoaded', () => {
+
+		const SCROLL_KEY = 'users_scroll';
+
+		// =========================
+		// STATE
+		// =========================
+		let skipScrollRestore = false;
+		let isSearchAction = false;
+
+		// =========================
+		// CORE SCROLL BINDING
+		// =========================
+		bindScrollPersistence(SCROLL_KEY);
+		enableAutoRestore(SCROLL_KEY;
+
+	});
+	</script>
 
 	<!-- Floating Search UI -->
 	<div id="usersSearchContainer">
@@ -26,20 +56,23 @@
 			style="font-size: 1.2em; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box;"
 		/>
 	</div>
-	[- 
+
+	[-
 	# get all meters
 		if ($dbh = Nabovarme::Db->my_connect) {
 			$sth = $dbh->prepare(qq[
-				SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent, FROM_UNIXTIME(`unix_time`, '%e.%c.%Y %H:%i') AS t
+				SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent,
+				       FROM_UNIXTIME(`unix_time`, '%e.%c.%Y %H:%i') AS t
 				FROM sms_auth
 				WHERE `unix_time` >= UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR))
-				ORDER BY `unix_time` DESC]);
-			$sth->execute;			
+				ORDER BY `unix_time` DESC
+			]);
+			$sth->execute;
 		}
-
 	-]
-    <!-- <span class="default-bold">Meters</span> -->
+
 	<table border="0" align="left" cellpadding="4" cellspacing="0" class="top">
+
 	<tr class="col-header" align="left" valign="top">
 		<td align="left"><span class="default-bold">Date</span></td>
 		<td>&nbsp;</td>
@@ -55,49 +88,98 @@
 		<td>&nbsp;</td>
 		<td align="left"><span class="default-bold">User agent</span></td>
 	</tr>
+
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
-[- 
+
+[-
 	# get details about every meter
 	$name_info = '';
 	if ($d->{phone}) {
+
 		$quoted_phone = $dbh->quote(q[%] . $d->{phone} . q[%]);
-		$sth2 = $dbh->prepare(qq[SELECT `name` FROM users WHERE `phone` LIKE $quoted_phone LIMIT 1]);
+
+		$sth2 = $dbh->prepare(qq[
+			SELECT `name`
+			FROM users
+			WHERE `phone` LIKE $quoted_phone
+			LIMIT 1
+		]);
 		$sth2->execute;
+
 		if ($sth2->rows) {
 			$d2 = $sth2->fetchrow_hashref;
 			$name_info = $d2->{name};
 		}
+
 		if (length($name_info) == 0) {
-			$sth3 = $dbh->prepare(qq[SELECT * FROM meters WHERE `sms_notification` LIKE $quoted_phone LIMIT 1]);
+			$sth3 = $dbh->prepare(qq[
+				SELECT *
+				FROM meters
+				WHERE `sms_notification` LIKE $quoted_phone
+				LIMIT 1
+			]);
 			$sth3->execute;
+
 			if ($sth3->rows) {
 				$d3 = $sth3->fetchrow_hashref;
 				$name_info = $d3->{info};
 			}
 		}
 	}
-
 -]
+
 	<tr class="row" align="left" valign="top">
-		<td align="left"><span class="default nowrap">[+ $d->{t} +]</span></td>
+
+		<td align="left">
+			<span class="default nowrap">[+ $d->{t} +]</span>
+		</td>
+
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[- $d->{phone} =~ s/^(\d{2})\d+(?=\d{2})/$1 . ('*' x (length($&) - 2))/e; $d->{phone} -][+ $d->{phone} +]
-</span></td>
-		<td align="left"><span class="default">&nbsp;</span></td>
-		<td align="left"><span class="default">[+ $name_info +]</span></td>
+
+		<td align="left">
+			<span class="default">
+				[- $d->{phone} =~ s/^(\d{2})\d+(?=\d{2})/$1 . ('*' x (length($&) - 2))/e; $d->{phone} -]
+				[+ $d->{phone} +]
+			</span>
+		</td>
+
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{auth_state} +]</span></td>
+
+		<td align="left">
+			<span class="default">[+ $name_info +]</span>
+		</td>
+
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{remote_host} +]</span></td>
+
+		<td align="left">
+			<span class="default">[+ $d->{auth_state} +]</span>
+		</td>
+
 		<td>&nbsp;</td>
-		<td align="left"><span class="default">[+ $d->{orig_uri} +]</span></td>
+
+		<td align="left">
+			<span class="default">[+ $d->{remote_host} +]</span>
+		</td>
+
 		<td>&nbsp;</td>
-		<td align="left"><span class="default-small">[+ $d->{user_agent} +]</span></td>
+
+		<td align="left">
+			<span class="default">[+ $d->{orig_uri} +]</span>
+		</td>
+
+		<td>&nbsp;</td>
+
+		<td align="left">
+			<span class="default-small">[+ $d->{user_agent} +]</span>
+		</td>
+
 	</tr>
 
 [$ endwhile $]
 [$ endif $]
+
 	</table>
-	</BODY>
+
+</BODY>
 </HTML>

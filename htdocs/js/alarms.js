@@ -1,12 +1,12 @@
 let allAlarmsData = []; // global, preserved
 let currentLinkIndex = -1; // index for keyboard navigation
 
+const SCROLL_KEY = 'alarms_scroll';
+
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmSearch');
 	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
-
-	const savedScrollTop = history.state?.scrollTop ?? 0;
 
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
@@ -58,14 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-
-		history.replaceState(
-			{
-				scrollTop: window.scrollY
-			},
-			'',
-			newUrl
-		);
+		history.replaceState(null, '', newUrl);
 	}
 
 	function loadStateFromURL() {
@@ -76,6 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
 			activeOnly: params.get('active') === '1'
 		};
 	}
+
+	// =========================
+	// SCROLL (global manager)
+	// =========================
+	bindScrollPersistence(SCROLL_KEY);
+	enableAutoRestore(SCROLL_KEY);
 
 	// Fetch alarms from API
 	async function fetchAlarms() {
@@ -189,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter alarms and re-render
-	function filterAlarms(resetScroll = true) {
+	function filterAlarms() {
 		const searchText = filterInput.value.toLowerCase();
 		const activeOnly = activeCheckbox.checked;
 
@@ -215,9 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		renderAlarms(filteredData);
 
 		// Scroll container to top after rendering filtered alarms
-		if (resetScroll) {
-			window.scrollTo(0, 0);
-		}
+		container.scrollTop = 0;
 
 		// Reset keyboard navigation
 		currentLinkIndex = -1;
@@ -271,11 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		activeCheckbox.checked = urlState.activeOnly;
 
 		// Apply initial filter (important so URL state is respected)
-		filterAlarms(false);
-
-		requestAnimationFrame(() => {
-			window.scrollTo(0, Number(savedScrollTop));
-		});
+		filterAlarms();
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
