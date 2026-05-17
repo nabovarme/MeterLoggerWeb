@@ -94,18 +94,36 @@ function bindScrollPersistence(key) {
 }
 
 // =========================
-// AUTO RESTORE (FIXED)
+// AUTO RESTORE
 // =========================
 
 function enableAutoRestore(key) {
+
+	// navigation from menu -> always start at top
+	if (sessionStorage.getItem('force_scroll_top') === '1') {
+
+		sessionStorage.removeItem('force_scroll_top');
+
+		requestAnimationFrame(() => {
+			resetScrollTop(key);
+		});
+
+		return;
+	}
+
 	window.addEventListener('pageshow', (event) => {
+
 		if (event.persisted) {
 			restoreScroll(key);
+
 		} else {
-			// 🔥 IMPORTANT: normal reload case (Safari/Brave/Chrome)
+
+			// normal reload case
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
+
 					waitForLayoutStable(() => {
+
 						setTimeout(() => {
 							restoreScroll(key);
 						}, 50);
