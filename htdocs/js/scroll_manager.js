@@ -1,5 +1,5 @@
 // =========================
-// ROBUST SCROLL MANAGER (AUTO LAYOUT SAFE)
+// ROBUST SCROLL MANAGER (AUTO LAYOUT SAFE + ANIMATED RESTORE)
 // =========================
 
 function getScrollEl() {
@@ -53,20 +53,52 @@ function waitForLayoutStable(callback) {
 }
 
 // =========================
-// RESTORE (AUTO SAFE)
+// ANIMATED SCROLL
+// =========================
+
+function animateScrollTo(targetY, duration = 90) {
+	const el = getScrollEl();
+
+	const startY = el.scrollTop || 0;
+	const diff = targetY - startY;
+	const startTime = performance.now();
+
+	function easeOut(t) {
+		return 1 - Math.pow(1 - t, 4);
+	}
+
+	function step(now) {
+		const elapsed = now - startTime;
+		const progress = Math.min(elapsed / duration, 1);
+
+		const value = startY + diff * easeOut(progress);
+
+		el.scrollTop = value;
+		document.documentElement.scrollTop = value;
+		document.body.scrollTop = value;
+
+		if (progress < 1) {
+			requestAnimationFrame(step);
+		}
+	}
+
+	requestAnimationFrame(step);
+}
+
+// =========================
+// RESTORE (AUTO SAFE + ANIMATED)
 // =========================
 
 function restoreScroll(key) {
 	const y = Number(sessionStorage.getItem(key) || 0);
+
 	const el = getScrollEl();
 
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
 			waitForLayoutStable(() => {
 				setTimeout(() => {
-					el.scrollTop = y;
-					document.documentElement.scrollTop = y;
-					document.body.scrollTop = y;
+					animateScrollTo(y, 500);
 				}, 30);
 			});
 		});
@@ -98,10 +130,8 @@ function bindScrollPersistence(key) {
 // =========================
 
 function enableAutoRestore(key) {
-
-	// navigation from menu -> always start at top
+	// optional: prevent restoring scroll when explicitly forced to top
 	if (sessionStorage.getItem('force_scroll_top') === '1') {
-
 		sessionStorage.removeItem('force_scroll_top');
 
 		requestAnimationFrame(() => {
@@ -111,19 +141,16 @@ function enableAutoRestore(key) {
 		return;
 	}
 
-	window.addEventListener('pageshow', (event) => {
+	// hide content initially to prevent flicker
+	document.body.classList.add('scroll-hidden');
 
+	window.addEventListener('pageshow', (event) => {
 		if (event.persisted) {
 			restoreScroll(key);
-
 		} else {
-
-			// normal reload case
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
-
 					waitForLayoutStable(() => {
-
 						setTimeout(() => {
 							restoreScroll(key);
 						}, 50);
@@ -132,4 +159,15 @@ function enableAutoRestore(key) {
 			});
 		}
 	});
+
+	// reveal after scroll is naturally restored/animated
+	const observer = new MutationObserver(() => {
+		// safety fallback: reveal if something goes wrong
+		document.body.classList.remove('scroll-hidden');
+		document.body.classList.add('scroll-ready');
+	});
+
+	setTimeout(() => {
+		observer.disconnect();
+	}, 3000);
 }
