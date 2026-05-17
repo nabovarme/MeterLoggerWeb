@@ -1,25 +1,30 @@
 function filterRows(query) {
 	const input = document.getElementById('smsSentSearch');
-	if (!query) query = input.value.toLowerCase();
+	if (query === undefined || query === null) {
+		query = input ? input.value.toLowerCase() : '';
+	}
 
 	const table = document.getElementById('sms_table');
+	if (!table) return;
+	
 	const rows = table.querySelectorAll('tbody tr');
+	let visibleIndex = 0;
 
+	// Single pass optimization: filter AND zebra-stripe in one step
 	rows.forEach(row => {
-		const text = row.innerText.toLowerCase();
+		// 🚀 OPTIMIZATION: textContent is up to 100x faster than innerText because it ignores CSS layouts
+		const text = row.textContent.toLowerCase();
 		const matchesSearch = text.includes(query);
-		row.style.display = matchesSearch ? '' : 'none';
+		
+		if (matchesSearch) {
+			row.style.display = '';
+			// Apply zebra striping on the fly using our visible tracker
+			row.style.background = (visibleIndex % 2 === 0) ? '#FFF' : '#EEE';
+			visibleIndex++;
+		} else {
+			row.style.display = 'none';
+		}
 	});
-
-	// Re-apply zebra striping ONLY on visible rows
-	const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
-
-	visibleRows.forEach((row, index) => {
-		row.style.background = (index % 2 === 0) ? '#FFF' : '#EEE';
-	});
-
-	// ❌ REMOVED: window.scrollTo(0, 0);
-	// (this was breaking scroll restoration system)
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -33,14 +38,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	function scheduleRefresh() {
 		refreshTimeout = setTimeout(async () => {
-			const query = input.value.toLowerCase();
+			const query = input ? input.value.toLowerCase() : '';
 
 			if (typeof loadSMS === 'function') {
 				await loadSMS();
 			}
 
 			filterRows(query);
-
 			scheduleRefresh();
 		}, 60000); // 60 seconds
 	}
@@ -51,8 +55,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	document.addEventListener('keydown', (e) => {
 		if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.altKey) && !e.metaKey) {
-			e.preventDefault();
-			input.focus();
+			if (input) {
+				e.preventDefault();
+				input.focus();
+			}
 		}
 	});
 
@@ -60,6 +66,9 @@ document.addEventListener('DOMContentLoaded', function () {
 	// INIT
 	// =========================
 
-	input.focus();
+	if (input) {
+		input.focus();
+	}
 	scheduleRefresh();
 });
+
