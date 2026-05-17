@@ -120,9 +120,9 @@ function bindScrollPersistence(key) {
 		saveScroll(key);
 	}, { passive: true });
 
-	window.addEventListener('pagehide', () => {
-		saveScroll(key);
-	});
+//	window.addEventListener('pagehide', () => {
+//		saveScroll(key);
+//	});
 }
 
 // =========================
