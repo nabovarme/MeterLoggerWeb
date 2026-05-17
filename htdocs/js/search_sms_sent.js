@@ -30,12 +30,28 @@ function filterRows(query) {
 document.addEventListener('DOMContentLoaded', function () {
 	const input = document.getElementById('smsSentSearch');
 
+	// Map input event directly to filter and state updates
+	if (input) {
+		input.focus();
+		
+		input.addEventListener('input', () => {
+			const val = input.value.toLowerCase();
+			
+			// 1. Instantly filter whatever is currently on screen
+			filterRows(val);
+			
+			// 2. Keep the URL query parameters sync'd up
+			if (typeof updateURL === 'function') {
+				updateURL(val);
+			}
+		});
+	}
+
 	let refreshTimeout;
 
 	// =========================
 	// AUTO REFRESH LOOP
 	// =========================
-
 	function scheduleRefresh() {
 		refreshTimeout = setTimeout(async () => {
 			const query = input ? input.value.toLowerCase() : '';
@@ -44,7 +60,9 @@ document.addEventListener('DOMContentLoaded', function () {
 				await loadSMS();
 			}
 
-			filterRows(query);
+			// loadSMS now internally handles calling filterRows(query) 
+			// upon completion, ensuring synchronization.
+
 			scheduleRefresh();
 		}, 60000); // 60 seconds
 	}
@@ -52,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function () {
 	// =========================
 	// KEYBOARD SHORTCUT
 	// =========================
-
 	document.addEventListener('keydown', (e) => {
 		if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.altKey) && !e.metaKey) {
 			if (input) {
@@ -62,13 +79,6 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
-	// =========================
-	// INIT
-	// =========================
-
-	if (input) {
-		input.focus();
-	}
 	scheduleRefresh();
 });
 
