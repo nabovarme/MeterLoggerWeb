@@ -1,15 +1,12 @@
 let allAlarmsData = []; // global, preserved
 let currentLinkIndex = -1; // index for keyboard navigation
 
+const SCROLL_KEY = 'alarms_scroll';
+
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('alarmSearch');
 	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
-
-	// IMPORTANT: body is the real scroll container in this layout
-	const scrollEl = document.body;
-
-	let isInitialLoad = true;
 
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
@@ -61,8 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-
-		history.replaceState({}, '', newUrl);
+		history.replaceState(null, '', newUrl);
 	}
 
 	function loadStateFromURL() {
@@ -75,23 +71,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// =========================
-	// SCROLLING (BODY MODE)
+	// SCROLL (global manager)
 	// =========================
-
-	function saveScroll() {
-		sessionStorage.setItem('alarms_scroll', scrollEl.scrollTop);
-	}
-
-	function restoreScroll() {
-		const y = Number(sessionStorage.getItem('alarms_scroll') || 0);
-
-		requestAnimationFrame(() => {
-			scrollEl.scrollTop = y;
-		});
-	}
-
-	scrollEl.addEventListener('scroll', saveScroll, { passive: true });
-	window.addEventListener('beforeunload', saveScroll);
+	bindScrollPersistence(SCROLL_KEY);
+	enableAutoRestore(SCROLL_KEY);
 
 	// Fetch alarms from API
 	async function fetchAlarms() {
@@ -180,6 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
 						windowText = `${from} →`;
 					} else if (to) {
 						windowText = `→ ${to}`;
+					} else {
+						windowText = '';
 					}
 
 					rowDiv.innerHTML = `
@@ -203,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter alarms and re-render
-	function filterAlarms(resetScroll = true) {
+	function filterAlarms() {
 		const searchText = filterInput.value.toLowerCase();
 		const activeOnly = activeCheckbox.checked;
 
@@ -228,17 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 		renderAlarms(filteredData);
 
-		if (!isInitialLoad) {
-			sessionStorage.removeItem('alarms_scroll');
-			scrollEl.scrollTop = 0;
-		}
-
-		requestAnimationFrame(() => {
-			if (isInitialLoad) {
-				restoreScroll();
-				isInitialLoad = false;
-			}
-		});
+		// Scroll container to top after rendering filtered alarms
+		container.scrollTop = 0;
 
 		// Reset keyboard navigation
 		currentLinkIndex = -1;
@@ -292,10 +268,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		activeCheckbox.checked = urlState.activeOnly;
 
 		// Apply initial filter (important so URL state is respected)
-		filterAlarms(false);
+		filterAlarms();
 
-		filterInput.addEventListener('input', debounce(() => filterAlarms(false)));
-		activeCheckbox.addEventListener('change', () => filterAlarms(false));
+		filterInput.addEventListener('input', debounce(filterAlarms));
+		activeCheckbox.addEventListener('change', filterAlarms);
 
 		// Focus search input on page load
 		filterInput.focus();

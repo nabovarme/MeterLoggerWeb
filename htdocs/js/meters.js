@@ -1,15 +1,12 @@
 let allMetersData = []; // global, preserved
 let currentLinkIndex = -1; // index for keyboard navigation
 
+const SCROLL_KEY = 'meters_scroll';
+
 document.addEventListener('DOMContentLoaded', () => {
 	const filterInput = document.getElementById('meterSearch');
 	const disabledCheckbox = document.getElementById('disabledMeters');
 	const container = document.getElementById('meterContainer');
-
-	// IMPORTANT: body is the real scroll container in your layout
-	const scrollEl = document.body;
-
-	let isInitialLoad = true;
 
 	// Helper: Check if meter is active
 	const isActiveMeter = meter => meter.enabled > 0;
@@ -43,12 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 
 		const newUrl = `${window.location.pathname}?${params.toString()}`;
-
-		history.replaceState(
-			{},
-			'',
-			newUrl
-		);
+		history.replaceState(null, '', newUrl);
 	}
 
 	function loadStateFromURL() {
@@ -61,25 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// =========================
-	// SCROLLING
+	// SCROLL (global manager)
 	// =========================
-
-	function saveScroll() {
-		if (filterInput.value || disabledCheckbox.checked) {
-			sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
-		}
-	}
-
-	function restoreScroll() {
-		const y = Number(sessionStorage.getItem('meters_scroll') || 0);
-
-		requestAnimationFrame(() => {
-			scrollEl.scrollTop = y;
-		});
-	}
-
-	// Listen on REAL scroll container
-	scrollEl.addEventListener('scroll', saveScroll, { passive: true });
+	bindScrollPersistence(SCROLL_KEY);
+	enableAutoRestore(SCROLL_KEY);
 
 	// Fetch meters from API
 	async function fetchMeters() {
@@ -137,6 +114,9 @@ document.addEventListener('DOMContentLoaded', () => {
 				const rowDiv = document.createElement('div');
 				rowDiv.className = 'meter-row';
 
+				if (!isActiveMeter(meter)) {
+					rowDiv.classList.add('meter-disabled');
+				}
 				if (meter.enabled === 0) {
 					rowDiv.classList.add('meter-disabled');
 				}
@@ -159,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Filter meters and re-render
-	function filterMeters(resetScroll = true) {
+	function filterMeters() {
 		const searchText = filterInput.value.toLowerCase();
 		const disabledOnly = disabledCheckbox.checked;
 
@@ -173,12 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 			if (groupMatches) {
 				filteredMeters = group.meters.filter(meter =>
-					(disabledOnly ? meter.enabled === 0 : true)
+					(disabledOnly ? !isActiveMeter(meter) : true)
 				);
 			} else {
 				filteredMeters = group.meters.filter(meter =>
 					matchesSearch(meter, searchText) &&
-					(disabledOnly ? meter.enabled === 0 : true)
+					(disabledOnly ? !isActiveMeter(meter) : true)
 				);
 			}
 
@@ -186,19 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		}).filter(group => group.meters.length > 0);
 
 		renderMeters(filteredData);
-
-		// Always scroll to top on ANY filter change (except initial load restore)
-		if (!isInitialLoad) {
-			sessionStorage.removeItem('meters_scroll');
-			scrollEl.scrollTop = 0;
-		}
-
-		requestAnimationFrame(() => {
-			if (isInitialLoad) {
-				restoreScroll();
-				isInitialLoad = false;
-			}
-		});
+		container.scrollTop = 0;
 
 		// Reset keyboard navigation efter filter
 		currentLinkIndex = -1;
@@ -216,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Keyboard navigation using Arrow Up / Arrow Down
 	function getVisibleSerialLinks() {
 		return Array.from(document.querySelectorAll('.meter-row a'))
-			.filter(link => link.offsetParent !== null);
+			.filter(link => link.offsetParent !== null); // only visible links
 	}
 
 	document.addEventListener('keydown', (e) => {
@@ -246,15 +214,15 @@ document.addEventListener('DOMContentLoaded', () => {
 		// load state from URL
 		const urlState = loadStateFromURL();
 
+		renderMeters(allMetersData);
+
 		filterInput.value = urlState.search;
 		disabledCheckbox.checked = urlState.disabledOnly;
 
-		renderMeters(allMetersData);
+		filterMeters();
 
-		filterMeters(false);
-
-		filterInput.addEventListener('input', debounce(() => filterMeters(false)));
-		disabledCheckbox.addEventListener('change', () => filterMeters(false));
+		filterInput.addEventListener('input', debounce(filterMeters));
+		disabledCheckbox.addEventListener('change', filterMeters);
 
 		// Focus search input on page load
 		filterInput.focus();
@@ -269,8 +237,4 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 
 	init();
-
-	window.addEventListener('beforeunload', () => {
-		sessionStorage.setItem('meters_scroll', scrollEl.scrollTop);
-	});
 });

@@ -4,27 +4,10 @@ let originalTreeData = [];
 // BODY SCROLL HANDLING
 // =========================
 
-function getScrollEl() {
-	return document.body;
-}
+//const SCROLL_KEY = 'network_tree_scroll';
 
-function saveScroll() {
-	sessionStorage.setItem('network_tree_scroll', getScrollEl().scrollTop);
-}
-
-function restoreScroll() {
-	const el = getScrollEl();
-	const y = Number(sessionStorage.getItem('network_tree_scroll') || 0);
-
-	requestAnimationFrame(() => {
-		requestAnimationFrame(() => {
-			el.scrollTop = y;
-		});
-	});
-}
-
-window.addEventListener('scroll', saveScroll, { passive: true });
-window.addEventListener('beforeunload', saveScroll);
+//bindScrollPersistence(SCROLL_KEY);
+//enableAutoRestore(SCROLL_KEY);
 
 function isOffline(meter) {
 	if (!meter || !meter.last_updated) return false;
@@ -131,9 +114,6 @@ async function fetchAndRenderTrees() {
 		});
 
 		renderTrees(data);
-
-		restoreScroll();
-
 	} catch (err) {
 		document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
 		console.error(err);
@@ -151,6 +131,7 @@ function renderTrees(data) {
 		container.appendChild(treeDiv);
 	});
 
+	// Wait for DOM layout to stabilize
 	setTimeout(() => {
 		data.forEach((routerObj, i) => {
 			const config = createTreeConfig(routerObj, i);
@@ -213,17 +194,24 @@ function debounce(fn, delay) {
 
 //
 // =========================
-// URL STATE HANDLING
+// URL STATE HANDLING (NEW)
 // =========================
 //
+
 function updateURLState(searchText, offlineOnly) {
 	const params = new URLSearchParams(window.location.search);
 
-	if (searchText) params.set('q', searchText);
-	else params.delete('q');
+	if (searchText) {
+		params.set('q', searchText);
+	} else {
+		params.delete('q');
+	}
 
-	if (offlineOnly) params.set('offline', '1');
-	else params.delete('offline');
+	if (offlineOnly) {
+		params.set('offline', '1');
+	} else {
+		params.delete('offline');
+	}
 
 	const newUrl = `${window.location.pathname}?${params.toString()}`;
 	history.replaceState(null, '', newUrl);
@@ -242,6 +230,7 @@ const renderFilteredTrees = debounce(function () {
 	const query = document.getElementById('networkSearch').value.trim();
 	const showOfflineOnly = document.getElementById('offlineMeters').checked;
 
+	// sync URL
 	updateURLState(query, showOfflineOnly);
 
 	const shouldFilter = query.length > 0 || showOfflineOnly;
@@ -250,16 +239,13 @@ const renderFilteredTrees = debounce(function () {
 		: originalTreeData;
 
 	renderTrees(filteredData);
-
-	requestAnimationFrame(() => {
-		restoreScroll();
-	});
-
+	window.scrollTo({ top: 0, behavior: 'smooth' });
 }, 300);
 
 // =========================
 // INIT
 // =========================
+
 window.addEventListener('load', () => {
 	const filterInput = document.getElementById('networkSearch');
 	const offlineCheckbox = document.getElementById('offlineMeters');
