@@ -1,13 +1,10 @@
 services:
-  perl_modules_builder:
+  perl_base:
     build:
       context: '.'
-      dockerfile: ./perl_modules/Dockerfile
-    container_name: perl_modules_builder
-    hostname: perl-modules-builder
-    volumes:
-      - ./perl_modules/debs:/debs
-    command: /build/build-all.sh
+      dockerfile: ./Dockerfile.base
+    image: perl-base:1.0
+    entrypoint: ["echo", "Base image build complete."]
 
   db_config:
     image: busybox

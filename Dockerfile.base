@@ -1,0 +1,104 @@
+# perl_base
+
+FROM debian:bullseye
+
+# Prevent interactive prompts during installation and optimize cpanm
+ENV DEBIAN_FRONTEND=noninteractive \
+	PERL_CPANM_OPT="--no-wget --notest"
+
+# 1. Install system utilities required for services and compiling Perl modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	# --- Core Utilities & CLI Tools ---
+	aptitude \
+	bash \
+	ca-certificates \
+	cron \
+	curl \
+	daemon \
+	docker.io \
+	git \
+	inetutils-telnet \
+	joe \
+	less \
+	locales \
+	procps \
+	rsync \
+	screen \
+	sed \
+	software-properties-common \
+	sudo \
+	# --- Build Chain Dependencies ---
+	autoconf \
+	automake \
+	bison \
+	build-essential \
+	flex \
+	g++ \
+	gawk \
+	gcc \
+	make \
+	texinfo \
+	# --- Crypto & Database Base Libs ---
+	default-mysql-client \
+	libcrypto++-dev \
+	libssl-dev \
+	# --- Debian Pre-packaged Perl Modules ---
+	cpanminus \
+	cpanplus \
+	libcgi-pm-perl \
+	libconfig-simple-perl \
+	libcurses-perl \
+	libdatetime-perl \
+	libdbd-mysql-perl \
+	libdbi-perl \
+	libemail-mime-perl \
+	libemail-simple-perl \
+	libjson-perl \
+	libjson-xs-perl \
+	liblocal-lib-perl \
+	libnet-server-mail-perl \
+	libnet-smtp-server-perl \
+	libnet-smtp-ssl-perl \
+	libparallel-forkmanager-perl \
+	libproc-pid-file-perl \
+	libtime-duration-perl \
+	libwww-perl \
+	&& rm -rf /var/lib/apt/lists/*
+
+# 2. Configure UTF-8 system locales (Required for your Utilities image)
+RUN sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+	locale-gen
+ENV LANG=en_US.UTF-8 \
+	LANGUAGE=en_US:en \
+	LC_ALL=en_US.UTF-8
+
+# 3. Install standard CPAN modules not available/preferred via apt-get
+RUN PERL_MM_USE_DEFAULT=1 cpanm \
+	Cpanel::JSON::XS \
+	Crypt::Random::Source::Factory \
+	Exporter::Tiny \
+	File::chown \
+	IO::Socket::Timeout \
+	JSON \
+	Math::Random::ISAAC \
+	Math::Random::Secure \
+	Module::Find \
+	Number::Format \
+	Number::Phone::Lib \
+	PerlIO::via::Timeout \
+	Redis \
+	Statistics::Basic \
+	Test2::V0 \
+	Test::Deep \
+	Time::Format \
+	Type::Tiny \
+	Types::Standard
+
+# 4. Install modules directly from GitHub using specific branches/commits
+RUN cpanm https://github.com/st0ff3r/Net-MQTT-Simple.git@master \
+	&& cpanm https://github.com/DCIT/perl-CryptX.git@6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489
+
+# Set the default working directory for downstream containers
+WORKDIR /app
+
+CMD ["/usr/bin/bash"]

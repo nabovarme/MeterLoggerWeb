@@ -1,37 +1,29 @@
-FROM debian:bullseye
+# prometheus_exporter
+
+FROM perl-base:1.0
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
-# --- Base system + Apache + mod_perl ---
-RUN apt-get update && apt-get install -y \
-	aptitude \
-	autoconf \
-	automake \
-	bash \
-	bison \
-	flex \
-	g++ \
-	gawk \
-	gcc \
-	git \
-	make \
-	sed \
-	joe \
-	sudo \
-	screen \
-	rsync \
-	curl \
-	apache2 \
-	apache2-bin \
-	apache2-utils \
-	libapache2-mod-perl2 \
-	libapache2-mod-perl2-dev \
-	libdbd-mysql-perl \
-	libdbi-perl \
-	libconfig-simple-perl \
-	libjson-xs-perl \
-	libemail-mime-perl \
-	default-mysql-client
+RUN apt-get update && apt-get install -y --no-install-recommends \
+# --- Graphics, QR & TeX Engine ---
+imagemagick \
+pbzip2 \
+qrencode \
+texlive \
+texlive-fonts-extra \
+texlive-latex-base \
+texlive-latex-extra \
+# --- Apache Web Server & mod_perl ---
+apache2 \
+apache2-bin \
+apache2-doc \
+apache2-utils \
+libapache2-mod-perl2 \
+libapache2-mod-perl2-dev \
+libapache2-mod-perl2-doc \
+libapache2-reload-perl \
+libembperl-perl \
+&& rm -rf /var/lib/apt/lists/*
 
 # --- Enable required Apache modules ---
 RUN a2enmod perl \
@@ -43,17 +35,6 @@ COPY ./perl /etc/apache2/perl
 
 # --- Copy Apache config ---
 COPY ./prometheus_exporter/000-default.conf /etc/apache2/sites-available/000-default.conf
-
-# --- Optional local debs ---
-RUN mkdir -p /opt/local-debs
-COPY ./perl_modules/debs/*.deb /opt/local-debs/
-
-RUN for pkg in /opt/local-debs/*.deb; do \
-	echo "Installing $pkg..."; \
-	dpkg -i --force-overwrite "$pkg" || true; \
-	done
-
-RUN apt-get update && apt-get -f install -y && rm -rf /var/lib/apt/lists/*
 
 # --- Environment ---
 ENV PERL5LIB=/etc/apache2/perl

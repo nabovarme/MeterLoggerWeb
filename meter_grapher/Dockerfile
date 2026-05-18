@@ -1,47 +1,8 @@
-FROM debian:bullseye
+# meter_grapher
+
+FROM perl-base:1.0
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
-
-RUN apt-get update && apt-get install -y \
-	aptitude \
-	autoconf \
-	automake \
-	aptitude \
-	bash \
-	bison \
-	cpanplus \
-	flex \
-	g++ \
-	gawk \
-	gcc \
-	git \
-	inetutils-telnet \
-	joe \
-	make \
-	sed \
-	texinfo \
-	sudo \
-	screen \
-	rsync \
-	libdbd-mysql-perl \
-	libdbi-perl \
-	libconfig-simple-perl \
-	libemail-mime-perl \
-	default-mysql-client
-
-# Copy local repository from Docker volume
-RUN mkdir -p /opt/local-debs
-COPY ./perl_modules/debs/*.deb /opt/local-debs
-
-# Install all local .deb packages
-RUN for pkg in /opt/local-debs/*.deb; do \
-		echo "Installing $pkg..."; \
-		dpkg -i --force-overwrite "$pkg" || true; \
-	done
-
-# Fix any missing dependencies from official repos
-RUN apt-get update && \
-	apt-get -f install -y
 
 USER root
 

@@ -1,65 +1,29 @@
-FROM debian:bullseye
+# web
+
+FROM perl-base:1.0
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
-RUN apt-get update && apt-get install -y \
-	aptitude \
-	autoconf \
-	automake \
-	aptitude \
-	bash \
-	bison \
-	cpanplus \
-	flex \
-	g++ \
-	gawk \
-	gcc \
-	git \
-	inetutils-telnet \
-	joe \
-	make \
-	sed \
-	texinfo \
-	sudo \
-	screen \
-	rsync \
-	apache2 \
-	apache2-bin \
-	apache2-doc \
-	apache2-utils \
-	libapache2-mod-perl2 \
-	libapache2-mod-perl2-dev \
-	libapache2-mod-perl2-doc \
-	libembperl-perl \
-	libdbd-mysql-perl \
-	libdbi-perl \
-	libconfig-simple-perl \
-	libtime-duration-perl \
-	libemail-mime-perl \
-	libdatetime-perl \
-	default-mysql-client\
-	software-properties-common \
-	texlive \
-	texlive-latex-base \
-	texlive-latex-extra \
-	texlive-fonts-extra \
-	qrencode \
-	imagemagick \
-	curl
-
-# Copy local repository from Docker volume
-RUN mkdir -p /opt/local-debs
-COPY ./perl_modules/debs/*.deb /opt/local-debs
-
-# Install all local .deb packages
-RUN for pkg in /opt/local-debs/*.deb; do \
-		echo "Installing $pkg..."; \
-		dpkg -i --force-overwrite "$pkg" || true; \
-	done
-
-# Fix any missing dependencies from official repos
-RUN apt-get update && \
-	apt-get -f install -y
+RUN apt-get update && apt-get install -y --no-install-recommends \
+# --- Graphics, QR & TeX Engine ---
+imagemagick \
+pbzip2 \
+qrencode \
+texlive \
+texlive-fonts-extra \
+texlive-latex-base \
+texlive-latex-extra \
+# --- Apache Web Server & mod_perl ---
+apache2 \
+apache2-bin \
+apache2-doc \
+apache2-utils \
+libapache2-mod-perl2 \
+libapache2-mod-perl2-dev \
+libapache2-mod-perl2-doc \
+libapache2-reload-perl \
+libembperl-perl \
+&& rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /var/www/nabovarme/cache
 RUN mkdir -p /var/www/nabovarme/qr
