@@ -88,18 +88,19 @@ async function loadSMS() {
 			if (!targetLink) return;
 
 			e.preventDefault();
-			const last8 = targetLink.dataset.phone.slice(-8);
+	
+			const phone = targetLink.dataset.phone;
 			const input = document.getElementById('smsSentSearch');
 
-			if (input) {
-				input.value = last8;
+			if (input && phone) {
+				input.value = phone;
 				if (typeof updateURL === 'function') {
-					updateURL(last8);
-				}
-				filterRows(last8.toLowerCase());
+					updateURL(phone);
+		}
+				filterRows(phone.toLowerCase());
 				input.focus();
 			}
-		});
+	});
 
 	} catch (err) {
 		console.error('Failed to load SMS list:', err);
