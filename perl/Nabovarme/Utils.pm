@@ -10,6 +10,7 @@ use File::Basename;
 use Net::SMTP;
 use Email::MIME;
 use Encode qw(encode decode is_utf8);
+use Nabovarme::Number::Phone;
 
 our @EXPORT = qw(
 	rounded_duration
@@ -97,10 +98,17 @@ sub send_notification {
 			log_warn(" Message is already flagged as UTF-8 internally");
 		}
 
+		my $phone_obj = Nabovarme::Number::Phone->new($sms_number);
+		if ($phone_obj && $phone_obj->is_valid) {
+			my $compact = $phone_obj->international;
+			$compact =~ s/^\+//; # strip leading plus sign for email format safety
+			$sms_number = $compact;
+		}
+
 		my $email = Email::MIME->create(
 			header_str => [
 				From	=> 'meterlogger@meterlogger',
-				To	=> '45' . $sms_number . '@meterlogger',
+				To	=> $sms_number . '@meterlogger',
 				Subject => $message,
 			],
 			attributes => {
@@ -120,7 +128,7 @@ sub send_notification {
 		$smtp->mail('meterlogger')
 			|| log_warn("SMTP MAIL FROM failed: ".$smtp->message());
 
-		$smtp->to("45$sms_number\@meterlogger")
+		$smtp->to("$sms_number\@meterlogger")
 			|| log_warn("SMTP RCPT TO failed: ".$smtp->message());
 
 		$smtp->data()

@@ -60,10 +60,8 @@ sub handler {
 		$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 		$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
-		# Step 4: build LIKE clauses
-		my @like_clauses = map {
-			"phone LIKE " . $dbh->quote("%$_%")
-		} @phones;
+		# Step 4: Quote each phone number and create a comma-separated list
+		my $in_clause_items = join(', ', map { $dbh->quote($_) } @phones);
 
 		my $sql = qq[
 			SELECT
@@ -74,9 +72,10 @@ sub handler {
 			FROM sms_messages
 			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
 			  AND unix_time < UNIX_TIMESTAMP()
-			  AND ( ] . join(' OR ', @like_clauses) . q[ )
+			  AND phone IN ($in_clause_items)
 			ORDER BY unix_time DESC
 		];
+		use Data::Dumper; warn Dumper $sql;
 
 		$sth = $dbh->prepare($sql);
 		$sth->execute();

@@ -30,6 +30,7 @@ use Data::Dumper;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
+use Nabovarme::Number::Phone;
 
 use constant USER             => 'smsd';
 use constant GROUP            => 'smsd';
@@ -147,6 +148,13 @@ sub log_sms_to_db {
 	$message ||= '';
 
 	return unless $direction;  # 'sent' or 'received'
+
+	if ($phone) {
+		my $phone_obj = Nabovarme::Number::Phone->new($phone);
+		if ($phone_obj && $phone_obj->is_valid) {
+			$phone = $phone_obj->compact || $phone;
+		}
+	}
 
 	eval {
 		my $sth = $dbh_thread->prepare(
@@ -609,7 +617,20 @@ while (my $client = $socket->accept()) {
 
 	$smtp->set_callback(RCPT => sub {
 		my ($session, $rcpt) = @_;
-		$rcpt =~ s/\D//g;
+
+		# Isolate username part if full address configuration is present
+		$rcpt =~ s/@.*$//;
+
+		# Pass raw local-part into validation module to catch 00, +, or local 8-digits
+		my $phone_obj = Nabovarme::Number::Phone->new($rcpt);
+		if ($phone_obj && $phone_obj->is_valid) {
+			# Normalize completely to compact DB configuration format (e.g. +4528490157)
+			$rcpt = $phone_obj->compact;
+		} else {
+			# Fallback logic if input is garbage: strip formatting blocks to keep system alive
+			$rcpt =~ s/\D//g;
+		}
+
 		$session->{_sms_to} = $rcpt;
 		log_info("RCPT TO: $rcpt", {-no_script_name => 1, -custom_tag => 'SMTP' });
 		return 1;
@@ -696,3 +717,5 @@ while (my $client = $socket->accept()) {
 
 	$smtp->process || next;
 }
+
+1;
