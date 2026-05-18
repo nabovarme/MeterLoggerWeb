@@ -12,6 +12,7 @@ use JSON ();
 use Nabovarme::Db;
 use Nabovarme::Admin;
 use Nabovarme::Utils;
+use Nabovarme::Number::Phone;
 
 sub handler {
 	my $r = shift;
@@ -75,7 +76,6 @@ sub handler {
 			  AND phone IN ($in_clause_items)
 			ORDER BY unix_time DESC
 		];
-		use Data::Dumper; warn Dumper $sql;
 
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
@@ -84,6 +84,16 @@ sub handler {
 
 		while (my $row = $sth->fetchrow_hashref) {
 			$row->{message} =~ s/(SMS Code: )(\d+)/$1 . ('*' x length($2))/e;
+
+			# Generate clean E164 output via our corrected module implementation
+			my $phone_obj = Nabovarme::Number::Phone->new($row->{phone});
+			if ($phone_obj && $phone_obj->is_valid) {
+				$row->{phone_e164} = $phone_obj->e164;
+			} else {
+				# Fallback safely to original string if the row contains unparseable data
+				$row->{phone_e164} = $row->{phone}; 
+			}
+
 			push @rows, $row;
 		}
 

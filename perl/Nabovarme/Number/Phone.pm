@@ -9,15 +9,21 @@ sub new {
 
 	return unless defined $input;
 
-	# strip leading/trailing whitespace
+	# Strip leading/trailing whitespace and inner spaces/hyphens
 	$input =~ s/^\s+|\s+$//g;
+	$input =~ s/[- ]//g;
 
-	# If it starts with 00 followed by digits, convert 00 to + for Number::Phone compatibility
+	# 1. Standardize 00 prefix into international '+' formatting
 	if ($input =~ /^00(\d+)/) {
 		$input = '+' . $1;
 	}
-	# If it is exactly 8 digits and does not start with + or 00, assume it's a local Danish number
-	elsif ($input =~ /^\d{8}$/ && $input !~ /^\+/) {
+
+	# 2. Fix 10-digit raw numbers starting with 45 but missing '+' (e.g., "4520291699")
+	if ($input =~ /^45\d{8}$/) {
+		$input = '+' . $input;
+	}
+	# 3. If it is exactly 8 digits, safely assume it's a local Danish number
+	elsif ($input =~ /^\d{8}$/) {
 		$input = '+45' . $input;
 	}
 
@@ -40,31 +46,26 @@ sub country {
 # ✔ E.164 = library canonical output
 sub e164 {
 	my $self = shift;
-
-	my $val = $self->{obj}->format;
-
-	return unless defined $val;
-
-	$val =~ s/\s+//g;
-
-	return $val;
+	return $self->{obj}->format;
 }
 
-# ✔ DB format (fully normalized)
+# ✔ DB format (fully normalized, no double country codes)
 sub compact {
 	my $self = shift;
 
-	my $cc = $self->country;
-	return unless defined $cc;
-
-	my $raw = eval { $self->{obj}->format_using('Raw') }
-		// $self->{obj}->format;
-
+	# Number::Phone's format() method natively returns E.164 (e.g., "+4520291699")
+	my $raw = $self->{obj}->format;
 	return unless defined $raw;
 
-	$raw =~ s/\D//g;
+	# Clean up any remaining formatting artifacts from the underlying library representation
+	$raw =~ s/[^\d+]//g; # Keep only digits and the leading plus symbol
 
-	return '+' . $cc . $raw;
+	# If the library output lacks a leading '+', safely prepend it
+	if ($raw !~ /^\+/) {
+		$raw = '+' . $raw;
+	}
+
+	return $raw;
 }
 
 # ✔ Standard international format with 00 prefix instead of +

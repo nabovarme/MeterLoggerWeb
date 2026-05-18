@@ -31,8 +31,11 @@ async function loadSMS() {
 			tr.align = 'left';
 			tr.valign = 'top';
 
-			// Cleaned phone link (Fixed the invisible \u00a0 characters)
-			const phoneLink = `<a href="#" class="phone-link" data-phone="${row.phone}">${row.phone}</a>`;
+			// The user sees the formatted E164 string, but the hidden span contains the raw DB string for searching
+			const phoneLink = `
+				<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${row.phone}">${row.phone_e164}</a>
+				<span style="display: none;">${row.phone}</span>
+			`;
 
 			// Replace "(digits)" patterns with serial detail links
 			let messageHTML = row.message || '';
