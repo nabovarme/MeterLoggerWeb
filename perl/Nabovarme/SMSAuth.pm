@@ -18,6 +18,7 @@ use constant SMS_SPOOL_DIR => '/var/www/nabovarme/sms_spool';
 use Nabovarme::Db;
 use Nabovarme::Utils;
 use Nabovarme::Admin;
+use Nabovarme::Number::Phone;
 
 # Main Apache request handler
 sub handler {
@@ -137,28 +138,39 @@ sub login_handler {
 			elsif ($d->{auth_state} =~ /login/i) {
 				# Attempt to match user's phone number
 				my $id = $cgi->param('id');
-				my $quoted_id = $dbh->quote($id);
-				my $quoted_wildcard_id = $dbh->quote('%' . $id . '%');
 				my $user_is_in_db = undef;
-				
+				my $normalized_phone = undef;
+	
 				if ($id) {
-					# Check meters table
-					$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE `sms_notification` LIKE $quoted_wildcard_id LIMIT 1]);
+					# Validate and normalize phone number using Nabovarme::Number::Phone
+					my $phone_obj = Nabovarme::Number::Phone->new($id);
+					if ($phone_obj && $phone_obj->is_valid) {
+						$normalized_phone = $phone_obj->compact;
+					}
+				}
+
+				if ($normalized_phone) {
+					my $quoted_normalized = $dbh->quote($normalized_phone);
+
+					# Check meters table using FIND_IN_SET for comma-separated lists
+					$sth = $dbh->prepare(qq[SELECT `sms_notification` FROM meters WHERE FIND_IN_SET($quoted_normalized, `sms_notification`) > 0 LIMIT 1]);
 					$sth->execute;
 					$user_is_in_db = $sth->rows;
-				
-					# Check users table
-					$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE `phone` LIKE $quoted_wildcard_id LIMIT 1]);
+	
+					# Check users table using FIND_IN_SET for comma-separated lists
+					$sth = $dbh->prepare(qq[SELECT `phone` FROM users WHERE FIND_IN_SET($quoted_normalized, `phone`) > 0 LIMIT 1]);
 					$sth->execute;
 					$user_is_in_db |= $sth->rows;
 				}
-				
+	
 				if ($user_is_in_db) {
 					# Generate and send SMS code
 					my $sms_code = join('', map(int(Math::Random::Secure::rand(10)), 1..6));
 					my $quoted_sms_code = $dbh->quote($sms_code);
-					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, `phone` = $quoted_id, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
-					
+					my $quoted_phone_db = $dbh->quote($normalized_phone);
+
+					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, `phone` = $quoted_phone_db, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
+		
 					send_notification($id, "SMS Code: $sms_code");
 
 					# Start with a session cookie
