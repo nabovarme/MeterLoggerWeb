@@ -7,6 +7,7 @@ use Sys::Syslog;
 
 use Nabovarme::Db;
 use Nabovarme::MQTT_RPC;
+use Nabovarme::Number::Phone;
 
 use Exporter 'import';
 our @EXPORT_OK = qw(normalize_amount);
@@ -65,8 +66,8 @@ sub cookie_is_admin_for_serial {
 
 	# capture the real client IP behind proxy once
 	$self->{remote_addr} = $r->headers_in->{'X-Real-IP'}
-	                     || $r->headers_in->{'X-Forwarded-For'}
-	                     || $r->connection->client_ip;
+	                    || $r->headers_in->{'X-Forwarded-For'}
+	                    || $r->connection->client_ip;
 
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	my $passed_cookie_token;
@@ -150,6 +151,10 @@ sub phone_by_cookie {
 	my ($phone) = $sth->fetchrow_array;
 
 	if ($phone) {
+		my $phone_obj = Nabovarme::Number::Phone->new($phone);
+		if ($phone_obj && $phone_obj->is_valid) {
+			$phone = $phone_obj->compact || $phone;
+		}
 		$self->{auth_phone} = $phone;
 		warn "phone_by_cookie: auth_phone = $phone";
 		return $phone;
@@ -181,7 +186,15 @@ sub phones_by_group {
 
 	while (my ($sms_notification) = $sth->fetchrow_array) {
 		for my $phone (split /\s*,\s*/, $sms_notification) {
-			$phones{$phone} = 1 if $phone;
+			if ($phone) {
+				my $phone_obj = Nabovarme::Number::Phone->new($phone);
+				if ($phone_obj && $phone_obj->is_valid) {
+					my $compact = $phone_obj->compact;
+					$phones{$compact || $phone} = 1;
+				} else {
+					$phones{$phone} = 1;
+				}
+			}
 		}
 	}
 
@@ -198,7 +211,15 @@ sub phones_by_group {
 
 	while (my ($sms_notification) = $sth_alarms->fetchrow_array) {
 		for my $phone (split /\s*,\s*/, $sms_notification) {
-			$phones{$phone} = 1 if $phone;
+			if ($phone) {
+				my $phone_obj = Nabovarme::Number::Phone->new($phone);
+				if ($phone_obj && $phone_obj->is_valid) {
+					my $compact = $phone_obj->compact;
+					$phones{$compact || $phone} = 1;
+				} else {
+					$phones{$phone} = 1;
+				}
+			}
 		}
 	}
 
@@ -376,4 +397,3 @@ sub normalize_amount {
 }
 
 1;
-
