@@ -1,63 +1,10 @@
-FROM debian:bullseye
+# utils
+
+FROM perl-base:1.0
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
-RUN apt-get update && apt-get install -y \
-	aptitude \
-	autoconf \
-	automake \
-	aptitude \
-	bash \
-	bison \
-	cpanplus \
-	flex \
-	g++ \
-	gawk \
-	gcc \
-	git \
-	inetutils-telnet \
-	joe \
-	make \
-	sed \
-	texinfo \
-	sudo \
-	screen \
-	rsync \
-	libdbd-mysql-perl \
-	libdbi-perl \
-	libconfig-simple-perl \
-	libcurses-perl \
-	libemail-mime-perl \
-	default-mysql-client \
-	software-properties-common \
-	texlive \
-	texlive-latex-base \
-	texlive-latex-extra \
-	texlive-fonts-extra \
-	qrencode \
-	imagemagick \
-	pbzip2 \
-	locales
-
-# Copy local repository from Docker volume
-RUN mkdir -p /opt/local-debs
-COPY ./perl_modules/debs/*.deb /opt/local-debs
-
-# Install all local .deb packages
-RUN for pkg in /opt/local-debs/*.deb; do \
-		echo "Installing $pkg..."; \
-		dpkg -i --force-overwrite "$pkg" || true; \
-	done
-
-# Fix any missing dependencies from official repos
-RUN apt-get update && \
-	apt-get -f install -y
-
 USER root
-
-# Enable en_US.UTF-8 locale
-RUN sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
-	locale-gen
 
 # Set UTF-8 locale environment variables
 ENV LANG=en_US.UTF-8
