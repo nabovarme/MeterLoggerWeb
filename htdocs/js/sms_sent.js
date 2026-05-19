@@ -1,5 +1,4 @@
 let smsDebounceTimeout = null;
-
 const SCROLL_KEY = 'sms_sent_scroll';
 
 // =========================
@@ -7,6 +6,35 @@ const SCROLL_KEY = 'sms_sent_scroll';
 // =========================
 bindScrollPersistence(SCROLL_KEY);
 enableAutoRestore(SCROLL_KEY);
+
+// Cache the tbody element globally once
+const tbody = document.querySelector('#sms_table tbody');
+
+// =======================================================
+// Event Delegation outside loadSMS()
+// This runs exactly ONCE, completely eliminating the memory leak.
+// =======================================================
+if (tbody) {
+	// we add event listener to the parent tbody that intercepts the click.
+	tbody.addEventListener('click', function (e) {
+		const targetLink = e.target.closest('.phone-link');
+		if (!targetLink) return;
+
+		e.preventDefault();
+
+		const phone = targetLink.dataset.phone;
+		const input = document.getElementById('smsSentSearch');
+
+		if (input && phone) {
+			input.value = phone;
+			if (typeof updateURL === 'function') {
+				updateURL(phone);
+			}
+			filterRows(phone.toLowerCase());
+			input.focus();
+		}
+	});
+}
 
 async function loadSMS() {
 	try {
@@ -16,7 +44,6 @@ async function loadSMS() {
 		}
 
 		const data = await resp.json();
-		const tbody = document.querySelector('#sms_table tbody');
 		if (!tbody) return;
 
 		// 🚀 OPTIMIZATION: Build the table off-screen in memory.
@@ -26,10 +53,13 @@ async function loadSMS() {
 		const params = new URLSearchParams(window.location.search);
 		const initialSearch = (params.get('q') || '').toLowerCase();
 
-		data.forEach((row) => {
+		data.forEach((row, index) => {
 			const tr = document.createElement('tr');
 			tr.align = 'left';
 			tr.valign = 'top';
+			
+			// Kept native zebra striping inline here during row creation
+			tr.style.background = (index % 2 === 0) ? '#FFFFFF' : '#EEEEEE';
 
 			// The user sees the formatted E164 string, but the hidden span contains the raw DB string for searching
 			const phoneLink = `
@@ -61,7 +91,7 @@ async function loadSMS() {
 		tbody.appendChild(fragment);
 
 		// =======================================================
-		// RACE CONDITION FIX: Sync search state with freshly loaded data
+		// Sync search state with freshly loaded data
 		// =======================================================
 		const searchInput = document.getElementById('smsSentSearch');
 		const currentQuery = searchInput ? searchInput.value.toLowerCase() : '';
@@ -72,35 +102,7 @@ async function loadSMS() {
 		} else if (initialSearch) {
 			// Fallback to URL state if input is untouched but URL has a query
 			filterRows(initialSearch);
-		} else {
-			// Apply native zebra striping if no search query exists yet
-			const rows = tbody.querySelectorAll('tr');
-			rows.forEach((row, index) => {
-				row.style.background = (index % 2 === 0) ? '#FFFFFF' : '#EEEEEE';
-			});
 		}
-
-		// 🚀 OPTIMIZATION: Event Delegation
-		// Instead of adding thousands of individual event listeners to every row,
-		// we add ONE listener to the parent tbody that intercepts the click.
-		tbody.addEventListener('click', function (e) {
-			const targetLink = e.target.closest('.phone-link');
-			if (!targetLink) return;
-
-			e.preventDefault();
-	
-			const phone = targetLink.dataset.phone;
-			const input = document.getElementById('smsSentSearch');
-
-			if (input && phone) {
-				input.value = phone;
-				if (typeof updateURL === 'function') {
-					updateURL(phone);
-				}
-				filterRows(phone.toLowerCase());
-				input.focus();
-			}
-	});
 
 	} catch (err) {
 		console.error('Failed to load SMS list:', err);
@@ -120,16 +122,15 @@ function updateURL(value) {
 	history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
 }
 
-// =========================
-// DEBOUNCE RELOAD
-// =========================
-
-function debounceReload() {
+// =======================================================
+// debounce the local UI DOM filter instead of hammering the API
+// =======================================================
+function debounceFilter(query) {
 	clearTimeout(smsDebounceTimeout);
 
 	smsDebounceTimeout = setTimeout(() => {
-		loadSMS();
-	}, 300);
+		filterRows(query.toLowerCase());
+	}, 150);
 }
 
 // =========================
@@ -147,7 +148,9 @@ if (input) {
 		const val = input.value;
 
 		updateURL(val);
-		debounceReload();
+		
+		// Run instant client-side table sorting instead of triggering loadSMS() network calls
+		debounceFilter(val);
 	});
 }
 
