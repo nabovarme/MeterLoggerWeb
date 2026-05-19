@@ -50,6 +50,7 @@ function createClientNode(client) {
 	return {
 		HTMLclass: `node ${freshnessClass}`,
 		innerHTML: htmlContent,
+		sortName: nameText,
 		children: children
 	};
 }
@@ -65,8 +66,8 @@ function extractNodeTitleText(innerHTML) {
 function sortTreeNodes(node) {
 	if (node.children && node.children.length > 0) {
 		node.children.sort((a, b) => {
-			const nameA = extractNodeTitleText(a.innerHTML) || "";
-			const nameB = extractNodeTitleText(b.innerHTML) || "";
+			const nameA = a.sortName || extractNodeTitleText(a.innerHTML) || "";
+			const nameB = b.sortName || extractNodeTitleText(b.innerHTML) || "";
 			return nameA.toLowerCase().localeCompare(nameB.toLowerCase());
 		});
 		node.children.forEach(child => sortTreeNodes(child));
@@ -113,7 +114,7 @@ async function fetchAndRenderTrees() {
 			return nameA.localeCompare(nameB);
 		});
 
-		renderTrees(data);
+		renderFilteredTrees();
 	} catch (err) {
 		document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
 		console.error(err);
@@ -239,7 +240,9 @@ const renderFilteredTrees = debounce(function () {
 		: originalTreeData;
 
 	renderTrees(filteredData);
-	window.scrollTo({ top: 0, behavior: 'smooth' });
+	if (window.scrollY > 100) {
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
 }, 300);
 
 // =========================
@@ -270,8 +273,4 @@ window.addEventListener('load', () => {
 	offlineCheckbox.addEventListener('change', renderFilteredTrees);
 
 	fetchAndRenderTrees();
-
-	setTimeout(() => {
-		renderFilteredTrees();
-	}, 0);
 });
