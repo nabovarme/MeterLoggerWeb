@@ -96,7 +96,7 @@ async function loadSMS() {
 				input.value = phone;
 				if (typeof updateURL === 'function') {
 					updateURL(phone);
-		}
+				}
 				filterRows(phone.toLowerCase());
 				input.focus();
 			}
