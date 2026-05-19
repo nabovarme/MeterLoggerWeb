@@ -25,7 +25,7 @@ sub handler {
 	my $r = shift;
 
 	my $logout_path     = $r->dir_config('LogoutPath') || 'logout';
-	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.html';
 	my $public_access   = $r->dir_config('PublicAccess') || '';
 	my $snooze_page     = $r->dir_config('SnoozePagePath') || '';
 	my $snooze_api      = $r->dir_config('SnoozeAPIPath')  || '';
@@ -83,10 +83,10 @@ sub handler {
 sub login_handler {
 	my $r = shift;
 	
-	my $login_path = $r->dir_config('LoginPath') || '/private/login.epl';
+	my $login_path = $r->dir_config('LoginPath') || '/private/login.html';
 	my $logout_path = $r->dir_config('LogoutPath') || 'logout';
-	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
-	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.epl';
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.html';
+	my $sms_code_path = $r->dir_config('SMSCodePath') || '/private/sms_code.html';
 	my $default_path = $r->dir_config('DefaultPath') || '/';
 	my $user_admin_access = $r->dir_config('UserAdminAccess') || '';
 
@@ -324,7 +324,7 @@ sub login_handler {
 sub logout_handler {
 	my $r = shift;
 	
-	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.epl';
+	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.html';
 
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
@@ -451,7 +451,7 @@ FLOW DIAGRAM:
                        |
                        v
             +------------------------+
-            | Redirect to login.epl  |
+            | Redirect to login.html |
             +------------------------+
                        |
                        v
@@ -461,7 +461,7 @@ FLOW DIAGRAM:
                        |
                        v
              +-----------------------------+
-             | Valid phone number in DB?   |----> No ----> Reload login.epl
+             | Valid phone number in DB?   |----> No ----> Reload login.html
              +-----------------------------+
                        |
                       Yes
@@ -474,7 +474,7 @@ FLOW DIAGRAM:
                        |
                        v
              +----------------------------+
-             | Redirect to sms_code.epl   |
+             | Redirect to sms_code.html  |
              +----------------------------+
                        |
                        v
@@ -484,7 +484,7 @@ FLOW DIAGRAM:
                        |
                        v
          +-------------------------------+
-         |  Code matches entry in DB?    |----> No ----> Reload sms_code.epl
+         |  Code matches entry in DB?    |----> No ----> Reload sms_code.html
          +-------------------------------+
                        |
                       Yes
