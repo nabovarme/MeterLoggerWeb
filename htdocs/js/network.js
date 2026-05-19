@@ -114,7 +114,8 @@ async function fetchAndRenderTrees() {
 			return nameA.localeCompare(nameB);
 		});
 
-		renderFilteredTrees();
+		// Execute matching immediately without waiting for user typing debounce time
+		executeTreeFiltering();
 	} catch (err) {
 		document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
 		console.error(err);
@@ -227,7 +228,7 @@ function loadStateFromURL() {
 	};
 }
 
-const renderFilteredTrees = debounce(function () {
+function executeTreeFiltering() {
 	const query = document.getElementById('networkSearch').value.trim();
 	const showOfflineOnly = document.getElementById('offlineMeters').checked;
 
@@ -243,7 +244,9 @@ const renderFilteredTrees = debounce(function () {
 	if (window.scrollY > 100) {
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
-}, 300);
+}
+
+const renderFilteredTrees = debounce(executeTreeFiltering, 300);
 
 // =========================
 // INIT
