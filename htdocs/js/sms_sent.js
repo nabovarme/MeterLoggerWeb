@@ -130,6 +130,9 @@ function debounceFilter(query) {
 
 	smsDebounceTimeout = setTimeout(() => {
 		filterRows(query.toLowerCase());
+
+		// Force layout evaluation so global scroll manager detects the row height changes
+		window.dispatchEvent(new Event('scroll'));
 	}, 150);
 }
 
