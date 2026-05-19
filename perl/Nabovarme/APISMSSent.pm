@@ -42,7 +42,7 @@ sub handler {
 	}
 
 	my @phones = sort keys %phones;
-	warn "APISMSSent: final phone set = " . join(', ', @phones);
+#	warn "APISMSSent: final phone set = " . join(', ', @phones);
 
 	unless (@phones) {
 		$r->status(Apache2::Const::HTTP_FORBIDDEN);
