@@ -12,10 +12,12 @@ use Nabovarme::Db;
 use Nabovarme::Crypto;
 use Nabovarme::Utils;
 
+# Set signal handler for clean manual worker termination
 $SIG{INT} = \&sig_int_handler;
 
 log_info("starting...", {-no_script_name => 1});
 
+# Verify runtime Redis infrastructure environment configurations
 my $redis_host = $ENV{'REDIS_HOST'}
 	or log_die("ERROR: REDIS_HOST environment variable not set", {-no_script_name => 1});
 
@@ -28,12 +30,15 @@ my $redis = Redis->new(
 my $queue_name	= 'mqtt';
 my $timeout		= 86400;
 
+# --------------------------------------------------
+# Intercepts Ctrl+C (SIGINT) to allow graceful script termination.
+# --------------------------------------------------
 sub sig_int_handler {
 	log_info("Caught SIGINT, exiting.", {-no_script_name => 1});
 	exit 0;
 }
 
-# Connect to database
+# Establish authoritative database connection
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
@@ -45,13 +50,18 @@ else {
 
 my $crypto = new Nabovarme::Crypto;
 
+# ==================================================
+# MAIN MQTT INGESTION LOOP
+# ==================================================
 # Start MQTT run loop
 while (1) {
+	# Blocking pop payload from targeted job queue with explicit timeout bounds
 	my ($queue, $job_id) = $redis->blpop(join(':', $queue_name, 'queue'), $timeout);
 	if ($job_id) {
 	
 		my %data = $redis->hgetall($job_id);
 	
+		# Route payloads matching specified namespaces to target handler subroutines
 		if ($data{topic} =~ /sample\/v2\//) {
 			mqtt_sample_handler($data{topic}, $data{message});
 		}
@@ -104,13 +114,17 @@ while (1) {
 			mqtt_network_quality_handler($data{topic}, $data{message});
 		}
 		
-		# Remove data for job
+		# Remove data for job after processing
 		$redis->del($job_id);
 	}
 }
 
 # End of main
 
+# --------------------------------------------------
+# Decrypts and processes real physical sensor telemetry (flow, energy, volume)
+# and commits data points to the historical samples table.
+# --------------------------------------------------
 sub mqtt_sample_handler {
 	my ($topic, $message) = @_;
 	my $mqtt_data = {};
@@ -124,7 +138,7 @@ sub mqtt_sample_handler {
 
 	my $sample = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $sample) {	
-		# Parse message
+		# Parse message and strip tail parameters
 		$sample =~ s/&$//;
 	
 		my ($key, $value, $unit);
@@ -132,7 +146,7 @@ sub mqtt_sample_handler {
 		my $key_value; 
 		foreach $key_value (@key_value_list) {
 			if (($key, $value, $unit) = $key_value =~ /([^=]*)=(\S+)(?:\s+(.*))?/) {
-				# Check energy register unit
+				# Check energy register unit and normalize to standard kWh metrics
 				if ($key =~ /^e1$/i) {
 					if ($unit =~ /^MWh$/i) {
 						$value *= 1000;
@@ -177,7 +191,7 @@ sub mqtt_sample_handler {
 		if ($sth->err) {
 			log_warn($sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message, {-no_script_name => 1});
 			
-			# Re-insert to redis
+			# Re-insert to redis: Roll back and recreate token payload in task queue
 			my $id = $redis->incr(join(':',$queue_name, 'id'));
 			my $job_id = join(':', $queue_name, $id);
 
@@ -190,7 +204,7 @@ sub mqtt_sample_handler {
 			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
 		}
 		else {
-			# sample data, last_updated filed should be updated
+			# Telemetry event verified: last_updated field should be updated (Flag = 1)
 			update_meter_field($meter_serial, $unix_time, 'last_updated', $unix_time, 1);
 			log_info($topic . " " . $sample, {-no_script_name => 1});			
 		}
@@ -202,6 +216,9 @@ sub mqtt_sample_handler {
 	}
 }
 
+# --------------------------------------------------
+# Tracks and stores the software firmware version metadata of the meter.
+# --------------------------------------------------
 sub mqtt_version_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -228,6 +245,9 @@ sub mqtt_version_handler {
 	}
 }
 
+# --------------------------------------------------
+# Monitors and logs device specific operational states (e.g. valve open/closed info).
+# --------------------------------------------------
 sub mqtt_status_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -254,6 +274,9 @@ sub mqtt_status_handler {
 	}
 }
 
+# --------------------------------------------------
+# Updates running device clock heartbeats to track microcontroller uptime.
+# --------------------------------------------------
 sub mqtt_uptime_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -280,6 +303,9 @@ sub mqtt_uptime_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs the current network WiFi access point SSID name used by the node.
+# --------------------------------------------------
 sub mqtt_ssid_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -306,6 +332,9 @@ sub mqtt_ssid_handler {
 	}
 }
 
+# --------------------------------------------------
+# Monitors network link signal characteristics (Received Signal Strength Indicator).
+# --------------------------------------------------
 sub mqtt_rssi_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -332,6 +361,9 @@ sub mqtt_rssi_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs wireless connectivity internal machine states and connection flags.
+# --------------------------------------------------
 sub mqtt_wifi_status_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -358,6 +390,9 @@ sub mqtt_wifi_status_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs the state of the local soft access point capability when operating in mesh.
+# --------------------------------------------------
 sub mqtt_ap_status_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -384,6 +419,9 @@ sub mqtt_ap_status_handler {
 	}
 }
 
+# --------------------------------------------------
+# Updates stored decrypted network pairing tokens across adjacent mesh nodes.
+# --------------------------------------------------
 sub mqtt_set_ap_mesh_pwd_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -410,6 +448,9 @@ sub mqtt_set_ap_mesh_pwd_handler {
 	}
 }
 
+# --------------------------------------------------
+# Parses environment wireless scan reports into the relational wifi_scan table.
+# --------------------------------------------------
 sub mqtt_scan_result_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -440,7 +481,7 @@ sub mqtt_scan_result_handler {
 		my $ssid_raw = $mqtt_data->{ssid};
 		my $ssid = decode_ssid($ssid_raw);
 
-		# Save to database
+		# Save scan attributes to database
 		my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (
 			`serial`,
 			`ssid_raw`,
@@ -475,7 +516,7 @@ sub mqtt_scan_result_handler {
 		if ($sth->err) {
 			log_warn($sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message, {-no_script_name => 1});
 			
-			# Re-insert to redis
+			# Re-insert to redis upon database failure
 			my $id = $redis->incr(join(':',$queue_name, 'id'));
 			my $job_id = join(':', $queue_name, $id);
 
@@ -497,6 +538,9 @@ sub mqtt_scan_result_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs an explicit offline notice triggered directly from broker disconnects.
+# --------------------------------------------------
 sub mqtt_offline_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -513,6 +557,9 @@ sub mqtt_offline_handler {
 	log_warn($topic . "\t" . 'offline', {-no_script_name => 1});
 }
 
+# --------------------------------------------------
+# Logs hardware identifier registration indexes for tracking the physical MCU.
+# --------------------------------------------------
 sub mqtt_chip_id_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -539,6 +586,9 @@ sub mqtt_chip_id_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs structural memory board identifiers from onboard tracking profiles.
+# --------------------------------------------------
 sub mqtt_flash_id_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -565,6 +615,9 @@ sub mqtt_flash_id_handler {
 	}
 }
 
+# --------------------------------------------------
+# Verifies internal storage allocation specifications configured on the node.
+# --------------------------------------------------
 sub mqtt_flash_size_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -591,6 +644,9 @@ sub mqtt_flash_size_handler {
 	}
 }
 
+# --------------------------------------------------
+# Captures memory component exceptions into the core operations event log.
+# --------------------------------------------------
 sub mqtt_flash_error_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -618,6 +674,9 @@ sub mqtt_flash_error_handler {
 	}
 }
 
+# --------------------------------------------------
+# Logs physical or system crash reset causes received from automated node reboots.
+# --------------------------------------------------
 sub mqtt_reset_reason_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -645,6 +704,9 @@ sub mqtt_reset_reason_handler {
 	}
 }
 
+# --------------------------------------------------
+# Processes diagnostic latency indicators (ping response times, loss percentage, disconnects).
+# --------------------------------------------------
 sub mqtt_network_quality_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
@@ -672,7 +734,7 @@ sub mqtt_network_quality_handler {
 			}
 		}		
 
-		# Save diagnostics without timestamp updates (flagged as 0)
+		# Save diagnostics without updating the master 'last_updated' tracking timestamp (Flagged as 0)
 		update_meter_field($meter_serial, $unix_time, 'ping_response_time', $mqtt_data->{ping_response_time}, 0);
 		update_meter_field($meter_serial, $unix_time, 'ping_average_packet_loss', $mqtt_data->{ping_average_packet_loss}, 0);
 		update_meter_field($meter_serial, $unix_time, 'disconnect_count', $mqtt_data->{disconnect_count}, 0);
@@ -686,6 +748,9 @@ sub mqtt_network_quality_handler {
 
 use Encode qw(decode);
 
+# --------------------------------------------------
+# Safe translation wrapper formatting SSID byte strings to clean internal UTF-8.
+# --------------------------------------------------
 sub decode_ssid {
 	my ($raw) = @_;
 	return undef unless defined $raw;
@@ -699,6 +764,11 @@ sub decode_ssid {
 	return $ssid;
 }
 
+# --------------------------------------------------
+# Unified entry point handling database column modifications inside the meters dataset.
+# Accepts an explicit flag toggle determining if the master metadata indicator 
+# ('last_updated') should step forward or stay frozen to isolate active downtime checks.
+# --------------------------------------------------
 sub update_meter_field {
 	my ($serial, $unix_time, $field, $value, $update_timestamp) = @_;
 
@@ -708,14 +778,14 @@ sub update_meter_field {
 
 	my $sql;
 	if ($update_timestamp) {
-		# core telemetric update path
+		# Core telemetric update path (moves last_updated forward)
 		$sql = qq[UPDATE meters SET \
 					$field = $quoted_value, \
 					last_updated = $quoted_time \
 					WHERE serial = $quoted_serial \
 						AND $quoted_time > last_updated];
 	} else {
-		# peripheral/diagnostics
+		# Peripheral/diagnostics path (safely isolates the last_updated monitoring timeline)
 		$sql = qq[UPDATE meters SET \
 					$field = $quoted_value \
 					WHERE serial = $quoted_serial];
