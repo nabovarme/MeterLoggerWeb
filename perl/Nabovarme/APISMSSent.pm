@@ -79,11 +79,28 @@ sub handler {
 
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
+		
+		# Fetch the template or use fallback
+		my $sms_template = $ENV{'NOTIFICATION_SMS_CODE_MESSAGE'} || 'SMS Code: {sms_code}';
+
+		# Escape the template text safely, but leave our placeholder distinct
+		my $escaped_template = quotemeta($sms_template);
+
+		# Turn the escaped placeholder into a digit-capturing regex group: (\d+)
+		my $placeholder_regex = quotemeta('\{sms_code\}');
+		$escaped_template =~ s/$placeholder_regex/(\\d+)/;
 
 		my @rows;
-
 		while (my $row = $sth->fetchrow_hashref) {
-			$row->{message} =~ s/(SMS Code: )(\d+)/$1 . ('*' x length($2))/e;
+			# Match the message against our dynamic template pattern
+			if ($row->{message} =~ /^$escaped_template$/) {
+				# $1 contains the raw digits captured by (\d+)
+				my $digits = $1;
+				my $masked = '*' x length($digits);
+		
+				# Substitute only the digit portion inside the message string
+				$row->{message} =~ s/\Q$digits\E/$masked/;
+			}
 
 			# Generate clean E164 output via our corrected module implementation
 			my $phone_obj = Nabovarme::Number::Phone->new($row->{phone});
@@ -91,7 +108,7 @@ sub handler {
 				$row->{phone_e164} = $phone_obj->e164;
 			} else {
 				# Fallback safely to original string if the row contains unparseable data
-				$row->{phone_e164} = $row->{phone}; 
+				$row->{phone_e164} = $row->{phone};
 			}
 
 			push @rows, $row;

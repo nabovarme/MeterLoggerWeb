@@ -90,6 +90,9 @@ sub login_handler {
 	my $default_path = $r->dir_config('DefaultPath') || '/';
 	my $user_admin_access = $r->dir_config('UserAdminAccess') || '';
 
+	# Get the template from the environment variable, or fall back to a default
+	my $sms_template = $ENV{'NOTIFICATION_SMS_CODE_MESSAGE'} || 'SMS Code: {sms_code}';
+	
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 
@@ -170,8 +173,12 @@ sub login_handler {
 					my $quoted_phone_db = $dbh->quote($normalized_phone);
 
 					$dbh->do(qq[UPDATE sms_auth SET `auth_state` = 'sms_code_sent', `sms_code` = $quoted_sms_code, `phone` = $quoted_phone_db, unix_time = ] . time() . qq[ WHERE cookie_token = $quoted_passed_cookie_token]) or warn $!;
-		
-					send_notification($id, "SMS Code: $sms_code");
+
+					# Replace the placeholder with the actual code
+					my $sms_message = $sms_template;
+					$sms_message =~ s/\{sms_code\}/$sms_code/g;
+
+					send_notification($id, $sms_message);
 
 					# Start with a session cookie
 					$cookie = CGI::Cookie->new(
