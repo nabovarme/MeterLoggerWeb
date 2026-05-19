@@ -225,7 +225,7 @@ sub phones_by_group {
 
 	my @phones = sort keys %phones;
 
-	warn "phones_by_group($group_id): phones = " . join(', ', @phones);
+#	warn "phones_by_group($group_id): phones = " . join(', ', @phones);
 
 	return @phones;
 }
@@ -261,7 +261,7 @@ sub groups_by_cookie {
 
 	my @groups = split /\s*,\s*/, $admin_group;
 
-	warn "groups_by_cookie: groups = " . join(', ', @groups);
+#	warn "groups_by_cookie: groups = " . join(', ', @groups);
 
 	return @groups;
 }
