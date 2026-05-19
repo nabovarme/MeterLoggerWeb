@@ -5,6 +5,8 @@ services:
       dockerfile: ./Dockerfile.base
     image: perl-base:1.0
     entrypoint: ["echo", "Base image build complete."]
+    profiles:
+      - build-only
 
   db_config:
     image: busybox

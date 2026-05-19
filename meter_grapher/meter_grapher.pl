@@ -32,7 +32,8 @@ sub sig_int_handler {
 	log_info("Caught SIGINT, exiting.", {-no_script_name => 1});
 	exit 0;
 }
-# connect to db
+
+# Connect to database
 my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
@@ -44,7 +45,7 @@ else {
 
 my $crypto = new Nabovarme::Crypto;
 
-# start mqtt run loop
+# Start MQTT run loop
 while (1) {
 	my ($queue, $job_id) = $redis->blpop(join(':', $queue_name, 'queue'), $timeout);
 	if ($job_id) {
@@ -103,13 +104,12 @@ while (1) {
 			mqtt_network_quality_handler($data{topic}, $data{message});
 		}
 		
-		# remove data for job
+		# Remove data for job
 		$redis->del($job_id);
 	}
 }
 
-# end of main
-
+# End of main
 
 sub mqtt_sample_handler {
 	my ($topic, $message) = @_;
@@ -124,7 +124,7 @@ sub mqtt_sample_handler {
 
 	my $sample = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $sample) {	
-		# parse message
+		# Parse message
 		$sample =~ s/&$//;
 	
 		my ($key, $value, $unit);
@@ -132,7 +132,7 @@ sub mqtt_sample_handler {
 		my $key_value; 
 		foreach $key_value (@key_value_list) {
 			if (($key, $value, $unit) = $key_value =~ /([^=]*)=(\S+)(?:\s+(.*))?/) {
-				# check energy register unit
+				# Check energy register unit
 				if ($key =~ /^e1$/i) {
 					if ($unit =~ /^MWh$/i) {
 						$value *= 1000;
@@ -146,7 +146,7 @@ sub mqtt_sample_handler {
 				$mqtt_data->{$key} = $value;
 			}
 		}		
-		# save to db
+		# Save real meter telemetry sample to database
 		my $sth = $dbh->prepare(qq[INSERT INTO `samples` (
 			`serial`,
 			`heap`,
@@ -177,8 +177,7 @@ sub mqtt_sample_handler {
 		if ($sth->err) {
 			log_warn($sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message, {-no_script_name => 1});
 			
-			# re-insert to redis
-			# Create the next id
+			# Re-insert to redis
 			my $id = $redis->incr(join(':',$queue_name, 'id'));
 			my $job_id = join(':', $queue_name, $id);
 
@@ -191,18 +190,14 @@ sub mqtt_sample_handler {
 			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
 		}
 		else {
-			# update last_updated time stamp
-			my $quoted_meter_serial = $dbh->quote($meter_serial);
-			my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[UPDATE meters SET \
-							last_updated = $quoted_unix_time \
-							WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+			# sample data, last_updated filed should be updated
+			update_meter_field($meter_serial, $unix_time, 'last_updated', $unix_time, 1);
 			log_info($topic . " " . $sample, {-no_script_name => 1});			
 		}
 		$sth->finish;
 	}
 	else {
-		# hmac sha256 not ok
+		# HMAC SHA256 verification failed
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -219,16 +214,16 @@ sub mqtt_version_handler {
 
 	my $sw_version = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $sw_version) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$sw_version =~ s/[\x00\s]+$//;
 		$sw_version .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'sw_version', $sw_version);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'sw_version', $sw_version, 0);
 
 		log_info($topic . "\t" . $sw_version, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -245,16 +240,16 @@ sub mqtt_status_handler {
 
 	my $valve_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $valve_status) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$valve_status =~ s/[\x00\s]+$//;
 		$valve_status .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'valve_status', $valve_status);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'valve_status', $valve_status, 0);
 
 		log_info($topic . "\t" . $valve_status, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -271,16 +266,16 @@ sub mqtt_uptime_handler {
 	
 	my $uptime = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $uptime) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$uptime =~ s/[\x00\s]+$//;
 		$uptime .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'uptime', $uptime);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'uptime', $uptime, 0);
 
 		log_info($topic . "\t" . $uptime, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -297,16 +292,16 @@ sub mqtt_ssid_handler {
 	
 	my $ssid = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $ssid) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$ssid =~ s/[\x00\s]+$//;
 		$ssid .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'ssid', $ssid);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'ssid', $ssid, 0);
 
 		log_info($topic . "\t" . $ssid, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -323,16 +318,16 @@ sub mqtt_rssi_handler {
 	
 	my $rssi = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $rssi) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$rssi =~ s/[\x00\s]+$//;
 		$rssi .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'rssi', $rssi);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'rssi', $rssi, 0);
 
 		log_info($topic . "\t" . $rssi, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -349,16 +344,16 @@ sub mqtt_wifi_status_handler {
 	
 	my $wifi_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $wifi_status) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$wifi_status =~ s/[\x00\s]+$//;
 		$wifi_status .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'wifi_status', $wifi_status);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'wifi_status', $wifi_status, 0);
 
 		log_info($topic . "\t" . $wifi_status, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -375,16 +370,16 @@ sub mqtt_ap_status_handler {
 	
 	my $ap_status = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $ap_status) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$ap_status =~ s/[\x00\s]+$//;
 		$ap_status .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'ap_status', $ap_status);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'ap_status', $ap_status, 0);
 		
 		log_info($topic . "\t" . $ap_status, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -401,29 +396,17 @@ sub mqtt_set_ap_mesh_pwd_handler {
 
 	my $mesh_pwd = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $mesh_pwd) {
-		# remove trailing nulls
+		# Remove trailing nulls
 		$mesh_pwd =~ s/[\x00\s]+$//;
 		$mesh_pwd .= '';
 
-		my $quoted_serial = $dbh->quote($meter_serial);
-		my $quoted_time   = $dbh->quote($unix_time);
-		my $quoted_pwd	= $dbh->quote($mesh_pwd);
-
-		$dbh->do(qq[
-			UPDATE meters SET
-				mesh_pwd = $quoted_pwd,
-				last_updated = $quoted_time
-			WHERE serial = $quoted_serial
-				AND $quoted_time > last_updated
-		]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'mesh_pwd', $mesh_pwd, 0);
 
 		log_info($topic . "\tmesh_pwd updated", {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
-		log_warn($topic . " hmac error, " .
-			(defined $message ? unpack('H*', $message) : 'undef'),
-			{-no_script_name => 1});
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
 
@@ -441,7 +424,7 @@ sub mqtt_scan_result_handler {
 
 	my $scan_result = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $scan_result) {	
-		# parse message
+		# Parse message
 		$scan_result =~ s/&$//;
 
 		my ($key, $value);
@@ -453,11 +436,11 @@ sub mqtt_scan_result_handler {
 			}
 		}		
 
-		# store raw SSID for Wi-Fi connection
+		# Store raw SSID for Wi-Fi connection
 		my $ssid_raw = $mqtt_data->{ssid};
 		my $ssid = decode_ssid($ssid_raw);
 
-		# save to db
+		# Save to database
 		my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (
 			`serial`,
 			`ssid_raw`,
@@ -492,8 +475,7 @@ sub mqtt_scan_result_handler {
 		if ($sth->err) {
 			log_warn($sth->err . ": " . $sth->errstr . " reinserting into redis: " . $topic . " " . $message, {-no_script_name => 1});
 			
-			# re-insert to redis
-			# Create the next id
+			# Re-insert to redis
 			my $id = $redis->incr(join(':',$queue_name, 'id'));
 			my $job_id = join(':', $queue_name, $id);
 
@@ -511,7 +493,6 @@ sub mqtt_scan_result_handler {
 		$sth->finish;
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -544,16 +525,16 @@ sub mqtt_chip_id_handler {
 
 	my $chip_id = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $chip_id) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$chip_id =~ s/[\x00\s]+$//;
 		$chip_id .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'chip_id', $chip_id);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'chip_id', $chip_id, 0);
 
 		log_info($topic . "\t" . $chip_id, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -570,16 +551,16 @@ sub mqtt_flash_id_handler {
 
 	my $flash_id = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $flash_id) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$flash_id =~ s/[\x00\s]+$//;
 		$flash_id .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'flash_id', $flash_id);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'flash_id', $flash_id, 0);
 
 		log_info($topic . "\t" . $flash_id, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -596,16 +577,16 @@ sub mqtt_flash_size_handler {
 
 	my $flash_size = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $flash_size) {	
-		# remove trailing nulls
+		# Remove trailing nulls
 		$flash_size =~ s/[\x00\s]+$//;
 		$flash_size .= '';
 
-		update_meter_field($meter_serial, $unix_time, 'flash_size', $flash_size);
+		# Diagnostic Only: Flagged with 0
+		update_meter_field($meter_serial, $unix_time, 'flash_size', $flash_size, 0);
 
 		log_info($topic . "\t" . $flash_size, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -622,19 +603,17 @@ sub mqtt_flash_error_handler {
 
 	my $flash_error = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $flash_error) {
-		# remove trailing nulls
+		# Remove trailing nulls
 		$flash_error =~ s/[\x00\s]+$//;
 		$flash_error .= '';
 
 		my $quoted_flash_error = $dbh->quote($flash_error);
 		my $quoted_meter_serial = $dbh->quote($meter_serial);
 		my $quoted_unix_time = $dbh->quote($unix_time);
-			$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'flash_error', $quoted_flash_error, $quoted_unix_time)]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
 		log_info($topic . "\t" . 'flash_error', {-no_script_name => 1});
-		
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -651,7 +630,7 @@ sub mqtt_reset_reason_handler {
 
 	my $reset_reason = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $reset_reason) {
-		# remove trailing nulls
+		# Remove trailing nulls
 		$reset_reason =~ s/[\x00\s]+$//;
 		$reset_reason .= '';
 
@@ -662,7 +641,6 @@ sub mqtt_reset_reason_handler {
 		log_info($topic . "\t" . 'reset_reason', {-no_script_name => 1});			
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -680,14 +658,12 @@ sub mqtt_network_quality_handler {
 
 	my $network_quality = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
 	if (defined $network_quality) {	
-		# parse message
-		# remove trailing nulls
+		# Parse message
 		$network_quality =~ s/[\x00\s]+$//;
 		$network_quality .= '';
-
 		$network_quality =~ s/&$//;
 	
-		my ($key, $value, $unit);
+		my ($key, $value);
 		my @key_value_list = split(/&/, $network_quality);
 		my $key_value; 
 		foreach $key_value (@key_value_list) {
@@ -696,19 +672,14 @@ sub mqtt_network_quality_handler {
 			}
 		}		
 
-		my $quoted_meter_serial = $dbh->quote($meter_serial);
-		my $quoted_unix_time = $dbh->quote($unix_time);
+		# Save diagnostics without timestamp updates (flagged as 0)
+		update_meter_field($meter_serial, $unix_time, 'ping_response_time', $mqtt_data->{ping_response_time}, 0);
+		update_meter_field($meter_serial, $unix_time, 'ping_average_packet_loss', $mqtt_data->{ping_average_packet_loss}, 0);
+		update_meter_field($meter_serial, $unix_time, 'disconnect_count', $mqtt_data->{disconnect_count}, 0);
 
-		$dbh->do(qq[UPDATE meters SET \
-						ping_response_time = ] . $dbh->quote($mqtt_data->{ping_response_time}) . qq[, \
-						ping_average_packet_loss = ] . $dbh->quote($mqtt_data->{ping_average_packet_loss}) . qq[, \
-						disconnect_count = ] . $dbh->quote($mqtt_data->{disconnect_count}) . qq[, \
-						last_updated = $quoted_unix_time \
-						WHERE serial = $quoted_meter_serial AND $quoted_unix_time > last_updated]) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
 		log_info($topic . "\t" . $network_quality, {-no_script_name => 1});
 	}
 	else {
-		# hmac sha256 not ok
 		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
 	}
 }
@@ -729,18 +700,28 @@ sub decode_ssid {
 }
 
 sub update_meter_field {
-	my ($serial, $unix_time, $field, $value) = @_;
+	my ($serial, $unix_time, $field, $value, $update_timestamp) = @_;
 
 	my $quoted_serial = $dbh->quote($serial);
-	my $quoted_time = $dbh->quote($unix_time);
-	my $quoted_value = $dbh->quote($value);
+	my $quoted_value  = $dbh->quote($value);
+	my $quoted_time   = $dbh->quote($unix_time);
 
-	$dbh->do(qq[UPDATE meters SET \
-				$field = $quoted_value, \
-				last_updated = $quoted_time \
-				WHERE serial = $quoted_serial \
-					AND $quoted_time > last_updated]
-	) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+	my $sql;
+	if ($update_timestamp) {
+		# core telemetric update path
+		$sql = qq[UPDATE meters SET \
+					$field = $quoted_value, \
+					last_updated = $quoted_time \
+					WHERE serial = $quoted_serial \
+						AND $quoted_time > last_updated];
+	} else {
+		# peripheral/diagnostics
+		$sql = qq[UPDATE meters SET \
+					$field = $quoted_value \
+					WHERE serial = $quoted_serial];
+	}
+
+	$dbh->do($sql) or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
 }
 
 __END__
