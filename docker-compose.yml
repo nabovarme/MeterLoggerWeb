@@ -96,6 +96,7 @@ services:
       - firmware_release:/var/www/nabovarme/flasher/firmware
     restart: always
     environment:
+      NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
       TZ: 'Europe/Copenhagen'
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
