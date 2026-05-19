@@ -1,28 +1,45 @@
-<html>
-	<head>
-	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=600, initial-scale=2">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Login page</title>
-		<style type="text/css">
-		.top {
-			position: absolute;
-			top: 0;
-			left: 0;
-		}
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-		}
-		.default-bold {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-		}
-		</style>
-	</head>
-	<body>
-		<form method="POST" action="">
-			<span class="default-bold">Phone number</span><br><input type="tel" name="id" value="" autofocus><br><br>
-			<input type="submit" name="login" value="Login" />
-		</form>
-	</body>
+	<style>
+	body {
+		font-family: Verdana, sans-serif;
+		background: #f9f9f9;
+		color: #333;
+		text-align: center;
+		margin-top: 40px;
+	}
+	b {
+		display: block;
+		font-size: 24px;
+		margin-bottom: 16px;
+	}
+	input[type="tel"] {
+		font-size: 18px;
+		padding: 12px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		text-align: center;
+		display: block;
+		margin: 0 auto 16px;
+		width: 260px;
+	}
+	/* Scales the button up while forcing the native system look */
+	input[type="submit"] {
+		font-size: 20px;
+		width: 140px;
+		height: 44px;
+	}
+	</style>
+</head>
+<body>
+	<form method="POST" action="">
+		<b>Phone number</b>
+		<input type="tel" name="id" autofocus>
+		<input type="submit" name="login" value="Login">
+	</form>
+</body>
 </html>
-

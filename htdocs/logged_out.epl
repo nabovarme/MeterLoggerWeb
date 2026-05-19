@@ -24,6 +24,7 @@
 	</style>
 	</HEAD>
 	<BODY>
-		<span class="default-bold">Logged out</span>
+		<span class="default-bold">Logged out</span><br><br>
+		<a href="login.php" class="default">Login again</a>
 	</BODY>
 </HTML>
