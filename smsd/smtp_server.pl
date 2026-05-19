@@ -627,8 +627,12 @@ while (my $client = $socket->accept()) {
 			# Normalize completely to compact DB configuration format (e.g. +4528490157)
 			$rcpt = $phone_obj->compact;
 		} else {
-			# Fallback logic if input is garbage: strip formatting blocks to keep system alive
-			$rcpt =~ s/\D//g;
+			# Reject phone number failed validation
+			log_warn("Rejected invalid RCPT TO phone number: $rcpt", {-no_script_name => 1, -custom_tag => 'SMTP' });
+		
+			# Send a permanent 550 error back to the sending SMTP client
+			$session->queue_reply(550, "Invalid phone number format or destination country");
+			return 0;
 		}
 
 		$session->{_sms_to} = $rcpt;
