@@ -98,7 +98,4 @@ RUN PERL_MM_USE_DEFAULT=1 cpanm \
 RUN cpanm https://github.com/st0ff3r/Net-MQTT-Simple.git@master \
 	&& cpanm https://github.com/DCIT/perl-CryptX.git@6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489
 
-# Set the default working directory for downstream containers
-WORKDIR /app
-
 CMD ["/usr/bin/bash"]
