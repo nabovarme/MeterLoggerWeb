@@ -233,36 +233,15 @@ sub phones_by_group {
 sub groups_by_cookie {
 	my ($self, $r) = @_;
 
-	my $passed_cookie = $r->headers_in->{Cookie} || '';
-	my ($cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
-
-	unless ($cookie_token) {
-		warn "groups_by_cookie: no auth_token in Cookie header";
-		return ();
-	}
-
-	# Step 1: get latest verified phone for cookie
-	my $sth_phone = $self->{dbh}->prepare(qq[
-		SELECT phone
-		FROM sms_auth
-		WHERE cookie_token = ?
-			AND auth_state = 'sms_code_verified'
-		ORDER BY unix_time DESC
-		LIMIT 1
-	]);
-	$sth_phone->execute($cookie_token);
-
-	my ($phone) = $sth_phone->fetchrow_array;
+	# ✅ FIX: Reuse your existing, robust method instead of querying the DB again manually
+	my $phone = $self->phone_by_cookie($r);
 
 	unless ($phone) {
 		warn "groups_by_cookie: no verified phone for cookie";
 		return ();
 	}
 
-	$self->{auth_phone} = $phone;
-	warn "groups_by_cookie: auth_phone = $phone";
-
-	# Step 2: get admin_group for this phone
+	# Step 2: get admin_group for this phone (Now guaranteed to match your normalized format)
 	my $sth_groups = $self->{dbh}->prepare(qq[
 		SELECT admin_group
 		FROM users
