@@ -631,7 +631,7 @@ while (my $client = $socket->accept()) {
 			log_warn("Rejected invalid RCPT TO phone number: $rcpt", {-no_script_name => 1, -custom_tag => 'SMTP' });
 		
 			# Send a permanent 550 error back to the sending SMTP client
-			$session->queue_reply(550, "Invalid phone number format or destination country");
+			$smtp->reply(550, "Invalid phone number format or destination country");
 			return 0;
 		}
 
