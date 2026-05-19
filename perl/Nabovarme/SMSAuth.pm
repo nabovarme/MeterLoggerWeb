@@ -178,7 +178,7 @@ sub login_handler {
 					my $sms_message = $sms_template;
 					$sms_message =~ s/\{sms_code\}/$sms_code/g;
 
-					send_notification($id, $sms_message);
+					send_notification($normalized_phone, $sms_message);
 
 					# Start with a session cookie
 					$cookie = CGI::Cookie->new(
