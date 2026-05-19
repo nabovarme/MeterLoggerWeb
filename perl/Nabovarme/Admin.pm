@@ -233,7 +233,7 @@ sub phones_by_group {
 sub groups_by_cookie {
 	my ($self, $r) = @_;
 
-	# ✅ FIX: Reuse your existing, robust method instead of querying the DB again manually
+	# Step 1: get latest verified phone for cookie
 	my $phone = $self->phone_by_cookie($r);
 
 	unless ($phone) {
@@ -241,7 +241,7 @@ sub groups_by_cookie {
 		return ();
 	}
 
-	# Step 2: get admin_group for this phone (Now guaranteed to match your normalized format)
+	# Step 2: get admin_group for this phone
 	my $sth_groups = $self->{dbh}->prepare(qq[
 		SELECT admin_group
 		FROM users
