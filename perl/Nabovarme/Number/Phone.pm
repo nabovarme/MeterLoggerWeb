@@ -18,11 +18,7 @@ sub new {
 		$input = '+' . $1;
 	}
 
-	# 2. Fix 10-digit raw numbers starting with 45 but missing '+' (e.g., "4520291699")
-	if ($input =~ /^45\d{8}$/) {
-		$input = '+' . $input;
-	}
-	# 3. If it is exactly 8 digits, safely assume it's a local Danish number
+	# 2. If it is exactly 8 digits, safely assume it's a local Danish number
 	elsif ($input =~ /^\d{8}$/) {
 		$input = '+45' . $input;
 	}
