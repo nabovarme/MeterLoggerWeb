@@ -3,6 +3,7 @@ use lib qw(/etc/apache2/perl);
 use Embperl;
 use Data::Dumper;
 use DBI;
+use Nabovarme::Admin;
 use Nabovarme::Data;
 use Nabovarme::QR;
 use Nabovarme::NetworkData;
@@ -19,5 +20,6 @@ use Nabovarme::APIWiFiPending;
 use Nabovarme::APIWiFiScan;
 use Nabovarme::APIWiFiMeshRSSI;
 use Nabovarme::APISMSSent;
+use Nabovarme::Number::Phone;
 
 1;
