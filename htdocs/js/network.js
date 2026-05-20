@@ -255,9 +255,10 @@ function initPanZoom() {
 	let scale = 1;
 	let pointX = 0;
 	let pointY = 0;
-	let startX = 0;
-	let startY = 0;
 	let panning = false;
+
+	let lastClientX = 0;
+	let lastClientY = 0;
 	
 	// Variables for touch pinch-to-zoom
 	let initialPinchDistance = null;
@@ -265,16 +266,44 @@ function initPanZoom() {
 	let pinchStartX = 0;
 	let pinchStartY = 0;
 
+	// Enforce screen limits so the tree cannot be dragged out of view
+	function clampBounds() {
+		const viewportWidth = treesDiv.clientWidth;
+		const viewportHeight = treesDiv.clientHeight;
+		const searchBarHeight = 80; // Approximate height to keep bottom clear of search bar
+
+		const scaledWidth = treeCanvas.scrollWidth * scale;
+		const scaledHeight = treeCanvas.scrollHeight * scale;
+
+		// X boundaries
+		if (scaledWidth > viewportWidth) {
+			pointX = Math.max(viewportWidth - scaledWidth, Math.min(pointX, 0));
+		} else {
+			// If tree is thinner than window, keep it pinned inside
+			pointX = Math.max(0, Math.min(pointX, viewportWidth - scaledWidth));
+		}
+
+		// Y boundaries
+		const availableHeight = viewportHeight - searchBarHeight;
+		if (scaledHeight > availableHeight) {
+			pointY = Math.max(availableHeight - scaledHeight, Math.min(pointY, 0));
+		} else {
+			// If tree is shorter than window, keep it pinned inside
+			pointY = Math.max(0, Math.min(pointY, availableHeight - scaledHeight));
+		}
+	}
+
 	function setTransform() {
+		clampBounds();
 		treeCanvas.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
 	}
 
 	function getMinScale() {
 		const unscaledWidth = treeCanvas.scrollWidth || 1;
-		
+
 		// Calculate the scale needed to fit purely based on width
 		const fitScale = treesDiv.clientWidth / unscaledWidth;
-		
+
 		// Don't force zoom-in if the tree is already thinner than the screen
 		return Math.min(fitScale, 1);
 	}
@@ -286,8 +315,8 @@ function initPanZoom() {
 	treesDiv.addEventListener('mousedown', (e) => {
 		if (e.target.closest('a')) return; 
 		e.preventDefault();
-		startX = e.clientX - pointX;
-		startY = e.clientY - pointY;
+		lastClientX = e.clientX;
+		lastClientY = e.clientY;
 		panning = true;
 	});
 
@@ -298,8 +327,12 @@ function initPanZoom() {
 	window.addEventListener('mousemove', (e) => {
 		if (!panning) return;
 		e.preventDefault();
-		pointX = e.clientX - startX;
-		pointY = e.clientY - startY;
+		// Add relative delta movement instead of absolute positioning 
+		// so it doesn't "stick" if you drag past the boundary
+		pointX += e.clientX - lastClientX;
+		pointY += e.clientY - lastClientY;
+		lastClientX = e.clientX;
+		lastClientY = e.clientY;
 		setTransform();
 	});
 
@@ -342,8 +375,8 @@ function initPanZoom() {
 		
 		if (e.touches.length === 1) {
 			// Single finger: Pan
-			startX = e.touches[0].clientX - pointX;
-			startY = e.touches[0].clientY - pointY;
+			lastClientX = e.touches[0].clientX;
+			lastClientY = e.touches[0].clientY;
 			panning = true;
 		} else if (e.touches.length === 2) {
 			// Two fingers: Pinch
@@ -368,9 +401,11 @@ function initPanZoom() {
 		e.preventDefault(); // Prevents native browser zoom and scroll
 		
 		if (panning && e.touches.length === 1) {
-			// Handle Pan
-			pointX = e.touches[0].clientX - startX;
-			pointY = e.touches[0].clientY - startY;
+			// Handle Pan (Delta based)
+			pointX += e.touches[0].clientX - lastClientX;
+			pointY += e.touches[0].clientY - lastClientY;
+			lastClientX = e.touches[0].clientX;
+			lastClientY = e.touches[0].clientY;
 			setTransform();
 		} else if (e.touches.length === 2 && initialPinchDistance) {
 			// Handle Pinch Zoom
