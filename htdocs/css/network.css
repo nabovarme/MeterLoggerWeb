@@ -1,12 +1,26 @@
-/* Global layout and defaults */
 html, body {
-	height: auto;
+	height: 100%;
 	margin: 0;
 	padding: 0;
 	font-family: Verdana, Geneva, sans-serif;
 	font-size: 100%;
-	overflow-x: hidden;
-	overflow-y: visible;
+	overflow: hidden;
+}
+
+/* Dedicated viewport for trees */
+#treeViewport {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 70px; /* leave room for search bar */
+
+	overflow: auto;
+
+	/* enables smooth touch scrolling */
+	-webkit-overflow-scrolling: touch;
+
+	background: #fff;
 }
 
 .chart-container {
@@ -68,12 +82,17 @@ html, body {
 	padding-bottom: 40px;
 }
 
-/* Ensure space below trees for floating search bar */
+/* Tree canvas */
 #trees {
-	padding-bottom: 100px;
+	display: inline-block;
+	min-width: max-content;
+	min-height: 100%;
+	padding: 20px 40px 100px 20px;
+
+	transform-origin: top left;
 }
 
-/* Floating search bar at bottom */
+/* Floating search bar */
 #networkSearchContainer {
 	position: fixed;
 	bottom: 0;
@@ -83,6 +102,7 @@ html, body {
 	padding: 10px;
 	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 	z-index: 9999;
+
 	display: flex;
 	align-items: center;
 	justify-content: center;
