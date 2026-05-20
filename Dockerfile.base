@@ -95,7 +95,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpanm \
 	Types::Standard
 
 # 4. Install modules directly from GitHub using specific branches/commits
-RUN cpanm https://github.com/st0ff3r/Net-MQTT-Simple.git@master \
+RUN cpanm https://github.com/Juerd/Net-MQTT-Simple.git \
 	&& cpanm https://github.com/DCIT/perl-CryptX.git@6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489
 
 CMD ["/usr/bin/bash"]
