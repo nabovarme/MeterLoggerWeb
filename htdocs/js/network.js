@@ -1,7 +1,5 @@
 let originalTreeData = [];
 
-let currentZoom = 1;
-
 // =========================
 // BODY SCROLL HANDLING
 // =========================
@@ -243,12 +241,131 @@ function executeTreeFiltering() {
 		: originalTreeData;
 
 	renderTrees(filteredData);
-	if (window.scrollY > 100) {
-		window.scrollTo({ top: 0, behavior: 'smooth' });
-	}
 }
 
 const renderFilteredTrees = debounce(executeTreeFiltering, 300);
+
+// =========================
+// PAN AND ZOOM HANDLING
+// =========================
+
+function initPanZoom() {
+	const treesDiv = document.getElementById('trees');
+	let scale = 1;
+	let pointX = 0;
+	let pointY = 0;
+	let startX = 0;
+	let startY = 0;
+	let panning = false;
+	
+	// Variables for touch pinch-to-zoom
+	let initialPinchDistance = null;
+	let initialScale = 1;
+
+	function setTransform() {
+		treesDiv.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+	}
+
+	// --- MOUSE EVENTS (Desktop) ---
+	
+	treesDiv.addEventListener('mousedown', (e) => {
+		if (e.target.closest('a')) return; 
+		e.preventDefault();
+		startX = e.clientX - pointX;
+		startY = e.clientY - pointY;
+		panning = true;
+	});
+
+	window.addEventListener('mouseup', () => {
+		panning = false;
+	});
+
+	window.addEventListener('mousemove', (e) => {
+		if (!panning) return;
+		e.preventDefault();
+		pointX = e.clientX - startX;
+		pointY = e.clientY - startY;
+		setTransform();
+	});
+
+	// --- WHEEL EVENTS (Mouse Wheel & Trackpad) ---
+	
+	treesDiv.addEventListener('wheel', (e) => {
+		e.preventDefault();
+
+		if (e.ctrlKey) {
+			// Zoom (Trackpad pinch or Ctrl + Mouse Wheel)
+			const xs = (e.clientX - pointX) / scale;
+			const ys = (e.clientY - pointY) / scale;
+
+			// Use e.deltaY for smooth zooming
+			const delta = -e.deltaY;
+			if (delta > 0) {
+				scale *= 1.05; // Slightly smoother zoom step
+			} else {
+				scale /= 1.05; 
+			}
+
+			pointX = e.clientX - xs * scale;
+			pointY = e.clientY - ys * scale;
+		} else {
+			// Pan (Two-finger trackpad scroll or regular mouse wheel)
+			pointX -= e.deltaX;
+			pointY -= e.deltaY;
+		}
+
+		setTransform();
+	}, { passive: false }); 
+
+	// --- TOUCH EVENTS (Mobile Phones / Tablets) ---
+	
+	treesDiv.addEventListener('touchstart', (e) => {
+		if (e.target.closest('a')) return;
+		
+		if (e.touches.length === 1) {
+			// Single finger: Pan
+			startX = e.touches[0].clientX - pointX;
+			startY = e.touches[0].clientY - pointY;
+			panning = true;
+		} else if (e.touches.length === 2) {
+			// Two fingers: Pinch
+			panning = false;
+			initialPinchDistance = Math.hypot(
+				e.touches[0].clientX - e.touches[1].clientX,
+				e.touches[0].clientY - e.touches[1].clientY
+			);
+			initialScale = scale;
+		}
+	}, { passive: false });
+
+	treesDiv.addEventListener('touchmove', (e) => {
+		e.preventDefault(); // Prevents native browser zoom and scroll
+		
+		if (panning && e.touches.length === 1) {
+			// Handle Pan
+			pointX = e.touches[0].clientX - startX;
+			pointY = e.touches[0].clientY - startY;
+			setTransform();
+		} else if (e.touches.length === 2 && initialPinchDistance) {
+			// Handle Pinch Zoom
+			const currentDistance = Math.hypot(
+				e.touches[0].clientX - e.touches[1].clientX,
+				e.touches[0].clientY - e.touches[1].clientY
+			);
+			
+			// Calculate the new scale based on how far the fingers moved
+			const distanceRatio = currentDistance / initialPinchDistance;
+			scale = initialScale * distanceRatio;
+			
+			setTransform();
+		}
+	}, { passive: false });
+
+	treesDiv.addEventListener('touchend', (e) => {
+		panning = false;
+		initialPinchDistance = null;
+	});
+}
 
 // =========================
 // INIT
@@ -258,8 +375,7 @@ window.addEventListener('load', () => {
 	const filterInput = document.getElementById('networkSearch');
 	const offlineCheckbox = document.getElementById('offlineMeters');
 
-	const treeViewport = document.getElementById('treeViewport');
-	const trees = document.getElementById('trees');
+	initPanZoom(); 
 
 	// load from URL
 	const urlState = loadStateFromURL();
@@ -279,60 +395,6 @@ window.addEventListener('load', () => {
 
 	filterInput.addEventListener('input', renderFilteredTrees);
 	offlineCheckbox.addEventListener('change', renderFilteredTrees);
-
-	// Ctrl + mouse wheel zoom
-	treeViewport.addEventListener('wheel', (e) => {
-		if (!e.ctrlKey) return;
-
-		e.preventDefault();
-
-		const zoomFactor = 0.1;
-
-		if (e.deltaY < 0) {
-			currentZoom += zoomFactor;
-		} else {
-			currentZoom -= zoomFactor;
-		}
-
-		// Clamp zoom level
-		currentZoom = Math.min(Math.max(currentZoom, 0.3), 3);
-
-		trees.style.transform = `scale(${currentZoom})`;
-	}, { passive: false });
-
-	// Touch pinch zoom support
-	let lastTouchDistance = null;
-
-	treeViewport.addEventListener('touchmove', (e) => {
-		if (e.touches.length !== 2) return;
-
-		e.preventDefault();
-
-		const touch1 = e.touches[0];
-		const touch2 = e.touches[1];
-
-		const dx = touch1.clientX - touch2.clientX;
-		const dy = touch1.clientY - touch2.clientY;
-
-		const distance = Math.sqrt(dx * dx + dy * dy);
-
-		if (lastTouchDistance !== null) {
-			const delta = distance - lastTouchDistance;
-
-			currentZoom += delta * 0.002;
-
-			// Clamp zoom
-			currentZoom = Math.min(Math.max(currentZoom, 0.3), 3);
-
-			trees.style.transform = `scale(${currentZoom})`;
-		}
-
-		lastTouchDistance = distance;
-	}, { passive: false });
-
-	treeViewport.addEventListener('touchend', () => {
-		lastTouchDistance = null;
-	});
 
 	fetchAndRenderTrees();
 });
