@@ -139,6 +139,10 @@ function renderTrees(data) {
 			const config = createTreeConfig(routerObj, i);
 			new Treant(config);
 		});
+		
+		// Trigger the custom event to apply the saved pan/zoom state now that the trees exist
+		window.dispatchEvent(new Event('treesRendered'));
+		
 	}, 50); // Adjust delay as needed
 }
 
@@ -252,11 +256,26 @@ const renderFilteredTrees = debounce(executeTreeFiltering, 300);
 function initPanZoom() {
 	const treesDiv = document.getElementById('trees');
 	const treeCanvas = document.getElementById('tree-canvas');
-	let scale = 1;
-	let pointX = 0;
-	let pointY = 0;
-	let panning = false;
+	
+	const STATE_KEY = 'network_tree_panzoom';
+	let savedState = { scale: 1, pointX: 0, pointY: 0 };
+	
+	// Check if the menu explicitly requested a top reset
+	if (sessionStorage.getItem('force_scroll_top') === '1') {
+		sessionStorage.removeItem('force_scroll_top');
+		sessionStorage.removeItem(STATE_KEY);
+	} else {
+		try {
+			const raw = sessionStorage.getItem(STATE_KEY);
+			if (raw) savedState = JSON.parse(raw);
+		} catch (e) {}
+	}
 
+	let scale = savedState.scale;
+	let pointX = savedState.pointX;
+	let pointY = savedState.pointY;
+	
+	let panning = false;
 	let lastClientX = 0;
 	let lastClientY = 0;
 	
@@ -296,6 +315,9 @@ function initPanZoom() {
 	function setTransform() {
 		clampBounds();
 		treeCanvas.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+		
+		// Save state every time the view moves
+		sessionStorage.setItem(STATE_KEY, JSON.stringify({ scale, pointX, pointY }));
 	}
 
 	function getMinScale() {
@@ -438,6 +460,11 @@ function initPanZoom() {
 	treesDiv.addEventListener('touchend', (e) => {
 		panning = false;
 		initialPinchDistance = null;
+	});
+
+	// Apply transform when initial trees finish rendering
+	window.addEventListener('treesRendered', () => {
+		setTransform();
 	});
 }
 
