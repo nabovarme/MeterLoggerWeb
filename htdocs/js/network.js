@@ -1,4 +1,5 @@
 let originalTreeData = [];
+let globalMinScale = 1; // Start at 1, and only allow it to decrease to accommodate larger trees
 
 // =========================
 // BODY SCROLL HANDLING
@@ -139,6 +140,15 @@ function renderTrees(data) {
 			const config = createTreeConfig(routerObj, i);
 			new Treant(config);
 		});
+		
+		// Calculate the scale needed for the currently rendered tree
+		const treesDiv = document.getElementById('trees');
+		const unscaledWidth = canvas.scrollWidth || 1;
+		const fitScale = treesDiv.clientWidth / unscaledWidth;
+		
+		// MAGIC BULLET: Only update the global minimum if the new tree requires us 
+		// to zoom out further than before. It will never force a zoom-in on small trees.
+		globalMinScale = Math.min(globalMinScale, fitScale);
 		
 		// Trigger the custom event to apply the saved pan/zoom state now that the trees exist
 		window.dispatchEvent(new Event('treesRendered'));
@@ -319,13 +329,8 @@ function initPanZoom() {
 	}
 
 	function getMinScale() {
-		const unscaledWidth = treeCanvas.scrollWidth || 1;
-
-		// Calculate the scale needed to fit purely based on width
-		const fitScale = treesDiv.clientWidth / unscaledWidth;
-
-		// Don't force zoom-in if the tree is already thinner than the screen
-		return Math.min(fitScale, 1);
+		// Return the dynamic locked minimum scale value
+		return globalMinScale;
 	}
 
 	const MAX_SCALE = 4; // Prevent zooming in too far
@@ -366,11 +371,11 @@ function initPanZoom() {
 			const xs = (e.clientX - pointX) / scale;
 			const ys = (e.clientY - pointY) / scale;
 
-			// Logarithmic transform via velocity delta ensures perfectly fluid transitions
+			// Logarithmic transform via velocity delta ensures fluid transitions. Zoom speed multiplier set to 0.008
 			const zoomFactor = 0.008; 
 			let newScale = scale * Math.exp(-e.deltaY * zoomFactor);
 
-			// Clamp zoom levels
+			// Clamp zoom levels safely
 			const minScale = getMinScale();
 			newScale = Math.max(minScale, Math.min(newScale, MAX_SCALE));
 
