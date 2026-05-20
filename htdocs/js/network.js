@@ -353,17 +353,29 @@ function initPanZoom() {
 	const MAX_SCALE = 4; // Prevent zooming in too far
 
 	// --- MOUSE EVENTS (Desktop) ---
-	
+
+	// Set the default cursor to an open hand for the panning area
+	treesDiv.style.cursor = 'grab';
+
 	treesDiv.addEventListener('mousedown', (e) => {
-		if (e.target.closest('a')) return; 
+		// If clicking anywhere inside a node, abort panning so the user 
+		// can select text, copy serial numbers, or click links naturally.
+		if (e.target.closest('.node')) return; 
+	
 		e.preventDefault();
 		lastClientX = e.clientX;
 		lastClientY = e.clientY;
 		panning = true;
+		
+		// Change to a closed hand while actively dragging
+		treesDiv.style.cursor = 'grabbing';
 	});
 
 	window.addEventListener('mouseup', () => {
 		panning = false;
+	
+		// Revert back to the open hand when the mouse button is released
+		treesDiv.style.cursor = 'grab';
 	});
 
 	window.addEventListener('mousemove', (e) => {

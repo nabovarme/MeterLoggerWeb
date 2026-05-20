@@ -108,3 +108,8 @@ html, body {
 	padding: 10px;
 	box-sizing: border-box;
 }
+
+/* Force standard text cursor when hovering over nodes */
+#trees .node {
+	cursor: auto;
+}
