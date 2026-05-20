@@ -289,7 +289,7 @@ function initPanZoom() {
 	function clampBounds() {
 		const viewportWidth = treesDiv.clientWidth;
 		const viewportHeight = treesDiv.clientHeight;
-		const searchBarHeight = 80; // Approximate height to keep bottom clear of search bar
+		const searchBarHeight = 150; // Approximate height to keep bottom clear of search bar
 
 		const scaledWidth = treeCanvas.scrollWidth * scale;
 		const scaledHeight = treeCanvas.scrollHeight * scale;
