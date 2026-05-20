@@ -198,11 +198,9 @@ function debounce(fn, delay) {
 	};
 }
 
-//
 // =========================
-// URL STATE HANDLING (NEW)
+// URL STATE HANDLING
 // =========================
-//
 
 function updateURLState(searchText, offlineOnly) {
 	const params = new URLSearchParams(window.location.search);
@@ -364,12 +362,13 @@ function initPanZoom() {
 		e.preventDefault();
 
 		if (e.ctrlKey) {
-			// Zoom (Trackpad pinch or Ctrl + Mouse Wheel)
+			// Find current point relative to unscaled canvas before zoom
 			const xs = (e.clientX - pointX) / scale;
 			const ys = (e.clientY - pointY) / scale;
 
-			const delta = -e.deltaY;
-			let newScale = delta > 0 ? scale * 1.05 : scale / 1.05;
+			// Logarithmic transform via velocity delta ensures perfectly fluid transitions
+			const zoomFactor = 0.008; 
+			let newScale = scale * Math.exp(-e.deltaY * zoomFactor);
 
 			// Clamp zoom levels
 			const minScale = getMinScale();
@@ -451,9 +450,8 @@ function initPanZoom() {
 				pointX = currentCenterX - pinchStartX * newScale;
 				pointY = currentCenterY - pinchStartY * newScale;
 				scale = newScale;
+				setTransform();
 			}
-			
-			setTransform();
 		}
 	}, { passive: false });
 
