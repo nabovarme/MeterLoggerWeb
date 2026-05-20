@@ -426,7 +426,9 @@ function initPanZoom() {
 	// --- TOUCH EVENTS (Mobile Phones / Tablets) ---
 	
 	treesDiv.addEventListener('touchstart', (e) => {
-		if (e.target.closest('a')) return;
+		// Abort pan if clicking a link, OR if text is currently selected
+		// (This allows the user to grab and drag native text selection handles)
+		if (e.target.closest('a') || window.getSelection().toString().length > 0) return;
 		
 		if (e.touches.length === 1) {
 			// Single finger: Pan
@@ -453,9 +455,10 @@ function initPanZoom() {
 	}, { passive: false });
 
 	treesDiv.addEventListener('touchmove', (e) => {
-		e.preventDefault(); // Prevents native browser zoom and scroll
 		
 		if (panning && e.touches.length === 1) {
+			e.preventDefault(); // ONLY prevent default if actively panning
+			
 			// Handle Pan (Delta based)
 			pointX += e.touches[0].clientX - lastClientX;
 			pointY += e.touches[0].clientY - lastClientY;
@@ -463,6 +466,8 @@ function initPanZoom() {
 			lastClientY = e.touches[0].clientY;
 			setTransform();
 		} else if (e.touches.length === 2 && initialPinchDistance) {
+			e.preventDefault(); // ONLY prevent default if actively pinching zoom
+			
 			// Handle Pinch Zoom
 			const currentDistance = Math.hypot(
 				e.touches[0].clientX - e.touches[1].clientX,
