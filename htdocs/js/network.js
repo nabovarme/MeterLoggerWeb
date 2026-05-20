@@ -117,20 +117,20 @@ async function fetchAndRenderTrees() {
 		// Execute matching immediately without waiting for user typing debounce time
 		executeTreeFiltering();
 	} catch (err) {
-		document.getElementById('trees').innerText = 'Failed to load tree data: ' + err.message;
+		document.getElementById('tree-canvas').innerText = 'Failed to load tree data: ' + err.message;
 		console.error(err);
 	}
 }
 
 function renderTrees(data) {
-	const container = document.getElementById('trees');
-	container.innerHTML = '';
+	const canvas = document.getElementById('tree-canvas');
+	canvas.innerHTML = '';
 
 	data.forEach((routerObj, i) => {
 		const treeDiv = document.createElement('div');
 		treeDiv.id = `tree${i}`;
 		treeDiv.className = 'chart-container';
-		container.appendChild(treeDiv);
+		canvas.appendChild(treeDiv);
 	});
 
 	// Wait for DOM layout to stabilize
@@ -251,6 +251,7 @@ const renderFilteredTrees = debounce(executeTreeFiltering, 300);
 
 function initPanZoom() {
 	const treesDiv = document.getElementById('trees');
+	const treeCanvas = document.getElementById('tree-canvas');
 	let scale = 1;
 	let pointX = 0;
 	let pointY = 0;
@@ -261,9 +262,11 @@ function initPanZoom() {
 	// Variables for touch pinch-to-zoom
 	let initialPinchDistance = null;
 	let initialScale = 1;
+	let pinchStartX = 0;
+	let pinchStartY = 0;
 
 	function setTransform() {
-		treesDiv.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+		treeCanvas.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
 	}
 
 	// --- MOUSE EVENTS (Desktop) ---
@@ -298,10 +301,9 @@ function initPanZoom() {
 			const xs = (e.clientX - pointX) / scale;
 			const ys = (e.clientY - pointY) / scale;
 
-			// Use e.deltaY for smooth zooming
 			const delta = -e.deltaY;
 			if (delta > 0) {
-				scale *= 1.05; // Slightly smoother zoom step
+				scale *= 1.05; 
 			} else {
 				scale /= 1.05; 
 			}
@@ -335,6 +337,14 @@ function initPanZoom() {
 				e.touches[0].clientY - e.touches[1].clientY
 			);
 			initialScale = scale;
+
+			// Calculate center of pinch
+			const pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+			const pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+			// Store position relative to unscaled canvas
+			pinchStartX = (pinchCenterX - pointX) / scale;
+			pinchStartY = (pinchCenterY - pointY) / scale;
 		}
 	}, { passive: false });
 
@@ -353,9 +363,16 @@ function initPanZoom() {
 				e.touches[0].clientY - e.touches[1].clientY
 			);
 			
-			// Calculate the new scale based on how far the fingers moved
 			const distanceRatio = currentDistance / initialPinchDistance;
 			scale = initialScale * distanceRatio;
+
+			// Calculate new pinch center dynamically in case fingers move while zooming
+			const currentCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+			const currentCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+			
+			// Update translation to zoom into the pinch center
+			pointX = currentCenterX - pinchStartX * scale;
+			pointY = currentCenterY - pinchStartY * scale;
 			
 			setTransform();
 		}
