@@ -269,6 +269,18 @@ function initPanZoom() {
 		treeCanvas.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
 	}
 
+	function getMinScale() {
+		const unscaledWidth = treeCanvas.scrollWidth || 1;
+		
+		// Calculate the scale needed to fit purely based on width
+		const fitScale = treesDiv.clientWidth / unscaledWidth;
+		
+		// Don't force zoom-in if the tree is already thinner than the screen
+		return Math.min(fitScale, 1);
+	}
+
+	const MAX_SCALE = 4; // Prevent zooming in too far
+
 	// --- MOUSE EVENTS (Desktop) ---
 	
 	treesDiv.addEventListener('mousedown', (e) => {
@@ -302,14 +314,18 @@ function initPanZoom() {
 			const ys = (e.clientY - pointY) / scale;
 
 			const delta = -e.deltaY;
-			if (delta > 0) {
-				scale *= 1.05; 
-			} else {
-				scale /= 1.05; 
-			}
+			let newScale = delta > 0 ? scale * 1.05 : scale / 1.05;
 
-			pointX = e.clientX - xs * scale;
-			pointY = e.clientY - ys * scale;
+			// Clamp zoom levels
+			const minScale = getMinScale();
+			newScale = Math.max(minScale, Math.min(newScale, MAX_SCALE));
+
+			// Only update if scale actually changed (prevents jumping at limits)
+			if (newScale !== scale) {
+				pointX = e.clientX - xs * newScale;
+				pointY = e.clientY - ys * newScale;
+				scale = newScale;
+			}
 		} else {
 			// Pan (Two-finger trackpad scroll or regular mouse wheel)
 			pointX -= e.deltaX;
@@ -364,15 +380,21 @@ function initPanZoom() {
 			);
 			
 			const distanceRatio = currentDistance / initialPinchDistance;
-			scale = initialScale * distanceRatio;
+			let newScale = initialScale * distanceRatio;
 
-			// Calculate new pinch center dynamically in case fingers move while zooming
-			const currentCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-			const currentCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+			// Clamp zoom levels
+			const minScale = getMinScale();
+			newScale = Math.max(minScale, Math.min(newScale, MAX_SCALE));
 			
-			// Update translation to zoom into the pinch center
-			pointX = currentCenterX - pinchStartX * scale;
-			pointY = currentCenterY - pinchStartY * scale;
+			// Update translation to zoom into the pinch center if different from last
+			if (newScale !== scale) {
+				const currentCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+				const currentCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+				
+				pointX = currentCenterX - pinchStartX * newScale;
+				pointY = currentCenterY - pinchStartY * newScale;
+				scale = newScale;
+			}
 			
 			setTransform();
 		}
