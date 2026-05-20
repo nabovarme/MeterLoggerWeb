@@ -139,7 +139,10 @@
 
 		<td align="left">
 			<span class="default">
-				[- $d->{phone} =~ s/^(\d{2})\d+(?=\d{2})/$1 . ('*' x (length($&) - 2))/e; $d->{phone} -]
+				[- 
+					# Capture the prefix, target 4 digits, and last 2 digits, then mask only the 4.
+					$d->{phone} =~ s/(\d{4})(\d{2})$/'****' . $2/e;
+				-]
 				[+ $d->{phone} +]
 			</span>
 		</td>
