@@ -1,5 +1,7 @@
 let originalTreeData = [];
 
+let currentZoom = 1;
+
 // =========================
 // BODY SCROLL HANDLING
 // =========================
@@ -256,6 +258,9 @@ window.addEventListener('load', () => {
 	const filterInput = document.getElementById('networkSearch');
 	const offlineCheckbox = document.getElementById('offlineMeters');
 
+	const treeViewport = document.getElementById('treeViewport');
+	const trees = document.getElementById('trees');
+
 	// load from URL
 	const urlState = loadStateFromURL();
 
@@ -274,6 +279,60 @@ window.addEventListener('load', () => {
 
 	filterInput.addEventListener('input', renderFilteredTrees);
 	offlineCheckbox.addEventListener('change', renderFilteredTrees);
+
+	// Ctrl + mouse wheel zoom
+	treeViewport.addEventListener('wheel', (e) => {
+		if (!e.ctrlKey) return;
+
+		e.preventDefault();
+
+		const zoomFactor = 0.1;
+
+		if (e.deltaY < 0) {
+			currentZoom += zoomFactor;
+		} else {
+			currentZoom -= zoomFactor;
+		}
+
+		// Clamp zoom level
+		currentZoom = Math.min(Math.max(currentZoom, 0.3), 3);
+
+		trees.style.transform = `scale(${currentZoom})`;
+	}, { passive: false });
+
+	// Touch pinch zoom support
+	let lastTouchDistance = null;
+
+	treeViewport.addEventListener('touchmove', (e) => {
+		if (e.touches.length !== 2) return;
+
+		e.preventDefault();
+
+		const touch1 = e.touches[0];
+		const touch2 = e.touches[1];
+
+		const dx = touch1.clientX - touch2.clientX;
+		const dy = touch1.clientY - touch2.clientY;
+
+		const distance = Math.sqrt(dx * dx + dy * dy);
+
+		if (lastTouchDistance !== null) {
+			const delta = distance - lastTouchDistance;
+
+			currentZoom += delta * 0.002;
+
+			// Clamp zoom
+			currentZoom = Math.min(Math.max(currentZoom, 0.3), 3);
+
+			trees.style.transform = `scale(${currentZoom})`;
+		}
+
+		lastTouchDistance = distance;
+	}, { passive: false });
+
+	treeViewport.addEventListener('touchend', () => {
+		lastTouchDistance = null;
+	});
 
 	fetchAndRenderTrees();
 });
