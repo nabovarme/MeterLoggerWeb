@@ -71,12 +71,19 @@ html, body {
 #trees {
 	width: 100vw;
 	height: 100vh;
-	transform-origin: 0 0;
 	cursor: grab;
 }
 
 #trees:active {
 	cursor: grabbing;
+}
+
+/* The actual moving canvas */
+#tree-canvas {
+	transform-origin: 0 0;
+	width: max-content;
+	height: max-content;
+	will-change: transform;
 }
 
 /* Floating search bar at bottom */
