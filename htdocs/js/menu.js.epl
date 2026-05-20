@@ -20,7 +20,7 @@ let typeAheadTimer;
 // Global menu items
 const menuItems = [
 	{ text: "Meters", href: "/index.html" },
-	{ text: "Map", href: "/map" },
+	{ text: "Map", href: "/map/" },
 	{ text: "Network", href: "/network.html" },
 	{ text: "Payments pending", href: "/payments_pending.html" },
 	{ text: "SMS sent", href: "/sms_sent.html" },
