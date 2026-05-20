@@ -134,26 +134,34 @@ function renderTrees(data) {
 		canvas.appendChild(treeDiv);
 	});
 
-	// Wait for DOM layout to stabilize
-	setTimeout(() => {
-		data.forEach((routerObj, i) => {
-			const config = createTreeConfig(routerObj, i);
-			new Treant(config);
+	// Use requestAnimationFrame instead of a hardcoded 50ms setTimeout.
+	// We nest two of them to ensure the browser has fully completed the paint cycle.
+	requestAnimationFrame(() => {
+		requestAnimationFrame(() => {
+			
+			// 1. Initialize all trees
+			data.forEach((routerObj, i) => {
+				const config = createTreeConfig(routerObj, i);
+				new Treant(config);
+			});
+			
+			// 2. Calculate the scale needed for the currently rendered tree
+			const treesDiv = document.getElementById('trees');
+			const unscaledWidth = canvas.scrollWidth || 1;
+			const fitScale = treesDiv.clientWidth / unscaledWidth;
+			
+			// Only update the global minimum if the new tree requires us 
+			// to zoom out further than before.
+			globalMinScale = Math.min(globalMinScale, fitScale);
+			
+			// 3. Trigger the custom event to apply the saved pan/zoom state
+			window.dispatchEvent(new Event('treesRendered'));
+			
+			// 4. FADE IN: Restore opacity
+			canvas.style.opacity = '1';
+			
 		});
-		
-		// Calculate the scale needed for the currently rendered tree
-		const treesDiv = document.getElementById('trees');
-		const unscaledWidth = canvas.scrollWidth || 1;
-		const fitScale = treesDiv.clientWidth / unscaledWidth;
-		
-		// MAGIC BULLET: Only update the global minimum if the new tree requires us 
-		// to zoom out further than before. It will never force a zoom-in on small trees.
-		globalMinScale = Math.min(globalMinScale, fitScale);
-		
-		// Trigger the custom event to apply the saved pan/zoom state now that the trees exist
-		window.dispatchEvent(new Event('treesRendered'));
-		
-	}, 50); // Adjust delay as needed
+	});
 }
 
 function filterTree(treeData, query, showOnlyOffline = false) {
@@ -240,7 +248,7 @@ function loadStateFromURL() {
 	};
 }
 
-function executeTreeFiltering() {
+async function executeTreeFiltering() {
 	const query = document.getElementById('networkSearch').value.trim();
 	const showOfflineOnly = document.getElementById('offlineMeters').checked;
 
@@ -251,6 +259,15 @@ function executeTreeFiltering() {
 	const filteredData = shouldFilter
 		? filterTree(originalTreeData, query, showOfflineOnly)
 		: originalTreeData;
+
+	const canvas = document.getElementById('tree-canvas');
+	
+	// Set transition properties and FADE OUT
+	canvas.style.transition = 'opacity 0.2s ease-in-out';
+	canvas.style.opacity = '0';
+
+	// Wait 200ms for the fade-out animation to finish before clearing the DOM
+	await new Promise(resolve => setTimeout(resolve, 200));
 
 	renderTrees(filteredData);
 }
