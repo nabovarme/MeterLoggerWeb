@@ -8,6 +8,23 @@ document.addEventListener('DOMContentLoaded', () => {
 	const activeCheckbox = document.getElementById('activeAlarms');
 	const container = document.getElementById('alarmContainer');
 
+	// =======================================================
+	// Event Delegation for Phone Links
+	// =======================================================
+	container.addEventListener('click', function (e) {
+		const targetLink = e.target.closest('.phone-link');
+		if (!targetLink) return;
+
+		e.preventDefault();
+
+		const phone = targetLink.dataset.phone;
+		if (filterInput && phone) {
+			filterInput.value = phone;
+			filterAlarms(); // Calls URL sync and UI re-render
+			filterInput.focus();
+		}
+	});
+
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm =>
 		Number(alarm.enabled) > 0 &&
@@ -20,7 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
 			alarm.serial,
 			alarm.comment,
 			alarm.condition,
-			alarm.sms_notification
+			alarm.sms_notification,
+			alarm.sms_notification_e164 // Included so user can search by formatted OR raw string
 		].map(s => (s || '').toLowerCase()).join(' ');
 		return searchText === '' || textToCheck.includes(searchText);
 	};
@@ -167,9 +185,18 @@ document.addEventListener('DOMContentLoaded', () => {
 						windowText = '';
 					}
 
+					// Build the phone link with E164 formatted number just like sms_sent.js
+					let smsReceiverHtml = '';
+					if (alarm.sms_notification) {
+						smsReceiverHtml = `
+							<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${alarm.sms_notification}">${alarm.sms_notification_e164 || alarm.sms_notification}</a>
+							<span style="display: none;">${alarm.sms_notification}</span>
+						`;
+					}
+
 					rowDiv.innerHTML = `
 						<div><a href="alarms_detail.epl?id=${alarm.id}">${alarm.id || ''}</a></div>
-						<div>${alarm.sms_notification || ''}</div>
+						<div>${smsReceiverHtml}</div>
 						<div class="condition${alarm.enabled > 0 ? '' : ' alarm-disabled'}${(alarm.condition_error && alarm.condition_error !== '' && alarm.enabled > 0) ? ' condition-error' : ''}">
 							${alarm.condition}
 						</div>
