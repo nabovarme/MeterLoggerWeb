@@ -62,8 +62,19 @@ async function loadSMS() {
 			tr.style.background = (index % 2 === 0) ? '#FFFFFF' : '#EEEEEE';
 
 			// The user sees the formatted E164 string, but the hidden span contains the raw DB string for searching
+			let displayPhone = row.phone;
+			let dataPhone = row.phone;
+
+			if (typeof NabovarmeNumberPhone !== 'undefined') {
+				const phoneObj = NabovarmeNumberPhone.new(row.phone);
+				if (phoneObj && phoneObj.isValid()) {
+					displayPhone = phoneObj.obj.formatInternational();
+					dataPhone = phoneObj.compact();
+				}
+			}
+
 			const phoneLink = `
-				<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${row.phone}">${row.phone_e164}</a>
+				<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${dataPhone}">${displayPhone}</a>
 				<span style="display: none;">${row.phone}</span>
 			`;
 

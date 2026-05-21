@@ -12,7 +12,6 @@ use JSON ();
 use Nabovarme::Db;
 use Nabovarme::Admin;
 use Nabovarme::Utils;
-use Nabovarme::Number::Phone;
 
 sub handler {
 	my $r = shift;
@@ -72,8 +71,8 @@ sub handler {
 				FROM_UNIXTIME(unix_time, '%e.%c.%Y %H:%i') AS `time`
 			FROM sms_messages
 			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
-			  AND unix_time < UNIX_TIMESTAMP()
-			  AND phone IN ($in_clause_items)
+				AND unix_time < UNIX_TIMESTAMP()
+				AND phone IN ($in_clause_items)
 			ORDER BY unix_time DESC
 		];
 
@@ -100,15 +99,6 @@ sub handler {
 		
 				# Substitute only the digit portion inside the message string
 				$row->{message} =~ s/\Q$digits\E/$masked/;
-			}
-
-			# Generate clean E164 output via our corrected module implementation
-			my $phone_obj = Nabovarme::Number::Phone->new($row->{phone});
-			if ($phone_obj && $phone_obj->is_valid) {
-				$row->{phone_e164} = $phone_obj->e164;
-			} else {
-				# Fallback safely to original string if the row contains unparseable data
-				$row->{phone_e164} = $row->{phone};
 			}
 
 			push @rows, $row;
