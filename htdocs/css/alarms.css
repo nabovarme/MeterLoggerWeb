@@ -46,16 +46,16 @@ html, body {
 	display: grid;
 	grid-template-columns:
 		minmax(40px, 60px)         /* ID */
-		minmax(100px, 180px)       /* Alarm receiver */
-		minmax(100px, 1fr)         /* Condition */
+		minmax(145px, 190px)       /* Alarm receiver - Increased min-width to perfectly fit "+45 XX XX XX XX" */
+		minmax(120px, 1.2fr)       /* Condition */
 		minmax(80px, 120px)        /* Repeating */
 		minmax(80px, 120px)        /* Snoozed */
-		minmax(100px, 140px)       /* Active window (From → To) */
+		minmax(110px, 150px)       /* Active window (From → To) */
 		minmax(100px, 1fr);        /* Comment */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
-	min-width: 600px;
+	min-width: 750px;              /* Bumped up slightly to accommodate the wider phone column layout safely */
 	box-sizing: border-box;
 	margin: 0;
 }
