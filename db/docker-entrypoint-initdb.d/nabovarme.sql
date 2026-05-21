@@ -518,7 +518,8 @@ CREATE TABLE `sms_messages` (
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `unix_time` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `unix_time_phone_idx` (`unix_time`,`phone`)
+  KEY `unix_time_phone_idx` (`unix_time`,`phone`),
+  KEY `phone_unix_time_idx` (`phone`,`unix_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1967625 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
