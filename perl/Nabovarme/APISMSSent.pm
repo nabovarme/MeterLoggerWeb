@@ -8,7 +8,7 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE HTTP_FORBIDDEN);
 use HTTP::Date;
 use JSON ();
-use Time::HiRes qw(gettimeofday tv_interval); # High-precision benchmarks
+use Time::HiRes qw(gettimeofday tv_interval); # Used for precision microsecond telemetry metrics
 
 use Nabovarme::Db;
 use Nabovarme::Admin;
@@ -17,11 +17,12 @@ use Nabovarme::Utils;
 sub handler {
 	my $r = shift;
 	
+	# Mark total request processing arrival timestamp
 	my $t_start = [gettimeofday];
 
 	my $admin = Nabovarme::Admin->new;
 
-	# Step 1: get authenticated phone via session token
+	# Step 1: Extract authenticated phone vector from session cookie verification
 	my $auth_phone = $admin->phone_by_cookie($r);
 
 	unless ($auth_phone) {
@@ -31,7 +32,7 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	# Step 2: get admin groups assigned to this phone account
+	# Step 2: Extract array list of all admin groups bound to this administrator account
 	my @admin_groups = $admin->groups_by_cookie($r);
 
 	my ($dbh, $sth);
@@ -41,14 +42,16 @@ sub handler {
 	}
 
 	# =========================================================================
-	# BATCH FETCH (No Perl object parsing - strings aggregated directly)
+	# BATCH NOTIFICATION STRING AGGREGATION (HIGH-SPEED LAYER)
+	# Combines all group evaluation targets into a single high-speed database call.
+	# Server-side object parser overhead is stripped since formatting maps to frontend JS.
 	# =========================================================================
 	my $t0 = [gettimeofday];
 	my %phones;
-	$phones{$auth_phone} = 1;
+	$phones{$auth_phone} = 1; # Seed lookup hash with the primary administrator's phone
 
 	if (@admin_groups) {
-		# Safely escape and format the collection array for the SQL IN clause
+		# Safely compile the array collection parameters to drive an optimized SQL IN() clause
 		my $group_in_clause = join(', ', map { $dbh->quote($_) } @admin_groups);
 
 		my $sth_batch = $dbh->prepare(qq[
@@ -63,10 +66,11 @@ sub handler {
 		]);
 		$sth_batch->execute();
 
+		# Process target raw strings natively to avoid resource-intensive object instantiation loops
 		while (my ($sms_notification) = $sth_batch->fetchrow_array) {
 			for my $phone (split /\s*,\s*/, $sms_notification) {
 				next unless $phone;
-				$phones{$phone} = 1; # Raw string hash collection
+				$phones{$phone} = 1; # Record raw string unique key allocations
 			}
 		}
 	}
@@ -82,13 +86,13 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	# Setup Content Headers & Shared Gateway Caches
+	# Setup Application Content-Types & Shared Gateway Max-Age Caches
 	$r->content_type("application/json; charset=utf-8");
 	$r->headers_out->set('Cache-Control' => 'max-age=60, public');
 	$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
 	$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
-	# Build and bind target filters
+	# Build explicit target array filter requirements list
 	my $in_clause_items = join(', ', map { $dbh->quote($_) } @phones);
 
 	my $sql = qq[
@@ -104,18 +108,19 @@ sub handler {
 		ORDER BY unix_time DESC
 	];
 
+	# Measure target data-range query index retrieval performance boundaries
 	my $t_sql = [gettimeofday];
 	$sth = $dbh->prepare($sql);
 	$sth->execute();
 	warn sprintf("PERF: Main SQL verification took %.4f seconds\n", tv_interval($t_sql));
 	
-	# Fetch authorization string layout structures
+	# Fetch environment configurations or resolve custom application verification token placeholders
 	my $sms_template = $ENV{'NOTIFICATION_SMS_CODE_MESSAGE'} || 'SMS Code: {sms_code}';
 	my $escaped_template = quotemeta($sms_template);
 	my $placeholder_regex = quotemeta('\{sms_code\}');
 	$escaped_template =~ s/$placeholder_regex/(\\d+)/;
 
-	# Mask internal access codes on matching profiles
+	# Secure validation loops: Mask explicit passcodes out of outbound history logs
 	my $t_rows = [gettimeofday];
 	my @rows;
 	while (my $row = $sth->fetchrow_hashref) {
@@ -128,11 +133,12 @@ sub handler {
 	}
 	warn sprintf("PERF: Message validation loop took %.4f seconds (Processed %d records)\n", tv_interval($t_rows), scalar(@rows));
 
-	# Direct output transmission stream
+	# Direct stream delivery serialization
 	$r->print(
 		JSON->new->utf8->canonical->encode(\@rows)
 	);
 
+	# Print consolidated gateway telemetry speed tracking summary
 	warn sprintf("PERF: === TOTAL ENDPOINT EXECUTION SPEEDS: %.4f seconds ===\n", tv_interval($t_start));
 	return Apache2::Const::OK;
 }
