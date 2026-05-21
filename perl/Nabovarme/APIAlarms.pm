@@ -11,7 +11,6 @@ use DBI;
 use HTTP::Date qw(time2str);
 
 use Nabovarme::Db;
-use Nabovarme::Number::Phone;
 
 sub handler {
 	my $r = shift;
@@ -99,20 +98,6 @@ sub handler {
 sub prepare_alarm_data {
 	my ($alarm) = @_;
 
-	# Generate clean E164 output via our corrected module implementation
-	my $sms_notification_e164;
-	if ($alarm->{sms_notification}) {
-		my $phone_obj = Nabovarme::Number::Phone->new($alarm->{sms_notification});
-		if ($phone_obj && $phone_obj->is_valid) {
-			$sms_notification_e164 = $phone_obj->e164;
-		} else {
-			# Fallback safely to original string if the row contains unparseable data
-			$sms_notification_e164 = $alarm->{sms_notification};
-		}
-	} else {
-		$sms_notification_e164 = '';
-	}
-
 	return {
 		id => $alarm->{id} // '',
 		serial => $alarm->{serial} // '',
@@ -124,7 +109,6 @@ sub prepare_alarm_data {
 		condition => $alarm->{condition} // '',
 		condition_error => $alarm->{condition_error} // '',
 		sms_notification => $alarm->{sms_notification} // '',
-		sms_notification_e164 => $sms_notification_e164,
 		comment => $alarm->{comment} // '',
 		repeat => $alarm->{repeat} // '',
 		snooze => $alarm->{snooze} // '',

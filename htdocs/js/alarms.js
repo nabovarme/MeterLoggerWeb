@@ -37,8 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			alarm.serial,
 			alarm.comment,
 			alarm.condition,
-			alarm.sms_notification,
-			alarm.sms_notification_e164 // Included so user can search by formatted OR raw string
+			alarm.sms_notification
 		].map(s => (s || '').toLowerCase()).join(' ');
 		return searchText === '' || textToCheck.includes(searchText);
 	};
@@ -188,8 +187,22 @@ document.addEventListener('DOMContentLoaded', () => {
 					// Build the phone link with E164 formatted number just like sms_sent.js
 					let smsReceiverHtml = '';
 					if (alarm.sms_notification) {
+						let displayPhone = alarm.sms_notification;
+						let dataPhone = alarm.sms_notification;
+
+						// Use your wrapper logic
+						const phoneObj = NabovarmeNumberPhone.new(alarm.sms_notification);
+
+						if (phoneObj && phoneObj.isValid()) {
+							// Standard readable phone formatting
+							displayPhone = phoneObj.obj.formatInternational();
+
+							// Match the dataset phone string format
+							dataPhone = phoneObj.compact();
+						}
+
 						smsReceiverHtml = `
-							<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${alarm.sms_notification}">${alarm.sms_notification_e164 || alarm.sms_notification}</a>
+							<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${dataPhone}">${displayPhone}</a>
 							<span style="display: none;">${alarm.sms_notification}</span>
 						`;
 					}
