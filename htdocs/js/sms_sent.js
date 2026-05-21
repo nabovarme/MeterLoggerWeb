@@ -57,7 +57,7 @@ async function loadSMS() {
 			const tr = document.createElement('tr');
 			tr.align = 'left';
 			tr.valign = 'top';
-			
+	
 			// Kept native zebra striping inline here during row creation
 			tr.style.background = (index % 2 === 0) ? '#FFFFFF' : '#EEEEEE';
 
@@ -67,8 +67,41 @@ async function loadSMS() {
 				<span style="display: none;">${row.phone}</span>
 			`;
 
-			// Replace "(digits)" patterns with serial detail links
 			let messageHTML = row.message || '';
+
+			// =======================================================
+			// 1. Parse Same-Server URLs
+			// =======================================================
+			const currentHostname = window.location.hostname;
+	
+			messageHTML = messageHTML.replace(/(https?:\/\/[^\s]+)/g, (match) => {
+				let cleanUrl = match;
+				let trailingPunctuation = '';
+		
+				// Strip common trailing punctuation so it doesn't break the URL
+				if (/[.,;!?)]$/.test(match)) {
+					trailingPunctuation = match.slice(-1);
+					cleanUrl = match.slice(0, -1);
+				}
+
+				try {
+					const parsedUrl = new URL(cleanUrl);
+					// Only wrap in an <a> tag if the hostnames match
+					if (parsedUrl.hostname === currentHostname) {
+						// Use target="_blank" if you want these to open in a new tab
+						return `<a href="${cleanUrl}">${cleanUrl}</a>${trailingPunctuation}`;
+					}
+				} catch (e) {
+					// Catch block safely ignores invalid URLs parsed by the regex
+				}
+		
+				// Return original text if it's not the same server or is invalid
+				return match;
+			});
+
+			// =======================================================
+			// 2. Parse Serial Numbers
+			// =======================================================
 			messageHTML = messageHTML.replace(/\((\d+)\)/g, (_, serial) => {
 				return `(<a href="/detail_acc.epl?serial=${serial}">${serial}</a>)`;
 			});
