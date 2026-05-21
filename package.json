@@ -1,0 +1,8 @@
+{
+	"name": "nabovarme-frontend",
+	"version": "1.0.0",
+	"description": "Frontend dependencies for Nabovarme web app",
+	"dependencies": {
+		"libphonenumber-js": "latest"
+	}
+}
