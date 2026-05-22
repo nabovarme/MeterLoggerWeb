@@ -116,8 +116,8 @@
 		if ($phone_obj && $phone_obj->is_valid()) {
 			my $formatted = $phone_obj->e164();
 
-			# Mask the 4 digits preceding the absolute last 2 digits
-			$formatted =~ s/(\d{4})(\d{2})$/'****' . $2/e;
+			# Safely mask the 4 digits preceding the absolute last 2 digits, ignoring any spacing
+			$formatted =~ s/(\d)(?=(?:\s*\d){2,5}\s*$)/'*/ge;
 
 			$display_phone = $formatted;
 		}
