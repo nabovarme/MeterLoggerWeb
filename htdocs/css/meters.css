@@ -46,16 +46,19 @@ html, body {
 	display: grid;
 	grid-template-columns:
 		minmax(100px, 120px)        /* Serial */
-		minmax(140px, 1fr)          /* Info receiver */
+		minmax(140px, 280px)        /* Info receiver - changed from 1fr to a fixed max boundary */
 		minmax(100px, 150px)        /* Energy */
 		minmax(100px, 150px)        /* Volume */
 		minmax(100px, 150px)        /* Hours */
 		minmax(150px, 200px)        /* Remaining */
-		minmax(100px, 150px);       /* Time left */
+		minmax(100px, 1fr);         /* Time left - changed to 1fr to swallow all trailing whitespace */
 	gap: 6px;
 	padding: 6px;
+	
+	/* Keeps rows perfectly aligned across both mobile overflow and full desktop monitors */
 	width: 100%;
-	min-width: 600px;
+	min-width: 940px;               /* Set to the exact sum of your minimum column widths (100+140+100+100+100+150+100 + gaps) */
+	
 	box-sizing: border-box;
 	margin: 0;
 }
@@ -72,7 +75,7 @@ html, body {
 
 /* Zebra Striping Configuration for Data Rows */
 .meter-row:nth-of-type(even) {
-	background: #eee;          /* Match your table fallback style */
+	background: #eee;          /* Match table fallback style */
 }
 
 .meter-row:nth-of-type(odd) {
@@ -81,7 +84,7 @@ html, body {
 
 /* Maintain hover highlight overlay across all row states */
 .meter-row:hover {
-	background: #e0e0e0 !important;
+	background: #e0e0e0 !important; /* Darker tone for sharper contrast over zebra fills */
 }
 
 /* Grayed-out styling for disabled meters */
