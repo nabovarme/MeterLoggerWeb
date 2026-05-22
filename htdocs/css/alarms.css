@@ -62,17 +62,17 @@ html, body {
 .alarm-row {
 	display: grid;
 	grid-template-columns:
-		minmax(40px, 60px)       /* ID */
-		minmax(145px, 190px)      /* Alarm receiver - Increased min-width to perfectly fit "+45 XX XX XX XX" */
-		minmax(120px, 1.2fr)      /* Condition */
-		minmax(80px, 120px)       /* Repeating */
-		minmax(80px, 120px)       /* Snoozed */
-		minmax(110px, 150px)      /* Active window (From → To) */
-		minmax(100px, 1fr);       /* Comment */
+		minmax(40px, 60px) 	 	/* ID */
+		minmax(145px, 190px) 	 	/* Alarm receiver - Increased min-width to perfectly fit "+45 XX XX XX XX" */
+		minmax(120px, 1.2fr) 	 	/* Condition */
+		minmax(80px, 120px) 	 	/* Repeating */
+		minmax(80px, 120px) 	 	/* Snoozed */
+		minmax(110px, 150px) 	 	/* Active window (From → To) */
+		minmax(100px, 1fr); 	 	/* Comment */
 	gap: 6px;
 	padding: 6px;
 	width: 100%;
-	min-width: 750px;             /* Bumped up slightly to accommodate the wider phone column layout safely */
+	min-width: 750px; 	 	 	/* Bumped up slightly to accommodate the wider phone column layout safely */
 	box-sizing: border-box;
 	margin: 0;
 }
@@ -85,13 +85,18 @@ html, body {
 	background: #fff;
 }
 
+/* Zebra stripes */
+.alarm-row:nth-child(even) {
+	background: #EEE;
+}
+
 .alarm-row:hover {
-	background: #f2f2f2;
+	background: #e0e0e0;
 }
 
 /* Highlight active alarms with red background */
 .alarm-active {
-	background-color: #ffe0e0;
+	background-color: #ffe0e0 !important;
 }
 
 /* Grayed-out styling for disabled alarms */
