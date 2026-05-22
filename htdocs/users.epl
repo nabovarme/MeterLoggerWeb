@@ -5,7 +5,7 @@
 <HTML>
 	<HEAD>
 	<meta name="robots" content="noindex">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.5, shrink-to-fit=no">
 	<TITLE>MeterLogger users</TITLE>
 
 	<!-- style and js for burger menu -->
@@ -17,15 +17,11 @@
 
 <BODY>
 
-	<!-- =========================
-	CORE SCRIPTS
-	========================= -->
 	<script src="/js/scroll_manager.js" defer></script>
 	<script src="/js/url_state.js" defer></script>
 
 	<script src="/js/search_users.js" defer></script>
 
-	<!-- Floating Search UI -->
 	<div id="usersSearchContainer">
 		<input
 			type="search"
@@ -40,7 +36,7 @@
 		if ($dbh = Nabovarme::Db->my_connect) {
 			$sth = $dbh->prepare(qq[
 				SELECT auth_state, phone, sms_code, orig_uri, remote_host, user_agent,
-				       FROM_UNIXTIME(`unix_time`, '%e.%c.%Y %H:%i') AS t
+					FROM_UNIXTIME(`unix_time`, '%e.%c.%Y %H:%i') AS t
 				FROM sms_auth
 				WHERE `unix_time` >= UNIX_TIMESTAMP(DATE_SUB(NOW(), INTERVAL 1 YEAR))
 				ORDER BY `unix_time` DESC
@@ -174,9 +170,6 @@
 	</tbody>
 	</table>
 
-	<!-- =======================================================
-	APPARATUS ENGINE & SEARCH FILTER OPTIMIZATION
-	====================================================== -->
 	<script>
 	let usersDebounceTimeout = null;
 	const SCROLL_KEY = 'users_scroll';
@@ -220,9 +213,9 @@
 		for (let i = 0; i < rows.length; i++) {
 			const text = rows[i].textContent || rows[i].innerText;
 			if (text.toLowerCase().indexOf(query) > -1) {
-				rows[i].style.display = "";
+				rows[i].classList.remove('hidden'); // Fix: Uses CSS engine
 			} else {
-				rows[i].style.display = "none";
+				rows[i].classList.add('hidden');    // Fix: Uses CSS engine
 			}
 		}
 	}
