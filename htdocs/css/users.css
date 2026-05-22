@@ -8,6 +8,20 @@ html, body {
 	overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
+/* --- IOS SAFARI ZOOM CRASH FIXES --- */
+/* Add hardware acceleration to the table container */
+#users_table {
+	-webkit-overflow-scrolling: touch; 
+	will-change: scroll-position;
+}
+
+/* VIRTUALIZATION: Tells Safari to drop the table body from memory if it scrolls completely off-screen */
+#users_table tbody {
+	content-visibility: auto;
+	contain-intrinsic-size: 1000px; /* An estimated height for the unrendered block */
+}
+/* ----------------------------------- */
+
 .top {
 	position: absolute;
 	top: 0;
@@ -42,6 +56,11 @@ tr:nth-child(odd) {
   white-space: nowrap;
 }
 
+/* High-performance hiding utility that bypasses layout recalculation */
+.hidden {
+	display: none !important;
+}
+
 /* Floating search bar at the bottom */
 #usersSearchContainer {
 	position: fixed;
@@ -56,6 +75,9 @@ tr:nth-child(odd) {
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
+	
+	/* --- IOS SAFARI ZOOM CRASH FIX --- */
+	transform: translateZ(0); /* Isolates fixed bar into its own GPU layer to prevent zoom detachment */
 }
 
 /* Search input field */
