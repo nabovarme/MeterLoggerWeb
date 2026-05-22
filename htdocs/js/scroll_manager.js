@@ -111,18 +111,17 @@ function restoreScroll(key) {
 
 function bindScrollPersistence(key) {
 	const el = getScrollEl();
+	let scrollTimeout;
 
-	window.addEventListener('scroll', () => {
-		saveScroll(key);
-	}, { passive: true });
+	function handleScroll() {
+		clearTimeout(scrollTimeout);
+		scrollTimeout = setTimeout(() => {
+			saveScroll(key);
+		}, 150); // Only execute 150ms after movement stops
+	}
 
-	el.addEventListener('scroll', () => {
-		saveScroll(key);
-	}, { passive: true });
-
-//	window.addEventListener('pagehide', () => {
-//		saveScroll(key);
-//	});
+	window.addEventListener('scroll', handleScroll, { passive: true });
+	el.addEventListener('scroll', handleScroll, { passive: true });
 }
 
 // =========================
@@ -159,15 +158,4 @@ function enableAutoRestore(key) {
 			});
 		}
 	});
-
-	// reveal after scroll is naturally restored/animated
-//	const observer = new MutationObserver(() => {
-//		// safety fallback: reveal if something goes wrong
-//		document.body.classList.remove('scroll-hidden');
-//		document.body.classList.add('scroll-ready');
-//	});
-//
-//	setTimeout(() => {
-//		observer.disconnect();
-//	}, 3000);
 }
