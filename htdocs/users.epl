@@ -25,6 +25,29 @@
 
 	<script src="/js/search_users.js" defer></script>
 
+	<!-- =========================
+	SCROLL INIT
+	========================= -->
+	<script>
+	document.addEventListener('DOMContentLoaded', () => {
+
+		const SCROLL_KEY = 'users_scroll';
+
+		// =========================
+		// STATE
+		// =========================
+		let skipScrollRestore = false;
+		let isSearchAction = false;
+
+		// =========================
+		// CORE SCROLL BINDING
+		// =========================
+		bindScrollPersistence(SCROLL_KEY);
+		enableAutoRestore(SCROLL_KEY);
+
+	});
+	</script>
+
 	<!-- Floating Search UI -->
 	<div id="usersSearchContainer">
 		<input
@@ -49,25 +72,23 @@
 		}
 	-]
 
-	<table border="0" align="left" cellpadding="4" cellspacing="0" class="top" id="users_table">
-	<thead>
-		<tr class="col-header" align="left" valign="top">
-			<td align="left"><span class="default-bold">Date</span></td>
-			<td>&nbsp;</td>
-			<td align="left"><span class="default-bold">Phone</span></td>
-			<td align="left"><span class="default">&nbsp;</span></td>
-			<td align="left"><span class="default-bold">Name</span></td>
-			<td>&nbsp;</td>
-			<td align="left"><span class="default-bold">Auth state</span></td>
-			<td>&nbsp;</td>
-			<td align="left"><span class="default-bold">Remote host</span></td>
-			<td>&nbsp;</td>
-			<td align="left"><span class="default-bold">Original uri</span></td>
-			<td>&nbsp;</td>
-			<td align="left"><span class="default-bold">User agent</span></td>
-		</tr>
-	</thead>
-	<tbody>
+	<table border="0" align="left" cellpadding="4" cellspacing="0" class="top">
+
+	<tr class="col-header" align="left" valign="top">
+		<td align="left"><span class="default-bold">Date</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Phone</span></td>
+		<td align="left"><span class="default">&nbsp;</span></td>
+		<td align="left"><span class="default-bold">Name</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Auth state</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Remote host</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">Original uri</span></td>
+		<td>&nbsp;</td>
+		<td align="left"><span class="default-bold">User agent</span></td>
+	</tr>
 
 [$ if ($sth->rows) $]
 [$ while ($d = $sth->fetchrow_hashref) $]
@@ -110,13 +131,11 @@
 
 	# Format and mask using Nabovarme::Number::Phone
 	$display_phone = $d->{phone};
-	$data_phone = $d->{phone};
 
 	if ($d->{phone}) {
 		my $phone_obj = Nabovarme::Number::Phone->new($d->{phone});
 		if ($phone_obj && $phone_obj->isValid()) {
 			my $formatted = $phone_obj->obj->formatInternational();
-			$data_phone = $phone_obj->compact();
 
 			# Mask the 4 digits preceding the absolute last 2 digits
 			my $digit_count = 0;
@@ -141,7 +160,7 @@
 		<td>&nbsp;</td>
 
 		<td align="left">
-			<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="[+ $data_phone +]">[+ $display_phone +]</a>
+			<span class="default nowrap">[+ $display_phone +]</span>
 			<span style="display: none;">[+ $d->{phone} +]</span>
 		</td>
 
@@ -179,105 +198,8 @@
 
 [$ endwhile $]
 [$ endif $]
-	</tbody>
+
 	</table>
-
-	<!-- =======================================================
-	APPARATUS ENGINE & EVENT DELEGATION
-	======================================================= -->
-	<script>
-	let usersDebounceTimeout = null;
-	const SCROLL_KEY = 'users_scroll';
-
-	// =========================
-	// SCROLL (global manager)
-	// =========================
-	bindScrollPersistence(SCROLL_KEY);
-	enableAutoRestore(SCROLL_KEY);
-
-	// Cache the tbody element globally once
-	const tbody = document.querySelector('#users_table tbody');
-
-	// =======================================================
-	// Event Delegation outside row generation loop
-	// =======================================================
-	if (tbody) {
-		tbody.addEventListener('click', function (e) {
-			const targetLink = e.target.closest('.phone-link');
-			if (!targetLink) return;
-
-			e.preventDefault();
-
-			const phone = targetLink.dataset.phone;
-			const input = document.getElementById('meterSearch');
-
-			if (input && phone) {
-				input.value = phone;
-				if (typeof updateURL === 'function') {
-					updateURL(phone);
-				}
-				filterRows(phone.toLowerCase());
-				input.focus();
-			}
-		});
-	}
-
-	// =========================
-	// URL STATE HELPERS
-	// =========================
-	function updateURL(value) {
-		const p = new URLSearchParams(window.location.search);
-
-		if (value) p.set('q', value);
-		else p.delete('q');
-
-		history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
-	}
-
-	function debounceFilter(query) {
-		clearTimeout(usersDebounceTimeout);
-
-		usersDebounceTimeout = setTimeout(() => {
-			filterRows(query.toLowerCase());
-			window.dispatchEvent(new Event('scroll'));
-		}, 150);
-	}
-
-	function filterRows(query) {
-		if (!tbody) return;
-		const rows = tbody.getElementsByTagName('tr');
-		
-		for (let i = 0; i < rows.length; i++) {
-			const text = rows[i].textContent || rows[i].innerText;
-			if (text.toLowerCase().indexOf(query) > -1) {
-				rows[i].style.display = "";
-			} else {
-				rows[i].style.display = "none";
-			}
-		}
-	}
-
-	// =========================
-	// INIT SEARCH EVENT BINDING
-	// =========================
-	const input = document.getElementById('meterSearch');
-
-	if (input) {
-		const params = new URLSearchParams(window.location.search);
-		const initialSearch = params.get('q') || '';
-		input.value = initialSearch;
-
-		if (initialSearch) {
-			filterRows(initialSearch.toLowerCase());
-		}
-
-		input.addEventListener('input', () => {
-			const val = input.value;
-			updateURL(val);
-			debounceFilter(val);
-		});
-	}
-	</script>
 
 </BODY>
 </HTML>
