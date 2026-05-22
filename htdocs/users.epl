@@ -114,7 +114,7 @@
 	if ($d->{phone}) {
 		my $phone_obj = Nabovarme::Number::Phone->new($d->{phone});
 		if ($phone_obj && $phone_obj->is_valid()) {
-			my $formatted = $phone_obj->international();
+			my $formatted = $phone_obj->e164
 
 			# Safely mask the 4 digits preceding the absolute last 2 digits
 			my $digit_count = 0;
