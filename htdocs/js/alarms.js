@@ -34,9 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	// Helper: Check if alarm is active
 	const isActiveAlarm = alarm => Number(alarm.enabled) > 0 && Number(alarm.condition_state) > 0;
 
-	// Helper: Check if alarm matches search text
+	// Simple, fast match against pre-normalized data
 	const matchesSearch = (alarm, searchText) => {
-		const textToCheck = [alarm.info, alarm.serial, alarm.comment, alarm.condition, alarm.sms_notification].map(s => (s || '').toLowerCase()).join(' ');
+		const textToCheck = [alarm.info, alarm.serial, alarm.comment, alarm.condition, alarm.normalizedSms].map(s => (s || '').toLowerCase()).join(' ');
 		return searchText === '' || textToCheck.includes(searchText);
 	};
 
@@ -70,11 +70,24 @@ document.addEventListener('DOMContentLoaded', () => {
 	enableAutoRestore(SCROLL_KEY);
 
 	// Fetch alarms from API
+	// Pre-normalize phone numbers immediately upon fetching
 	async function fetchAlarms() {
 		try {
 			const response = await fetch('/api/alarms');
 			if (!response.ok) throw new Error(`API error: ${response.status}`);
-			allAlarmsData = await response.json();
+			const rawData = await response.json();
+			
+			allAlarmsData = rawData.map(group => ({
+				...group,
+				alarms: group.alarms.map(alarm => {
+					let normalized = alarm.sms_notification;
+					if (alarm.sms_notification) {
+						const phone = NabovarmeNumberPhone.new(alarm.sms_notification);
+						if (phone && phone.isValid()) normalized = phone.compact();
+					}
+					return { ...alarm, normalizedSms: normalized };
+				})
+			}));
 			return allAlarmsData;
 		} catch (error) {
 			container.innerHTML = `<p class="error">Failed to load alarms: ${error.message}</p>`;
@@ -102,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
 			serialOrder.forEach(serial => {
 				const alarms = alarmsBySerial[serial];
 				const alarmInfo = alarms[0];
-				
 				const serialBlock = document.createElement('div');
 				serialBlock.className = 'alarm-serial-block';
 
@@ -131,8 +143,10 @@ document.addEventListener('DOMContentLoaded', () => {
 					// Build the phone link with E164 formatted number
 					let smsReceiverHtml = '';
 					if (alarm.sms_notification) {
-						const phoneObj = NabovarmeNumberPhone.new(alarm.sms_notification);
-						smsReceiverHtml = `<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${phoneObj && phoneObj.isValid() ? phoneObj.compact() : alarm.sms_notification}">${phoneObj && phoneObj.isValid() ? phoneObj.obj.formatInternational() : alarm.sms_notification}</a>`;
+						const phone = NabovarmeNumberPhone.new(alarm.sms_notification);
+						smsReceiverHtml = phone && phone.isValid() 
+							? `<a href="#" class="phone-link" style="white-space: nowrap;" data-phone="${phone.compact()}">${phone.obj.formatInternational()}</a>` 
+							: alarm.sms_notification;
 					}
 
 					rowDiv.innerHTML = `
