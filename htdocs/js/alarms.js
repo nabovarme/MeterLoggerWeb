@@ -331,14 +331,19 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterAlarms();
 
 		// =======================================================
-		// CONTENT-VISIBILITY & ASYNC SCROLL RESTORATION FIX
+		// DYNAMIC CONTENT-VISIBILITY SCROLL RESTORATION FIX
 		// =======================================================
-		// 1. scroll_manager.js fired on page load before fetchAlarms() finished.
-		// 2. content-visibility: auto makes the page artificially short right now.
 		const savedY = parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
 		if (savedY > 0) {
-			// Pad the container to guarantee the page is tall enough for scroll_manager to reach savedY
-			container.style.minHeight = (savedY + window.innerHeight + 1000) + 'px';
+			// Calculate estimate: 
+			// We assume each row + header/padding is roughly 85px on average.
+			// Adjust this multiplier if your rows are significantly larger or smaller.
+			const totalEstimatedHeight = allAlarmsData.reduce((acc, group) => acc + (group.alarms.length * 100), 0);
+			
+			// Only apply min-height if the saved position is deeper than our current rendered content
+			if (totalEstimatedHeight < savedY) {
+				container.style.minHeight = (savedY + window.innerHeight) + 'px';
+			}
 			
 			// Manually re-trigger the animation now that the data is rendered
 			if (typeof restoreScroll === 'function') {
