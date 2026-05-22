@@ -70,12 +70,18 @@ html, body {
 	display: inline;
 }
 
-.meter-row {
-	background: #fff;
+/* Zebra Striping Configuration for Data Rows */
+.meter-row:nth-of-type(even) {
+	background: #eee;          /* Match your table fallback style */
 }
 
+.meter-row:nth-of-type(odd) {
+	background: #fff;          /* Clean white default */
+}
+
+/* Maintain hover highlight overlay across all row states */
 .meter-row:hover {
-	background: #f2f2f2;
+	background: #e0e0e0 !important;
 }
 
 /* Grayed-out styling for disabled meters */
