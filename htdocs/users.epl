@@ -108,25 +108,20 @@
 		}
 	}
 
-	# Format and mask using Nabovarme::Number::Phone methods
+	# Format and mask using Nabovarme::Number::Phone
 	$display_phone = $d->{phone};
 
 	if ($d->{phone}) {
 		my $phone_obj = Nabovarme::Number::Phone->new($d->{phone});
 		if ($phone_obj && $phone_obj->is_valid()) {
-			my $formatted = $phone_obj->e164
+			my $formatted = $phone_obj->e164();
 
-			# Safely mask the 4 digits preceding the absolute last 2 digits
-			my $digit_count = 0;
-			$formatted =~ s/(\d)(?=(?:\D*\d){0,5}\D*$)/
-				$digit_count++;
-				($digit_count > 2 && $digit_count <= 6) ? '*' : $1;
-			/ge;
+			# Mask the 4 digits preceding the absolute last 2 digits
+			$formatted =~ s/(\d{4})(\d{2})$/'****' . $2/e;
 
 			$display_phone = $formatted;
-		} else {
-			$display_phone =~ s/(\d{4})(\d{2})$/'****' . $2/e;
 		}
+		# If invalid, $display_phone keeps the raw database value completely unmasked
 	}
 -]
 
