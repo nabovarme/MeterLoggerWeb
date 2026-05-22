@@ -17,12 +17,13 @@ function filterRows(query) {
 		const matchesSearch = text.includes(query);
 		
 		if (matchesSearch) {
-			row.style.display = '';
+			row.classList.remove('hidden'); // Uses CSS engine instead of inline layout mutation
+			
 			// Apply zebra striping on the fly using our visible tracker
 			row.style.background = (visibleIndex % 2 === 0) ? '#FFF' : '#EEE';
 			visibleIndex++;
 		} else {
-			row.style.display = 'none';
+			row.classList.add('hidden'); // Uses CSS engine instead of inline layout mutation
 		}
 	});
 }
@@ -81,4 +82,3 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	scheduleRefresh();
 });
-

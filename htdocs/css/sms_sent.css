@@ -9,6 +9,24 @@ html, body {
 	overflow-y: visible;
 }
 
+/* --- IOS SAFARI ZOOM CRASH FIXES --- */
+/* If your table is wrapped in a container, add hardware acceleration to it */
+#sms_table_wrapper, 
+.table-container { /* Update this class to whatever wraps your <table id="sms_table"> in HTML */
+	-webkit-overflow-scrolling: touch; 
+	will-change: scroll-position;
+}
+
+/* * VIRTUALIZATION: 
+ * Tells Safari to drop the table body from memory if it scrolls completely off-screen.
+ * Unlike grid blocks, tables can be a bit trickier, so we apply it to the tbody.
+ */
+#sms_table tbody {
+	content-visibility: auto;
+	contain-intrinsic-size: 1000px; /* An estimated height for the table block */
+}
+/* --------------------------------- */
+
 .top {
 	position: absolute;
 	top: 0;
@@ -42,6 +60,11 @@ tr:nth-child(odd) {
 	background: #FFF;
 }
 
+/* High-performance hiding utility that bypasses rendering calculations (for JS row filtering) */
+.hidden {
+	display: none !important;
+}
+
 /* Floating search bar at the bottom */
 #smsSentSearchContainer {
 	position: fixed;
@@ -56,6 +79,9 @@ tr:nth-child(odd) {
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
+	
+	/* --- IOS SAFARI ZOOM CRASH FIX --- */
+	transform: translateZ(0); /* Isolates fixed bar into its own GPU layer */
 }
 
 /* Search input field */

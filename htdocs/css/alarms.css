@@ -20,6 +20,13 @@ html, body {
 	margin-top: 1.5em;
 }
 
+/* --- VIRTUALIZATION CONTAINER --- */
+/* Groups the title and table so Safari can drop both from memory when scrolled off-screen */
+.alarm-serial-block {
+	content-visibility: auto;
+	contain-intrinsic-size: 200px; /* Estimates height to prevent scrollbar jumping */
+}
+
 /* Info row shown above each set of alarms per serial */
 .alarm-info {
 	font-size: 1em;
@@ -38,6 +45,10 @@ html, body {
 	margin: 0;
 	padding: 0;
 	box-sizing: border-box;
+
+	/* --- IOS SAFARI ZOOM CRASH FIXES --- */
+	-webkit-overflow-scrolling: touch; /* Hardware acceleration for smooth scrolling */
+	will-change: scroll-position;      /* Hint to engine to manage memory strictly */
 }
 
 /* Shared layout grid for headers and alarm rows */
@@ -123,6 +134,9 @@ html, body {
 	align-items: center;
 	justify-content: center;
 	gap: 10px;
+
+	/* --- IOS SAFARI ZOOM CRASH FIX --- */
+	transform: translateZ(0); /* Locks the fixed search bar to its own GPU layer so it survives zooming */
 }
 
 /* Search input field */
