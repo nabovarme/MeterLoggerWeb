@@ -204,13 +204,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		activeCheckbox.checked = urlState.activeOnly;
 		filterAlarms();
 
-		// SCROLL RESTORATION: Set temporary min-height to ensure container 
-		// is tall enough for the browser to reach the saved Y coordinate.
+		// SCROLL RESTORATION: Use requestAnimationFrame to sync with browser paint
 		const savedY = parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
 		if (savedY > 0) {
-			container.style.minHeight = (savedY + 2000) + 'px';
-			window.scrollTo(0, savedY);
-			setTimeout(() => { container.style.minHeight = ''; container.style.opacity = '1'; }, 150);
+			requestAnimationFrame(() => {
+				window.scrollTo(0, savedY);
+				container.style.opacity = '1';
+			});
 		} else {
 			container.style.opacity = '1';
 		}
