@@ -138,10 +138,18 @@ document.addEventListener('DOMContentLoaded', () => {
 				const alarms = alarmsBySerial[serial];
 				const alarmInfo = alarms[0];
 
+				// --- CSS VIRTUALIZATION FIX ---
+				// Creates a master block to hold both the info header AND the table.
+				// This allows Safari to hide them both together via content-visibility.
+				const serialBlock = document.createElement('div');
+				serialBlock.className = 'alarm-serial-block';
+
 				const infoDiv = document.createElement('div');
 				infoDiv.className = 'alarm-info';
 				infoDiv.innerHTML = `<a href="detail.epl?serial=${alarmInfo.serial}">${alarmInfo.serial}</a> ${alarmInfo.info || ''}`;
-				container.appendChild(infoDiv);
+				
+				// Append title to the new block instead of the main container
+				serialBlock.appendChild(infoDiv);
 
 				// Create wrapper for table
 				const tableWrapper = document.createElement('div');
@@ -222,7 +230,11 @@ document.addEventListener('DOMContentLoaded', () => {
 					tableWrapper.appendChild(rowDiv);
 				});
 
-				container.appendChild(tableWrapper);
+				// Append table to the new block
+				serialBlock.appendChild(tableWrapper);
+				
+				// Finally, append the entire wrapped block to the main container
+				container.appendChild(serialBlock);
 			});
 		});
 	}
@@ -269,27 +281,37 @@ document.addEventListener('DOMContentLoaded', () => {
 		};
 	}
 
-	// Keyboard navigation using Arrow Up / Arrow Down
+	// =========================================================================
+	// FIX: Replaced `offsetParent` layout check with passive visual boundaries.
+	// Prevents iOS Safari out-of-memory thread crashing during pinch-to-zoom.
+	// =========================================================================
 	function getVisibleAlarmLinks() {
-		return Array.from(document.querySelectorAll('.alarm-row a, .alarm-info a'))
-			.filter(link => link.offsetParent !== null); // only visible links
+		return Array.from(document.querySelectorAll('.alarm-row a, .alarm-info a'));
 	}
 
 	document.addEventListener('keydown', (e) => {
+		// Exit early so we don't calculate layout sizes on random typing
+		if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
 		const menuEl = document.getElementById('menu');
 
-		// If the menu is open, don't navigate meters
+		// If the menu is open, don't navigate alarms
 		if (menuEl && menuEl.classList.contains('show')) return;
 
-		const links = getVisibleAlarmLinks();
+		// Filter passively to protect the WebKit renderer thread
+		const links = getVisibleAlarmLinks().filter(link => {
+			const rect = link.getBoundingClientRect();
+			return (rect.width > 0 || rect.height > 0);
+		});
+
 		if (!links.length) return;
 
+		e.preventDefault();
+
 		if (e.key === 'ArrowDown') {
-			e.preventDefault();
 			currentLinkIndex = (currentLinkIndex + 1) % links.length;
 			links[currentLinkIndex].focus();
 		} else if (e.key === 'ArrowUp') {
-			e.preventDefault();
 			currentLinkIndex = (currentLinkIndex - 1 + links.length) % links.length;
 			links[currentLinkIndex].focus();
 		}
