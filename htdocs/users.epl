@@ -117,11 +117,10 @@
 			my $formatted = $phone_obj->e164();
 
 			# Safely mask the 4 digits preceding the absolute last 2 digits, ignoring any spacing
-			$formatted =~ s/(\d)(?=(?:\s*\d){2,5}\s*$)/'*/ge;
+			$formatted =~ s/(\d)(?=(?:\D*\d){2,5}\D*$)/q[*]/ge;
 
 			$display_phone = $formatted;
 		}
-		# If invalid, $display_phone keeps the raw database value completely unmasked
 	}
 -]
 
@@ -177,7 +176,7 @@
 
 	<!-- =======================================================
 	APPARATUS ENGINE & SEARCH FILTER OPTIMIZATION
-	======================================================= -->
+	====================================================== -->
 	<script>
 	let usersDebounceTimeout = null;
 	const SCROLL_KEY = 'users_scroll';
