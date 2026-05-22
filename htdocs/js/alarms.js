@@ -324,19 +324,39 @@ document.addEventListener('DOMContentLoaded', () => {
 		// load state from URL
 		const urlState = loadStateFromURL();
 
-		renderAlarms(allAlarmsData);
-
 		filterInput.value = urlState.search;
 		activeCheckbox.checked = urlState.activeOnly;
 
-		// Apply initial filter (important so URL state is respected)
+		// Apply initial filter & render the DOM 
 		filterAlarms();
+
+		// =======================================================
+		// CONTENT-VISIBILITY & ASYNC SCROLL RESTORATION FIX
+		// =======================================================
+		// 1. scroll_manager.js fired on page load before fetchAlarms() finished.
+		// 2. content-visibility: auto makes the page artificially short right now.
+		const savedY = parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
+		if (savedY > 0) {
+			// Pad the container to guarantee the page is tall enough for scroll_manager to reach savedY
+			container.style.minHeight = (savedY + window.innerHeight + 1000) + 'px';
+			
+			// Manually re-trigger the animation now that the data is rendered
+			if (typeof restoreScroll === 'function') {
+				restoreScroll(SCROLL_KEY);
+			}
+
+			// Remove the artificial height once the scroll animation finishes (~500ms)
+			setTimeout(() => {
+				container.style.minHeight = '';
+			}, 1500);
+		}
 
 		filterInput.addEventListener('input', debounce(filterAlarms));
 		activeCheckbox.addEventListener('change', filterAlarms);
 
-		// Focus search input on page load
-		filterInput.focus();
+		// Focus search input on page load (preventScroll stops the browser from aggressively 
+		// snapping back to the top and fighting the animation above)
+		filterInput.focus({ preventScroll: true });
 
 		// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
 		document.addEventListener('keydown', (e) => {
