@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	less \
 	locales \
 	procps \
+	psmisc \
 	rsync \
 	screen \
 	sed \
