@@ -30,11 +30,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # --- Static Directories Pass ---
 RUN mkdir -p /var/www/nabovarme/cache \
-             /var/www/nabovarme/qr \
-             /var/www/nabovarme/sms_spool \
-             /var/www/.texmf-var \
-             /var/www/.texlive2018 && \
-    chown -R www-data:www-data /var/www
+	/var/www/nabovarme/qr \
+	/var/www/nabovarme/sms_spool \
+	/var/www/.texmf-var \
+	/var/www/.texlive2018 && \
+	chown -R www-data:www-data /var/www
 
 # =======================================================
 # Switch user context to generate fonts safely
@@ -75,9 +75,6 @@ COPY ./000-default.conf /etc/apache2/sites-available/
 COPY ./perl /etc/apache2/perl
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 COPY ./template.tex /var/www/nabovarme/qr/
-
-COPY ./update_meters.pl /etc/apache2/perl/Nabovarme/bin/update_meters.pl
-COPY ./clean_samples_cache.pl /etc/apache2/perl/Nabovarme/bin/clean_samples_cache.pl
 
 # Symlink Apache logs to stdout/stderr for Docker log visibility
 RUN ln -sf /dev/stdout /var/log/apache2/access.log \
