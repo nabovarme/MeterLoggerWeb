@@ -18,9 +18,6 @@ RUN useradd -ms /bin/bash meterlogger
 RUN echo "meterlogger ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/meterlogger && \
 	chmod 0440 /etc/sudoers.d/meterlogger
 
-# Copy entrypoint script
-COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
-
 USER meterlogger
 WORKDIR /home/meterlogger
 
@@ -40,5 +37,16 @@ COPY ./utils/find_alternative_ssid.pl find_alternative_ssid.pl
 COPY ./utils/mesh_topology.pl mesh_topology.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
+
+# Copy entrypoint script
+COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
+
+# =========================================================================
+# Version Tracking Setup
+# Configures structural labels visible directly to the cAdvisor API
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
 
 CMD ["/docker-entrypoint.sh"]

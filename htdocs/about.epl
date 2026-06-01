@@ -11,7 +11,7 @@
 <HEAD>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.5, shrink-to-fit=no">
-	<TITLE>MeterLogger about</TITLE>
+	<TITLE>MeterLogger About & Status</TITLE>
 
 	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js.epl" defer></script>	
@@ -21,14 +21,14 @@
 	<style>
 		.manifest-container {
 			padding: 20px;
-			max-width: 800px;
+			max-width: 1000px;
 			margin: 0 auto;
 			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 		}
 		.manifest-title {
 			font-size: 1.5rem;
 			font-weight: 600;
-			margin-bottom: 15px;
+			margin-bottom: 5px;
 			color: #111;
 		}
 		.manifest-table {
@@ -55,6 +55,7 @@
 		}
 		.manifest-table td {
 			border-bottom: 1px solid #f1f3f5;
+			vertical-align: middle;
 		}
 		.git-hash {
 			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -62,18 +63,30 @@
 			border: 1px solid #e9ecef;
 			padding: 2px 6px;
 			border-radius: 4px;
-			color: #d63384;
+			color: #0056b3;
 			font-size: 13px;
 		}
-		.status-online {
+		.status-badge {
 			display: inline-flex;
 			align-items: center;
-			background: #e6f4ea;
-			color: #137333;
 			padding: 2px 8px;
 			border-radius: 4px;
-			font-size: 12px;
-			font-weight: 600;
+			font-size: 11px;
+			font-weight: 700;
+			text-transform: uppercase;
+		}
+		.status-online {
+			background: #e6f4ea;
+			color: #137333;
+		}
+		.status-offline {
+			background: #fce8e6;
+			color: #c5221f;
+		}
+		.metric-text {
+			font-size: 13px;
+			color: #555;
+			font-family: "SFMono-Regular", Consolas, monospace;
 		}
 		.error-box {
 			background: #fce8e6;
@@ -91,9 +104,9 @@
 
 [$ if ($is_admin) $]
 	<div class="manifest-container">
-		<h2 class="manifest-title">Live Service Registry</h2>
+		<h2 class="manifest-title">Live Cluster Dashboard</h2>
 		<p style="font-size: 14px; color: #666; margin-bottom: 20px;">
-			Real-time operational inventory computed straight from the running microservice cluster containers.
+			Real-time container infrastructure deployment metrics and version mapping managed securely via read-only socket proxy routing.
 		</p>
 
 		<div id="error-display" class="error-box"></div>
@@ -101,15 +114,16 @@
 		<table class="manifest-table">
 			<thead>
 				<tr>
-					<th>Active Container Host</th>
-					<th>State</th>
-					<th>Live Git Commit</th>
+					<th>Microservice Container</th>
+					<th>Status</th>
+					<th>Uptime State</th>
+					<th>Target Git Version</th>
 				</tr>
 			</thead>
 			<tbody id="manifest-body">
 				<tr>
-					<td colspan="3" style="text-align: center; color: #999; padding: 20px;" id="loading-row">
-						Querying live service endpoints...
+					<td colspan="4" style="text-align: center; color: #999; padding: 40px;" id="loading-row">
+						Querying cluster layout engine from application layers...
 					</td>
 				</tr>
 			</tbody>
@@ -118,7 +132,8 @@
 
 	<script>
 		document.addEventListener("DOMContentLoaded", async () => {
-			const services = [
+			// This matches your strict docker-compose.yml identity mapping rules
+			const expectedServices = [
 				'web',
 				'meter-grapher',
 				'mysql-mqtt-command-queue-receive',
@@ -132,47 +147,93 @@
 				'utils',
 				'prometheus-exporter',
 				'firmware-builder',
-				'firmware-watcher',
-				'perl_base_image'
+				'firmware-watcher'
 			];
 
 			const tbody = document.getElementById("manifest-body");
 			const errorDisplay = document.getElementById("error-display");
-			let loadedAny = false;
-			let htmlRows = "";
 
-			for (const service of services) {
-				try {
-					const response = await fetch(`/git-versions/${service}`);
-					if (response.ok) {
-						const hash = (await response.text()).trim();
-						if (hash) {
-							htmlRows += `
-								<tr>
-									<td><strong>${service}</strong></td>
-									<td><span class="status-online">RUNNING</span></td>
-									<td><span class="git-hash">${hash}</span></td>
-								</tr>
-							`;
-							loadedAny = true;
-						}
-					}
-				} catch (err) {
-					console.error(`Could not poll registry metric for ${service}:`, err);
+			// Formats raw HTTP Date Header strings from the engine into simple runtime offsets
+			function calculateUptime(creationTimeStr) {
+				if (!creationTimeStr) return '---';
+				const start = new Date(creationTimeStr);
+				const now = new Date();
+				const diffMs = now - start;
+				
+				// Return safe fallback text if engine timestamp layout parses oddly
+				if (isNaN(diffMs) || diffMs < 0) return 'Running';
+				
+				const diffHours = diffMs / (1000 * 60 * 60);
+				if (diffHours < 24) {
+					return `${diffHours.toFixed(1)} hrs`;
 				}
+				return `${(diffHours / 24).toFixed(1)} days`;
 			}
 
-			if (loadedAny) {
+			try {
+				// Request stream layout directly from the mod_perl hook location
+				const response = await fetch('/api/status/cluster/spec');
+				if (!response.ok) throw new Error(`Application API Error: ${response.status}`);
+				
+				const data = await response.json();
+				let activeContainers = {};
+				let htmlRows = "";
+
+				// Map out structural attributes passed through your proxy handler
+				Object.values(data).forEach(container => {
+					const labels = container.labels || {};
+					const serviceName = labels['com.docker.compose.service'];
+					
+					if (serviceName && expectedServices.includes(serviceName)) {
+						const stateArray = container.state || [];
+						
+						activeContainers[serviceName] = {
+							running: stateArray.length > 0,
+							version: labels['app.git.commit'] || 'unknown',
+							uptime: container.creation_time || null
+						};
+					}
+				});
+
+				// Loop predictable array entries to maintain alphabetical view order
+				expectedServices.forEach(service => {
+					const node = activeContainers[service];
+					
+					if (node && node.running) {
+						const printHash = node.version !== 'unknown' ? node.version.substring(0, 12) : 'No Build Hash';
+						
+						htmlRows += `
+							<tr>
+								<td><strong>${service}</strong></td>
+								<td><span class="status-badge status-online">RUNNING</span></td>
+								<td class="metric-text">${calculateUptime(node.uptime)}</td>
+								<td><span class="git-hash">${printHash}</span></td>
+							</tr>
+						`;
+					} else {
+						htmlRows += `
+							<tr>
+								<td><strong style="color: #a0a0a0;">${service}</strong></td>
+								<td><span class="status-badge status-offline">OFFLINE</span></td>
+								<td class="metric-text" style="color: #ccc;">---</td>
+								<td><span class="git-hash" style="color: #bbb; background: #fafafa; border-color: #eee;">------</span></td>
+							</tr>
+						`;
+					}
+				});
+
 				tbody.innerHTML = htmlRows;
-			} else {
-				document.getElementById("loading-row").innerText = "No active microservice container nodes responded.";
-				errorDisplay.innerText = "Tracking Alert: Unable to fetch cluster hashes. Ensure directory path permissions match.";
+
+			} catch (err) {
+				console.error("Failed parsing status stream mapping via mod_perl wrapper:", err);
+				document.getElementById("loading-row").innerText = "Unable to process cluster telemetry architecture.";
+				errorDisplay.innerText = `Dashboard Connection Error: Verification error parsing state objects from the /api/status application handler.`;
 				errorDisplay.style.display = "block";
 			}
 		});
 	</script>
 [$ else $]
-	<div style="padding: 20px; text-align: center; color: #c5221f;">
+	<div style="padding: 40px; text-align: center; color: #c5221f; font-family: sans-serif;">
 		<strong>Access Denied:</strong> Administrative permissions are required to view the service registry manifest.
 	</div>
 [$ endif $]
