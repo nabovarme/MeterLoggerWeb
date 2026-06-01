@@ -55,6 +55,7 @@ RUN a2enmod remoteip
 RUN a2enmod headers
 RUN a2enmod proxy
 RUN a2enmod proxy_http
+RUN a2enmod rewrite
 
 COPY ./htdocs /var/www/nabovarme
 

@@ -67,7 +67,8 @@ sub cookie_is_admin_for_serial {
 	# capture the real client IP behind proxy once
 	$self->{remote_addr} = $r->headers_in->{'X-Real-IP'}
 	                    || $r->headers_in->{'X-Forwarded-For'}
-	                    || $r->connection->client_ip;
+	                    || $r->useragent_ip
+	                    || $r->connection->remote_ip;
 
 	my $passed_cookie = $r->headers_in->{Cookie} || '';
 	my $passed_cookie_token;
