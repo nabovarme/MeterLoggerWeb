@@ -4,8 +4,6 @@ FROM openresty/openresty:bookworm
 # Install only the system packages you actually need for your Lua modules/Certbot
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	luarocks \
-	certbot \
-	python3-certbot-nginx \
 	git \
 	build-essential \
 	libssl-dev \
