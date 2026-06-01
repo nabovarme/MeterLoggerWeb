@@ -1,0 +1,3 @@
+#!/bin/sh
+# Update the version file when branches switch or HEAD updates
+echo "GIT_COMMIT=$(git rev-parse --short HEAD)" > .env.version
