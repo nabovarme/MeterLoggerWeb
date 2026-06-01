@@ -1,0 +1,181 @@
+[- 
+	# Load internal application modules
+	use Nabovarme::Db;
+	use Nabovarme::Admin;
+
+	# Instantiate admin checker
+	$admin = new Nabovarme::Admin;
+	$is_admin = $admin->cookie_is_admin($req_rec);
+-]
+<HTML>
+<HEAD>
+	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.5, shrink-to-fit=no">
+	<TITLE>MeterLogger about</TITLE>
+
+	<link rel="stylesheet" href="/css/menu.css">
+	<script src="/js/menu.js.epl" defer></script>	
+
+	<link rel="stylesheet" href="/css/users.css" />
+	
+	<style>
+		.manifest-container {
+			padding: 20px;
+			max-width: 800px;
+			margin: 0 auto;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		}
+		.manifest-title {
+			font-size: 1.5rem;
+			font-weight: 600;
+			margin-bottom: 15px;
+			color: #111;
+		}
+		.manifest-table {
+			width: 100%;
+			border-collapse: collapse;
+			background: #fff;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+			border-radius: 4px;
+			overflow: hidden;
+		}
+		.manifest-table th, .manifest-table td {
+			padding: 12px 16px;
+			text-align: left;
+			font-size: 14px;
+		}
+		.manifest-table th {
+			background-color: #f8f9fa;
+			color: #495057;
+			font-weight: 700;
+			text-transform: uppercase;
+			font-size: 11px;
+			letter-spacing: 0.5px;
+			border-bottom: 2px solid #dee2e6;
+		}
+		.manifest-table td {
+			border-bottom: 1px solid #f1f3f5;
+		}
+		.git-hash {
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+			background: #f8f9fa;
+			border: 1px solid #e9ecef;
+			padding: 2px 6px;
+			border-radius: 4px;
+			color: #d63384;
+			font-size: 13px;
+		}
+		.status-online {
+			display: inline-flex;
+			align-items: center;
+			background: #e6f4ea;
+			color: #137333;
+			padding: 2px 8px;
+			border-radius: 4px;
+			font-size: 12px;
+			font-weight: 600;
+		}
+		.error-box {
+			background: #fce8e6;
+			color: #c5221f;
+			border: 1px solid #fad2cf;
+			padding: 12px;
+			border-radius: 4px;
+			font-size: 14px;
+			margin-bottom: 20px;
+			display: none;
+		}
+	</style>
+</HEAD>
+<BODY>
+
+[$ if ($is_admin) $]
+	<div class="manifest-container">
+		<h2 class="manifest-title">Live Service Registry</h2>
+		<p style="font-size: 14px; color: #666; margin-bottom: 20px;">
+			Real-time operational inventory computed straight from the running microservice cluster containers.
+		</p>
+
+		<div id="error-display" class="error-box"></div>
+
+		<table class="manifest-table">
+			<thead>
+				<tr>
+					<th>Active Container Host</th>
+					<th>State</th>
+					<th>Live Git Commit</th>
+				</tr>
+			</thead>
+			<tbody id="manifest-body">
+				<tr>
+					<td colspan="3" style="text-align: center; color: #999; padding: 20px;" id="loading-row">
+						Querying live service endpoints...
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", async () => {
+			const services = [
+				'web',
+				'meter-grapher',
+				'mysql-mqtt-command-queue-receive',
+				'mysql-mqtt-command-queue-send',
+				'smsd',
+				'smsd-watchdog',
+				'meter-notify',
+				'meter-alarm',
+				'meter-cron',
+				'openresty',
+				'utils',
+				'prometheus-exporter',
+				'firmware-builder',
+				'firmware-watcher',
+				'perl_base_image'
+			];
+
+			const tbody = document.getElementById("manifest-body");
+			const errorDisplay = document.getElementById("error-display");
+			let loadedAny = false;
+			let htmlRows = "";
+
+			for (const service of services) {
+				try {
+					const response = await fetch(`/git-versions/${service}`);
+					if (response.ok) {
+						const hash = (await response.text()).trim();
+						if (hash) {
+							htmlRows += `
+								<tr>
+									<td><strong>${service}</strong></td>
+									<td><span class="status-online">RUNNING</span></td>
+									<td><span class="git-hash">${hash}</span></td>
+								</tr>
+							`;
+							loadedAny = true;
+						}
+					}
+				} catch (err) {
+					console.error(`Could not poll registry metric for ${service}:`, err);
+				}
+			}
+
+			if (loadedAny) {
+				tbody.innerHTML = htmlRows;
+			} else {
+				document.getElementById("loading-row").innerText = "No active microservice container nodes responded.";
+				errorDisplay.innerText = "Tracking Alert: Unable to fetch cluster hashes. Ensure directory path permissions match.";
+				errorDisplay.style.display = "block";
+			}
+		});
+	</script>
+[$ else $]
+	<div style="padding: 20px; text-align: center; color: #c5221f;">
+		<strong>Access Denied:</strong> Administrative permissions are required to view the service registry manifest.
+	</div>
+[$ endif $]
+
+</BODY>
+</HTML>

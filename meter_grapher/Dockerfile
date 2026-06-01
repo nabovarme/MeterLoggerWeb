@@ -15,5 +15,11 @@ COPY ./meter_grapher/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
-CMD ["/docker-entrypoint.sh"]
+# =========================================================================
+# Version Tracking Setup
+# Captures your current environment deployment hash safely from .env.version
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
 
+ENTRYPOINT ["/docker-entrypoint.sh"]

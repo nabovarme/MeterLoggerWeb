@@ -82,4 +82,11 @@ RUN ln -sf /dev/stdout /var/log/apache2/access.log \
 
 ENV PERL5LIB=/etc/apache2/perl
 
+# =========================================================================
+# Runtime Version Tracking Setup
+# Catches hash from your .env.version and protects image build caches
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 ENTRYPOINT ["/docker-entrypoint.sh"]
