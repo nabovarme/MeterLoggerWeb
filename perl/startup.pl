@@ -20,6 +20,7 @@ use Nabovarme::APIWiFiPending;
 use Nabovarme::APIWiFiScan;
 use Nabovarme::APIWiFiMeshRSSI;
 use Nabovarme::APISMSSent;
+use Nabovarme::APIStatus;
 use Nabovarme::Number::Phone;
 
 1;

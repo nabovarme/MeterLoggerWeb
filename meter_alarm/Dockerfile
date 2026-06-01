@@ -9,16 +9,16 @@ USER root
 COPY ./perl /usr/local/lib/perl
 
 COPY ./meter_alarm/meter_alarm.pl /usr/local/bin/meter_alarm.pl
-COPY ./meter_alarm/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
 # =========================================================================
 # Version Tracking Setup
-# Bakes the commit argument from .env.version securely into this image layer
+# Configures structural labels visible directly to the cAdvisor API
 # =========================================================================
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Run the meter alarm script natively as PID 1
 CMD ["perl", "/usr/local/bin/meter_alarm.pl"]

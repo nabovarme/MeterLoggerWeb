@@ -108,9 +108,11 @@ RUN git config --global core.hooksPath /.docker_root/.githooks || true && \
 
 # =========================================================================
 # Base Image Version Stamp
-# Bakes the commit string down to a permanent file asset inside the image layers
+# Bakes the commit string down to structural metadata and permanent file assets
 # =========================================================================
 ARG GIT_COMMIT_BASE=unknown
 RUN echo "${GIT_COMMIT_BASE}" > /etc/base-commit
+
+LABEL app.git.commit=${GIT_COMMIT_BASE}
 
 CMD ["/usr/bin/bash"]

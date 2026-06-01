@@ -53,6 +53,8 @@ USER root
 RUN a2enmod expires
 RUN a2enmod remoteip
 RUN a2enmod headers
+RUN a2enmod proxy
+RUN a2enmod proxy_http
 
 COPY ./htdocs /var/www/nabovarme
 
@@ -84,9 +86,10 @@ ENV PERL5LIB=/etc/apache2/perl
 
 # =========================================================================
 # Runtime Version Tracking Setup
-# Catches hash from your .env.version and protects image build caches
+# Configures external labels accessible via cAdvisor micro-telemetry
 # =========================================================================
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

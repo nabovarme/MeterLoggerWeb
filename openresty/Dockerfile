@@ -34,16 +34,14 @@ RUN mkdir /usr/local/openresty/lualib/dnsbl_whitelist
 ENV LUA_PATH="/usr/local/openresty/lualib/?.lua;/usr/local/openresty/lualib/?/init.lua;;"
 ENV PATH="/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin:$PATH"
 
-COPY openresty/docker-entrypoint.sh /docker-entrypoint.sh
-
 EXPOSE 80 443
 
 # =========================================================================
 # Version Tracking Setup
-# Captures your dynamic deployment version hash safely from .env.version
+# Configures structural labels visible directly to the cAdvisor API
 # =========================================================================
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["openresty", "-g", "daemon off;"]
