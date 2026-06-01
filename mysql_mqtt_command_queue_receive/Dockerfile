@@ -9,7 +9,6 @@ USER root
 COPY ./perl /usr/local/lib/perl
 
 COPY ./mysql_mqtt_command_queue_receive/mysql_mqtt_command_queue_receive.pl /usr/local/bin/mysql_mqtt_command_queue_receive.pl
-COPY ./mysql_mqtt_command_queue_receive/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -20,5 +19,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/mysql_mqtt_command_queue_receive.pl"]

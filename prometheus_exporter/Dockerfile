@@ -38,8 +38,6 @@ RUN ln -sf /dev/stdout /var/log/apache2/access.log \
 # --- Permissions ---
 RUN chown -R www-data:www-data /etc/apache2/perl
 
-COPY ./prometheus_exporter/docker-entrypoint.sh /docker-entrypoint.sh
-
 # --- Expose HTTP ---
 EXPOSE 80
 
@@ -50,4 +48,5 @@ EXPOSE 80
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# --- Start Apache in foreground ---
+CMD ["/usr/sbin/apache2ctl", "-D", "FOREGROUND"]

@@ -9,7 +9,6 @@ USER root
 COPY ./perl /usr/local/lib/perl
 
 COPY ./meter_notify/meter_notify.pl /usr/local/bin/meter_notify.pl
-COPY ./meter_notify/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -20,5 +19,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["perl", "/usr/local/bin/meter_notify.pl"]
