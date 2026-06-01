@@ -1,7 +1,3 @@
-networks:
-  meterlogger_net:
-    driver: bridge
-
 services:
   # =========================================================================
   # Core Infrastructure Services (Database, Cache, Messaging Broker)
@@ -622,3 +618,7 @@ volumes:
   firmware_release:
     name: firmware_release
   redis_data:
+
+networks:
+  meterlogger_net:
+    driver: bridge
