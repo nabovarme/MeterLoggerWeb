@@ -100,6 +100,13 @@ RUN cpanm https://github.com/Juerd/Net-MQTT-Simple.git \
 	&& cpanm https://github.com/DCIT/perl-CryptX.git@6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489
 
 # =========================================================================
+# Global Development Chain Configurations
+# Forces all inherited bash contexts to route Git hooks through the repository
+# =========================================================================
+RUN git config --global core.hooksPath /.docker_root/.githooks || true && \
+	echo 'git config --local core.hooksPath .githooks 2>/dev/null || true' >> /etc/bash.bashrc
+
+# =========================================================================
 # Base Image Version Stamp
 # Bakes the commit string down to a permanent file asset inside the image layers
 # =========================================================================
