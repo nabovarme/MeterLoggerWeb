@@ -1,0 +1,3 @@
+#!/bin/sh
+# Generate the isolated environment version file automatically
+echo "GIT_COMMIT=$(git rev-parse --short HEAD)" > .env.version
