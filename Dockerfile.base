@@ -99,4 +99,11 @@ RUN PERL_MM_USE_DEFAULT=1 cpanm \
 RUN cpanm https://github.com/Juerd/Net-MQTT-Simple.git \
 	&& cpanm https://github.com/DCIT/perl-CryptX.git@6cef046ba02cfd01d1bfbe9e3f914bb7d1a03489
 
+# =========================================================================
+# Base Image Version Stamp
+# Bakes the commit string down to a permanent file asset inside the image layers
+# =========================================================================
+ARG GIT_COMMIT_BASE=unknown
+RUN echo "${GIT_COMMIT_BASE}" > /etc/base-commit
+
 CMD ["/usr/bin/bash"]

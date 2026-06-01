@@ -3,6 +3,11 @@ services:
     build:
       context: '.'
       dockerfile: ./Dockerfile.base
+      args:
+        - GIT_COMMIT_BASE=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     image: perl-base:1.0
     entrypoint: ["echo", "Base image build complete."]
     profiles:
@@ -86,7 +91,13 @@ services:
       retries: 5
 
   web:
-    build: '.'
+    build:
+      context: '.'
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -96,6 +107,7 @@ services:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
       - ./sms_spool:/var/www/nabovarme/sms_spool
       - firmware_release:/var/www/nabovarme/flasher/firmware
+      - git_versions:/var/www/nabovarme/git-versions:ro # Shared entrypoint targets land here
     restart: always
     environment:
       NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
@@ -110,6 +122,11 @@ services:
     build:
       context: '.'
       dockerfile: ./meter_grapher/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -121,6 +138,7 @@ services:
     hostname: meter-grapher
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     restart: always
     environment:
       CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
@@ -134,6 +152,11 @@ services:
     build:
       context: '.'
       dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -143,6 +166,7 @@ services:
     hostname: mysql-mqtt-command-queue-receive
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     restart: always
     environment:
       MQTT_HOST: ${MQTT_HOST}
@@ -154,6 +178,11 @@ services:
     build:
       context: '.'
       dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -163,6 +192,7 @@ services:
     hostname: mysql-mqtt-command-queue-send
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     restart: always
     environment:
       MQTT_HOST: ${MQTT_HOST}
@@ -174,6 +204,11 @@ services:
     build:
       context: '.'
       dockerfile: ./smsd/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -185,6 +220,7 @@ services:
     hostname: smsd
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     privileged: true
     restart: always
     stop_grace_period: 30s
@@ -208,12 +244,18 @@ services:
     build:
       context: '.'
       dockerfile: ./smsd_watchdog/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: smsd_watchdog
     hostname: smsd-watchdog
     depends_on:
       - smsd
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - git_versions:/run/git-versions
     privileged: true
     devices:
       - /dev/bus/usb:/dev/bus/usb
@@ -229,6 +271,11 @@ services:
     build:
       context: '.'
       dockerfile: ./meter_notify/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: meter_notify
     hostname: meter-notify
     depends_on:
@@ -240,6 +287,7 @@ services:
         condition: service_healthy
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
@@ -254,6 +302,11 @@ services:
     build:
       context: '.'
       dockerfile: ./meter_alarm/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: meter_alarm
     hostname: meter-alarm
     depends_on:
@@ -261,6 +314,7 @@ services:
         condition: service_healthy
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     environment:
       TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
@@ -270,6 +324,11 @@ services:
     build:
       context: '.'
       dockerfile: ./meter_cron/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -279,6 +338,7 @@ services:
     hostname: meter-cron
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     restart: always
     environment:
       REDIS_HOST: ${REDIS_HOST}
@@ -298,8 +358,6 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
-#    ports:
-#      - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -329,6 +387,11 @@ services:
     build:
       context: '.'
       dockerfile: ./openresty/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: openresty
     hostname: openresty
     depends_on:
@@ -338,6 +401,7 @@ services:
       - "${HTTP_PORT:-80}:80"
     volumes:
       - ./openresty/lua/dnsbl_whitelist:/usr/local/openresty/lualib/dnsbl_whitelist
+      - git_versions:/run/git-versions
     restart: always
     environment:
       TZ: Europe/Copenhagen
@@ -346,12 +410,18 @@ services:
     build:
       context: '.'
       dockerfile: ./utils/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: utils
     hostname: utils
     volumes:
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
@@ -362,10 +432,16 @@ services:
     build:
       context: '.'
       dockerfile: ./prometheus_exporter/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: prometheus_exporter
     hostname: prometheus-exporter
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - git_versions:/run/git-versions
     depends_on:
       db:
         condition: service_healthy
@@ -388,7 +464,6 @@ services:
     build:
       context: '.'
       dockerfile: ./builder/firmware_sdk/Dockerfile
-#    image: firmware_sdk:latest
     container_name: firmware_sdk
     hostname: firmware-sdk
     volumes:
@@ -400,6 +475,11 @@ services:
     build:
       context: '.'
       dockerfile: ./builder/firmware_builder/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: firmware_builder
     hostname: firmware-builder
     volumes:
@@ -407,8 +487,7 @@ services:
       - firmware_release:/meterlogger/MeterLogger/release
       - ./:/docker_root
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-#    ports:
-#      - "5000:5000"
+      - git_versions:/run/git-versions
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
@@ -421,13 +500,19 @@ services:
     restart: unless-stopped
     stop_grace_period: 120s
 
-
   firmware_watcher:
     build:
       context: '.'
       dockerfile: ./builder/watcher/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+      - .env.version
     container_name: firmware_watcher
     hostname: firmware-watcher
+    volumes:
+      - git_versions:/run/git-versions
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
@@ -442,4 +527,4 @@ volumes:
   firmware_release:
     name: firmware_release
   redis_data:
-
+  git_versions:

@@ -17,4 +17,11 @@ COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
-CMD ["/bin/bash", "/docker-entrypoint.sh"]
+# =========================================================================
+# Version Tracking Setup
+# Captures your dynamic deployment version hash safely from .env.version
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+ENTRYPOINT ["/bin/bash", "/docker-entrypoint.sh"]
