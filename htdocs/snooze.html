@@ -89,25 +89,33 @@
 		function humanDuration(seconds) {
 			if (seconds === undefined || seconds === null) return '';
 
-			let value;
-			let unit;
+			// Handle Year explicitly
+			if (seconds >= 31536000) {
+				return "1 year";
+			}
 
+			let value, unit;
 			if (seconds < 60) {
 				value = seconds;
 				unit = 'second';
-			} else if (seconds < 3600) {
+			}
+			else if (seconds < 3600) {
 				value = Math.floor(seconds / 60);
 				unit = 'minute';
-			} else if (seconds < 86400) {
+			}
+			else if (seconds < 86400) {
 				value = Math.floor(seconds / 3600);
 				unit = 'hour';
-			} else if (seconds < 604800) {
+			}
+			else if (seconds < 604800) {
 				value = Math.floor(seconds / 86400);
 				unit = 'day';
-			} else if (seconds < 2678400) {
+			}
+			else if (seconds < 2678400) {
 				value = Math.floor(seconds / 604800);
 				unit = 'week';
-			} else {
+			}
+			else {
 				value = Math.floor(seconds / 2678400);
 				unit = 'month';
 			}
