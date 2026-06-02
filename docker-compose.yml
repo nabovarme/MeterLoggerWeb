@@ -8,9 +8,6 @@ services:
       dockerfile: ./Dockerfile.base
       args:
         - GIT_COMMIT_BASE=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     image: perl-base:1.0
     entrypoint: ["echo", "Base image build complete."]
     profiles:
@@ -149,9 +146,6 @@ services:
       context: '.'
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -182,9 +176,6 @@ services:
       dockerfile: ./meter_grapher/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -216,9 +207,6 @@ services:
       dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -246,9 +234,6 @@ services:
       dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -276,9 +261,6 @@ services:
       dockerfile: ./smsd/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -320,9 +302,6 @@ services:
       dockerfile: ./smsd_watchdog/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: smsd_watchdog
     hostname: smsd-watchdog
     depends_on:
@@ -351,9 +330,6 @@ services:
       dockerfile: ./meter_notify/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: meter_notify
     hostname: meter-notify
     depends_on:
@@ -386,9 +362,6 @@ services:
       dockerfile: ./meter_alarm/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: meter_alarm
     hostname: meter-alarm
     depends_on:
@@ -412,9 +385,6 @@ services:
       dockerfile: ./meter_cron/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     depends_on:
       db:
         condition: service_healthy
@@ -444,9 +414,6 @@ services:
       dockerfile: ./openresty/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: openresty
     hostname: openresty
     depends_on:
@@ -471,9 +438,6 @@ services:
       dockerfile: ./utils/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: utils
     hostname: utils
     volumes:
@@ -497,9 +461,6 @@ services:
       dockerfile: ./prometheus_exporter/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: prometheus_exporter
     hostname: prometheus-exporter
     volumes:
@@ -549,9 +510,6 @@ services:
       dockerfile: ./builder/firmware_builder/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: firmware_builder
     hostname: firmware-builder
     volumes:
@@ -582,9 +540,6 @@ services:
       dockerfile: ./builder/watcher/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
-    env_file:
-      - .env
-      - .env.version
     container_name: firmware_watcher
     hostname: firmware-watcher
     environment:
