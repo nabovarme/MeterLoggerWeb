@@ -13,12 +13,23 @@ services:
     profiles:
       - build-only
 
-  db_config:
+  setup_config:
     image: busybox
-    container_name: db_config
-    hostname: db-config
+    container_name: setup_config
+    hostname: setup-config
+    volumes:
+      - ./db/conf.d:/out
+      - ./.git:/.git
     command: >
       sh -c "
+        # Natively inject hooksPath config directly into the host repository configuration file
+        if [ -f /.git/config ]; then
+          if ! grep -q 'hooksPath' /.git/config; then
+            echo 'Configuring host Git repository to use .githooks automatically...' &&
+            sed -i '/\[core\]/a \\thooksPath = .githooks' /.git/config;
+          fi
+        fi &&
+
         mkdir -p /out &&
         # write mariadb server config
         echo '[mysqld]' > /out/99-custom.cnf &&
@@ -36,8 +47,6 @@ services:
         echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
         echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
       "
-    volumes:
-      - ./db/conf.d:/out
     environment:
       INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
       METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
@@ -51,7 +60,7 @@ services:
     container_name: db
     hostname: db
     depends_on:
-      - db_config
+      - setup_config
     ports:
       - "127.0.0.1:${METERLOGGER_DB_PORT:-3306}:3306"
     volumes:
