@@ -14,4 +14,3 @@ htdocs/cache/
 utils/bash_history
 perl_modules/debs/
 builder/release/
-.env.version
