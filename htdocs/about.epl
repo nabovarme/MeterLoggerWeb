@@ -132,23 +132,24 @@
 
 	<script>
 		document.addEventListener("DOMContentLoaded", async () => {
+			// Updated to match your exact container namespace keys (underscores)
 			const expectedServices = [
 				'web',
-				'meter-grapher',
-				'mysql-mqtt-command-queue-receive',
-				'mysql-mqtt-command-queue-send',
+				'meter_grapher',
+				'mysql_mqtt_command_queue_receive',
+				'mysql_mqtt_command_queue_send',
 				'smsd',
-				'smsd-watchdog',
-				'meter-notify',
-				'meter-alarm',
-				'meter-cron',
+				'smsd_watchdog',
+				'meter_notify',
+				'meter_alarm',
+				'meter_cron',
 				'openresty',
 				'utils',
-				'prometheus-exporter',
-				'firmware-builder',
-				'firmware-watcher'
+				'prometheus_exporter',
+				'firmware_builder',
+				'firmware_watcher'
 			];
-	
+
 			const tbody = document.getElementById("manifest-body");
 			const errorDisplay = document.getElementById("error-display");
 	
