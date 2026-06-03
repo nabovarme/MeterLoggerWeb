@@ -477,9 +477,20 @@ sub mqtt_scan_result_handler {
 			}
 		}		
 
+		# Safety Truncation Check to prevent DB column sizing overflows
+		if (defined $mqtt_data->{ssid} && length($mqtt_data->{ssid}) > 64) {
+			log_warn("Over-sized raw ssid string detected (" . length($mqtt_data->{ssid}) . " bytes). Truncating payload parameter down to 64 bytes.", {-no_script_name => 1});
+			$mqtt_data->{ssid} = substr($mqtt_data->{ssid}, 0, 64);
+		}
+
 		# Store raw SSID for Wi-Fi connection
 		my $ssid_raw = $mqtt_data->{ssid};
 		my $ssid = decode_ssid($ssid_raw);
+
+		# Safety Truncation Check for decoded representation
+		if (defined $ssid && length($ssid) > 64) {
+			$ssid = substr($ssid, 0, 64);
+		}
 
 		# Save scan attributes to database
 		my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (
