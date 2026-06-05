@@ -22,11 +22,12 @@ services:
       - ./.git:/.git
     command: >
       sh -c "
-        # Natively inject hooksPath config directly into the host repository configuration file
+        # Atomically inject hooksPath directly under the [core] header using awk
         if [ -f /.git/config ]; then
           if ! grep -q 'hooksPath' /.git/config; then
             echo 'Configuring host Git repository to use .githooks automatically...' &&
-            sed -i '/\[core\]/a \\thooksPath = .githooks' /.git/config;
+            awk '{print} /^\\[core\\]$/ {print \"\\thooksPath = .githooks\"}' /.git/config > /.git/config.tmp &&
+            mv /.git/config.tmp /.git/config;
           fi
         fi &&
 
