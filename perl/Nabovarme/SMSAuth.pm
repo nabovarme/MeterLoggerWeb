@@ -118,7 +118,7 @@ sub login_handler {
 				-value => $cookie_token,
 				-expires => '+1y',
 				-httponly => 1,
-				-secure   => 1
+				-secure   => 0
 			);
 			# Set the new cookie early so it's only set once
 			add_set_cookie_once($r, $cookie);
@@ -185,7 +185,7 @@ sub login_handler {
 						-name  => 'auth_token',
 						-value => $cookie_token,
 						-httponly => 1,
-						-secure   => 1
+						-secure   => 0
 					);
 					add_set_cookie_once($r, $cookie);
 					$r->err_headers_out->add('Location' => $sms_code_path);
@@ -210,7 +210,7 @@ sub login_handler {
 						-value   => $passed_cookie_token,
 						-expires => '+1y',
 						-httponly => 1,
-						-secure   => 1,
+						-secure   => 0,
 					);
 				} else {
 					# Create session cookie (no expiration)
@@ -218,7 +218,7 @@ sub login_handler {
 						-name  => 'auth_token',
 						-value => $passed_cookie_token,
 						-httponly => 1,
-						-secure   => 1
+						-secure   => 0
 					);
 				}
 
@@ -253,7 +253,7 @@ sub login_handler {
 						-name  => 'auth_token',
 						-value => $passed_cookie_token,
 						-httponly => 1,
-						-secure   => 1
+						-secure   => 0
 					);
 				} else {
 					# Persistent cookie (1 year expiration)
@@ -262,7 +262,7 @@ sub login_handler {
 						-value   => $passed_cookie_token,
 						-expires => '+1y',
 						-httponly => 1,
-						-secure   => 1
+						-secure   => 0
 					);
 				}
 				# Update last used timestamp
@@ -339,7 +339,7 @@ sub logout_handler {
 			-value => $passed_cookie_token,
 			-expires => '-1y',
 			-httponly => 1,
-			-secure   => 1
+			-secure   => 0
 		);
 		
 		# Log admin logout if applicable
@@ -427,7 +427,7 @@ The flow is cookie-driven and progresses through the following states:
   5. deny              - Access denied; user must restart the flow.
   6. logout            - Auth cookie is expired, and session is deleted from DB.
 
-Authentication state is persisted in a MySQL table `sms_auth`, keyed by a secure cookie token.
+Authentication state is persisted in a MySQL table `sms_auth`, keyed by a cookie token.
 
 FLOW DIAGRAM:
 
