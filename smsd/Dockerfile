@@ -13,8 +13,19 @@ RUN groupadd -r smsd && useradd -r -g smsd -m -s /bin/bash smsd
 COPY ./perl /usr/local/lib/perl
 
 COPY ./smsd/smtp_server.pl /usr/local/bin/smtp_server.pl
-COPY ./smsd/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
-CMD ["/bin/bash", "/docker-entrypoint.sh"]
+# =========================================================================
+# Version Tracking Setup
+# Configures structural labels visible directly to the cAdvisor API
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
+
+# Switch context to your unprivileged runtime daemon user account
+USER smsd
+
+# Run the Perl SMTP server natively as PID 1
+CMD ["perl", "/usr/local/bin/smtp_server.pl"]

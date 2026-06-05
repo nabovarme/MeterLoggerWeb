@@ -1,19 +1,35 @@
 services:
+  # =========================================================================
+  # Core Infrastructure Services (Database, Cache, Messaging Broker)
+  # =========================================================================
   perl_base:
     build:
       context: '.'
       dockerfile: ./Dockerfile.base
+      args:
+        - GIT_COMMIT_BASE=${GIT_COMMIT:-unknown}
     image: perl-base:1.0
     entrypoint: ["echo", "Base image build complete."]
     profiles:
       - build-only
 
-  db_config:
+  setup_config:
     image: busybox
-    container_name: db_config
-    hostname: db-config
+    container_name: setup_config
+    hostname: setup-config
+    volumes:
+      - ./db/conf.d:/out
+      - ./.git:/.git
     command: >
       sh -c "
+        # Natively inject hooksPath config directly into the host repository configuration file
+        if [ -f /.git/config ]; then
+          if ! grep -q 'hooksPath' /.git/config; then
+            echo 'Configuring host Git repository to use .githooks automatically...' &&
+            sed -i '/\[core\]/a \\thooksPath = .githooks' /.git/config;
+          fi
+        fi &&
+
         mkdir -p /out &&
         # write mariadb server config
         echo '[mysqld]' > /out/99-custom.cnf &&
@@ -31,8 +47,6 @@ services:
         echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
         echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
       "
-    volumes:
-      - ./db/conf.d:/out
     environment:
       INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
       METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
@@ -46,7 +60,7 @@ services:
     container_name: db
     hostname: db
     depends_on:
-      - db_config
+      - setup_config
     ports:
       - "127.0.0.1:${METERLOGGER_DB_PORT:-3306}:3306"
     volumes:
@@ -85,209 +99,6 @@ services:
       timeout: 5s
       retries: 5
 
-  web:
-    build: '.'
-    depends_on:
-      db:
-        condition: service_healthy
-    container_name: web
-    hostname: web
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-      - ./sms_spool:/var/www/nabovarme/sms_spool
-      - firmware_release:/var/www/nabovarme/flasher/firmware
-    restart: always
-    environment:
-      NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
-      TZ: 'Europe/Copenhagen'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-
-  meter_grapher:
-    build:
-      context: '.'
-      dockerfile: ./meter_grapher/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-    container_name: meter_grapher
-    hostname: meter-grapher
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    restart: always
-    environment:
-      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
-      MQTT_HOST: ${MQTT_HOST}
-      MQTT_PORT: ${MQTT_PORT}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      TZ: 'Europe/Copenhagen'
-
-  mysql_mqtt_command_queue_receive:
-    build:
-      context: '.'
-      dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-    container_name: mysql_mqtt_command_queue_receive
-    hostname: mysql-mqtt-command-queue-receive
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    restart: always
-    environment:
-      MQTT_HOST: ${MQTT_HOST}
-      MQTT_PORT: ${MQTT_PORT}
-      TZ: 'Europe/Copenhagen'
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-
-  mysql_mqtt_command_queue_send:
-    build:
-      context: '.'
-      dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-    container_name: mysql_mqtt_command_queue_send
-    hostname: mysql-mqtt-command-queue-send
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    restart: always
-    environment:
-      MQTT_HOST: ${MQTT_HOST}
-      MQTT_PORT: ${MQTT_PORT}
-      TZ: 'Europe/Copenhagen'
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-
-  smsd:
-    build:
-      context: '.'
-      dockerfile: ./smsd/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      postfix:
-        condition: service_healthy
-    container_name: smsd
-    hostname: smsd
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    privileged: true
-    restart: always
-    stop_grace_period: 30s
-    environment:
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      RUT901_ROUTER_IP: ${RUT901_ROUTER_IP}
-      RUT901_ROUTER_USER: ${RUT901_ROUTER_USER}
-      RUT901_ROUTER_PASS: ${RUT901_ROUTER_PASS}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMSD_DRY_RUN: ${SMSD_DRY_RUN}
-      TO_EMAIL: ${TO_EMAIL}
-      FROM_EMAIL: ${FROM_EMAIL}
-      TZ: 'Europe/Copenhagen'
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-
-  smsd_watchdog:
-    build:
-      context: '.'
-      dockerfile: ./smsd_watchdog/Dockerfile
-    container_name: smsd_watchdog
-    hostname: smsd-watchdog
-    depends_on:
-      - smsd
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    privileged: true
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
-    restart: always
-    environment:
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      TO_EMAIL: ${TO_EMAIL}
-
-  meter_notify:
-    build:
-      context: '.'
-      dockerfile: ./meter_notify/Dockerfile
-    container_name: meter_notify
-    hostname: meter-notify
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    environment:
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      NOTIFICATION_OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
-      NOTIFICATION_CLOSE_MESSAGE: ${NOTIFICATION_CLOSE_MESSAGE}
-      NOTIFICATION_CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}
-      TZ: Europe/Copenhagen
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-    restart: always
-
-  meter_alarm:
-    build:
-      context: '.'
-      dockerfile: ./meter_alarm/Dockerfile
-    container_name: meter_alarm
-    hostname: meter-alarm
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    environment:
-      TZ: Europe/Copenhagen
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-    restart: always
-
-  meter_cron:
-    build:
-      context: '.'
-      dockerfile: ./meter_cron/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
-      mqtt:
-        condition: service_healthy
-    container_name: meter_cron
-    hostname: meter-cron
-    volumes:
-      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-    restart: always
-    environment:
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-      GOOGLE_GEOLOCATION_API_URL: ${GOOGLE_GEOLOCATION_API_URL}
-      TZ: 'Europe/Copenhagen'
-      ENABLE_DEBUG: ${ENABLE_DEBUG}
-
   redis:
     image: redis:latest
     container_name: redis
@@ -298,8 +109,6 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
-#    ports:
-#      - 6379:6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -324,11 +133,270 @@ services:
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # =========================================================================
+  # Application Core Layers & Active System Micro-Daemons
+  # =========================================================================
+  web:
+    build:
+      context: '.'
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+    container_name: web
+    hostname: web
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - ./sms_spool:/var/www/nabovarme/sms_spool
+      - firmware_release:/var/www/nabovarme/flasher/firmware
+    restart: always
+    labels:
+      com.docker.compose.service: "web"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
+      TZ: 'Europe/Copenhagen'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  meter_grapher:
+    build:
+      context: '.'
+      dockerfile: ./meter_grapher/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: meter_grapher
+    hostname: meter-grapher
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "meter-grapher"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: 'Europe/Copenhagen'
+
+  mysql_mqtt_command_queue_receive:
+    build:
+      context: '.'
+      dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: mysql_mqtt_command_queue_receive
+    hostname: mysql-mqtt-command-queue-receive
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "mysql-mqtt-command-queue-receive"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+
+  mysql_mqtt_command_queue_send:
+    build:
+      context: '.'
+      dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: mysql_mqtt_command_queue_send
+    hostname: mysql-mqtt-command-queue-send
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "mysql-mqtt-command-queue-send"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+
+  smsd:
+    build:
+      context: '.'
+      dockerfile: ./smsd/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postfix:
+        condition: service_healthy
+    container_name: smsd
+    hostname: smsd
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    privileged: true
+    restart: always
+    stop_grace_period: 30s
+    labels:
+      com.docker.compose.service: "smsd"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      RUT901_ROUTER_IP: ${RUT901_ROUTER_IP}
+      RUT901_ROUTER_USER: ${RUT901_ROUTER_USER}
+      RUT901_ROUTER_PASS: ${RUT901_ROUTER_PASS}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMSD_DRY_RUN: ${SMSD_DRY_RUN}
+      TO_EMAIL: ${TO_EMAIL}
+      FROM_EMAIL: ${FROM_EMAIL}
+      TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+
+  smsd_watchdog:
+    build:
+      context: '.'
+      dockerfile: ./smsd_watchdog/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    container_name: smsd_watchdog
+    hostname: smsd-watchdog
+    depends_on:
+      - smsd
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    restart: always
+    labels:
+      com.docker.compose.service: "smsd-watchdog"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      TO_EMAIL: ${TO_EMAIL}
+
+  meter_notify:
+    build:
+      context: '.'
+      dockerfile: ./meter_notify/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    container_name: meter_notify
+    hostname: meter-notify
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    labels:
+      com.docker.compose.service: "meter-notify"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      NOTIFICATION_OPEN_MESSAGE: ${NOTIFICATION_OPEN_MESSAGE}
+      NOTIFICATION_CLOSE_MESSAGE: ${NOTIFICATION_CLOSE_MESSAGE}
+      NOTIFICATION_CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}
+      TZ: Europe/Copenhagen
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+    restart: always
+
+  meter_alarm:
+    build:
+      context: '.'
+      dockerfile: ./meter_alarm/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    container_name: meter_alarm
+    hostname: meter-alarm
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    labels:
+      com.docker.compose.service: "meter-alarm"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      TZ: Europe/Copenhagen
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
+    restart: always
+
+  meter_cron:
+    build:
+      context: '.'
+      dockerfile: ./meter_cron/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: meter_cron
+    hostname: meter-cron
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "meter-cron"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GOOGLE_GEOLOCATION_API_URL: ${GOOGLE_GEOLOCATION_API_URL}
+      TZ: 'Europe/Copenhagen'
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
 
   openresty:
     build:
       context: '.'
       dockerfile: ./openresty/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
     container_name: openresty
     hostname: openresty
     depends_on:
@@ -339,6 +407,9 @@ services:
     volumes:
       - ./openresty/lua/dnsbl_whitelist:/usr/local/openresty/lualib/dnsbl_whitelist
     restart: always
+    labels:
+      com.docker.compose.service: "openresty"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       TZ: Europe/Copenhagen
 
@@ -346,22 +417,29 @@ services:
     build:
       context: '.'
       dockerfile: ./utils/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
     container_name: utils
     hostname: utils
     volumes:
       - ./backup:/home/meterlogger/backup
       - ./utils/bash_history:/home/meterlogger/.bash_history
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "utils"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
-    restart: always
 
   prometheus_exporter:
     build:
       context: '.'
       dockerfile: ./prometheus_exporter/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
     container_name: prometheus_exporter
     hostname: prometheus-exporter
     volumes:
@@ -371,24 +449,29 @@ services:
         condition: service_healthy
     ports:
       - "${PROM_EXPORTER_PORT:-9101}:80"
+    restart: always
+    labels:
+      com.docker.compose.service: "prometheus-exporter"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
-    restart: always
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/metrics || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
 
+  # =========================================================================
+  # Firmware Compilation Pipeline Services
+  # =========================================================================
   firmware_sdk:
     build:
       context: '.'
       dockerfile: ./builder/firmware_sdk/Dockerfile
-#    image: firmware_sdk:latest
     container_name: firmware_sdk
     hostname: firmware-sdk
     volumes:
@@ -400,6 +483,8 @@ services:
     build:
       context: '.'
       dockerfile: ./builder/firmware_builder/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
     container_name: firmware_builder
     hostname: firmware-builder
     volumes:
@@ -407,8 +492,6 @@ services:
       - firmware_release:/meterlogger/MeterLogger/release
       - ./:/docker_root
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
-#    ports:
-#      - "5000:5000"
     environment:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
@@ -420,12 +503,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 120s
-
+    labels:
+      com.docker.compose.service: "firmware-builder"
+      app.git.commit: ${GIT_COMMIT:-unknown}
 
   firmware_watcher:
     build:
       context: '.'
       dockerfile: ./builder/watcher/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
     container_name: firmware_watcher
     hostname: firmware-watcher
     environment:
@@ -435,6 +522,19 @@ services:
     depends_on:
       - firmware_builder
     restart: unless-stopped
+    labels:
+      com.docker.compose.service: "firmware-watcher"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-proxy
+    hostname: docker-proxy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1 # Enforces strict read-only access to container state specs
 
 volumes:
   postfix_spool:
@@ -442,4 +542,3 @@ volumes:
   firmware_release:
     name: firmware_release
   redis_data:
-

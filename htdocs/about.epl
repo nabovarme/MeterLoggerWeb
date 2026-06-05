@@ -1,0 +1,242 @@
+[- 
+	# Load internal application modules
+	use Nabovarme::Db;
+	use Nabovarme::Admin;
+
+	# Instantiate admin checker
+	$admin = new Nabovarme::Admin;
+	$is_admin = $admin->cookie_is_admin($req_rec);
+-]
+<HTML>
+<HEAD>
+	<meta name="robots" content="noindex">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.5, shrink-to-fit=no">
+	<TITLE>MeterLogger About & Status</TITLE>
+
+	<link rel="stylesheet" href="/css/menu.css">
+	<script src="/js/menu.js.epl" defer></script>	
+
+	<link rel="stylesheet" href="/css/users.css" />
+	
+	<style>
+		.manifest-container {
+			padding: 20px;
+			max-width: 1000px;
+			margin: 0 auto;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		}
+		.manifest-title {
+			font-size: 1.5rem;
+			font-weight: 600;
+			margin-bottom: 5px;
+			color: #111;
+		}
+		.manifest-table {
+			width: 100%;
+			border-collapse: collapse;
+			background: #fff;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+			border-radius: 4px;
+			overflow: hidden;
+		}
+		.manifest-table th, .manifest-table td {
+			padding: 12px 16px;
+			text-align: left;
+			font-size: 14px;
+		}
+		.manifest-table th {
+			background-color: #f8f9fa;
+			color: #495057;
+			font-weight: 700;
+			text-transform: uppercase;
+			font-size: 11px;
+			letter-spacing: 0.5px;
+			border-bottom: 2px solid #dee2e6;
+		}
+		.manifest-table td {
+			border-bottom: 1px solid #f1f3f5;
+			vertical-align: middle;
+		}
+		.git-hash {
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+			background: #f8f9fa;
+			border: 1px solid #e9ecef;
+			padding: 2px 6px;
+			border-radius: 4px;
+			color: #0056b3;
+			font-size: 13px;
+		}
+		.status-badge {
+			display: inline-flex;
+			align-items: center;
+			padding: 2px 8px;
+			border-radius: 4px;
+			font-size: 11px;
+			font-weight: 700;
+			text-transform: uppercase;
+		}
+		.status-online {
+			background: #e6f4ea;
+			color: #137333;
+		}
+		.status-offline {
+			background: #fce8e6;
+			color: #c5221f;
+		}
+		.metric-text {
+			font-size: 13px;
+			color: #555;
+			font-family: "SFMono-Regular", Consolas, monospace;
+		}
+		.error-box {
+			background: #fce8e6;
+			color: #c5221f;
+			border: 1px solid #fad2cf;
+			padding: 12px;
+			border-radius: 4px;
+			font-size: 14px;
+			margin-bottom: 20px;
+			display: none;
+		}
+	</style>
+</HEAD>
+<BODY>
+
+[$ if ($is_admin) $]
+	<div class="manifest-container">
+		<h2 class="manifest-title">Live Cluster Dashboard</h2>
+		<p style="font-size: 14px; color: #666; margin-bottom: 20px;">
+			Real-time container infrastructure deployment metrics and version mapping managed securely via read-only socket proxy routing.
+		</p>
+
+		<div id="error-display" class="error-box"></div>
+
+		<table class="manifest-table">
+			<thead>
+				<tr>
+					<th>Microservice Container</th>
+					<th>Status</th>
+					<th>Uptime State</th>
+					<th>Target Git Version</th>
+				</tr>
+			</thead>
+			<tbody id="manifest-body">
+				<tr>
+					<td colspan="4" style="text-align: center; color: #999; padding: 40px;" id="loading-row">
+						Querying cluster layout engine from application layers...
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+	<script>
+		document.addEventListener("DOMContentLoaded", async () => {
+			// Updated to match your exact container namespace keys (underscores)
+			const expectedServices = [
+				'web',
+				'meter_grapher',
+				'mysql_mqtt_command_queue_receive',
+				'mysql_mqtt_command_queue_send',
+				'smsd',
+				'smsd_watchdog',
+				'meter_notify',
+				'meter_alarm',
+				'meter_cron',
+				'openresty',
+				'utils',
+				'prometheus_exporter',
+				'firmware_builder',
+				'firmware_watcher'
+			];
+
+			const tbody = document.getElementById("manifest-body");
+			const errorDisplay = document.getElementById("error-display");
+	
+			// Formats standard Unix timestamps (seconds) into clean uptime intervals
+			function calculateUptime(createdUnixSeconds) {
+				if (!createdUnixSeconds) return '---';
+			
+				const start = new Date(createdUnixSeconds * 1000);
+				const now = new Date();
+				const diffMs = now - start;
+			
+				if (isNaN(diffMs) || diffMs < 0) return 'Running';
+			
+				const diffHours = diffMs / (1000 * 60 * 60);
+				if (diffHours < 24) {
+					return `${diffHours.toFixed(1)} hrs`;
+				}
+				return `${(diffHours / 24).toFixed(1)} days`;
+			}
+	
+			try {
+				// Query your modernized native Apache proxy endpoint
+				const response = await fetch('/api/status');
+				if (!response.ok) throw new Error(`Application Proxy Fault: ${response.status}`);
+			
+				const data = await response.json();
+				let activeContainers = {};
+				let htmlRows = "";
+	
+				// Parse properties using your verified Docker Engine naming conventions
+				data.forEach(container => {
+					const labels = container.Labels || {};
+					const serviceName = labels['com.docker.compose.service'];
+				
+					if (serviceName && expectedServices.includes(serviceName)) {
+						const isRunning = container.State === 'running';
+					
+						activeContainers[serviceName] = {
+							running: isRunning,
+							version: labels['app.git.commit'] || 'unknown',
+							uptime: isRunning ? container.Created : null
+						};
+					}
+				});
+	
+				// Walk your static sequence index array to generate output markup rows
+				expectedServices.forEach(service => {
+					const node = activeContainers[service];
+				
+					if (node && node.running) {
+						const printHash = node.version !== 'unknown' ? node.version.substring(0, 12) : 'No Build Hash';
+					
+						htmlRows += `
+							<tr>
+								<td><strong>${service}</strong></td>
+								<td><span class="status-badge status-online">RUNNING</span></td>
+								<td class="metric-text">${calculateUptime(node.uptime)}</td>
+								<td><span class="git-hash">${printHash}</span></td>
+							</tr>
+						`;
+					} else {
+						htmlRows += `
+							<tr>
+								<td><strong style="color: #a0a0a0;">${service}</strong></td>
+								<td><span class="status-badge status-offline">OFFLINE</span></td>
+								<td class="metric-text" style="color: #ccc;">---</td>
+								<td><span class="git-hash" style="color: #bbb; background: #fafafa; border-color: #eee;">------</span></td>
+							</tr>
+						`;
+					}
+				});
+	
+				tbody.innerHTML = htmlRows;
+	
+			} catch (err) {
+				console.error("Failed processing cluster mapping diagnostics:", err);
+				document.getElementById("loading-row").innerText = "Unable to process cluster telemetry architecture.";
+				errorDisplay.innerText = `Dashboard Connection Error: Verification error parsing state objects from the /api/status proxy stream.`;
+				errorDisplay.style.display = "block";
+			}
+		});
+	</script>
+[$ else $]
+	<div style="padding: 40px; text-align: center; color: #c5221f; font-family: sans-serif;">
+		<strong>Access Denied:</strong> Administrative permissions are required to view the service registry manifest.
+	</div>
+[$ endif $]
+
+</BODY>
+</HTML>
