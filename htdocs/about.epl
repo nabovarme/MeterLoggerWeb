@@ -64,6 +64,14 @@
 			border-bottom: 1px solid #f1f3f5;
 			vertical-align: middle;
 		}
+		.git-link {
+			text-decoration: none; /* Removes default link underline */
+		}
+		.git-link:hover .git-hash {
+			background: #e9ecef;   /* Shading shift on hover */
+			color: #004085;        /* Deepens the text color */
+			border-color: #0056b3;
+		}
 		.git-hash {
 			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 			background: #f8f9fa;
@@ -72,6 +80,7 @@
 			border-radius: 4px;
 			color: #0056b3;
 			font-size: 13px;
+			transition: all 0.1s ease-in-out;
 		}
 		.status-badge {
 			display: inline-flex;
@@ -111,7 +120,7 @@
 
 [$ if ($is_admin) $]
 	<div class="manifest-container">
-		<h2 class="manifest-title">Live Cluster Dashboard</h2>
+		<h2 class="manifest-title">Service Dashboard</h2>
 		<p style="font-size: 14px; color: #666; margin-bottom: 20px;">
 			Real-time container infrastructure deployment metrics and version mapping managed securely via read-only socket proxy routing.
 		</p>
