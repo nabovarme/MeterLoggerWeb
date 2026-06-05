@@ -12,4 +12,11 @@ COPY ./meter_notify/meter_notify.pl /usr/local/bin/meter_notify.pl
 
 ENV PERL5LIB=/usr/local/lib/perl
 
+# =========================================================================
+# Version Tracking Setup
+# Captures your current environment deployment hash safely from .env.version
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 CMD ["perl", "/usr/local/bin/meter_notify.pl"]

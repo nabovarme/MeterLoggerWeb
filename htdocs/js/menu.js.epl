@@ -30,6 +30,7 @@ const menuItems = [
 	{ text: "Valve control", href: "/valve_control.epl" },
 [$ if ($is_admin) $]
 	{ text: "Firmware flasher", href: "/flasher/index.html" },
+	{ text: "About", href: "/about.epl" },
 [$ endif $]
 	{ type: "separator" },
 	{ text: "Logout", href: "/logout" }

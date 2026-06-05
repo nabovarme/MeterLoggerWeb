@@ -34,4 +34,12 @@ ENV PATH="/usr/local/openresty/nginx/sbin:/usr/local/openresty/bin:$PATH"
 
 EXPOSE 80 443
 
+# =========================================================================
+# Version Tracking Setup
+# Configures structural labels visible directly to the cAdvisor API
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+LABEL app.git.commit=${GIT_COMMIT}
+
 CMD ["openresty", "-g", "daemon off;"]
