@@ -69,13 +69,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 		
 			if (node && node.running) {
 				const printHash = node.version !== 'unknown' ? node.version.substring(0, 12) : 'No Build Hash';
-			
+				
+				// Automatically wrap the commit version in a direct clickable GitHub link
+				const versionMarkup = node.version !== 'unknown' 
+					? `<a href="https://github.com/nabovarme/MeterLoggerWeb/commit/${node.version}" target="_blank" class="git-link"><span class="git-hash">${printHash}</span></a>`
+					: `<span class="git-hash">${printHash}</span>`;
+	
 				htmlRows += `
 					<tr>
 						<td><strong>${service}</strong></td>
 						<td><span class="status-badge status-online">RUNNING</span></td>
 						<td class="metric-text">${calculateUptime(node.uptime)}</td>
-						<td><span class="git-hash">${printHash}</span></td>
+						<td>${versionMarkup}</td>
 					</tr>
 				`;
 			} else {
