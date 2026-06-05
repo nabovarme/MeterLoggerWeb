@@ -4,7 +4,6 @@ local _M = {}
 
 -- Local requires only
 local resolver = require("resty.dns.resolver")
-local lfs = require("lfs")
 local ngx = ngx
 local io = io
 local string = string
@@ -35,16 +34,43 @@ local spamhaus_codes = {
 -- Directory containing .txt files with whitelisted IPs
 local whitelist_dir = "/usr/local/openresty/lualib/dnsbl_whitelist"
 
+-- Placeholder for lazy loading
+local whitelist = nil
+local lfs_lib = nil
+
 -- Load whitelist IPs from .txt files
 local function load_whitelist(dir)
 	local ips = {}
-	local attr, err = lfs.attributes(dir)
+	
+	if not lfs_lib then
+		-- Temporarily detach OpenResty's global write guard metatable completely
+		local old_mt = getmetatable(_G)
+		setmetatable(_G, nil)
+
+		-- Execute the require step while the guard is disabled
+		local status, res = pcall(require, "lfs")
+
+		-- Restore the original environment configuration instantly
+		setmetatable(_G, old_mt)
+
+		if not status then
+			ngx.log(ngx.ERR, "Failed to require lfs: ", res)
+			return ips
+		end
+
+		lfs_lib = res
+		
+		-- Safely drop the global leak using rawset to bypass meta hooks
+		rawset(_G, "lfs", nil)
+	end
+
+	local attr, err = lfs_lib.attributes(dir)
 	if not attr then
 		ngx.log(ngx.WARN, "Whitelist directory not found: ", err)
 		return ips
 	end
 
-	for file in lfs.dir(dir) do
+	for file in lfs_lib.dir(dir) do
 		if file:match("%.txt$") then
 			local path = dir .. "/" .. file
 			local f, ferr = io.open(path, "r")
@@ -65,11 +91,11 @@ local function load_whitelist(dir)
 	return ips
 end
 
--- Local whitelist cache
-local whitelist = load_whitelist(whitelist_dir)
-
--- Check if IP is whitelisted
+-- Check if IP is whitelisted (Lazily loaded when the first request flows through)
 local function is_ip_whitelisted(ip)
+	if not whitelist then
+		whitelist = load_whitelist(whitelist_dir)
+	end
 	return whitelist[ip] == true
 end
 

@@ -1,3 +1,4 @@
+-- rate_limit.lua
 local _M = {}
 
 function _M.run()
@@ -12,13 +13,17 @@ function _M.run()
 	local window = 30
 	local limit = 20
 
-	local reqs, err = limit_store:get(key)
+	-- Atomically increment key counter directly to prevent concurrent execution lookup misses
+	local reqs, err = limit_store:incr(key, 1, 0, window)
 	if not reqs then
-		ngx.log(ngx.INFO, "Rate limit: first request from ", ip, " to ", uri)
 		limit_store:set(key, 1, window)
-	elseif reqs < limit then
-		ngx.log(ngx.INFO, "Rate limit: ", reqs + 1, " requests from ", ip, " to ", uri)
-		limit_store:incr(key, 1)
+		reqs = 1
+	end
+
+	if reqs == 1 then
+		ngx.log(ngx.INFO, "Rate limit: first request from ", ip, " to ", uri)
+	elseif reqs <= limit then
+		ngx.log(ngx.INFO, "Rate limit: ", reqs, " requests from ", ip, " to ", uri)
 	else
 		local penalty_key = key .. "_penalty"
 		local strikes = limit_store:get(penalty_key) or 0
