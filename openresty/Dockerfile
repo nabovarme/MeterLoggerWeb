@@ -1,44 +1,15 @@
-FROM debian:bookworm
+# Use the official OpenResty image based on Debian Bookworm
+FROM openresty/openresty:bookworm
 
-# Install required system packages
+# Install only the system packages you actually need for your Lua modules/Certbot
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	aptitude \
-	curl \
-	wget \
-	gnupg \
-	ca-certificates \
-	build-essential \
-	libpcre3 \
-	libpcre3-dev \
-	libssl-dev \
-	zlib1g-dev \
-	unzip \
-	git \
-	libreadline-dev \
-	libncurses5-dev \
-	libffi-dev \
-	libtool \
-	automake \
-	autoconf \
-	lua5.1 \
-	lua5.1-dev \
 	luarocks \
-	certbot \
-	python3-certbot-nginx \
+	git \
+	build-essential \
+	libssl-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Define OpenResty version
-ENV OPENRESTY_VERSION=1.29.2.3
-
-# Download and build OpenResty
-RUN wget https://openresty.org/download/openresty-${OPENRESTY_VERSION}.tar.gz && \
-	tar -zxvf openresty-${OPENRESTY_VERSION}.tar.gz && \
-	cd openresty-${OPENRESTY_VERSION} && \
-	./configure --with-pcre-jit --with-http_ssl_module --with-http_v2_module --with-http_realip_module && \
-	make -j$(nproc) && make install && \
-	cd .. && rm -rf openresty-${OPENRESTY_VERSION}*
-
-# Install lua-resty-http
+# Install lua-resty-http and luafilesystem
 RUN luarocks install lua-resty-http
 RUN luarocks install luafilesystem
 
