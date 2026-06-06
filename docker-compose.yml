@@ -536,6 +536,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - CONTAINERS=1 # Enforces strict read-only access to container state specs
+      - TIMEOUT_CONNECT=5s
+      - TIMEOUT_CLIENT=30s
+      - TIMEOUT_SERVER=30s
 
 volumes:
   postfix_spool:
