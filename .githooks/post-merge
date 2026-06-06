@@ -1,0 +1,14 @@
+#!/bin/bash
+# --- Git Version Hook ---
+
+ENV_FILE=".env"
+
+if [ -f "$ENV_FILE" ]; then
+  # Strip out any legacy line to prevent duplicate keys from stacking up
+  sed -i.bak '/^GIT_COMMIT=/d' "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
+fi
+
+# Append your fresh short-form commit hash safely to the bottom
+echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> "$ENV_FILE"
+
+echo "🔄 .env updated with latest pulled commit: $(git rev-parse --short HEAD)"
