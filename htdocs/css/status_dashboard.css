@@ -1,0 +1,238 @@
+/* status_dashboard.css */
+
+/* Global layout and defaults (Integrated from alarms.css / users.css) */
+html, body {
+	height: auto;
+	margin: 0;
+	padding: 0;
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 100%;
+	overflow-x: hidden; /* Prevent horizontal scroll on the primary body level */
+	overflow-y: visible;
+}
+
+/* Typography Utility Helpers */
+.top {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+.default {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 100%;
+}
+.default-bold {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+}
+.default-small {
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 60%;
+}
+.default-group {
+	font-family: Verdana, Geneva, sans-serif;
+	font-weight: bold;
+	font-size: 120%;
+}
+.nowrap {
+	white-space: nowrap;
+}
+
+/* High-performance hiding utility that bypasses layout recalculation */
+.hidden {
+	display: none !important;
+}
+
+/* Standard HTML table fallback stripe hooks (Maintained for legacy support) */
+tr:nth-child(even) {
+	background: #EEE;
+}
+tr:nth-child(odd) {
+	background: #FFF;
+}
+
+/* --- SERVICE DASHBOARD LAYOUT ENGINE --- */
+
+/* Container wrapper matching your main workspace layout constraints */
+.manifest-container {
+	padding: 0;                 /* Stripped completely flush to screen edges */
+	width: 100%;
+	max-width: none !important; /* Strips the 1000px box restriction entirely */
+	margin: 0;                  /* Aligns perfectly flush to both screen edges */
+	box-sizing: border-box;
+}
+
+/* Group title header style rules - safely offset from viewport borders */
+.manifest-title {
+	font-size: 120%;
+	font-weight: bold;
+	margin: 6px 20px 5px !important;
+	color: #111;
+}
+
+.manifest-desc {
+	font-size: 14px;
+	color: #666;
+	margin: 0 20px 20px !important;
+}
+
+/* --- VIRTUALIZATION AND ACCELERATION CONTAINER --- */
+/* Identical to .alarm-table-wrapper to handle touch behaviors safely */
+.status-table-wrapper {
+	width: 100%;
+	overflow-x: auto; /* Enables standalone horizontal table scroll */
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+
+	/* --- IOS SAFARI ZOOM CRASH FIXES --- */
+	-webkit-overflow-scrolling: touch; 
+	will-change: scroll-position;
+}
+
+/* VIRTUALIZATION: Matches .alarm-serial-block container pattern */
+.status-cluster-block {
+	content-visibility: auto;
+	contain-intrinsic-size: 200px; /* Estimated block fallback height */
+}
+
+/* Override virtualization context cleanly under iOS touch execution lines */
+@supports (-webkit-touch-callout: none) {
+	.status-cluster-block {
+		content-visibility: visible;
+	}
+}
+
+/* THE HORIZONTAL SCROLL GRID WRAPPER FIX */
+.status-grid-content {
+	display: inline-flex;
+	flex-direction: column;
+	width: max-content;        /* Measures container by real data footprint width map */
+	min-width: 100%;           /* Stretches edge-to-edge if the display workspace is huge */
+	box-sizing: border-box;
+}
+
+/* CSS Grid alignment metrics matching original column ratios */
+.status-columns,
+.status-row {
+	display: grid;
+	grid-template-columns:
+		minmax(200px, 2.2fr) 	/* Microservice Container */
+		minmax(110px, 130px) 	/* Status Badge */
+		minmax(110px, 130px) 	/* Uptime State */
+		minmax(160px, 1.2fr); 	/* Target Git Version Hash Link */
+	gap: 6px;
+	padding: 6px 12px;          /* Clean structural padding for individual grid rows */
+	width: 100%;
+	box-sizing: border-box;
+	margin: 0;
+	align-items: center;
+}
+
+.status-columns {
+	font-weight: bold;
+	border-bottom: 2px solid #dee2e6;
+	background: #f8f9fa;
+}
+
+.status-row {
+	background: #fff;
+	border-bottom: 1px solid #f1f3f5;
+}
+
+/* Full-width responsive container row zebra striping */
+.status-row:nth-child(even) {
+	background: #EEE;
+}
+
+/* Standard plain typography tracker rule for active items list */
+.service-name-node {
+	font-weight: normal; 
+}
+
+/* Centered fallback panel metrics */
+.status-span-row {
+	display: block;
+	width: 100%;
+	text-align: center;
+	color: #999;
+	padding: 40px;
+	box-sizing: border-box;
+}
+
+/* Cell string boundary safety wrappers */
+.status-row > div {
+	word-break: break-word;
+	overflow-wrap: break-word;
+}
+
+/* Dynamic visual components configuration definitions */
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 3px 8px;
+	border-radius: 4px;
+	font-size: 10px;
+	font-weight: bold;
+	text-transform: uppercase;
+}
+
+.status-online {
+	background: #e6f4ea;
+	color: #137333;
+}
+
+.status-offline {
+	background: #fce8e6;
+	color: #c5221f;
+}
+
+/* Log outputs typography details */
+.metric-text {
+	font-size: small;
+	color: #555;
+	font-family: Consolas, monospace;
+}
+
+/* Commit hyperlink anchors rules mappings */
+.git-link {
+	text-decoration: none;
+	display: inline-block;
+}
+
+.git-hash {
+	font-family: Consolas, monospace;
+	background: #f8f9fa;
+	border: 1px solid #e9ecef;
+	padding: 2px 6px;
+	border-radius: 4px;
+	color: #0056b3;
+	font-size: small;
+	transition: all 0.1s ease-in-out;
+}
+
+.git-link:focus,
+.status-row a:focus {
+	outline: auto;
+}
+
+.git-link:hover .git-hash {
+	background: #e9ecef;
+	color: #004085;
+	border-color: #0056b3;
+}
+
+/* Dashboard error alert system container box */
+.error-box {
+	background: #fce8e6;
+	color: #c5221f;
+	border: 1px solid #fad2cf;
+	padding: 12px;
+	border-radius: 4px;
+	font-size: 14px;
+	margin-left: 20px !important;
+	margin-right: 20px !important;
+	margin-bottom: 20px;
+	display: none;
+}
