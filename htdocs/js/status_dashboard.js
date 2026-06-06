@@ -76,21 +76,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 					: `<span class="git-hash">${printHash}</span>`;
 	
 				htmlRows += `
-					<tr>
-						<td><strong>${service}</strong></td>
-						<td><span class="status-badge status-online">RUNNING</span></td>
-						<td class="metric-text">${calculateUptime(node.uptime)}</td>
-						<td>${versionMarkup}</td>
-					</tr>
+					<div class="status-row">
+						<div class="service-name-node">${service}</div>
+						<div><span class="status-badge status-online">RUNNING</span></div>
+						<div class="metric-text">${calculateUptime(node.uptime)}</div>
+						<div>${versionMarkup}</div>
+					</div>
 				`;
 			} else {
 				htmlRows += `
-					<tr>
-						<td><strong style="color: #a0a0a0;">${service}</strong></td>
-						<td><span class="status-badge status-offline">OFFLINE</span></td>
-						<td class="metric-text" style="color: #ccc;">---</td>
-						<td><span class="git-hash" style="color: #bbb; background: #fafafa; border-color: #eee;">------</span></td>
-					</tr>
+					<div class="status-row">
+						<div class="service-name-node" style="color: #a0a0a0;">${service}</div>
+						<div><span class="status-badge status-offline">OFFLINE</span></div>
+						<div class="metric-text" style="color: #ccc;">---</div>
+						<div><span class="git-hash" style="color: #bbb; background: #fafafa; border-color: #eee;">------</span></div>
+					</div>
 				`;
 			}
 		});
@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 		console.error("Failed processing cluster mapping diagnostics:", err);
 		const loadingRow = document.getElementById("loading-row");
 		if (loadingRow) {
+			loadingRow.className = "status-span-row";
 			loadingRow.innerText = "Unable to process cluster telemetry architecture.";
 		}
 		if (errorDisplay) {

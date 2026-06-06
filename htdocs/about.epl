@@ -15,136 +15,35 @@
 
 	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js.epl" defer></script>	
-
-	<link rel="stylesheet" href="/css/users.css" />
 	
-	<style>
-		.manifest-container {
-			padding: 20px;
-			max-width: 1000px;
-			margin: 0 auto;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-		}
-		.manifest-title {
-			font-size: 1.5rem;
-			font-weight: 600;
-			margin-bottom: 5px;
-			color: #111;
-		}
-		/* Wrapper to allow smooth horizontal scrolling on iOS/Mobile */
-		.table-responsive {
-			width: 100%;
-			overflow-x: auto;
-			-webkit-overflow-scrolling: touch;
-			box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-			border-radius: 4px;
-			margin-top: 15px;
-		}
-		.manifest-table {
-			width: 100%;
-			border-collapse: collapse;
-			background: #fff;
-			white-space: nowrap; /* Prevents text from ugly wrapping inside narrow columns */
-		}
-		.manifest-table th, .manifest-table td {
-			padding: 12px 16px;
-			text-align: left;
-			font-size: 14px;
-		}
-		.manifest-table th {
-			background-color: #f8f9fa;
-			color: #495057;
-			font-weight: 700;
-			text-transform: uppercase;
-			font-size: 11px;
-			letter-spacing: 0.5px;
-			border-bottom: 2px solid #dee2e6;
-		}
-		.manifest-table td {
-			border-bottom: 1px solid #f1f3f5;
-			vertical-align: middle;
-		}
-		.git-link {
-			text-decoration: none; /* Removes default link underline */
-		}
-		.git-link:hover .git-hash {
-			background: #e9ecef;   /* Shading shift on hover */
-			color: #004085;        /* Deepens the text color */
-			border-color: #0056b3;
-		}
-		.git-hash {
-			font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-			background: #f8f9fa;
-			border: 1px solid #e9ecef;
-			padding: 2px 6px;
-			border-radius: 4px;
-			color: #0056b3;
-			font-size: 13px;
-			transition: all 0.1s ease-in-out;
-		}
-		.status-badge {
-			display: inline-flex;
-			align-items: center;
-			padding: 2px 8px;
-			border-radius: 4px;
-			font-size: 11px;
-			font-weight: 700;
-			text-transform: uppercase;
-		}
-		.status-online {
-			background: #e6f4ea;
-			color: #137333;
-		}
-		.status-offline {
-			background: #fce8e6;
-			color: #c5221f;
-		}
-		.metric-text {
-			font-size: 13px;
-			color: #555;
-			font-family: "SFMono-Regular", Consolas, monospace;
-		}
-		.error-box {
-			background: #fce8e6;
-			color: #c5221f;
-			border: 1px solid #fad2cf;
-			padding: 12px;
-			border-radius: 4px;
-			font-size: 14px;
-			margin-bottom: 20px;
-			display: none;
-		}
-	</style>
+	<link rel="stylesheet" href="/css/status_dashboard.css" />
 </HEAD>
 <BODY>
 
 [$ if ($is_admin) $]
-	<div class="manifest-container">
+	<div class="manifest-container status-cluster-block">
 		<h2 class="manifest-title">Service Dashboard</h2>
-		<p style="font-size: 14px; color: #666; margin-bottom: 20px;">
+		<p class="manifest-desc">
 			Real-time container infrastructure deployment metrics and version mapping managed securely via read-only socket proxy routing.
 		</p>
 
 		<div id="error-display" class="error-box"></div>
 
-		<div class="table-responsive">
-			<table class="manifest-table">
-				<thead>
-					<tr>
-						<th>Microservice Container</th>
-						<th>Status</th>
-						<th>Uptime State</th>
-						<th>Target Git Version</th>
-					</tr>
-				</thead>
-				<tbody id="manifest-body">
-					<tr>
-						<td colspan="4" style="text-align: center; color: #999; padding: 40px;" id="loading-row">
-							Querying cluster layout engine from application layers...
-						</td>
-					</tr>
-				</tbody>
-			</table>
+		<div class="status-table-wrapper">
+			<div class="status-grid-content">
+				<div class="status-columns">
+					<div>Microservice Container</div>
+					<div>Status</div>
+					<div>Uptime State</div>
+					<div>Target Git Version</div>
+				</div>
+				
+				<div id="manifest-body">
+					<div class="status-span-row" id="loading-row">
+						Querying cluster layout engine from application layers...
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 
