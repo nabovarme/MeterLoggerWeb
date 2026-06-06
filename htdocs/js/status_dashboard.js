@@ -1,7 +1,10 @@
 // status_dashboard.js
 document.addEventListener("DOMContentLoaded", async () => {
-	// Exact container namespace keys (underscores)
 	const expectedServices = [
+		'db',
+		'mqtt',
+		'redis',
+		'postfix',
 		'web',
 		'meter_grapher',
 		'mysql_mqtt_command_queue_receive',
@@ -15,7 +18,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 		'utils',
 		'prometheus_exporter',
 		'firmware_builder',
-		'firmware_watcher'
+		'firmware_watcher',
+		'docker-proxy'
 	];
 
 	const tbody = document.getElementById("manifest-body");

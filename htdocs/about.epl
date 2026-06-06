@@ -24,7 +24,7 @@
 	<div class="manifest-container status-cluster-block">
 		<h2 class="manifest-title">Service Dashboard</h2>
 		<p class="manifest-desc">
-			Real-time container infrastructure deployment metrics and version mapping managed securely via read-only socket proxy routing.
+			Real-time container metrics and version mapping managed securely via read-only socket proxy routing.
 		</p>
 
 		<div id="error-display" class="error-box"></div>
@@ -32,10 +32,10 @@
 		<div class="status-table-wrapper">
 			<div class="status-grid-content">
 				<div class="status-columns">
-					<div>Microservice Container</div>
+					<div>Container</div>
 					<div>Status</div>
 					<div>Uptime State</div>
-					<div>Target Git Version</div>
+					<div>Git Version</div>
 				</div>
 				
 				<div id="manifest-body">

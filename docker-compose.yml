@@ -48,6 +48,9 @@ services:
         echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
         echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
       "
+    labels:
+      com.docker.compose.service: "setup-config"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       INNODB_BUFFER_POOL_SIZE: ${INNODB_BUFFER_POOL_SIZE}
       METERLOGGER_DB_NAME: ${METERLOGGER_DB_NAME}
@@ -55,6 +58,7 @@ services:
       METERLOGGER_DB_PORT: ${METERLOGGER_DB_PORT}
       METERLOGGER_DB_USER: ${METERLOGGER_DB_USER}
       METERLOGGER_DB_PASSWORD: ${METERLOGGER_DB_PASSWORD}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   db:
     image: mariadb:10.5
@@ -74,12 +78,16 @@ services:
       test: ["CMD", "sh", "-c", "mysql --protocol=tcp -e 'SELECT 1'"]
       timeout: 20s
       retries: 2
+    labels:
+      com.docker.compose.service: "db"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: Europe/Copenhagen
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   mqtt:
     image: eclipse-mosquitto:latest
@@ -92,8 +100,12 @@ services:
       - ./mosquitto_data:/mosquitto/data
       - ./mosquitto_data/logs:/mosquitto/log
     restart: always
+    labels:
+      com.docker.compose.service: "mqtt"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 1883"]
       interval: 10s
@@ -107,9 +119,13 @@ services:
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    labels:
+      com.docker.compose.service: "redis"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -129,11 +145,15 @@ services:
       - postfix_spool:/var/spool/postfix
       - postfix_mail:/var/mail
     restart: always
+    labels:
+      com.docker.compose.service: "postfix"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       HOSTNAME: meterlogger
       ALLOWED_SENDER_DOMAINS: meterlogger
       RELAYHOST: smsd
       TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "25"]
       interval: 15s
@@ -164,6 +184,7 @@ services:
     environment:
       NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
       TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-Real-IP: localhost", "http://localhost/"]
       interval: 15s
@@ -198,6 +219,7 @@ services:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   mysql_mqtt_command_queue_receive:
     build:
@@ -223,6 +245,7 @@ services:
       MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   mysql_mqtt_command_queue_send:
     build:
@@ -248,6 +271,7 @@ services:
       MQTT_PORT: ${MQTT_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   smsd:
     build:
@@ -287,6 +311,7 @@ services:
       FROM_EMAIL: ${FROM_EMAIL}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   smsd_watchdog:
     build:
@@ -313,6 +338,7 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       TO_EMAIL: ${TO_EMAIL}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   meter_notify:
     build:
@@ -342,6 +368,7 @@ services:
       NOTIFICATION_CLOSE_WARNING_MESSAGE: ${NOTIFICATION_CLOSE_WARNING_MESSAGE}
       TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     restart: always
 
   meter_alarm:
@@ -363,6 +390,7 @@ services:
     environment:
       TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     restart: always
 
   meter_cron:
@@ -391,6 +419,7 @@ services:
       GOOGLE_GEOLOCATION_API_URL: ${GOOGLE_GEOLOCATION_API_URL}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   openresty:
     build:
@@ -413,6 +442,7 @@ services:
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       TZ: Europe/Copenhagen
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   utils:
     build:
@@ -434,6 +464,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   prometheus_exporter:
     build:
@@ -460,6 +491,7 @@ services:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/metrics || exit 1"]
       interval: 15s
@@ -477,8 +509,12 @@ services:
     hostname: firmware-sdk
     volumes:
       - firmware_release:/meterlogger/MeterLogger/release
+    labels:
+      com.docker.compose.service: "firmware-sdk"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       TZ: Europe/Copenhagen
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   firmware_builder:
     build:
@@ -497,6 +533,7 @@ services:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       TZ: Europe/Copenhagen
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     depends_on:
       db:
         condition: service_healthy
@@ -520,6 +557,7 @@ services:
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}
       WATCHER_REPO_URL: ${WATCHER_REPO_URL}
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     depends_on:
       - firmware_builder
     restart: unless-stopped
@@ -534,11 +572,15 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      com.docker.compose.service: "docker-proxy"
+      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       - CONTAINERS=1 # Enforces strict read-only access to container state specs
       - TIMEOUT_CONNECT=5s
       - TIMEOUT_CLIENT=30s
       - TIMEOUT_SERVER=30s
+      - GIT_COMMIT=${GIT_COMMIT:-unknown}
 
 volumes:
   postfix_spool:
