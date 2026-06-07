@@ -4,6 +4,9 @@ FROM perl-base:1.0
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	pbzip2
+
 USER root
 
 # Set UTF-8 locale environment variables
