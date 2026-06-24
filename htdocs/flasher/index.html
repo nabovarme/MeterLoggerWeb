@@ -17,6 +17,11 @@
 <body>
 	<div class="header">MeterLogger Firmware Flash Tool</div>
 
+	<label for="searchField">Search firmware:</label>
+	<input type="text" id="searchField" placeholder="Type to filter..." disabled>
+
+	<br><br>
+
 	<!-- Dropdown for selecting firmware -->
 	<label for="firmwareSelect">Select firmware:</label>
 	<select id="firmwareSelect">
@@ -31,8 +36,42 @@
 	</esp-web-install-button>
 
 	<script>
+		const searchInput = document.getElementById('searchField');
 		const select = document.getElementById('firmwareSelect');
 		const button = document.getElementById('installBtn');
+
+		// Store the complete firmware list globally for filtering
+		let allFirmwares = [];
+
+		// Helper function to update dropdown items dynamically
+		function populateDropdown(list) {
+			// Clear dropdown
+			select.innerHTML = '';
+
+			// Handle empty results
+			if (list.length === 0) {
+				const opt = document.createElement('option');
+				opt.value = '';
+				opt.textContent = 'No matching firmware found';
+				select.appendChild(opt);
+				button.setAttribute('manifest', '');
+				return;
+			}
+
+			// Populate dropdown with sorted firmware entries
+			list.forEach(fw => {
+				const opt = document.createElement('option');
+				opt.value = 'firmware/' + fw.path;
+				opt.textContent = fw.name;
+				select.appendChild(opt);
+			});
+
+			// Set default selection and update manifest
+			if (list.length > 0) {
+				select.value = 'firmware/' + list[0].path;
+				button.setAttribute('manifest', select.value);
+			}
+		}
 
 		// Fetch firmware list from the server
 		fetch('firmware/firmwares.json')
@@ -41,6 +80,10 @@
 
 				// Sort firmware list by name (alphabetically)
 				list.sort((a, b) => a.name.localeCompare(b.name));
+
+				// Save the sorted list and enable the search input
+				allFirmwares = list;
+				searchInput.disabled = false;
 
 				// Clear dropdown
 				select.innerHTML = '';
@@ -62,6 +105,19 @@
 			.catch(err => {
 				console.error('Failed to load firmware list', err);
 			});
+
+		// Filter firmware list when user types in the search field
+		searchInput.addEventListener('input', () => {
+			const searchTerm = searchInput.value.toLowerCase();
+
+			// Filter entries by checking if the name contains the search term
+			const filteredList = allFirmwares.filter(fw => 
+				fw.name.toLowerCase().includes(searchTerm)
+			);
+
+			// Rebuild the dropdown menu with the filtered results
+			populateDropdown(filteredList);
+		});
 
 		// Update manifest when user selects a different firmware
 		select.addEventListener('change', () => {
