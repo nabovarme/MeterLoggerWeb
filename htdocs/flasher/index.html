@@ -13,141 +13,110 @@
 	<link rel="stylesheet" href="default.css">
 
 	<style>
-		/* Modern Component UI Styles */
-		body {
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-			background-color: #f8f9fa;
-			color: #212529;
-			padding: 20px;
+		/* Global layout and defaults */
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 100%;
+			overflow-x: hidden; /* Prevent horizontal scroll */
 		}
 
-		.header {
-			font-size: 1.5rem;
-			font-weight: 600;
-			margin-bottom: 1.5rem;
-			color: #1a1a1a;
+		/* --- IOS SAFARI ZOOM CRASH FIXES --- */
+		/* Add hardware acceleration to the table container */
+		#users_table {
+			-webkit-overflow-scrolling: touch; 
+			will-change: scroll-position;
 		}
 
-		.control-group {
-			margin-bottom: 1.5rem;
-			max-width: 400px;
+		/* VIRTUALIZATION: Tells Safari to drop the table body from memory if it scrolls completely off-screen */
+		#users_table tbody {
+			content-visibility: auto;
+			contain-intrinsic-size: 1000px; /* An estimated height for the unrendered block */
 		}
+		/* ----------------------------------- */
 
-		label {
-			display: block;
-			font-weight: 500;
-			margin-bottom: 0.5rem;
-			font-size: 0.9rem;
-			color: #495057;
-		}
-
-		/* The Searchable Wrapper */
-		.searchable-select {
-			position: relative;
-			display: block;
-			width: 100%;
-		}
-
-		.search-input {
-			width: 100%;
-			padding: 10px 12px;
-			font-size: 0.95rem;
-			border: 1px solid #ced4da;
-			border-radius: 6px;
-			background-color: #ffffff;
-			box-sizing: border-box;
-			transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-		}
-
-		.search-input:focus {
-			border-color: #86b7fe;
-			outline: 0;
-			box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-		}
-
-		/* Custom dropdown options overlay */
-		.options-list {
+		.top {
 			position: absolute;
-			top: 100%;
+			top: 0;
 			left: 0;
-			right: 0;
-			z-index: 1000;
-			display: none;
-			max-height: 250px;
-			overflow-y: auto;
-			margin: 4px 0 0;
-			padding: 4px 0;
-			background-color: #ffffff;
-			border: 1px solid rgba(0,0,0,0.15);
-			border-radius: 6px;
-			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+		}
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 100%
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		.default-small {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 60%;
+		}
+		.default-group {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 120%;
 		}
 
-		.options-list.show {
-			display: block;
+		tr:nth-child(even) {
+			background: #EEE
+		}
+		tr:nth-child(odd) {
+			background: #FFF
 		}
 
-		.option-item {
-			padding: 8px 12px;
-			font-size: 0.95rem;
-			cursor: pointer;
-			color: #212529;
+		.nowrap {
+			white-space: nowrap;
 		}
 
-		.option-item:hover, .option-item.selected {
-			background-color: #f1f3f5;
-			color: #0d6efd;
+		/* High-performance hiding utility that bypasses layout recalculation */
+		.hidden {
+			display: none !important;
 		}
 
-		.option-item.no-results {
-			color: #6c757d;
-			cursor: default;
-			font-style: italic;
+		/* Expanded wrapper width configuration */
+		.firmware-wrapper {
+			padding: 10px;
+			width: 100%;
+			max-width: 600px; /* Made wider to prevent longer firmware names from cutting off */
+			box-sizing: border-box;
 		}
 
-		/* Styling the custom slot button inside web component */
-		esp-web-install-button button[slot="activate"] {
-			background-color: #0d6efd;
-			color: white;
-			border: none;
-			padding: 10px 20px;
-			font-size: 0.95rem;
-			font-weight: 500;
-			border-radius: 6px;
-			cursor: pointer;
-			transition: background-color 0.15s ease-in-out;
-		}
-
-		esp-web-install-button button[slot="activate"]:hover {
-			background-color: #0b5ed7;
+		/* Completely unstyled, native default input layout sizing */
+		.firmware-wrapper input[type="search"] {
+			width: 100%;
+			padding: 6px;
+			font-family: Verdana, Geneva, sans-serif;
+			box-sizing: border-box;
 		}
 	</style>
 </head>
 
 <body>
-	<div class="header">MeterLogger Firmware Flash Tool</div>
+	<div class="header default-group" style="padding: 10px 10px 0 10px;">MeterLogger Firmware Flash Tool</div>
 
-	<div class="control-group">
-		<label for="searchField">Select firmware:</label>
-		<div class="searchable-select">
-			<input type="text" id="searchField" class="search-input" placeholder="Click or type to select firmware..." autocomplete="off" disabled>
-			<div id="optionsDropdown" class="options-list">
-				<div class="option-item no-results">Loading firmwares...</div>
-			</div>
-		</div>
+	<div class="firmware-wrapper">
+		<label for="searchField" class="default-bold" style="display: block; margin-bottom: 5px;">Select firmware:</label>
+		<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
+		
+		<datalist id="firmwareOptions"></datalist>
 	</div>
 
-	<select id="firmwareSelect" style="display: none;"></select>
+	<select id="firmwareSelect" class="hidden">
+		<option value="">Loading...</option>
+	</select>
 
-	<div class="control-group">
+	<div style="padding: 0 10px 10px 10px;">
 		<esp-web-install-button id="installBtn" manifest="" erase="true">
-			<button slot="activate">Flash Device</button>
+			<button slot="activate" class="default" style="padding: 6px 12px; cursor: pointer;">Flash Device</button>
 		</esp-web-install-button>
 	</div>
 
 	<script>
 		const searchInput = document.getElementById('searchField');
-		const dropdown = document.getElementById('optionsDropdown');
+		const datalist = document.getElementById('firmwareOptions');
 		const select = document.getElementById('firmwareSelect');
 		const button = document.getElementById('installBtn');
 
@@ -155,59 +124,14 @@
 		let allFirmwares = [];
 		let selectedFirmware = null;
 
-		// Helper function to update custom dropdown items dynamically
-		function populateDropdown(list) {
-			dropdown.innerHTML = '';
-
-			// Handle empty results
-			if (list.length === 0) {
-				const noResults = document.createElement('div');
-				noResults.className = 'option-item no-results';
-				noResults.textContent = 'No matching firmware found';
-				dropdown.appendChild(noResults);
-				
-				button.setAttribute('manifest', '');
-				return;
-			}
-
-			// Populate custom dropdown items
+		// Rebuild the options list inside the native datalist element
+		function populateDatalist(list) {
+			datalist.innerHTML = '';
 			list.forEach(fw => {
-				const item = document.createElement('div');
-				item.className = 'option-item';
-				item.textContent = fw.name;
-				
-				if (selectedFirmware && selectedFirmware.path === fw.path) {
-					item.classList.add('selected');
-				}
-
-				// Select option on click
-				item.addEventListener('click', (e) => {
-					e.stopPropagation();
-					selectFirmware(fw);
-					closeDropdown();
-				});
-
-				dropdown.appendChild(item);
+				const opt = document.createElement('option');
+				opt.value = fw.name;
+				datalist.appendChild(opt);
 			});
-		}
-
-		function selectFirmware(fw) {
-			selectedFirmware = fw;
-			searchInput.value = fw.name;
-			const manifestPath = 'firmware/' + fw.path;
-			button.setAttribute('manifest', manifestPath);
-			
-			// Sync backward compatibility to legacy hidden select if needed
-			select.innerHTML = `<option value="${manifestPath}">${fw.name}</option>`;
-			select.value = manifestPath;
-		}
-
-		function openDropdown() {
-			dropdown.classList.add('show');
-		}
-
-		function closeDropdown() {
-			dropdown.classList.remove('show');
 		}
 
 		// Fetch firmware list from the server
@@ -226,45 +150,48 @@
 				select.innerHTML = '';
 
 				// Populate dropdown with sorted firmware entries
-				populateDropdown(allFirmwares);
+				populateDatalist(allFirmwares);
 
-				// Set default selection and update manifest
+				// Set default underlying manifest selection, but keep field display visually empty on load
 				if (list.length > 0) {
-					selectFirmware(list[0]);
+					button.setAttribute('manifest', 'firmware/' + list[0].path);
 				}
 			})
 			.catch(err => {
 				console.error('Failed to load firmware list', err);
-				dropdown.innerHTML = '<div class="option-item no-results">Failed to load firmwares</div>';
 			});
 
-		// Filter firmware list when user types in the search field
+		// Listen for inputs to capture validation matches instantly
 		searchInput.addEventListener('input', () => {
-			openDropdown();
-			const searchTerm = searchInput.value.toLowerCase();
+			const currentVal = searchInput.value;
+			const matched = allFirmwares.find(fw => fw.name === currentVal);
 
-			// Filter entries by checking if the name contains the search term
-			const filteredList = allFirmwares.filter(fw => 
-				fw.name.toLowerCase().includes(searchTerm)
-			);
-
-			// Rebuild the dropdown menu with the filtered results
-			populateDropdown(filteredList);
-		});
-
-		// Open menu on input click or focus
-		searchInput.addEventListener('click', (e) => {
-			e.stopPropagation();
-			openDropdown();
-		});
-
-		// Close menu if user clicks outside the interface
-		document.addEventListener('click', () => {
-			closeDropdown();
-			// Revert input text back to current selection if left incomplete
-			if (selectedFirmware) {
-				searchInput.value = selectedFirmware.name;
+			if (matched) {
+				selectedFirmware = matched;
+				button.setAttribute('manifest', 'firmware/' + matched.path);
 			}
+		});
+
+		// Force the browser's native pull-down menu to open instantly on clean click interactions
+		searchInput.addEventListener('click', () => {
+			searchInput.value = ''; // Clear text context to guarantee all native options display on click
+		});
+
+		// Safety check to restore the active selection label if left blank or incomplete on blur cycles
+		searchInput.addEventListener('blur', () => {
+			setTimeout(() => {
+				if (selectedFirmware) {
+					searchInput.value = selectedFirmware.name;
+				} else if (searchInput.value === '' && allFirmwares.length > 0) {
+					// Default fallback visual representation matching the initial auto-selected index configuration
+					button.setAttribute('manifest', 'firmware/' + allFirmwares[0].path);
+				}
+			}, 150);
+		});
+
+		// Update manifest when user selects a different firmware
+		select.addEventListener('change', () => {
+			button.setAttribute('manifest', select.value);
 		});
 	</script>
 
