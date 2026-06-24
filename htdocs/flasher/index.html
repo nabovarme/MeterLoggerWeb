@@ -7,70 +7,207 @@
 	<link rel="stylesheet" href="/css/menu.css" />
 	<script src="/js/menu.js.epl" defer></script>
 
-	<!-- Load ESP Web Tools (used for flashing firmware over WebSerial) -->
 	<script type="module"
 		src="https://unpkg.com/esp-web-tools@latest/dist/web/install-button.js">
 	</script>
 	<link rel="stylesheet" href="default.css">
+
+	<style>
+		/* Modern Component UI Styles */
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			background-color: #f8f9fa;
+			color: #212529;
+			padding: 20px;
+		}
+
+		.header {
+			font-size: 1.5rem;
+			font-weight: 600;
+			margin-bottom: 1.5rem;
+			color: #1a1a1a;
+		}
+
+		.control-group {
+			margin-bottom: 1.5rem;
+			max-width: 400px;
+		}
+
+		label {
+			display: block;
+			font-weight: 500;
+			margin-bottom: 0.5rem;
+			font-size: 0.9rem;
+			color: #495057;
+		}
+
+		/* The Searchable Wrapper */
+		.searchable-select {
+			position: relative;
+			display: block;
+			width: 100%;
+		}
+
+		.search-input {
+			width: 100%;
+			padding: 10px 12px;
+			font-size: 0.95rem;
+			border: 1px solid #ced4da;
+			border-radius: 6px;
+			background-color: #ffffff;
+			box-sizing: border-box;
+			transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+		}
+
+		.search-input:focus {
+			border-color: #86b7fe;
+			outline: 0;
+			box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+		}
+
+		/* Custom dropdown options overlay */
+		.options-list {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			right: 0;
+			z-index: 1000;
+			display: none;
+			max-height: 250px;
+			overflow-y: auto;
+			margin: 4px 0 0;
+			padding: 4px 0;
+			background-color: #ffffff;
+			border: 1px solid rgba(0,0,0,0.15);
+			border-radius: 6px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+		}
+
+		.options-list.show {
+			display: block;
+		}
+
+		.option-item {
+			padding: 8px 12px;
+			font-size: 0.95rem;
+			cursor: pointer;
+			color: #212529;
+		}
+
+		.option-item:hover, .option-item.selected {
+			background-color: #f1f3f5;
+			color: #0d6efd;
+		}
+
+		.option-item.no-results {
+			color: #6c757d;
+			cursor: default;
+			font-style: italic;
+		}
+
+		/* Styling the custom slot button inside web component */
+		esp-web-install-button button[slot="activate"] {
+			background-color: #0d6efd;
+			color: white;
+			border: none;
+			padding: 10px 20px;
+			font-size: 0.95rem;
+			font-weight: 500;
+			border-radius: 6px;
+			cursor: pointer;
+			transition: background-color 0.15s ease-in-out;
+		}
+
+		esp-web-install-button button[slot="activate"]:hover {
+			background-color: #0b5ed7;
+		}
+	</style>
 </head>
 
 <body>
 	<div class="header">MeterLogger Firmware Flash Tool</div>
 
-	<label for="searchField">Search firmware:</label>
-	<input type="text" id="searchField" placeholder="Type to filter..." disabled>
+	<div class="control-group">
+		<label for="searchField">Select firmware:</label>
+		<div class="searchable-select">
+			<input type="text" id="searchField" class="search-input" placeholder="Click or type to select firmware..." autocomplete="off" disabled>
+			<div id="optionsDropdown" class="options-list">
+				<div class="option-item no-results">Loading firmwares...</div>
+			</div>
+		</div>
+	</div>
 
-	<br><br>
+	<select id="firmwareSelect" style="display: none;"></select>
 
-	<!-- Dropdown for selecting firmware -->
-	<label for="firmwareSelect">Select firmware:</label>
-	<select id="firmwareSelect">
-		<option value="">Loading...</option>
-	</select>
-
-	<br><br>
-
-	<!-- Flash button that uses the selected manifest -->
-	<esp-web-install-button id="installBtn" manifest="" erase="true">
-		<button slot="activate">Flash Device</button>
-	</esp-web-install-button>
+	<div class="control-group">
+		<esp-web-install-button id="installBtn" manifest="" erase="true">
+			<button slot="activate">Flash Device</button>
+		</esp-web-install-button>
+	</div>
 
 	<script>
 		const searchInput = document.getElementById('searchField');
+		const dropdown = document.getElementById('optionsDropdown');
 		const select = document.getElementById('firmwareSelect');
 		const button = document.getElementById('installBtn');
 
 		// Store the complete firmware list globally for filtering
 		let allFirmwares = [];
+		let selectedFirmware = null;
 
-		// Helper function to update dropdown items dynamically
+		// Helper function to update custom dropdown items dynamically
 		function populateDropdown(list) {
-			// Clear dropdown
-			select.innerHTML = '';
+			dropdown.innerHTML = '';
 
 			// Handle empty results
 			if (list.length === 0) {
-				const opt = document.createElement('option');
-				opt.value = '';
-				opt.textContent = 'No matching firmware found';
-				select.appendChild(opt);
+				const noResults = document.createElement('div');
+				noResults.className = 'option-item no-results';
+				noResults.textContent = 'No matching firmware found';
+				dropdown.appendChild(noResults);
+				
 				button.setAttribute('manifest', '');
 				return;
 			}
 
-			// Populate dropdown with sorted firmware entries
+			// Populate custom dropdown items
 			list.forEach(fw => {
-				const opt = document.createElement('option');
-				opt.value = 'firmware/' + fw.path;
-				opt.textContent = fw.name;
-				select.appendChild(opt);
-			});
+				const item = document.createElement('div');
+				item.className = 'option-item';
+				item.textContent = fw.name;
+				
+				if (selectedFirmware && selectedFirmware.path === fw.path) {
+					item.classList.add('selected');
+				}
 
-			// Set default selection and update manifest
-			if (list.length > 0) {
-				select.value = 'firmware/' + list[0].path;
-				button.setAttribute('manifest', select.value);
-			}
+				// Select option on click
+				item.addEventListener('click', (e) => {
+					e.stopPropagation();
+					selectFirmware(fw);
+					closeDropdown();
+				});
+
+				dropdown.appendChild(item);
+			});
+		}
+
+		function selectFirmware(fw) {
+			selectedFirmware = fw;
+			searchInput.value = fw.name;
+			const manifestPath = 'firmware/' + fw.path;
+			button.setAttribute('manifest', manifestPath);
+			
+			// Sync backward compatibility to legacy hidden select if needed
+			select.innerHTML = `<option value="${manifestPath}">${fw.name}</option>`;
+			select.value = manifestPath;
+		}
+
+		function openDropdown() {
+			dropdown.classList.add('show');
+		}
+
+		function closeDropdown() {
+			dropdown.classList.remove('show');
 		}
 
 		// Fetch firmware list from the server
@@ -89,25 +226,21 @@
 				select.innerHTML = '';
 
 				// Populate dropdown with sorted firmware entries
-				list.forEach(fw => {
-					const opt = document.createElement('option');
-					opt.value = 'firmware/' + fw.path;
-					opt.textContent = fw.name;
-					select.appendChild(opt);
-				});
+				populateDropdown(allFirmwares);
 
 				// Set default selection and update manifest
 				if (list.length > 0) {
-					select.value = 'firmware/' + list[0].path;
-					button.setAttribute('manifest', select.value);
+					selectFirmware(list[0]);
 				}
 			})
 			.catch(err => {
 				console.error('Failed to load firmware list', err);
+				dropdown.innerHTML = '<div class="option-item no-results">Failed to load firmwares</div>';
 			});
 
 		// Filter firmware list when user types in the search field
 		searchInput.addEventListener('input', () => {
+			openDropdown();
 			const searchTerm = searchInput.value.toLowerCase();
 
 			// Filter entries by checking if the name contains the search term
@@ -119,9 +252,19 @@
 			populateDropdown(filteredList);
 		});
 
-		// Update manifest when user selects a different firmware
-		select.addEventListener('change', () => {
-			button.setAttribute('manifest', select.value);
+		// Open menu on input click or focus
+		searchInput.addEventListener('click', (e) => {
+			e.stopPropagation();
+			openDropdown();
+		});
+
+		// Close menu if user clicks outside the interface
+		document.addEventListener('click', () => {
+			closeDropdown();
+			// Revert input text back to current selection if left incomplete
+			if (selectedFirmware) {
+				searchInput.value = selectedFirmware.name;
+			}
 		});
 	</script>
 
