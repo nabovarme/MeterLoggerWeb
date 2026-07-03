@@ -267,6 +267,11 @@ sub build_flags_from_sw_version {
 		$flags .= ' THERMO_ON_AC_2=1';
 	}
 
+	if ($sw_version =~ /AC_TEST/)
+	{
+		$flags .= ' AC_TEST=1';
+	}
+
 	if ($sw_version =~ /MC-B/) {
 		$flags .= ' MC_66B=1';
 	}
