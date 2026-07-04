@@ -20,6 +20,7 @@ COPY ./meter_cron/update_samples_hourly_and_daily.pl /usr/local/bin/update_sampl
 COPY ./meter_cron/remove_spikes.pl /usr/local/bin/remove_spikes.pl
 COPY ./meter_cron/sync_alarms_auto.pl /usr/local/bin/sync_alarms_auto.pl
 COPY ./meter_cron/update_estimated_energy.pl /usr/local/bin/update_estimated_energy.pl
+COPY ./meter_cron/trigger_firmware_builder.pl /usr/local/bin/trigger_firmware_builder.pl
 
 COPY ./meter_cron/docker-entrypoint.sh /docker-entrypoint.sh
 
