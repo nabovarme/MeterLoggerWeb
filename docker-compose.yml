@@ -565,6 +565,27 @@ services:
       com.docker.compose.service: "firmware-watcher"
       app.git.commit: ${GIT_COMMIT:-unknown}
 
+  firmware_flasher:
+    build:
+      context: '.'
+      dockerfile: ./builder/flasher/Dockerfile
+    container_name: firmware_flasher
+    hostname: firmware-flasher
+    privileged: true
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+    volumes:
+      - firmware_release:/firmware
+    environment:
+      TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    labels:
+      com.docker.compose.service: "firmware-flasher"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+
   docker-proxy:
     image: tecnativa/docker-socket-proxy:latest
     container_name: docker-proxy
