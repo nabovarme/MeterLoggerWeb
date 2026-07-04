@@ -19,51 +19,95 @@
 		.default { font-family: Verdana, Geneva, sans-serif; font-size: 100%; }
 		.default-bold { font-family: Verdana, Geneva, sans-serif; font-weight: bold; }
 		.default-group { font-family: Verdana, Geneva, sans-serif; font-weight: bold; font-size: 120%; }
-		.firmware-wrapper { padding: 10px; width: 100%; max-width: 600px; box-sizing: border-box; }
-		.firmware-wrapper input[type="search"] { width: 100%; padding: 6px; font-family: Verdana, Geneva, sans-serif; box-sizing: border-box; }
-		#log { margin-top: 10px; padding: 10px; font-family: monospace; font-size: 12px; background: #f4f4f4; border: 1px solid #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap; }
+		
+		/* Flex container to hold the wide pull-down and flash button inline */
+		.action-row { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 800px; padding: 10px; box-sizing: border-box; }
+		
+		/* Expanded flex-grow styling forces the dropdown container to take maximum horizontal space */
+		.search-container { flex-grow: 1; display: flex; flex-direction: column; }
+		.search-container input[type="search"] { width: 100%; padding: 6px; font-family: Verdana, Geneva, sans-serif; box-sizing: border-box; }
+		
+		/* Keeps the flash button nicely sized next to the long pull-down field */
+		.flash-btn-inline { padding: 6px 16px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; cursor: pointer; white-space: nowrap; align-self: flex-end; }
+		
+		/* Hides the options wrapper from sight while keeping the elements accessible in DOM */
+		.config-options { display: none; }
+		
+		/* Configured log container to be hidden by default */
+		#log { display: none; margin: 10px; padding: 10px; font-family: monospace; font-size: 12px; background: #f4f4f4; border: 1px solid #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap; }
+		
+		/* Toggle container and rotating triangle styles */
+		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px 10px 10px; }
+		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
+		.triangle.open { transform: rotate(90deg); }
 	</style>
 </head>
 
 <body>
 	<div class="header default-group" style="padding: 10px 10px 0 10px;">MeterLogger Firmware Flash Tool</div>
 
-	<div class="firmware-wrapper">
-		<label for="searchField" class="default-bold" style="display: block; margin-bottom: 5px;">Select firmware:</label>
-		<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
-		<datalist id="firmwareOptions"></datalist>
+	<div class="action-row">
+		<div class="search-container">
+			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware:</label>
+			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
+			<datalist id="firmwareOptions"></datalist>
+		</div>
 		
-		<div style="margin-top: 10px;">
-			<label class="default-bold">Mode:</label>
+		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
+
+		<div class="config-options">
 			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
-			<label class="default-bold" style="margin-left:10px;">Size:</label>
 			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
 		</div>
 	</div>
 
-	<div style="padding: 0 10px 10px 10px;">
-		<button id="flashBtn" class="default" style="padding: 6px 12px; cursor: pointer;">Flash Device</button>
+	<div>
+		<span id="toggleLogBtn" class="default default-bold console-toggle">
+			<span id="triangleIcon" class="triangle">&#9658;</span> Log
+		</span>
+		
 		<div id="log">Status: Waiting for interaction...</div>
 	</div>
 
 	<script>
+		// DOM Element bindings
 		const searchInput = document.getElementById('searchField');
 		const flashBtn = document.getElementById('flashBtn');
 		const logDiv = document.getElementById('log');
+		const toggleLogBtn = document.getElementById('toggleLogBtn');
+		const triangleIcon = document.getElementById('triangleIcon');
 		const flashMode = document.getElementById('flashMode');
 		const flashSize = document.getElementById('flashSize');
 
-		// Store the complete firmware list globally for filtering
+		// State containers for backend index parsing
 		let allFirmwares = [];
 		let selectedFirmware = null;
 
+		// UI Logger utility: Appends text to terminal and forces auto-scroll
 		function log(msg) {
 			logDiv.innerText += "\n" + msg;
 			logDiv.scrollTop = logDiv.scrollHeight;
 			console.log(msg);
 		}
 
-		// Fetch firmware list from the server
+		// Helper function to update visual toggle layout state dynamically
+		function setLogVisibility(visible) {
+			if (visible) {
+				logDiv.style.display = 'block';
+				triangleIcon.classList.add('open');
+			} else {
+				logDiv.style.display = 'none';
+				triangleIcon.classList.remove('open');
+			}
+		}
+
+		// Visual state toggle callback: Animates the triangle and flips console window visibility
+		toggleLogBtn.addEventListener('click', () => {
+			const isVisible = logDiv.style.display === 'block';
+			setLogVisibility(!isVisible);
+		});
+
+		// Fetch firmware manifest repository index, sort alphabetically, and populate search list
 		fetch('firmware/firmwares.json')
 			.then(res => res.json())
 			.then(list => {
@@ -76,31 +120,39 @@
 				});
 			});
 
+		// Track user selections inside the search window to capture validation matches
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
 		});
 
+		// Core logic loop handles flashing pipeline
 		flashBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
 
 			try {
+				// Automatically expand and animate the console when flashing starts
+				setLogVisibility(true);
 				logDiv.innerText = "Fetching manifest details...";
 				
+				// Fetch Espressif manifest profile map file from the server structure
 				const manifestResponse = await fetch('firmware/' + selectedFirmware.path);
 				if (!manifestResponse.ok) {
 					throw new Error(`Failed to download manifest (${manifestResponse.status}).`);
 				}
 				const manifest = await manifestResponse.json();
 				
+				// Confirm structural properties inside the manifest JSON matches definitions
 				if (!manifest.builds || manifest.builds.length === 0 || !manifest.builds[0].parts) {
 					throw new Error("Invalid manifest layout format detected.");
 				}
 				
+				// Pull relative binary pointers out of the parsed structural manifest tracks
 				const part = manifest.builds[0].parts[0];
 				const baseDir = selectedFirmware.path.substring(0, selectedFirmware.path.lastIndexOf('/') + 1);
 				const binUrl = 'firmware/' + baseDir + part.path;
 				const targetAddress = part.offset || 0;
 
+				// Fetch the actual hardware firmware image bytes over the network pipeline
 				log(`Fetching actual binary from: ${binUrl}`);
 				const fileResponse = await fetch(binUrl);
 				if (!fileResponse.ok) {
@@ -110,11 +162,14 @@
 				const fileBuffer = await fileResponse.arrayBuffer();
 				log(`Successfully loaded binary buffer (${fileBuffer.byteLength} bytes)`);
 
+				// Convert array buffer into a raw typed byte array for direct binary output streaming
 				const cleanUint8Array = new Uint8Array(fileBuffer);
 
+				// Request hardware WebSerial channel hook from the browser engine
 				const port = await navigator.serial.requestPort({});
 				const transport = new Transport(port, true);
 				
+				// Build and configure the underlying Espressif firmware loader framework instance
 				const esploader = new ESPLoader({
 					transport: transport,
 					baudrate: 115200,
@@ -127,25 +182,28 @@
 					}
 				});
 				
+				// Execute low-level UART interface connection handshakes down the serial pipeline
 				log("Connecting to hardware bootloader...");
 				await esploader.main();
 
-				// Match lowercase/uppercase config expectations from working logs exactly
-				const chosenMode = flashMode.value.toLowerCase(); // "dout"
-				const chosenSize = flashSize.value.toUpperCase();   // "1MB"
+				// Enforce casing syntax parameters to align with internal toolkit dictionary indexes
+				const chosenMode = flashMode.value.toLowerCase(); // Expected format: "dout"
+				const chosenSize = flashSize.value.toUpperCase();   // Expected format: "1MB"
 
+				// Stream the data blocks directly over the active wire interface parameters
 				log(`Writing binary to offset 0x${targetAddress.toString(16)}...`);
 				await esploader.writeFlash({
 					fileArray: [{ data: cleanUint8Array, address: targetAddress }],
 					flashMode: chosenMode,
 					flashSize: chosenSize, 
-					// FIXED: Must be "keep" so esptool doesn't corrupt the header, allowing parameter code 320 to apply
+					// Keep ensures the header metadata token parameters resolve back to 320 natively
 					flashFreq: "keep", 
 					eraseAll: true,
 					compress: true,
 					reportProgress: (i, w, t) => log(`Progress: ${((w/t)*100).toFixed(0)}%`)
 				});
 				
+				// Fire hardware reset triggers to wake up the ESP8266 processor out of download mode bounds
 				log("Success! Flash complete.");
 				await esploader.after("hard_reset");
 			} catch (e) {
