@@ -6,70 +6,22 @@
 
 	<link rel="stylesheet" href="/css/menu.css" />
 	<script src="/js/menu.js.epl" defer></script>
-
-	<script type="module"
-		src="https://unpkg.com/esp-web-tools@latest/dist/web/install-button.js">
-	</script>
 	<link rel="stylesheet" href="default.css">
 
+	<script type="module">
+		import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js/bundle.js';
+		window.ESPLoader = ESPLoader;
+		window.Transport = Transport;
+	</script>
+
 	<style>
-		/* Global layout and defaults */
-		html, body {
-			height: 100%;
-			margin: 0;
-			padding: 0;
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 100%;
-			overflow-x: hidden; /* Prevent horizontal scroll */
-		}
-
-		.top {
-			position: absolute;
-			top: 0;
-			left: 0;
-		}
-		.default {
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 100%
-		}
-		.default-bold {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-		}
-		.default-small {
-			font-family: Verdana, Geneva, sans-serif;
-			font-size: 60%;
-		}
-		.default-group {
-			font-family: Verdana, Geneva, sans-serif;
-			font-weight: bold;
-			font-size: 120%;
-		}
-
-		.nowrap {
-			white-space: nowrap;
-		}
-
-		/* High-performance hiding utility that bypasses layout recalculation */
-		.hidden {
-			display: none !important;
-		}
-
-		/* Expanded wrapper width configuration */
-		.firmware-wrapper {
-			padding: 10px;
-			width: 100%;
-			max-width: 600px; /* Made wider to prevent longer firmware names from cutting off */
-			box-sizing: border-box;
-		}
-
-		/* Completely unstyled, native default input layout sizing */
-		.firmware-wrapper input[type="search"] {
-			width: 100%;
-			padding: 6px;
-			font-family: Verdana, Geneva, sans-serif;
-			box-sizing: border-box;
-		}
+		html, body { height: 100%; margin: 0; padding: 0; font-family: Verdana, Geneva, sans-serif; font-size: 100%; overflow-x: hidden; }
+		.default { font-family: Verdana, Geneva, sans-serif; font-size: 100%; }
+		.default-bold { font-family: Verdana, Geneva, sans-serif; font-weight: bold; }
+		.default-group { font-family: Verdana, Geneva, sans-serif; font-weight: bold; font-size: 120%; }
+		.firmware-wrapper { padding: 10px; width: 100%; max-width: 600px; box-sizing: border-box; }
+		.firmware-wrapper input[type="search"] { width: 100%; padding: 6px; font-family: Verdana, Geneva, sans-serif; box-sizing: border-box; }
+		#log { margin-top: 10px; padding: 10px; font-family: monospace; font-size: 12px; background: #f4f4f4; border: 1px solid #ccc; max-height: 250px; overflow-y: auto; white-space: pre-wrap; }
 	</style>
 </head>
 
@@ -79,100 +31,128 @@
 	<div class="firmware-wrapper">
 		<label for="searchField" class="default-bold" style="display: block; margin-bottom: 5px;">Select firmware:</label>
 		<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
-		
 		<datalist id="firmwareOptions"></datalist>
+		
+		<div style="margin-top: 10px;">
+			<label class="default-bold">Mode:</label>
+			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
+			<label class="default-bold" style="margin-left:10px;">Size:</label>
+			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
+		</div>
 	</div>
 
-	<select id="firmwareSelect" class="hidden">
-		<option value="">Loading...</option>
-	</select>
-
 	<div style="padding: 0 10px 10px 10px;">
-		<esp-web-install-button id="installBtn" manifest="" erase="true">
-			<button slot="activate" class="default" style="padding: 6px 12px; cursor: pointer;">Flash Device</button>
-		</esp-web-install-button>
+		<button id="flashBtn" class="default" style="padding: 6px 12px; cursor: pointer;">Flash Device</button>
+		<div id="log">Status: Waiting for interaction...</div>
 	</div>
 
 	<script>
 		const searchInput = document.getElementById('searchField');
-		const datalist = document.getElementById('firmwareOptions');
-		const select = document.getElementById('firmwareSelect');
-		const button = document.getElementById('installBtn');
+		const flashBtn = document.getElementById('flashBtn');
+		const logDiv = document.getElementById('log');
+		const flashMode = document.getElementById('flashMode');
+		const flashSize = document.getElementById('flashSize');
 
 		// Store the complete firmware list globally for filtering
 		let allFirmwares = [];
 		let selectedFirmware = null;
 
-		// Rebuild the options list inside the native datalist element
-		function populateDatalist(list) {
-			datalist.innerHTML = '';
-			list.forEach(fw => {
-				const opt = document.createElement('option');
-				opt.value = fw.name;
-				datalist.appendChild(opt);
-			});
+		function log(msg) {
+			logDiv.innerText += "\n" + msg;
+			logDiv.scrollTop = logDiv.scrollHeight;
+			console.log(msg);
 		}
 
 		// Fetch firmware list from the server
 		fetch('firmware/firmwares.json')
 			.then(res => res.json())
 			.then(list => {
-
-				// Sort firmware list by name (alphabetically)
-				list.sort((a, b) => a.name.localeCompare(b.name));
-
-				// Save the sorted list and enable the search input
-				allFirmwares = list;
+				allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
 				searchInput.disabled = false;
-
-				// Clear dropdown
-				select.innerHTML = '';
-
-				// Populate dropdown with sorted firmware entries
-				populateDatalist(allFirmwares);
-
-				// Set default underlying manifest selection, but keep field display visually empty on load
-				if (list.length > 0) {
-					button.setAttribute('manifest', 'firmware/' + list[0].path);
-				}
-			})
-			.catch(err => {
-				console.error('Failed to load firmware list', err);
+				allFirmwares.forEach(fw => {
+					const opt = document.createElement('option');
+					opt.value = fw.name;
+					document.getElementById('firmwareOptions').appendChild(opt);
+				});
 			});
 
-		// Listen for inputs to capture validation matches instantly
 		searchInput.addEventListener('input', () => {
-			const currentVal = searchInput.value;
-			const matched = allFirmwares.find(fw => fw.name === currentVal);
+			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
+		});
 
-			if (matched) {
-				selectedFirmware = matched;
-				button.setAttribute('manifest', 'firmware/' + matched.path);
+		flashBtn.addEventListener('click', async () => {
+			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
+
+			try {
+				logDiv.innerText = "Fetching manifest details...";
+				
+				const manifestResponse = await fetch('firmware/' + selectedFirmware.path);
+				if (!manifestResponse.ok) {
+					throw new Error(`Failed to download manifest (${manifestResponse.status}).`);
+				}
+				const manifest = await manifestResponse.json();
+				
+				if (!manifest.builds || manifest.builds.length === 0 || !manifest.builds[0].parts) {
+					throw new Error("Invalid manifest layout format detected.");
+				}
+				
+				const part = manifest.builds[0].parts[0];
+				const baseDir = selectedFirmware.path.substring(0, selectedFirmware.path.lastIndexOf('/') + 1);
+				const binUrl = 'firmware/' + baseDir + part.path;
+				const targetAddress = part.offset || 0;
+
+				log(`Fetching actual binary from: ${binUrl}`);
+				const fileResponse = await fetch(binUrl);
+				if (!fileResponse.ok) {
+					throw new Error(`Failed to download binary file (${fileResponse.status}).`);
+				}
+				
+				const fileBuffer = await fileResponse.arrayBuffer();
+				log(`Successfully loaded binary buffer (${fileBuffer.byteLength} bytes)`);
+
+				const cleanUint8Array = new Uint8Array(fileBuffer);
+
+				const port = await navigator.serial.requestPort({});
+				const transport = new Transport(port, true);
+				
+				const esploader = new ESPLoader({
+					transport: transport,
+					baudrate: 115200,
+					romBaudrate: 115200,
+					debugLogging: true, 
+					terminal: { 
+						clean: () => {}, 
+						writeLine: (d) => log(d), 
+						write: (d) => log(d)
+					}
+				});
+				
+				log("Connecting to hardware bootloader...");
+				await esploader.main();
+
+				// Match lowercase/uppercase config expectations from working logs exactly
+				const chosenMode = flashMode.value.toLowerCase(); // "dout"
+				const chosenSize = flashSize.value.toUpperCase();   // "1MB"
+
+				log(`Writing binary to offset 0x${targetAddress.toString(16)}...`);
+				await esploader.writeFlash({
+					fileArray: [{ data: cleanUint8Array, address: targetAddress }],
+					flashMode: chosenMode,
+					flashSize: chosenSize, 
+					// FIXED: Must be "keep" so esptool doesn't corrupt the header, allowing parameter code 320 to apply
+					flashFreq: "keep", 
+					eraseAll: true,
+					compress: true,
+					reportProgress: (i, w, t) => log(`Progress: ${((w/t)*100).toFixed(0)}%`)
+				});
+				
+				log("Success! Flash complete.");
+				await esploader.after("hard_reset");
+			} catch (e) {
+				log("Error: " + e.message);
+				console.error(e);
 			}
 		});
-
-		// Force the browser's native pull-down menu to open instantly on clean click interactions
-		searchInput.addEventListener('click', () => {
-			searchInput.value = ''; // Clear text context to guarantee all native options display on click
-		});
-
-		// Safety check to restore the active selection label if left blank or incomplete on blur cycles
-		searchInput.addEventListener('blur', () => {
-			setTimeout(() => {
-				if (selectedFirmware) {
-					searchInput.value = selectedFirmware.name;
-				} else if (searchInput.value === '' && allFirmwares.length > 0) {
-					// Default fallback visual representation matching the initial auto-selected index configuration
-					button.setAttribute('manifest', 'firmware/' + allFirmwares[0].path);
-				}
-			}, 150);
-		});
-
-		// Update manifest when user selects a different firmware
-		select.addEventListener('change', () => {
-			button.setAttribute('manifest', select.value);
-		});
 	</script>
-
 </body>
 </html>
