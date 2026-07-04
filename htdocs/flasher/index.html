@@ -30,6 +30,10 @@
 		/* Keeps the flash button nicely sized next to the long pull-down field */
 		.flash-btn-inline { padding: 6px 16px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; cursor: pointer; white-space: nowrap; align-self: flex-end; }
 		
+		/* Progress bar styling container */
+		.progress-container { display: none; padding: 0 10px; max-width: 800px; box-sizing: border-box; margin-bottom: 10px; }
+		progress { width: 100%; height: 20px; }
+
 		/* Hides the options wrapper from sight while keeping the elements accessible in DOM */
 		.config-options { display: none; }
 		
@@ -61,9 +65,13 @@
 		</div>
 	</div>
 
+	<div id="progressWrapper" class="progress-container">
+		<progress id="flashProgress" value="0" max="100"></progress>
+	</div>
+
 	<div>
 		<span id="toggleLogBtn" class="default default-bold console-toggle">
-			<span id="triangleIcon" class="triangle">&#9658;</span> Log
+			<span id="triangleIcon" class="triangle">&#9658;</span> <span id="logTitleText">Log</span>
 		</span>
 		
 		<div id="log">Status: Waiting for interaction...</div>
@@ -75,17 +83,21 @@
 		const flashBtn = document.getElementById('flashBtn');
 		const logDiv = document.getElementById('log');
 		const toggleLogBtn = document.getElementById('toggleLogBtn');
+		const logTitleText = document.getElementById('logTitleText');
 		const triangleIcon = document.getElementById('triangleIcon');
 		const flashMode = document.getElementById('flashMode');
 		const flashSize = document.getElementById('flashSize');
+		const progressWrapper = document.getElementById('progressWrapper');
+		const flashProgress = document.getElementById('flashProgress');
 
 		// State containers for backend index parsing
 		let allFirmwares = [];
 		let selectedFirmware = null;
+		let transport = null; // Stored globally relative to scope for cleanup loops
 
 		// UI Logger utility: Appends text to terminal and forces auto-scroll
 		function log(msg) {
-			logDiv.innerText += "\n" + msg;
+			logDiv.textContent += "\n" + msg;
 			logDiv.scrollTop = logDiv.scrollHeight;
 			console.log(msg);
 		}
@@ -95,6 +107,8 @@
 			if (visible) {
 				logDiv.style.display = 'block';
 				triangleIcon.classList.add('open');
+				// Scroll to the bottom immediately when expanding the container panel via script execution
+				logDiv.scrollTop = logDiv.scrollHeight;
 			} else {
 				logDiv.style.display = 'none';
 				triangleIcon.classList.remove('open');
@@ -130,9 +144,16 @@
 			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
 
 			try {
-				// Automatically expand and animate the console when flashing starts
-				setLogVisibility(true);
-				logDiv.innerText = "Fetching manifest details...";
+				// Lock button and clear/show progress tracking elements
+				flashBtn.disabled = true;
+				progressWrapper.style.display = 'block';
+				flashProgress.value = 0;
+
+				// Reset layout status string to basic tracking tags on boot invocation cycles
+				logTitleText.textContent = "Log";
+
+				// Reset log content area on each new run invocation block cleanly
+				logDiv.textContent = "Fetching manifest details...";
 				
 				// Fetch Espressif manifest profile map file from the server structure
 				const manifestResponse = await fetch('firmware/' + selectedFirmware.path);
@@ -167,16 +188,16 @@
 
 				// Request hardware WebSerial channel hook from the browser engine
 				const port = await navigator.serial.requestPort({});
-				const transport = new Transport(port, true);
+				transport = new Transport(port, true);
 				
 				// Build and configure the underlying Espressif firmware loader framework instance
 				const esploader = new ESPLoader({
 					transport: transport,
 					baudrate: 115200,
 					romBaudrate: 115200,
-					debugLogging: true, 
+					debugLogging: false, 
 					terminal: { 
-						clean: () => {}, 
+						clean: () => { logDiv.textContent = ""; }, 
 						writeLine: (d) => log(d), 
 						write: (d) => log(d)
 					}
@@ -200,15 +221,42 @@
 					flashFreq: "keep", 
 					eraseAll: true,
 					compress: true,
-					reportProgress: (i, w, t) => log(`Progress: ${((w/t)*100).toFixed(0)}%`)
+					reportProgress: (i, w, t) => {
+						const pct = Math.round((w / t) * 100);
+						flashProgress.value = pct;
+						log(`Progress: ${pct}%`);
+					}
 				});
 				
 				// Fire hardware reset triggers to wake up the ESP8266 processor out of download mode bounds
 				log("Success! Flash complete.");
 				await esploader.after("hard_reset");
+
+				// Dynamically alter title text to verify success when sequence safely hits completion path
+				logTitleText.textContent = "Log (Flash completed)";
 			} catch (e) {
 				log("Error: " + e.message);
 				console.error(e);
+				
+				// Alert the user if an error occurred since the log might be closed
+				alert("Flashing error: " + e.message);
+			} finally {
+				// Re-enable action execution UI triggers
+				flashBtn.disabled = false;
+				
+				// Disappear the progress bar wrapper from view when done
+				progressWrapper.style.display = 'none';
+				
+				// Explicitly release and close active WebSerial resource lock channels out of runtime memory cleanly
+				if (transport) {
+					log("Disconnecting from serial port...");
+					try {
+						await transport.disconnect();
+					} catch (err) {
+						console.error("Error while closing WebSerial transport wrapper:", err);
+					}
+					transport = null;
+				}
 			}
 		});
 	</script>
