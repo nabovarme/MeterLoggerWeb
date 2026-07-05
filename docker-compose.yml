@@ -507,6 +507,7 @@ services:
   # Firmware Compilation Pipeline Services
   # =========================================================================
   firmware_sdk:
+    image: firmware_sdk:latest
     build:
       context: '.'
       dockerfile: ./builder/firmware_sdk/Dockerfile
