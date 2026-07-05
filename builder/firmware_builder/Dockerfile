@@ -5,13 +5,14 @@ LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 # Enable contrib + non-free
 RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list
 
-# Base dependencies
+# Base dependencies (ADDED xxd)
 RUN apt-get update && apt-get install -y \
 	docker.io \
 	procps \
 	aptitude \
 	bash \
 	joe \
+	xxd \
 	libjson-perl \
 	libdbi-perl \
 	libdbd-mysql-perl \

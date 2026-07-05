@@ -52,7 +52,7 @@
 
 	<div class="action-row">
 		<div class="search-container">
-			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware:</label>
+			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
 			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
 			<datalist id="firmwareOptions"></datalist>
 		</div>
@@ -167,24 +167,30 @@
 					throw new Error("Invalid manifest layout format detected.");
 				}
 				
-				// Pull relative binary pointers out of the parsed structural manifest tracks
-				const part = manifest.builds[0].parts[0];
 				const baseDir = selectedFirmware.path.substring(0, selectedFirmware.path.lastIndexOf('/') + 1);
-				const binUrl = 'firmware/' + baseDir + part.path;
-				const targetAddress = part.offset || 0;
-
-				// Fetch the actual hardware firmware image bytes over the network pipeline
-				log(`Fetching actual binary from: ${binUrl}`);
-				const fileResponse = await fetch(binUrl);
-				if (!fileResponse.ok) {
-					throw new Error(`Failed to download binary file (${fileResponse.status}).`);
-				}
 				
-				const fileBuffer = await fileResponse.arrayBuffer();
-				log(`Successfully loaded binary buffer (${fileBuffer.byteLength} bytes)`);
+				// FIXED: Map across all entries in the parts array to queue up multi-segment downloads
+				const manifestParts = manifest.builds[0].parts;
+				const fileArray = [];
 
-				// Convert array buffer into a raw typed byte array for direct binary output streaming
-				const cleanUint8Array = new Uint8Array(fileBuffer);
+				for (const chunk of manifestParts) {
+					const binUrl = 'firmware/' + baseDir + chunk.path;
+					const segmentOffset = chunk.offset;
+
+					log(`Fetching segment component from: ${binUrl}`);
+					const chunkResponse = await fetch(binUrl);
+					if (!chunkResponse.ok) {
+						throw new Error(`Failed to download component asset (${chunkResponse.status}): ${chunk.path}`);
+					}
+					
+					const chunkBuffer = await chunkResponse.arrayBuffer();
+					log(`Buffered component [${chunk.path}] successfully (${chunkBuffer.byteLength} bytes) designated for 0x${segmentOffset.toString(16)}`);
+
+					fileArray.push({
+						data: new Uint8Array(chunkBuffer),
+						address: segmentOffset
+					});
+				}
 
 				// Request hardware WebSerial channel hook from the browser engine
 				const port = await navigator.serial.requestPort({});
@@ -211,10 +217,10 @@
 				const chosenMode = flashMode.value.toLowerCase(); // Expected format: "dout"
 				const chosenSize = flashSize.value.toUpperCase();   // Expected format: "1MB"
 
-				// Stream the data blocks directly over the active wire interface parameters
-				log(`Writing binary to offset 0x${targetAddress.toString(16)}...`);
+				// FIXED: Stream multi-segmented object components array payload structures directly to device targets
+				log(`Flashing ${fileArray.length} distinct binary segments into memory spaces...`);
 				await esploader.writeFlash({
-					fileArray: [{ data: cleanUint8Array, address: targetAddress }],
+					fileArray: fileArray,
 					flashMode: chosenMode,
 					flashSize: chosenSize, 
 					// Keep ensures the header metadata token parameters resolve back to 320 natively

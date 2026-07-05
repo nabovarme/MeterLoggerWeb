@@ -202,7 +202,7 @@ print "All workers shut down cleanly\n";
 cleanup_all_batches();
 
 # =========================
-# ORIGINAL FUNCTIONS BELOW
+# OPERATIONAL UTILITIES
 # =========================
 
 sub rebuild_firmware_sdk {
@@ -407,7 +407,8 @@ sub run_docker_build {
 	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
 	$fs_version = 'unknown' if !$fs_version;
 
-	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/firmware.bin";
+	# FIXED: Validating completion tracking based on Option A (manifest metadata file existence)
+	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 	if (-f $firmware_path) {
 		print "Skipping build for $serial (already exists)\n";
@@ -435,7 +436,6 @@ sub run_docker_build {
 
 	eval {
 		system($docker_cmd);
-#		system("$docker_cmd > /dev/null 2>&1");
 		$exit_code = $? >> 8;
 		$success = ($exit_code == 0);
 
@@ -445,7 +445,6 @@ sub run_docker_build {
 		}
 
 		if ($success) {
-
 			prepare_release_structure($serial, $fs_version);
 			generate_manifest($serial, $info, $sw_version, $fs_version);
 
@@ -486,6 +485,7 @@ sub run_docker_build {
 	};
 }
 
+# FIXED: Safely shifts all 5 raw component binaries down out of the SDK directory tree
 sub prepare_release_structure {
 	my ($serial, $fs_version) = @_;
 
@@ -493,44 +493,73 @@ sub prepare_release_structure {
 	my $serial_dir = "$base_dir/$serial";
 	my $version_dir = "$serial_dir/$fs_version";
 
-	my $src = "$base_dir/$serial.bin";
-	my $dst = "$version_dir/firmware.bin";
-
 	make_path($version_dir);
 
-	unlink $dst if -f $dst;
+	my @components = (
+		{ src => "$base_dir/0x00000.bin", dst => "$version_dir/0x00000.bin" },
+		{ src => "$base_dir/0x10000.bin", dst => "$version_dir/0x10000.bin" },
+		{ src => "$base_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
+		{ src => "$base_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
+		{ src => "$base_dir/blank.bin", dst => "$version_dir/blank.bin" }
+	);
 
-	if (-f $src) {
-		move($src, $dst)
-			or die "Cannot move $src to $dst: $!";
+	foreach my $cmp (@components) {
+		unlink $cmp->{dst} if -f $cmp->{dst};
+
+		if (-f $cmp->{src}) {
+			move($cmp->{src}, $cmp->{dst})
+				or die "Cannot migrate build component asset from $cmp->{src} to $cmp->{dst}: $!";
+		} else {
+			die "Required compilation element not found: $cmp->{src}";
+		}
 	}
-	else {
-		die "Firmware file not found: $src";
+
+	my $mono_src = "$base_dir/firmware.bin";
+	my $mono_dst = "$version_dir/firmware.bin";
+	if (-f $mono_src) {
+		unlink $mono_dst if -f $mono_dst;
+		move($mono_src, $mono_dst) or warn "Could not relocate optional monolithic image backup: $!";
 	}
 
 	my $latest_link = "$serial_dir/latest";
-
 	unlink $latest_link if -l $latest_link || -e $latest_link;
 
 	symlink($fs_version, $latest_link)
-		or warn "Could not create symlink: $!";
+		or warn "Could not create symlink tracking pointer link: $!";
 }
 
+# FIXED: Outputs a clean, segmented partition map manifest containing the hex target offsets
 sub generate_manifest {
 	my ($serial, $info, $sw_version, $fs_version) = @_;
 
 	my $dir = RELEASE_DIR . "/$serial/$fs_version";
 
 	my $manifest = {
-		name => "$info $serial ($sw_version)",
+		name => "$info $serial ($sw_version) [Multi-Segment]",
 		version => $sw_version || 'unknown',
 		builds => [
 			{
 				chipFamily => "ESP8266",
 				parts => [
 					{
-						path => "firmware.bin",
-						offset => 0
+						path => "0x00000.bin",
+						offset => 0x00000
+					},
+					{
+						path => "0x10000.bin",
+						offset => 0x10000
+					},
+					{
+						path => "webpages.espfs",
+						offset => 0x60000
+					},
+					{
+						path => "esp_init_data_default_112th_byte_0x03.bin",
+						offset => 0xFC000
+					},
+					{
+						path => "blank.bin",
+						offset => 0xFE000
 					}
 				]
 			}
@@ -609,7 +638,6 @@ sub generate_firmware_index {
 }
 
 sub cleanup_all_batches {
-	# patterns for all keys we create
 	my @patterns = (
 		"$REDIS_JOBS_TOTAL:*",
 		"$REDIS_JOBS_DONE:*",
