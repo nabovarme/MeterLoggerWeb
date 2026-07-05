@@ -40,13 +40,17 @@ services:
         echo 'long_query_time=0.05' >> /out/99-custom.cnf &&
         echo 'log_queries_not_using_indexes=OFF' >> /out/99-custom.cnf &&
         echo 'performance_schema=ON' >> /out/99-custom.cnf &&
-        # write client config for other containers to read DB connection
+
+        # write client config for other containers to read DB connection details
         echo '[client]' > /out/99-client.cnf &&
         echo 'user=${METERLOGGER_DB_USER}' >> /out/99-client.cnf &&
         echo 'password=${METERLOGGER_DB_PASSWORD}' >> /out/99-client.cnf &&
         echo 'host=${METERLOGGER_DB_HOST}' >> /out/99-client.cnf &&
-        echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
-        echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
+        echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf &&
+
+        # Isolate database key so mariadb-admin tool healthchecks don't crash
+        echo '[mysql]' >> /out/99-client.cnf &&
+        echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf
       "
     labels:
       com.docker.compose.service: "setup-config"
