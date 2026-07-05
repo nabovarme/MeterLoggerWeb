@@ -94,8 +94,16 @@ ENV SDK_BASE=/meterlogger/esp-open-sdk/sdk
 
 WORKDIR /meterlogger/MeterLogger
 
-RUN mkdir -p release
-
 COPY ./perl /meterlogger/perl
 
+# We switch temporarily to root context to safely execute high-level permission 
+# modifications over the generated compilation layout directories.
+USER root
+RUN mkdir -p /meterlogger/MeterLogger/release && \
+    chown -R meterlogger:meterlogger /meterlogger/MeterLogger/release
+
+# Drop execution privileges safely back to the compilation user
+USER meterlogger
+
 CMD ["/docker-entrypoint.sh"]
+
