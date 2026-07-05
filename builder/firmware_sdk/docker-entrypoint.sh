@@ -1,6 +1,10 @@
 #!/bin/dash
 set -e
 
+# Ensure the mounted release directory is owned by the compilation user
+mkdir -p /meterlogger/MeterLogger/release
+chown -R meterlogger:meterlogger /meterlogger/MeterLogger/release
+
 # Validate required env vars
 if [ -z "$SERIAL" ]; then
 	echo "ERROR: SERIAL not set"
