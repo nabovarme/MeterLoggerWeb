@@ -75,9 +75,10 @@ services:
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
     healthcheck:
-      test: ["CMD", "sh", "-c", "mysql --protocol=tcp -e 'SELECT 1'"]
-      timeout: 20s
-      retries: 2
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     labels:
       com.docker.compose.service: "db"
       app.git.commit: ${GIT_COMMIT:-unknown}
