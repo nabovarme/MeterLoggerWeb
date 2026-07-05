@@ -5,8 +5,8 @@ set -e
 mkdir -p /meterlogger/MeterLogger/release
 chown -R meterlogger:meterlogger /meterlogger/MeterLogger/release
 
-# Bypass Git's dubious ownership validation rules globally for root context
-git config --global --add safe.directory /meterlogger/MeterLogger
+# Tell Git to trust ALL directories inside this SDK container container-wide
+git config --global --add safe.directory '*'
 
 # Validate required env vars
 if [ -z "$SERIAL" ]; then
