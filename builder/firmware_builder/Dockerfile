@@ -5,7 +5,7 @@ LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 # Enable contrib + non-free
 RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list
 
-# Base dependencies (ADDED xxd)
+# Base dependencies
 RUN apt-get update && apt-get install -y \
 	docker.io \
 	procps \

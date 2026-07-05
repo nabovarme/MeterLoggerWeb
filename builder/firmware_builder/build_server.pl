@@ -407,7 +407,7 @@ sub run_docker_build {
 	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
 	$fs_version = 'unknown' if !$fs_version;
 
-	# FIXED: Validating completion tracking based on Option A (manifest metadata file existence)
+	# Validating completion tracking based on Option A (manifest metadata file existence)
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 	if (-f $firmware_path) {
@@ -485,7 +485,7 @@ sub run_docker_build {
 	};
 }
 
-# FIXED: Safely shifts all 5 raw component binaries down out of the SDK directory tree
+# Safely shifts all 5 raw component binaries down out of the SDK directory tree
 sub prepare_release_structure {
 	my ($serial, $fs_version) = @_;
 
@@ -528,7 +528,7 @@ sub prepare_release_structure {
 		or warn "Could not create symlink tracking pointer link: $!";
 }
 
-# FIXED: Outputs a clean, segmented partition map manifest containing the hex target offsets
+# Outputs a clean, segmented partition map manifest containing the hex target offsets
 sub generate_manifest {
 	my ($serial, $info, $sw_version, $fs_version) = @_;
 
