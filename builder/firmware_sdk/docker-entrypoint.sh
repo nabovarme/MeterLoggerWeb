@@ -34,7 +34,7 @@ if [ $EXIT_CODE -ne 0 ]; then
 fi
 
 echo "Isolating raw flash targets for multi-segment distribution..."
-# FIXED: Explicitly copy files directly into the mapped release/ tracking path
+# Explicitly copy files directly into the mapped release/ tracking path
 cp firmware/0x00000.bin release/0x00000.bin
 cp firmware/0x10000.bin release/0x10000.bin
 cp webpages.espfs release/webpages.espfs
