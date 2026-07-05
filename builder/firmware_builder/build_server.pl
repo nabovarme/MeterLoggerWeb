@@ -429,7 +429,6 @@ sub run_docker_build {
 
 	my $docker_cmd = join(" ",
 		"docker run --rm",
-		"--user root", # FIXED: Container roots on startup so entrypoint chown permissions execute flawlessly
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
 		"-e BUILD_FLAGS=\"$build_flags\"",

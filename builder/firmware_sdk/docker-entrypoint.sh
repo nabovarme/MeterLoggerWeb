@@ -1,13 +1,6 @@
 #!/bin/dash
 set -e
 
-# Ensure the mounted release directory is owned by the compilation user
-mkdir -p /meterlogger/MeterLogger/release
-chown -R meterlogger:meterlogger /meterlogger/MeterLogger/release
-
-# Tell Git to trust ALL directories inside this SDK container container-wide
-git config --global --add safe.directory '*'
-
 # Validate required env vars
 if [ -z "$SERIAL" ]; then
 	echo "ERROR: SERIAL not set"
@@ -27,7 +20,7 @@ echo "BUILD_FLAGS=$BUILD_FLAGS"
 # Go to repo
 cd /meterlogger/MeterLogger
 
-# FIXED: Leverage the newly refactored release rule to build and copy all segments atomically
+# Leverage the newly refactored release rule to build and copy all segments atomically
 make clean release \
 	$BUILD_FLAGS \
 	SERIAL=$SERIAL \
