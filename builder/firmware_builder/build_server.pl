@@ -429,6 +429,7 @@ sub run_docker_build {
 
 	my $docker_cmd = join(" ",
 		"docker run --rm",
+		"--user root", # FIXED: Container roots on startup so entrypoint chown permissions execute flawlessly
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
 		"-e BUILD_FLAGS=\"$build_flags\"",
@@ -492,7 +493,6 @@ sub run_docker_build {
 	};
 }
 
-# Safely shifts all 5 raw component binaries down out of the SDK directory tree
 sub prepare_release_structure {
 	my ($serial, $fs_version) = @_;
 
@@ -528,7 +528,6 @@ sub prepare_release_structure {
 		or warn "Could not create symlink tracking pointer link: $!";
 }
 
-# Outputs a clean, segmented partition map manifest containing the hex target offsets
 sub generate_manifest {
 	my ($serial, $info, $sw_version, $fs_version) = @_;
 
