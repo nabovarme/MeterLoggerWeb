@@ -1,15 +1,15 @@
-#!/bin/sh
+#!/bin/dash
 set -e
 
 # Validate required env vars
 if [ -z "$SERIAL" ]; then
-  echo "ERROR: SERIAL not set"
-  exit 1
+	echo "ERROR: SERIAL not set"
+	exit 1
 fi
 
 if [ -z "$KEY" ]; then
-  echo "ERROR: KEY not set"
-  exit 1
+	echo "ERROR: KEY not set"
+	exit 1
 fi
 
 echo "Starting build"
@@ -22,24 +22,24 @@ cd /meterlogger/MeterLogger
 
 # Build monolithic firmware and components
 make clean all release \
-  $BUILD_FLAGS \
-  SERIAL=$SERIAL \
-  KEY=$KEY
+	$BUILD_FLAGS \
+	SERIAL=$SERIAL \
+	KEY=$KEY
 
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
-  echo "Build failed with exit code $EXIT_CODE"
-  exit $EXIT_CODE
+	echo "Build failed with exit code $EXIT_CODE"
+	exit $EXIT_CODE
 fi
 
 echo "Isolating raw flash targets for multi-segment distribution..."
-# Copy raw components into the mounted release directory out of internal working directory trees
-cp firmware/0x00000.bin release/
-cp firmware/0x10000.bin release/
-cp webpages.espfs release/
-cp firmware/esp_init_data_default_112th_byte_0x03.bin release/
-cp firmware/blank.bin release/
+# FIXED: Explicitly copy files directly into the mapped release/ tracking path
+cp firmware/0x00000.bin release/0x00000.bin
+cp firmware/0x10000.bin release/0x10000.bin
+cp webpages.espfs release/webpages.espfs
+cp firmware/esp_init_data_default_112th_byte_0x03.bin release/esp_init_data_default_112th_byte_0x03.bin
+cp firmware/blank.bin release/blank.bin
 
 echo "Build completed successfully"
 exit 0
