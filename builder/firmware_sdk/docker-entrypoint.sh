@@ -20,8 +20,8 @@ echo "BUILD_FLAGS=$BUILD_FLAGS"
 # Go to repo
 cd /meterlogger/MeterLogger
 
-# Build monolithic firmware and components
-make clean all release \
+# Build firmware and components
+make clean all \
 	$BUILD_FLAGS \
 	SERIAL=$SERIAL \
 	KEY=$KEY
@@ -33,8 +33,7 @@ if [ $EXIT_CODE -ne 0 ]; then
 	exit $EXIT_CODE
 fi
 
-echo "Isolating raw flash targets for multi-segment distribution..."
-# Explicitly copy files directly into the mapped release/ tracking path
+echo "Copy files into the mapped release/ tracking path..."
 cp firmware/0x00000.bin release/0x00000.bin
 cp firmware/0x10000.bin release/0x10000.bin
 cp webpages.espfs release/webpages.espfs
