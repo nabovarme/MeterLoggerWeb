@@ -46,11 +46,8 @@ services:
         echo 'user=${METERLOGGER_DB_USER}' >> /out/99-client.cnf &&
         echo 'password=${METERLOGGER_DB_PASSWORD}' >> /out/99-client.cnf &&
         echo 'host=${METERLOGGER_DB_HOST}' >> /out/99-client.cnf &&
-        echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf &&
-
-        # Isolate database key so mariadb-admin tool healthchecks don't crash
-        echo '[mysql]' >> /out/99-client.cnf &&
-        echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf
+        echo 'database=${METERLOGGER_DB_NAME}' >> /out/99-client.cnf &&
+        echo 'port=${METERLOGGER_DB_PORT}' >> /out/99-client.cnf
       "
     labels:
       com.docker.compose.service: "setup-config"
@@ -79,7 +76,7 @@ services:
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-d", ""]
       interval: 10s
       timeout: 5s
       retries: 5
