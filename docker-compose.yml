@@ -76,7 +76,7 @@ services:
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     restart: always
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-d", ""]
+      test: ["CMD", "mariadb-admin", "--no-defaults", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
