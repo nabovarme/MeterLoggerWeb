@@ -13,9 +13,9 @@ use IO::Handle;
 use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
 
-use constant DOCKER_IMAGE => 'firmware_sdk:latest';
-use constant SOURCE_DIR => '/meterlogger/MeterLogger';
-use constant RELEASE_DIR => '/meterlogger/MeterLogger/release';
+use constant DOCKER_IMAGE      => 'firmware_sdk:latest';
+use constant SOURCE_DIR        => '/meterlogger/MeterLogger';
+use constant RELEASE_DIR       => '/meterlogger/MeterLogger/release';
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
@@ -157,8 +157,7 @@ while ($running) {
 		my $processed = $done + $skip + $fail;
 		print "Batch active: $current_batch. Progress: $processed/$total ($pending_count batches pending)\n" if $processed % 5 == 0 || $processed == $total;
 
-		# Prevent queue deadlocks by allowing zero-job or instant-skipped batches to clear cleanly
-		if ($total == 0 || $processed >= $total) {
+		if ($total > 0 && $processed >= $total) {
 			print "Batch $current_batch fully completed ($done done, $skip skipped, $fail failed).\n";
 			
 			# Generate index and clean up batch-specific keys
@@ -500,12 +499,15 @@ sub prepare_release_structure {
 
 	make_path($version_dir);
 
+	# Look for components in the isolated serial directory matching Makefile updates
+	my $isolated_src_dir = "$base_dir/$serial";
+
 	my @components = (
-		{ src => "$base_dir/0x00000.bin", dst => "$version_dir/0x00000.bin" },
-		{ src => "$base_dir/0x10000.bin", dst => "$version_dir/0x10000.bin" },
-		{ src => "$base_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
-		{ src => "$base_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
-		{ src => "$base_dir/blank.bin", dst => "$version_dir/blank.bin" }
+		{ src => "$isolated_src_dir/0x00000.bin", dst => "$version_dir/0x00000.bin" },
+		{ src => "$isolated_src_dir/0x10000.bin", dst => "$version_dir/0x10000.bin" },
+		{ src => "$isolated_src_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
+		{ src => "$isolated_src_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
+		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" }
 	);
 
 	foreach my $cmp (@components) {
@@ -518,6 +520,9 @@ sub prepare_release_structure {
 			die "Required compilation element not found: $cmp->{src}";
 		}
 	}
+
+	# Clean up the intermediate staging serial subdirectory context cleanly
+	rmdir($isolated_src_dir);
 
 	my $latest_link = "$serial_dir/latest";
 	unlink $latest_link if -l $latest_link || -e $latest_link;
