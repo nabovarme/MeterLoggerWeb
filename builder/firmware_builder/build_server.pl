@@ -414,7 +414,6 @@ sub run_docker_build {
 	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
 	$fs_version = 'unknown' if !$fs_version;
 
-	# Validating completion tracking based on Option A (manifest metadata file existence)
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 	if (-f $firmware_path) {
