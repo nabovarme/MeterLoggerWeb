@@ -208,15 +208,22 @@ cleanup_all_batches();
 sub rebuild_firmware_sdk {
 	print "Rebuilding firmware_sdk via docker on host...\n";
 
-	my $cmd = "docker build --build-arg CACHEBUST=\$(date +%s) -t firmware_sdk:latest -f /docker_root/builder/firmware_sdk/Dockerfile /docker_root";
+	my $cmd = "docker build --build-arg CACHEBUST=\$(date +%s) -t firmware_sdk:latest -f /docker_root/builder/firmware_sdk/Dockerfile /docker_root 2>&1";
 
-	my $output = `$cmd 2>&1`;
+	# Open a real-time command pipeline read stream
+	open(my $ph, "-|", $cmd)
+		or die "Failed to execute docker build pipeline link: $!";
+
+	# Stream the output line-by-line as it occurs natively
+	while (my $line = <$ph>) {
+		print $line;
+	}
+
+	close($ph);
 	my $exit_code = $? >> 8;
 
-	print "$output\n";
-
 	if ($exit_code != 0) {
-		die "Failed to rebuild firmware_sdk:\n$output";
+		die "Failed to rebuild firmware_sdk (Exit code: $exit_code)";
 	}
 
 	print "firmware_sdk rebuilt successfully\n";
