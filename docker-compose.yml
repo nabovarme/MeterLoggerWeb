@@ -61,7 +61,7 @@ services:
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   db:
-    image: mariadb:10.5
+    image: mariadb:12.3
     container_name: db
     hostname: db
     depends_on:
