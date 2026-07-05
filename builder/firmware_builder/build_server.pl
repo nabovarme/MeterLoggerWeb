@@ -157,7 +157,8 @@ while ($running) {
 		my $processed = $done + $skip + $fail;
 		print "Batch active: $current_batch. Progress: $processed/$total ($pending_count batches pending)\n" if $processed % 5 == 0 || $processed == $total;
 
-		if ($total > 0 && $processed >= $total) {
+		# Prevent queue deadlocks by allowing zero-job or instant-skipped batches to clear cleanly
+		if ($total == 0 || $processed >= $total) {
 			print "Batch $current_batch fully completed ($done done, $skip skipped, $fail failed).\n";
 			
 			# Generate index and clean up batch-specific keys
@@ -210,11 +211,10 @@ sub rebuild_firmware_sdk {
 
 	my $cmd = "docker build --build-arg CACHEBUST=\$(date +%s) -t firmware_sdk:latest -f /docker_root/builder/firmware_sdk/Dockerfile /docker_root 2>&1";
 
-	# Open a real-time command pipeline read stream
+	# Open a real-time command pipeline read stream to output logs as they happen
 	open(my $ph, "-|", $cmd)
 		or die "Failed to execute docker build pipeline link: $!";
 
-	# Stream the output line-by-line as it occurs natively
 	while (my $line = <$ph>) {
 		print $line;
 	}
@@ -519,13 +519,6 @@ sub prepare_release_structure {
 		} else {
 			die "Required compilation element not found: $cmp->{src}";
 		}
-	}
-
-	my $mono_src = "$base_dir/firmware.bin";
-	my $mono_dst = "$version_dir/firmware.bin";
-	if (-f $mono_src) {
-		unlink $mono_dst if -f $mono_dst;
-		move($mono_src, $mono_dst) or warn "Could not relocate optional monolithic image backup: $!";
 	}
 
 	my $latest_link = "$serial_dir/latest";
