@@ -169,7 +169,7 @@
 				
 				const baseDir = selectedFirmware.path.substring(0, selectedFirmware.path.lastIndexOf('/') + 1);
 				
-				// FIXED: Map across all entries in the parts array to queue up multi-segment downloads
+				// Map across all entries in the parts array to queue up multi-segment downloads
 				const manifestParts = manifest.builds[0].parts;
 				const fileArray = [];
 
@@ -217,7 +217,7 @@
 				const chosenMode = flashMode.value.toLowerCase(); // Expected format: "dout"
 				const chosenSize = flashSize.value.toUpperCase();   // Expected format: "1MB"
 
-				// FIXED: Stream multi-segmented object components array payload structures directly to device targets
+				// Stream multi-segmented object components array payload structures directly to device targets
 				log(`Flashing ${fileArray.length} distinct binary segments into memory spaces...`);
 				await esploader.writeFlash({
 					fileArray: fileArray,
