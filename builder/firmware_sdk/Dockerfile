@@ -85,7 +85,7 @@ ARG CACHEBUST=1
 
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
-	cd /meterlogger/MeterLogger && git checkout dev_multi_segment_firmware
+	cd /meterlogger/MeterLogger && git checkout master
 
 # Export ENV
 ENV PATH=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin:$PATH
