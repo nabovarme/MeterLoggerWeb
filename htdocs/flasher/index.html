@@ -2,6 +2,7 @@
 <html>
 <head>
 	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.5, shrink-to-fit=no">
 	<title>MeterLogger Firmware Flash Tool</title>
 
 	<link rel="stylesheet" href="/css/menu.css" />
@@ -15,11 +16,70 @@
 	</script>
 
 	<style>
-		html, body { height: 100%; margin: 0; padding: 0; font-family: Verdana, Geneva, sans-serif; font-size: 100%; overflow-x: hidden; }
-		.default { font-family: Verdana, Geneva, sans-serif; font-size: 100%; }
-		.default-bold { font-family: Verdana, Geneva, sans-serif; font-weight: bold; }
-		.default-group { font-family: Verdana, Geneva, sans-serif; font-weight: bold; font-size: 120%; }
+		/* Global layout and defaults */
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 100%;
+			overflow-x: hidden; /* Prevent horizontal scroll */
+		}
+
+		/* --- TYPOGRAPHY TOKENS --- */
+		.default {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 100%;
+		}
+		.default-bold {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+		}
+		.default-small {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 60%;
+		}
+		.default-group {
+			font-family: Verdana, Geneva, sans-serif;
+			font-weight: bold;
+			font-size: 120%;
+		}
+
+		.nowrap {
+			white-space: nowrap;
+		}
+
+		/* High-performance hiding utility that bypasses layout recalculation */
+		.hidden {
+			display: none !important;
+		}
 		
+		/* Applied to log console for fluid rendering under intensive web-serial streams */
+		#log {
+			-webkit-overflow-scrolling: touch; 
+			will-change: scroll-position;
+			transform: translateZ(0); /* Isolates fixed bar into its own GPU layer */
+			
+			margin: 10px;
+			padding: 10px;
+			font-family: monospace;
+			font-size: 12px;
+			background: #f4f4f4;
+			border: 1px solid #ccc;
+			max-height: 250px;
+			width: calc(100% - 20px);
+			box-sizing: border-box;
+			overflow-y: auto;
+			white-space: pre-wrap;
+		}
+
+		/* VIRTUALIZATION: Tells Safari to drop the console element context if hidden */
+		#log.hidden {
+			content-visibility: auto;
+			contain-intrinsic-size: 250px;
+		}
+		
+		/* --- COMPONENT STYLES --- */
 		.action-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 10px 5px 10px; box-sizing: border-box; }
 		.options-row { display: flex; align-items: center; gap: 25px; width: 100%; padding: 5px 10px 10px 10px; box-sizing: border-box; }
 		
@@ -28,12 +88,10 @@
 		
 		.flash-btn-inline { padding: 8px 20px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; cursor: pointer; white-space: nowrap; align-self: flex-end; }
 		
-		.progress-container { display: none; padding: 0 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+		.progress-container { padding: 0 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
 		progress { width: 100%; height: 20px; }
 
 		.config-options { display: none; }
-		
-		#log { display: none; margin: 10px; padding: 10px; font-family: monospace; font-size: 12px; background: #f4f4f4; border: 1px solid #ccc; max-height: 250px; width: calc(100% - 20px); box-sizing: border-box; overflow-y: auto; white-space: pre-wrap; }
 		
 		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px 10px 10px; }
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
@@ -81,7 +139,7 @@
 		</div>
 	</div>
 
-	<div id="progressWrapper" class="progress-container">
+	<div id="progressWrapper" class="progress-container hidden">
 		<progress id="flashProgress" value="0" max="100"></progress>
 	</div>
 
@@ -90,7 +148,7 @@
 			<span id="triangleIcon" class="triangle">&#9658;</span> <span id="logTitleText">Log</span>
 		</span>
 		
-		<div id="log">Status: Waiting for interaction...</div>
+		<div id="log" class="hidden">Status: Waiting for interaction...</div>
 	</div>
 
 	<script>
@@ -119,17 +177,17 @@
 
 		function setLogVisibility(visible) {
 			if (visible) {
-				logDiv.style.display = 'block';
+				logDiv.classList.remove('hidden');
 				triangleIcon.classList.add('open');
 				logDiv.scrollTop = logDiv.scrollHeight;
 			} else {
-				logDiv.style.display = 'none';
+				logDiv.classList.add('hidden');
 				triangleIcon.classList.remove('open');
 			}
 		}
 
 		toggleLogBtn.addEventListener('click', () => {
-			const isVisible = logDiv.style.display === 'block';
+			const isVisible = !logDiv.classList.contains('hidden');
 			setLogVisibility(!isVisible);
 		});
 
@@ -154,7 +212,7 @@
 
 			try {
 				flashBtn.disabled = true;
-				progressWrapper.style.display = 'block';
+				progressWrapper.classList.remove('hidden');
 				flashProgress.value = 0;
 
 				logTitleText.textContent = "Log";
@@ -269,7 +327,7 @@
 				alert("Flashing error: " + e.message);
 			} finally {
 				flashBtn.disabled = false;
-				progressWrapper.style.display = 'none';
+				progressWrapper.classList.add('hidden');
 				
 				if (transport) {
 					log("Disconnecting from serial port...");
