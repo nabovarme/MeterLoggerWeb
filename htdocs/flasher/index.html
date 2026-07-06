@@ -37,6 +37,9 @@
 		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px 10px 10px; }
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
 		.triangle.open { transform: rotate(90deg); }
+		
+		.control-group { display: flex; flex-direction: column; gap: 3px; }
+		.control-group select { padding: 7px; font-family: Verdana, Geneva, sans-serif; font-size: 90%; }
 	</style>
 </head>
 
@@ -48,6 +51,25 @@
 			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
 			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
 			<datalist id="firmwareOptions"></datalist>
+		</div>
+		
+		<div class="control-group">
+			<label for="baudRate" class="default-bold" style="font-size: 85%;">Baud Rate:</label>
+			<select id="baudRate">
+				<option value="115200" selected>115200</option>
+				<option value="230400">230400</option>
+				<option value="460800">460800</option>
+				<option value="921600">921600</option>
+				<option value="1500000">1500000</option>
+			</select>
+		</div>
+
+		<div class="control-group">
+			<label for="eraseFlash" class="default-bold" style="font-size: 85%;">Erase Flash:</label>
+			<select id="eraseFlash">
+				<option value="false" selected>No</option>
+				<option value="true">Yes (Erase All)</option>
+			</select>
 		</div>
 		
 		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
@@ -81,6 +103,8 @@
 		const flashSize = document.getElementById('flashSize');
 		const progressWrapper = document.getElementById('progressWrapper');
 		const flashProgress = document.getElementById('flashProgress');
+		const baudRateSelect = document.getElementById('baudRate');
+		const eraseFlashSelect = document.getElementById('eraseFlash');
 
 		let allFirmwares = [];
 		let selectedFirmware = null;
@@ -168,12 +192,15 @@
 					});
 				}
 
+				const chosenBaud = parseInt(baudRateSelect.value, 10);
+				const shouldErase = eraseFlashSelect.value === "true";
+
 				const port = await navigator.serial.requestPort({});
 				transport = new Transport(port, true);
 				
 				const esploader = new ESPLoader({
 					transport: transport,
-					baudrate: 115200,
+					baudrate: chosenBaud,
 					romBaudrate: 115200,
 					debugLogging: false, 
 					terminal: { 
@@ -204,7 +231,7 @@
 					flashMode: chosenMode,
 					flashSize: chosenSize, 
 					flashFreq: "keep", 
-					eraseAll: false,
+					eraseAll: shouldErase,
 					compress: true,
 					reportProgress: (fileIndex, written, total) => {
 						// Detect when esptool shifts execution to the next segment chunk in the array
