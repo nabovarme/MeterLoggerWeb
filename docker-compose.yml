@@ -189,9 +189,10 @@ services:
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "80"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 2s
+      retries: 2
+      start_period: 5s
 
   meter_grapher:
     build:
