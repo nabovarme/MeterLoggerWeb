@@ -6,7 +6,7 @@ use warnings;
 use JSON;
 use Redis;
 
-use File::Path qw(make_path);
+use File::Path qw(make_path rmtree);
 use File::Copy qw(move);
 use IO::Handle;
 
@@ -16,6 +16,7 @@ use Nabovarme::Db;
 use constant DOCKER_IMAGE      => 'firmware_sdk:latest';
 use constant SOURCE_DIR        => '/meterlogger/MeterLogger';
 use constant RELEASE_DIR       => '/meterlogger/MeterLogger/release';
+use constant SYNC_INTERVAL     => 60; # Run DB sync check every 60 seconds
 
 my $REDIS_QUEUE = "firmware_build_queue";
 my $REDIS_TRIGGER = "firmware_build_trigger";
@@ -128,16 +129,18 @@ for (1..$workers) {
 
 print "Workers started\n";
 
-# Trigger listener (parent)
+my $last_sync_time = 0;
+
+# Trigger listener and database synchronization loop (parent)
 while ($running) {
 
-	# 1. Listen for new triggers and put them in the pending list
+	# 1. Non-blocking check for manual Redis triggers (1 second timeout)
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
 	if ($data) {
 		my (undef, $payload) = @$data;
 		my $trigger = decode_json($payload);
 		
-		print "Received trigger: " . ($trigger->{reason} || "unknown") . " at " . scalar(localtime($trigger->{time})) . "\n";
+		print "Received manual trigger: " . ($trigger->{reason} || "unknown") . " at " . scalar(localtime($trigger->{time})) . "\n";
 		
 		$redis->rpush($REDIS_PENDING_TRIGGERS, $payload);
 		print "Trigger added to pending queue\n";
@@ -177,7 +180,12 @@ while ($running) {
 		if ($next_payload) {
 			my $trigger = decode_json($next_payload);
 			print "Starting new batch from pending triggers. ($pending_count remaining in queue)\n";
-			process_build($trigger);
+			process_build($trigger, 1);
+		}
+		elsif (time() - $last_sync_time >= SYNC_INTERVAL) {
+			$last_sync_time = time();
+			print "Running scheduled 1-minute database sync check...\n";
+			process_build(undef, 0);
 		}
 	}
 
@@ -214,7 +222,7 @@ sub rebuild_firmware_sdk {
 	open(my $ph, "-|", $cmd)
 		or die "Failed to execute docker build pipeline link: $!";
 
-	while (my $line = <$ph>) {
+	for (my $line = <$ph>) {
 		print $line;
 	}
 
@@ -311,9 +319,8 @@ sub print_progress {
 }
 
 sub process_build {
-	my ($trigger) = @_;
-
-	rebuild_firmware_sdk();
+	my ($trigger, $force_full_rebuild) = @_;
+	$force_full_rebuild //= 0;
 
 	my $dbh = Nabovarme::Db->my_connect
 		or die "DB connection failed";
@@ -329,6 +336,54 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
+	my $fs_version = $git_version;
+	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
+	$fs_version = 'unknown' if !$fs_version;
+
+	my %active_db_meters;
+	my @jobs_to_queue;
+	my $job_count = 0;
+
+	while (my $row = $sth->fetchrow_hashref) {
+		$active_db_meters{$row->{serial}} = 1;
+
+		if (!$force_full_rebuild) {
+			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$fs_version/manifest.json";
+			if (-f $firmware_path) {
+				next;
+			}
+		}
+
+		push @jobs_to_queue, $row;
+		$job_count++;
+	}
+
+	if (opendir(my $dh, RELEASE_DIR)) {
+		while (my $dir_entry = readdir($dh)) {
+			next if ($dir_entry =~ /^\./);
+			next if ($dir_entry eq 'firmwares.json');
+
+			if ($dir_entry =~ /^\d+$/) {
+				if (!$active_db_meters{$dir_entry}) {
+					print "Sync Purge: Meter $dir_entry not found active in database. Deleting local firmware tree...\n";
+					rmtree(RELEASE_DIR . "/$dir_entry");
+				}
+			}
+		}
+		closedir($dh);
+	}
+
+	if ($job_count == 0) {
+		if (!$force_full_rebuild) {
+			generate_firmware_index();
+		}
+		return;
+	}
+
+	if ($force_full_rebuild) {
+		rebuild_firmware_sdk();
+	}
+
 	my $batch_id = time();
 	
 	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
@@ -338,14 +393,6 @@ sub process_build {
 	my $skip_key  = "$REDIS_JOBS_SKIP:$batch_id";
 	my $fail_key  = "$REDIS_JOBS_FAIL:$batch_id";
 
-	my $job_count = 0;
-
-	my @rows;
-	while (my $row = $sth->fetchrow_hashref) {
-		push @rows, $row;
-		$job_count++;
-	}
-
 	$redis->set($total_key, $job_count);
 	$redis->set($done_key, 0);
 	$redis->set($skip_key, 0);
@@ -353,7 +400,7 @@ sub process_build {
 
 	print "Jobs to enqueue: $job_count\n";
 
-	foreach my $row (@rows) {
+	foreach my $row (@jobs_to_queue) {
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
 
