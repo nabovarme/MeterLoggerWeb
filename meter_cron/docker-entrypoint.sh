@@ -4,9 +4,13 @@
 echo "export METERLOGGER_DB_HOST=${METERLOGGER_DB_HOST}" >> /etc/cron_env
 echo "export METERLOGGER_DB_USER=${METERLOGGER_DB_USER}" >> /etc/cron_env
 echo "export METERLOGGER_DB_PASSWORD=${METERLOGGER_DB_PASSWORD}" >> /etc/cron_env
+echo "export REDIS_HOST=${REDIS_HOST}" >> /etc/cron_env
+echo "export REDIS_PORT=${REDIS_PORT}" >> /etc/cron_env
+echo "export GOOGLE_API_KEY=${GOOGLE_API_KEY}" >> /etc/cron_env
+echo "export GOOGLE_GEOLOCATION_API_URL=${GOOGLE_GEOLOCATION_API_URL}" >> /etc/cron_env
 echo "export TZ=${TZ}" >> /etc/cron_env
 echo "export PERL5LIB=/etc/apache2/perl" >> /etc/cron_env
-echo "export ENABLE_DEBUG=${ENABLE_DEBUG}" > /etc/cron_env
+echo "export ENABLE_DEBUG=${ENABLE_DEBUG}" >> /etc/cron_env
 
 # Start cron in the background
 cron -f &
