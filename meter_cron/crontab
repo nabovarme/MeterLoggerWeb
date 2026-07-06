@@ -14,6 +14,6 @@ PERL5LIB=/usr/local/lib/perl
 5 *	* * *	root	. /etc/cron_env;	/usr/local/bin/clean_sms_auth.pl >> /var/log/cron.log 2>&1
 0 23	* * *	root	. /etc/cron_env;	/usr/local/bin/wifi_get_location.pl >> /var/log/cron.log 2>&1
 0 5	* * *	root	. /etc/cron_env;	/usr/local/bin/remove_spikes.pl >> /var/log/cron.log 2>&1 ; /usr/local/bin/update_samples_hourly_and_daily.pl >> /var/log/cron.log 2>&1
-* * * * *	root	. /etc/cron_env;	/usr/local/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1
-* * * * *	root	. /etc/cron_env;	/usr/local/bin/update_estimated_energy.pl >> /var/log/cron.log 2>&1
-* * * * *	root	. /etc/cron_env;	/usr/local/bin/trigger_firmware_builder.pl >> /var/log/cron.log 2>&1
+* *	* * *	root	. /etc/cron_env;	/usr/local/bin/sync_alarms_auto.pl >> /var/log/cron.log 2>&1
+* *	* * *	root	. /etc/cron_env;	/usr/local/bin/update_estimated_energy.pl >> /var/log/cron.log 2>&1
+#* *	* * *	root	. /etc/cron_env;	/usr/local/bin/trigger_firmware_builder.pl >> /var/log/cron.log 2>&1
