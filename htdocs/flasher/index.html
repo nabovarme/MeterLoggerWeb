@@ -20,9 +20,10 @@
 		.default-bold { font-family: Verdana, Geneva, sans-serif; font-weight: bold; }
 		.default-group { font-family: Verdana, Geneva, sans-serif; font-weight: bold; font-size: 120%; }
 		
-		.action-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; box-sizing: border-box; }
+		.action-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 10px 5px 10px; box-sizing: border-box; }
+		.options-row { display: flex; align-items: center; gap: 25px; width: 100%; padding: 5px 10px 10px 10px; box-sizing: border-box; }
 		
-		.search-container { flex-grow: 1; display: flex; flex-direction: column; }
+		.search-container { flex-grow: 1; max-width: 600px; display: flex; flex-direction: column; }
 		.search-container input[type="search"] { width: 100%; padding: 8px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; box-sizing: border-box; }
 		
 		.flash-btn-inline { padding: 8px 20px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; cursor: pointer; white-space: nowrap; align-self: flex-end; }
@@ -38,8 +39,9 @@
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
 		.triangle.open { transform: rotate(90deg); }
 		
-		.control-group { display: flex; flex-direction: column; gap: 3px; }
-		.control-group select { padding: 7px; font-family: Verdana, Geneva, sans-serif; font-size: 90%; }
+		.control-group { display: flex; align-items: center; gap: 8px; }
+		.control-group select { padding: 6px; font-family: Verdana, Geneva, sans-serif; font-size: 90%; }
+		.control-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
 	</style>
 </head>
 
@@ -53,8 +55,17 @@
 			<datalist id="firmwareOptions"></datalist>
 		</div>
 		
+		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
+
+		<div class="config-options">
+			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
+			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
+		</div>
+	</div>
+
+	<div class="options-row">
 		<div class="control-group">
-			<label for="baudRate" class="default-bold" style="font-size: 85%;">Baud Rate:</label>
+			<label for="baudRate" class="default-bold" style="font-size: 90%;">Baud Rate:</label>
 			<select id="baudRate">
 				<option value="115200" selected>115200</option>
 				<option value="230400">230400</option>
@@ -65,18 +76,8 @@
 		</div>
 
 		<div class="control-group">
-			<label for="eraseFlash" class="default-bold" style="font-size: 85%;">Erase Flash:</label>
-			<select id="eraseFlash">
-				<option value="false" selected>No</option>
-				<option value="true">Yes (Erase All)</option>
-			</select>
-		</div>
-		
-		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
-
-		<div class="config-options">
-			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
-			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
+			<input type="checkbox" id="eraseFlash">
+			<label for="eraseFlash" class="default-bold" style="font-size: 90%; cursor: pointer; user-select: none;">Erase Flash</label>
 		</div>
 	</div>
 
@@ -104,7 +105,7 @@
 		const progressWrapper = document.getElementById('progressWrapper');
 		const flashProgress = document.getElementById('flashProgress');
 		const baudRateSelect = document.getElementById('baudRate');
-		const eraseFlashSelect = document.getElementById('eraseFlash');
+		const eraseFlashCheckbox = document.getElementById('eraseFlash');
 
 		let allFirmwares = [];
 		let selectedFirmware = null;
@@ -193,7 +194,7 @@
 				}
 
 				const chosenBaud = parseInt(baudRateSelect.value, 10);
-				const shouldErase = eraseFlashSelect.value === "true";
+				const shouldErase = eraseFlashCheckbox.checked;
 
 				const port = await navigator.serial.requestPort({});
 				transport = new Transport(port, true);
