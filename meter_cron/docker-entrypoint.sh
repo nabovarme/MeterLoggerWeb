@@ -1,9 +1,6 @@
 #/bin/bash
 
 # Export relevant environment variables for cron jobs
-echo "export METERLOGGER_DB_HOST=${METERLOGGER_DB_HOST}" >> /etc/cron_env
-echo "export METERLOGGER_DB_USER=${METERLOGGER_DB_USER}" >> /etc/cron_env
-echo "export METERLOGGER_DB_PASSWORD=${METERLOGGER_DB_PASSWORD}" >> /etc/cron_env
 echo "export REDIS_HOST=${REDIS_HOST}" >> /etc/cron_env
 echo "export REDIS_PORT=${REDIS_PORT}" >> /etc/cron_env
 echo "export GOOGLE_API_KEY=${GOOGLE_API_KEY}" >> /etc/cron_env
