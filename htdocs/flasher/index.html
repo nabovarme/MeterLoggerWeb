@@ -278,8 +278,9 @@
 			setLogVisibility(!isVisible);
 		});
 
-		function loadFirmwareList() {
-			fetch('firmware/firmwares.json')
+		// Dynamic list processor utilizing the unique, hidden filesystem 'version' id mapping context
+		function loadFirmwareList(targetVersionUniqueId = null) {
+			return fetch('firmware/firmwares.json')
 				.then(res => res.json())
 				.then(list => {
 					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
@@ -293,6 +294,17 @@
 						opt.value = fw.name;
 						optionsContainer.appendChild(opt);
 					});
+
+					// Safely locate and anchor selector using the absolute identifier key
+					if (targetVersionUniqueId) {
+						const matchingFw = allFirmwares.find(fw => fw.version === targetVersionUniqueId);
+						if (matchingFw) {
+							searchInput.value = matchingFw.name;
+							selectedFirmware = matchingFw;
+							searchInput.dispatchEvent(new Event('input'));
+							log(`[UI Target Selected] Locked selector interface onto folder signature: "${targetVersionUniqueId}"`);
+						}
+					}
 				});
 		}
 
@@ -436,9 +448,19 @@
 							logTitleText.textContent = "Log (Build Complete)";
 							log(`[Compiler Finished] Custom firmware image compiled and indexed successfully.`);
 							
-							// Silently refresh dropdown lists components with new data maps
-							loadFirmwareList();
-							//alert("Custom compilation complete! The firmware drop-down menu list has been refreshed automatically.");
+							// Extract active baseline git version footprint tracking context
+							let baseFolderSignature = selectedFirmware.version || 'master';
+							
+							// If the active selection target is a legacy baseline model, we split it out safely
+							if (baseFolderSignature.includes('-custom_')) {
+								baseFolderSignature = baseFolderSignature.split('-custom_')[0];
+							}
+							
+							// Append custom modifier suffix matching exactly what build_server.pl writes to disk folder targets
+							const generatedFsVersionUniqueId = `${baseFolderSignature}-custom_${swVersionSuffix}`;
+							
+							// Silent list reload paired with unique identity folder signature selection lock
+							await loadFirmwareList(generatedFsVersionUniqueId);
 						}
 					} catch (pollErr) {
 						console.error("Polling resolution error wrapper caught: ", pollErr);
