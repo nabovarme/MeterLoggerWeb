@@ -19,32 +19,34 @@ sub build_flags_from_sw_version {
 
 	my @flags = ('AP=1');
 
-	# Protocol Mapping Directives
-	push @flags, 'EN61107=1'        if $sw_version =~ /MC_66C/;
-	push @flags, 'MC_66B=1'         if $sw_version =~ /MC_66B/;
-	push @flags, 'IMPULSE=1'        if $sw_version =~ /IMPULSE/;
-	push @flags, 'MC_66B=1'         if $sw_version =~ /MC-B/;
-	
-	# Retro-compatibility parsing rules for raw base meter tokens
-	push @flags, 'EN61107=1'        if $sw_version =~ /MC/ && $sw_version !~ /MC_66B/;
+	# Strict Protocol Mapping Target Parsing (README compliance verification boundaries)
+	if ($sw_version =~ /\bEN61107\b/) {
+		push @flags, 'EN61107=1';
+	}
+	elsif ($sw_version =~ /\bMC_66B\b/) {
+		push @flags, 'MC_66B=1';
+	}
+	elsif ($sw_version =~ /\bIMPULSE\b/) {
+		push @flags, 'IMPULSE=1';
+	}
 
 	# Logic Modifier Overrides
-	push @flags, 'FLOW_METER=1'     if $sw_version =~ /FLOW_METER/;
-	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /NO_AUTO_CLOSE/;
-	push @flags, 'NO_CRON=1'        if $sw_version =~ /NO_CRON/;
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /\bFLOW_METER\b/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /\bNO_AUTO_CLOSE\b/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /\bNO_CRON\b/;
 
 	# Synchronized Actuator State Flag Dictionary Map
-	push @flags, 'THERMO_NO=1'      if $sw_version =~ /THERMO_NO/;
-	push @flags, 'THERMO_NO=0'      if $sw_version =~ /THERMO_NC/;
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /\bTHERMO_NO\b/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /\bTHERMO_NC\b/;
 
-	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /THERMO_ON_AC_2/;
-	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /LED_ON_AC/;
-	push @flags, 'AC_TEST=1'        if $sw_version =~ /AC_TEST/;
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /\bTHERMO_ON_AC_2\b/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /\bLED_ON_AC\b/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /\bAC_TEST\b/;
 
 	# Diagnostics / Mock Output Variables
-	push @flags, 'DEBUG=1'                if $sw_version =~ /DEBUG/ && $sw_version !~ /DEBUG_NO_METER/ && $sw_version !~ /DEBUG_STACK_TRACE/;
-	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /NO_METER/;
-	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /DEBUG_STACK_TRACE/;
+	push @flags, 'DEBUG=1'                if $sw_version =~ /\bDEBUG\b/ && $sw_version !~ /\bDEBUG_NO_METER\b/ && $sw_version !~ /\bDEBUG_STACK_TRACE\b/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /\bNO_METER\b/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /\bDEBUG_STACK_TRACE\b/;
 
 	return join(' ', @flags);
 }
