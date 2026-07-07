@@ -240,20 +240,17 @@ sub get_git_version_from_docker {
 	my $cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " rev-parse --abbrev-ref HEAD";
 
-	my $branch = `$cmd`;
-	chomp $branch;
+	my $branch = `$cmd`; chomp $branch;
 
 	$cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " rev-list HEAD --count";
 
-	my $count = `$cmd`;
-	chomp $count;
+	my $count = `$cmd`; chomp $count;
 
 	$cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " describe --abbrev=4 --dirty --always";
 
-	my $desc = `$cmd`;
-	chomp $desc;
+	my $desc = `$cmd`; chomp $desc;
 
 	return "$branch-$count-$desc";
 }
@@ -615,6 +612,7 @@ sub generate_manifest {
 	close($fh);
 }
 
+# --- ENHANCED DYNAMIC DROPDOWN MENU FORMATTING ENGINE ---
 sub generate_firmware_index {
 	opendir(my $dh, RELEASE_DIR) or die "Cannot open dir";
 
@@ -649,10 +647,26 @@ sub generate_firmware_index {
 				close($fh);
 
 				my $meta = decode_json($json_text);
-				$name = "$serial $meta->{info} ($meta->{sw_version})";
+				
+				my $display_info = $meta->{info} || 'Meter';
+				my $formatted_version = $meta->{sw_version} || $version;
+				my $bracket_flags = $meta->{build_flags} || '';
 
-				if ($meta->{build_flags}) {
-					$name .= " [$meta->{build_flags}]";
+				# Parse the path layout: master-1462-a35f2-custom-OPTIONS...
+				if ($version =~ /^master-.*-custom/) {
+					# Isolate the exact matching segment block context cleanly for display: master-1462-a35f2
+					if ($version =~ /^(master-[^-]+-[^-]+)-custom/) {
+						$formatted_version = $1;
+					} else {
+						$formatted_version = "master-custom";
+					}
+					$bracket_flags = $bracket_flags ? "CUSTOM $bracket_flags" : "CUSTOM";
+				}
+
+				# Structure formatting output layout string precisely
+				$name = "$serial ~ $display_info ($formatted_version)";
+				if ($bracket_flags) {
+					$name .= " [$bracket_flags]";
 				}
 			}
 			else {
@@ -708,3 +722,5 @@ sub cleanup_all_batches {
 
 	print "Cleaned up all firmware-related Redis keys\n";
 }
+
+1;
