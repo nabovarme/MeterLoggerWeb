@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
+use Apache2::Log ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use JSON ();
 use Redis ();
@@ -22,6 +23,8 @@ sub build_flags_from_sw_version {
 	push @flags, 'EN61107=1'        if $sw_version =~ /MC_66C/;
 	push @flags, 'MC_66B=1'         if $sw_version =~ /MC_66B/;
 	push @flags, 'IMPULSE=1'        if $sw_version =~ /IMPULSE/;
+	push @flags, 'MC_66B=1'         if $sw_version =~ /MC-B/;
+	push @flags, 'EN61107=1'        if $sw_version =~ /MC/ && $sw_version !~ /MC_66B/;
 
 	# Logic Modifier Overrides
 	push @flags, 'FLOW_METER=1'     if $sw_version =~ /FLOW_METER/;
@@ -35,8 +38,8 @@ sub build_flags_from_sw_version {
 	push @flags, 'AC_TEST=1'        if $sw_version =~ /AC_TEST/;
 
 	# Diagnostics / Mock Output Variables
-	push @flags, 'DEBUG=1'                if $sw_version =~ /DEBUG/;
-	push @flags, 'DEBUG_NO_METER=1'       if $sw_version =~ /NO_METER/;
+	push @flags, 'DEBUG=1'                if $sw_version =~ /DEBUG/ && $sw_version !~ /DEBUG_NO_METER/ && $sw_version !~ /DEBUG_STACK_TRACE/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /NO_METER/;
 	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /DEBUG_STACK_TRACE/;
 
 	return join(' ', @flags);
@@ -58,21 +61,25 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		my $content_length = $r->headers_in->{'Content-Length'} || 0;
-		my $body = '';
-		if ($content_length > 0) {
-			$r->read($body, $content_length);
+		# --- PARSE SECURED PARAMS FROM MEMORY PRESERVED QUERY STRING ---
+		my %params;
+		my $args_string = $r->args || '';
+		foreach my $pair (split(/[&;]/, $args_string)) {
+			my ($key, $val) = split(/=/, $pair, 2);
+			next unless defined $key;
+			$val = '' unless defined $val;
+			$key =~ tr/+/ /; $key =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+			$val =~ tr/+/ /; $val =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+			$params{$key} = $val;
 		}
 
-		my $req_data;
-		eval { $req_data = JSON::decode_json($body); };
-		if ($@ || !defined $req_data || !$req_data->{serial}) {
-			$r->print(JSON->new->utf8->canonical->encode({ success => 0, error => "Invalid parameters layout payload syntax" }));
+		my $serial    = $params{serial};
+		my $modifiers = $params{sw_version_modifiers} || 'STANDARD';
+
+		if (!defined $serial || $serial eq '') {
+			$r->print(JSON->new->utf8->canonical->encode({ success => 0, error => "Missing target serial identity parameter context" }));
 			return Apache2::Const::OK;
 		}
-
-		my $serial    = $req_data->{serial};
-		my $modifiers = $req_data->{sw_version_modifiers} || 'STANDARD';
 
 		my $sql = q[SELECT info, sw_version FROM meters WHERE serial = ? AND enabled = 1 LIMIT 1];
 		$sth = $dbh->prepare($sql);

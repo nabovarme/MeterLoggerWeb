@@ -210,7 +210,7 @@
 			</div>
 		</div>
 		
-		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Compile & Rebuild Profile</button>
+		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Rebuild Firmware</button>
 	</div>
 
 	<div id="progressWrapper" class="progress-container hidden">
@@ -288,8 +288,44 @@
 		// Initial pull sequence on execution setup
 		loadFirmwareList();
 
+		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
+			
+			if (selectedFirmware) {
+				// Reset panel options back to clean defaults first
+				document.querySelectorAll('input[name="meterProtocol"]').forEach(r => r.checked = (r.value === 'KMP'));
+				document.querySelectorAll('.options-row input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+				// Parse bracketed flag strings out of the meta name profile string
+				const flagMatch = selectedFirmware.name.match(/\[(.*?)\]/);
+				if (flagMatch && flagMatch[1]) {
+					const flagsString = flagMatch[1];
+					
+					// 1. Radio Protocol Auto-Selectors
+					if (flagsString.includes('MC_66B=1') || flagsString.includes('MC_66B')) {
+						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
+					} else if (flagsString.includes('EN61107=1') || flagsString.includes('EN61107')) {
+						document.querySelector('input[name="meterProtocol"][value="MC_66C"]').checked = true;
+					} else if (flagsString.includes('IMPULSE=1') || flagsString.includes('IMPULSE')) {
+						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
+					}
+
+					// 2. Overrides & Modifiers Checkbox Selectors
+					if (flagsString.includes('FLOW_METER=1'))      document.getElementById('flagFlowMeter').checked = true;
+					if (flagsString.includes('AUTO_CLOSE=0'))      document.getElementById('flagAutoClose').checked = true;
+					if (flagsString.includes('NO_CRON=1'))         document.getElementById('flagNoCron').checked = true;
+					if (flagsString.includes('THERMO_NO=1'))       document.getElementById('flagThermoNO').checked = true;
+					if (flagsString.includes('THERMO_ON_AC_2=1'))  document.getElementById('flagThermoAC2').checked = true;
+					if (flagsString.includes('LED_ON_AC=1'))       document.getElementById('flagLedAc').checked = true;
+					if (flagsString.includes('AC_TEST=1'))         document.getElementById('flagAcTest').checked = true;
+					if (flagsString.includes('DEBUG=1') && !flagsString.includes('DEBUG_NO_METER')) document.getElementById('flagSerialDebug').checked = true;
+					if (flagsString.includes('DEBUG_NO_METER=1'))  document.getElementById('flagNoMeter').checked = true;
+					if (flagsString.includes('DEBUG_STACK_TRACE=1')) document.getElementById('flagStackTrace').checked = true;
+					
+					log(`[UI Settings] Auto-loaded parameters from profile flags string matching: "${flagsString}"`);
+				}
+			}
 		});
 
 		// =========================================================================
@@ -301,16 +337,13 @@
 				return; 
 			}
 
-			// Capture selected modifier array strings
 			const modifiers = [];
 
-			// 1. Evaluate Protocol Selection Radio Group
 			const selectedProtocol = document.querySelector('input[name="meterProtocol"]:checked').value;
 			if (selectedProtocol !== 'KMP') {
 				modifiers.push(selectedProtocol);
 			}
 
-			// 2. Evaluate remaining checkboxes variables
 			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
 			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
 			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
@@ -327,18 +360,16 @@
 			try {
 				rebuildBtn.disabled = true;
 				setLogVisibility(true);
-				
+			
 				logTitleText.textContent = "Log (Compiling)";
 				log(`[Compiler] Issuing compile instructions payload configuration targeting Serial: ${selectedFirmware.serial}...`);
 
-				const targetApiUri = '/api/rebuild';
+				// Pass parameters securely via query string to prevent upstream mod_perl buffer exhaustion
+				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(selectedFirmware.serial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
+			
 				const response = await fetch(targetApiUri, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						serial: selectedFirmware.serial,
-						sw_version_modifiers: swVersionSuffix
-					})
+					headers: { 'Content-Type': 'application/json' }
 				});
 
 				const outcome = await response.json();
@@ -349,9 +380,9 @@
 				log(`[Compiler Success] Remote background job successfully generated and dispatched! Batch context assigned: ${outcome.batch_id}`);
 				log(`[Compiler Info] Give the compiler pipeline roughly ~45-90 seconds to bundle the specialized image asset stack context.`);
 				log(`[Compiler Info] You can reload or search again shortly to locate and download the finalized custom firmware structure!`);
-				
+			
 				alert("Custom compilation has successfully queued up on the remote cluster nodes!");
-				
+
 				// Re-fetch index automatically after a short delay block interval to pull newly discovered images
 				setTimeout(loadFirmwareList, 15000);
 			} catch (err) {
