@@ -61,7 +61,6 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		# --- PARSE SECURED PARAMS FROM MEMORY PRESERVED QUERY STRING ---
 		my %params;
 		my $args_string = $r->args || '';
 		foreach my $pair (split(/[&;]/, $args_string)) {
@@ -91,8 +90,39 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		my $base_version = $meter->{sw_version} || '1.0';
-		my $custom_version = "${base_version}-CUSTOM-${modifiers}";
+		# --- TARGETED DATABASE GIT REVISION PARSER ---
+		my $git_suffix = '';
+		my $db_version_string = $meter->{sw_version} // '';
+
+		# Explicit lookup for -master-[count]-[hash]- sequence anywhere inside the string
+		if ($db_version_string =~ /-master-(\d+-[a-fA-F0-9]+)/) {
+			$git_suffix = $1;
+		}
+		# General fallback if branch name changes but layout pattern holds
+		elsif ($db_version_string =~ /-(?:\d+-[a-fA-F0-9]+)-/) {
+			if ($db_version_string =~ /-([^-]+-[^-]+)-/) {
+				$git_suffix = $1;
+			}
+		}
+
+		# Disk lookup verification fallback if database parsing yields no matches
+		if (!$git_suffix) {
+			my $git_count = `git rev-list HEAD --count 2>/dev/null`;
+			my $git_hash  = `git rev-parse --short HEAD 2>/dev/null`;
+			
+			if ($git_count && $git_hash) {
+				chomp $git_count; chomp $git_hash;
+				$git_suffix = "${git_count}-${git_hash}";
+			} else {
+				$git_suffix = "1462-a35f2"; # Local workspace safe fallback
+			}
+		}
+
+		# Outputs exactly: master-1462-a35f2-custom
+		my $custom_version = "master-${git_suffix}-custom";
+		if ($modifiers ne 'STANDARD') {
+			$custom_version .= "-${modifiers}";
+		}
 
 		my $redis;
 		eval {
