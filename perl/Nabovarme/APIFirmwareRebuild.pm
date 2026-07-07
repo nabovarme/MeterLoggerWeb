@@ -24,6 +24,8 @@ sub build_flags_from_sw_version {
 	push @flags, 'MC_66B=1'         if $sw_version =~ /MC_66B/;
 	push @flags, 'IMPULSE=1'        if $sw_version =~ /IMPULSE/;
 	push @flags, 'MC_66B=1'         if $sw_version =~ /MC-B/;
+	
+	# Retro-compatibility parsing rules for raw base meter tokens
 	push @flags, 'EN61107=1'        if $sw_version =~ /MC/ && $sw_version !~ /MC_66B/;
 
 	# Logic Modifier Overrides
@@ -31,8 +33,10 @@ sub build_flags_from_sw_version {
 	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /NO_AUTO_CLOSE/;
 	push @flags, 'NO_CRON=1'        if $sw_version =~ /NO_CRON/;
 
-	# Electrical Actuator Configuration States
+	# Synchronized Actuator State Flag Dictionary Map
 	push @flags, 'THERMO_NO=1'      if $sw_version =~ /THERMO_NO/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /THERMO_NC/;
+
 	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /THERMO_ON_AC_2/;
 	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /LED_ON_AC/;
 	push @flags, 'AC_TEST=1'        if $sw_version =~ /AC_TEST/;
@@ -114,11 +118,10 @@ sub handler {
 				chomp $git_count; chomp $git_hash;
 				$git_suffix = "${git_count}-${git_hash}";
 			} else {
-				$git_suffix = "1462-a35f2"; # Local workspace safe fallback
+				$git_suffix = "1462-a35f2"; 
 			}
 		}
 
-		# Outputs exactly: master-1462-a35f2-custom
 		my $custom_version = "master-${git_suffix}-custom";
 		if ($modifiers ne 'STANDARD') {
 			$custom_version .= "-${modifiers}";

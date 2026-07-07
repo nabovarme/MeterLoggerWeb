@@ -180,9 +180,13 @@
 
 			<div>
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">3. Actuator & AC Electrical Profiles</div>
-				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
-					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagThermoNO" value="THERMO_NO"> Actuator is Normally Open (THERMO_NO)
+				<div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 6px;">
+						Actuator State:
+						<select id="flagThermoActuator" style="padding: 3px; font-family: Verdana; font-size: 85%;">
+							<option value="THERMO_NC" selected>Normally Closed (THERMO_NC)</option>
+							<option value="THERMO_NO">Normally Open (THERMO_NO)</option>
+						</select>
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagThermoAC2" value="THERMO_ON_AC_2"> Actuator Connected on AC 2 (THERMO_ON_AC_2)
@@ -297,16 +301,17 @@
 				// Reset panel options back to clean defaults first
 				document.querySelectorAll('input[name="meterProtocol"]').forEach(r => r.checked = (r.value === 'KMP'));
 				document.querySelectorAll('.options-row input[type="checkbox"]').forEach(cb => cb.checked = false);
+				document.getElementById('flagThermoActuator').value = 'THERMO_NC';
 
 				// Parse bracketed flag strings out of the meta name profile string
 				const flagMatch = selectedFirmware.name.match(/\[(.*?)\]/);
 				if (flagMatch && flagMatch[1]) {
 					const flagsString = flagMatch[1];
 					
-					// 1. Radio Protocol Auto-Selectors
+					// 1. Radio Protocol Auto-Selectors (Enhanced with loose matching for standard 'MC')
 					if (flagsString.includes('MC_66B=1') || flagsString.includes('MC_66B')) {
 						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
-					} else if (flagsString.includes('EN61107=1') || flagsString.includes('EN61107')) {
+					} else if (flagsString.includes('EN61107=1') || flagsString.includes('EN61107') || flagsString.includes(' MC ') || flagsString.includes('CUSTOM MC ')) {
 						document.querySelector('input[name="meterProtocol"][value="MC_66C"]').checked = true;
 					} else if (flagsString.includes('IMPULSE=1') || flagsString.includes('IMPULSE')) {
 						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
@@ -316,13 +321,19 @@
 					if (flagsString.includes('FLOW_METER=1'))      document.getElementById('flagFlowMeter').checked = true;
 					if (flagsString.includes('AUTO_CLOSE=0'))      document.getElementById('flagAutoClose').checked = true;
 					if (flagsString.includes('NO_CRON=1'))         document.getElementById('flagNoCron').checked = true;
-					if (flagsString.includes('THERMO_NO=1'))       document.getElementById('flagThermoNO').checked = true;
 					if (flagsString.includes('THERMO_ON_AC_2=1'))  document.getElementById('flagThermoAC2').checked = true;
 					if (flagsString.includes('LED_ON_AC=1'))       document.getElementById('flagLedAc').checked = true;
 					if (flagsString.includes('AC_TEST=1'))         document.getElementById('flagAcTest').checked = true;
 					if (flagsString.includes('DEBUG_NO_METER=1'))  document.getElementById('flagNoMeter').checked = true;
 					if (flagsString.includes('DEBUG_STACK_TRACE=1')) document.getElementById('flagStackTrace').checked = true;
 					
+					// 3. Actuator State Dropdown Auto-Populate Logic
+					if (flagsString.includes('THERMO_NO=1') || flagsString.includes('THERMO_NO')) {
+						document.getElementById('flagThermoActuator').value = 'THERMO_NO';
+					} else {
+						document.getElementById('flagThermoActuator').value = 'THERMO_NC';
+					}
+
 					// Catch general debug state, including dynamic configurations
 					if (flagsString.includes('DEBUG=1') || flagsString.includes('DEBUG_NO_METER=1')) {
 						document.getElementById('flagSerialDebug').checked = true;
@@ -360,7 +371,11 @@
 			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
 			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
 			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
-			if (document.getElementById('flagThermoNO').checked)    modifiers.push('THERMO_NO');
+			
+			// Actuator Dropdown Parameter Assignment Hook
+			const thermoState = document.getElementById('flagThermoActuator').value;
+			modifiers.push(thermoState);
+
 			if (document.getElementById('flagThermoAC2').checked)   modifiers.push('THERMO_ON_AC_2');
 			if (document.getElementById('flagLedAc').checked)       modifiers.push('LED_ON_AC');
 			if (document.getElementById('flagAcTest').checked)      modifiers.push('AC_TEST');
