@@ -184,7 +184,12 @@ services:
       com.docker.compose.service: "web"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      NOTIFICATION_CLOSE_WARNING_TIME: ${NOTIFICATION_CLOSE_WARNING_TIME}
       NOTIFICATION_SMS_CODE_MESSAGE: ${NOTIFICATION_SMS_CODE_MESSAGE}
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      ENABLE_DEBUG: ${ENABLE_DEBUG}
       TZ: 'Europe/Copenhagen'
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
