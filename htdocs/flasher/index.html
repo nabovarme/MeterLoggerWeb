@@ -400,7 +400,8 @@
 			if (document.getElementById('flagNoMeter').checked)     modifiers.push('NO_METER');
 			if (document.getElementById('flagStackTrace').checked)  modifiers.push('DEBUG_STACK_TRACE');
 
-			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('_') : 'STANDARD';
+			// JOIN WITH DASH: Choncatentates separate build flags cleanly using a dash (-)
+			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('-') : 'STANDARD';
 			const originalButtonText = rebuildBtn.textContent;
 
 			try {
@@ -451,13 +452,15 @@
 							// Extract active baseline git version footprint tracking context
 							let baseFolderSignature = selectedFirmware.version || 'master';
 							
-							// If the active selection target is a legacy baseline model, we split it out safely
-							if (baseFolderSignature.includes('-custom_')) {
-								baseFolderSignature = baseFolderSignature.split('-custom_')[0];
+							// Dynamic lookup splits cleanly on the custom uppercase dash boundary rule (-CUSTOM-)
+							if (baseFolderSignature.includes('-CUSTOM-')) {
+								baseFolderSignature = baseFolderSignature.split('-CUSTOM-')[0];
+							} else if (baseFolderSignature.includes('-custom-')) {
+								baseFolderSignature = baseFolderSignature.split('-custom-')[0];
 							}
 							
-							// Append custom modifier suffix matching exactly what build_server.pl writes to disk folder targets
-							const generatedFsVersionUniqueId = `${baseFolderSignature}-custom_${swVersionSuffix}`;
+							// Unified uppercase dash assembly chain sequence alignment
+							const generatedFsVersionUniqueId = `${baseFolderSignature}-CUSTOM-${swVersionSuffix}`;
 							
 							// Silent list reload paired with unique identity folder signature selection lock
 							await loadFirmwareList(generatedFsVersionUniqueId);

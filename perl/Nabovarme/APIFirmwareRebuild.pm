@@ -13,7 +13,6 @@ use Redis ();
 use Nabovarme::Db;
 
 # Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
-# Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
 sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
 	return 'AP=1' unless defined $sw_version;
@@ -102,37 +101,50 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		# --- TARGETED DATABASE GIT REVISION PARSER ---
+		# --- TARGETED DATABASE GIT REVISION & BRANCH PARSER ---
+		my $git_branch = 'master';
 		my $git_suffix = '';
 		my $db_version_string = $meter->{sw_version} // '';
 
-		# Explicit lookup for -master-[count]-[hash]- sequence anywhere inside the string
-		if ($db_version_string =~ /-master-(\d+-[a-fA-F0-9]+)/) {
-			$git_suffix = $1;
-		}
-		# General fallback if branch name changes but layout pattern holds
-		elsif ($db_version_string =~ /-(?:\d+-[a-fA-F0-9]+)-/) {
-			if ($db_version_string =~ /-([^-]+-[^-]+)-/) {
-				$git_suffix = $1;
+		# Match standard full branch layouts: [branch]-[count]-[hash]
+		if ($db_version_string =~ /^([a-zA-Z0-9._-]+)-(\d+-[a-fA-F0-9]+)/) {
+			$git_branch = $1;
+			$git_suffix = $2;
+			
+			if ($git_branch =~ /^(.*)-custom$/) {
+				$git_branch = $1;
 			}
+		}
+		# Fallback tracking for legacy -master-[count]-[hash]- structures anywhere inside the string
+		elsif ($db_version_string =~ /-(master)-(\d+-[a-fA-F0-9]+)/) {
+			$git_branch = $1;
+			$git_suffix = $2;
 		}
 
 		# Disk lookup verification fallback if database parsing yields no matches
 		if (!$git_suffix) {
-			my $git_count = `git rev-list HEAD --count 2>/dev/null`;
-			my $git_hash  = `git rev-parse --short HEAD 2>/dev/null`;
+			my $git_cnt = `git rev-list HEAD --count 2>/dev/null`;
+			my $git_hsh = `git rev-parse --short HEAD 2>/dev/null`;
+			my $git_brn = `git rev-parse --abbrev-ref HEAD 2>/dev/null`;
 			
-			if ($git_count && $git_hash) {
-				chomp $git_count; chomp $git_hash;
-				$git_suffix = "${git_count}-${git_hash}";
+			if ($git_cnt && $git_hsh) {
+				chomp $git_cnt; chomp $git_hsh;
+				$git_suffix = "${git_cnt}-${git_hsh}";
+				
+				if ($git_brn) {
+					chomp $git_brn;
+					$git_branch = $git_brn if $git_brn ne 'HEAD';
+				}
 			} else {
+				$git_branch = "master";
 				$git_suffix = "1462-a35f2"; 
 			}
 		}
 
-		my $custom_version = "master-${git_suffix}-custom";
+		# Assemble the version key cleanly matching your strict uppercase dash layout rule
+		my $custom_version = "${git_branch}-${git_suffix}-CUSTOM";
 		if ($modifiers ne 'STANDARD') {
-			$custom_version .= "_${modifiers}";
+			$custom_version .= "-${modifiers}";
 		}
 
 		my $redis;
