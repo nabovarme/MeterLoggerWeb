@@ -352,34 +352,37 @@
 				if (flagMatch && flagMatch[1]) {
 					const flagsString = flagMatch[1];
 					
+					// Split string tokens via boundaries into an array for strict standalone token identification matches
+					const flagArray = flagsString.split(/[\s=,]+/);
+
 					// 1. Radio Protocol Auto-Selectors (Aligned to explicit whitelist variables only)
-					if (flagsString.includes('MC_66B')) {
+					if (flagArray.includes('MC_66B')) {
 						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
-					} else if (flagsString.includes('EN61107')) {
+					} else if (flagArray.includes('EN61107')) {
 						document.querySelector('input[name="meterProtocol"][value="EN61107"]').checked = true;
-					} else if (flagsString.includes('IMPULSE')) {
+					} else if (flagArray.includes('IMPULSE')) {
 						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
 					}
 
 					// 2. Overrides & Modifiers Checkbox Selectors
-					if (flagsString.includes('FLOW_METER'))       document.getElementById('flagFlowMeter').checked = true;
-					if (flagsString.includes('NO_AUTO_CLOSE'))    document.getElementById('flagAutoClose').checked = true;
-					if (flagsString.includes('NO_CRON'))           document.getElementById('flagNoCron').checked = true;
-					if (flagsString.includes('THERMO_ON_AC_2'))   document.getElementById('flagThermoAC2').checked = true;
-					if (flagsString.includes('LED_ON_AC'))        document.getElementById('flagLedAc').checked = true;
-					if (flagsString.includes('AC_TEST'))          document.getElementById('flagAcTest').checked = true;
-					if (flagsString.includes('DEBUG_NO_METER'))   document.getElementById('flagNoMeter').checked = true;
-					if (flagsString.includes('DEBUG_STACK_TRACE')) document.getElementById('flagStackTrace').checked = true;
+					if (flagArray.includes('FLOW_METER'))       document.getElementById('flagFlowMeter').checked = true;
+					if (flagArray.includes('NO_AUTO_CLOSE'))    document.getElementById('flagAutoClose').checked = true;
+					if (flagArray.includes('NO_CRON'))           document.getElementById('flagNoCron').checked = true;
+					if (flagArray.includes('THERMO_ON_AC_2'))   document.getElementById('flagThermoAC2').checked = true;
+					if (flagArray.includes('LED_ON_AC'))        document.getElementById('flagLedAc').checked = true;
+					if (flagArray.includes('AC_TEST'))          document.getElementById('flagAcTest').checked = true;
+					if (flagArray.includes('DEBUG_NO_METER'))   document.getElementById('flagNoMeter').checked = true;
+					if (flagArray.includes('DEBUG_STACK_TRACE')) document.getElementById('flagStackTrace').checked = true;
 					
 					// 3. Actuator State Dropdown Auto-Populate Logic
-					if (flagsString.includes('THERMO_NO')) {
+					if (flagArray.includes('THERMO_NO')) {
 						document.getElementById('flagThermoActuator').value = 'THERMO_NO';
 					} else {
 						document.getElementById('flagThermoActuator').value = 'THERMO_NC';
 					}
 
-					// Catch general debug state, including dynamic configurations
-					if (flagsString.includes('DEBUG') || flagsString.includes('DEBUG_NO_METER')) {
+					// Catch general debug state strictly without false-triggering on subword extensions
+					if (flagArray.includes('DEBUG') || flagArray.includes('DEBUG_NO_METER')) {
 						document.getElementById('flagSerialDebug').checked = true;
 					}
 					
