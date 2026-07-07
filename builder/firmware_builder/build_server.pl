@@ -107,7 +107,7 @@ for (1..$workers) {
 
 			my $job = decode_json($data);
 
-			print "Worker $$ building serial: $job->{serial}\n";
+			print "Worker $$ building serial: $job->{serial} with Version/Suffix: $job->{version}\n";
 
 			run_docker_build(
 				$redis,
@@ -240,63 +240,63 @@ sub get_git_version_from_docker {
 	my $cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " rev-parse --abbrev-ref HEAD";
 
-	my $branch = `$cmd`;
-	chomp $branch;
+	my $branch = `$cmd`; chomp $branch;
 
 	$cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " rev-list HEAD --count";
 
-	my $count = `$cmd`;
-	chomp $count;
+	my $count = `$cmd`; chomp $count;
 
 	$cmd = "docker run --rm " . DOCKER_IMAGE .
 		" git -C " . SOURCE_DIR . " describe --abbrev=4 --dirty --always";
 
-	my $desc = `$cmd`;
-	chomp $desc;
+	my $desc = `$cmd`; chomp $desc;
 
 	return "$branch-$count-$desc";
 }
 
+# Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
 sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
+	return 'AP=1' unless defined $sw_version;
 
-	my $flags = 'AP=1';
+	my @flags = ('AP=1');
 
-	return $flags unless defined $sw_version;
+	# Clean boundary matching matrix allows dashes inside option strings (like MC-B)
+	# while splitting keywords cleanly via underscores or string borders.
+	my $boundary = qr/(?:^|_|\b)/;
+	my $end_bound = qr/(?:_|\b|$)/;
 
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		$flags .= ' AUTO_CLOSE=0';
+	# Strict Protocol Mapping Target Parsing (README compliance verification boundaries)
+	if ($sw_version =~ /${boundary}EN61107${end_bound}/) {
+		push @flags, 'EN61107=1';
+	}
+	elsif ($sw_version =~ /${boundary}MC_66B${end_bound}/) {
+		push @flags, 'MC_66B=1';
+	}
+	elsif ($sw_version =~ /${boundary}IMPULSE${end_bound}/) {
+		push @flags, 'IMPULSE=1';
 	}
 
-	if ($sw_version =~ /NO_CRON/) {
-		$flags .= ' NO_CRON=1';
-	}
+	# Logic Modifier Overrides
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /${boundary}FLOW_METER${end_bound}/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /${boundary}NO_AUTO_CLOSE${end_bound}/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /${boundary}NO_CRON${end_bound}/;
 
-	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
-		$flags .= ' DEBUG_STACK_TRACE=1';
-	}
+	# Synchronized Actuator State Flag Dictionary Map
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /${boundary}THERMO_NO${end_bound}/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /${boundary}THERMO_NC${end_bound}/;
 
-	if ($sw_version =~ /THERMO_ON_AC_2/) {
-		$flags .= ' THERMO_ON_AC_2=1';
-	}
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /${boundary}THERMO_ON_AC_2${end_bound}/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /${boundary}LED_ON_AC${end_bound}/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /${boundary}AC_TEST${end_bound}/;
 
-	if ($sw_version =~ /AC_TEST/)
-	{
-		$flags .= ' AC_TEST=1 LED_ON_AC=1';
-	}
+	# Diagnostics / Mock Output Variables
+	push @flags, 'DEBUG=1'                if $sw_version =~ /${boundary}DEBUG${end_bound}/ && $sw_version !~ /${boundary}DEBUG_NO_METER${end_bound}/ && $sw_version !~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /${boundary}NO_METER${end_bound}/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
 
-	if ($sw_version =~ /MC-B/) {
-		$flags .= ' MC_66B=1';
-	}
-	elsif ($sw_version =~ /MC/) {
-		$flags .= ' EN61107=1';
-	}
-	elsif ($sw_version =~ /NO_METER/) {
-		$flags .= ' DEBUG=1 DEBUG_NO_METER=1';
-	}
-
-	return $flags;
+	return join(' ', @flags);
 }
 
 sub print_progress {
@@ -457,7 +457,7 @@ sub run_docker_build {
 	my $sw_version = $version;
 
 	my $fs_version = $sw_version;
-	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
+	$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 	$fs_version = 'unknown' if !$fs_version;
 
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
@@ -656,10 +656,32 @@ sub generate_firmware_index {
 				close($fh);
 
 				my $meta = decode_json($json_text);
-				$name = "$serial $meta->{info} ($meta->{sw_version})";
+				
+				my $formatted_version = $meta->{sw_version} || $version;
+				my $bracket_flags = '';
 
-				if ($meta->{build_flags}) {
-					$name .= " [$meta->{build_flags}]";
+				# Extracts full branch-count-hash layout prefix safely
+				if ($version =~ /^(.+?-\d+-[a-f0-9]+)-CUSTOM-/) {
+					$formatted_version = $1;
+			      
+					my $raw_flags = $meta->{build_flags} // '';
+					$bracket_flags = "CUSTOM $raw_flags";
+				}
+				elsif ($version =~ /^(.+?)-\d+-[a-f0-9]+$/) {
+					$formatted_version = $version;
+					$bracket_flags = $meta->{build_flags} // 'AP=1';
+				}
+				else {
+					$bracket_flags = '';
+				}
+
+				my $display_info = $meta->{info} || '';
+				$display_info =~ s/^\s*~\s*//; 
+				$display_info = 'Meter' if $display_info eq '';
+
+				$name = "$serial ~ $display_info ($formatted_version)";
+				if ($bracket_flags) {
+					$name .= " [$bracket_flags]";
 				}
 			}
 			else {
@@ -715,3 +737,5 @@ sub cleanup_all_batches {
 
 	print "Cleaned up all firmware-related Redis keys\n";
 }
+
+1;
