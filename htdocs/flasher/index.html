@@ -108,7 +108,9 @@
 
 	<div class="action-row">
 		<div class="search-container">
-			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
+			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">
+				Select firmware profile:<span id="profileMetaLabel" style="color: #2b7a70; font-weight: normal; font-style: italic; font-size: 90%;"></span>
+			</label>
 			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
 			<datalist id="firmwareOptions"></datalist>
 		</div>
@@ -153,10 +155,10 @@
 						<input type="radio" name="meterProtocol" value="MC_66C"> Multical 66 C (EN61107)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="radio" name="meterProtocol" value="MC_66B"> Multical 66 B (EN61107)
+						<input type="radio" name="meterProtocol" value="MC_66B"> Multical 66 B (MC_66B)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="radio" name="meterProtocol" value="IMPULSE"> Impulse-Based Meter
+						<input type="radio" name="meterProtocol" value="IMPULSE"> Impulse-Based Meter (IMPULSE)
 					</label>
 				</div>
 			</div>
@@ -165,13 +167,13 @@
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">2. Valve & Functional Overrides</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagFlowMeter" value="FLOW_METER"> Force Flow Meter Mode
+						<input type="checkbox" id="flagFlowMeter" value="FLOW_METER"> Force Flow Meter Mode (FLOW_METER)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagAutoClose" value="NO_AUTO_CLOSE"> Disable Auto-Close Engine
+						<input type="checkbox" id="flagAutoClose" value="NO_AUTO_CLOSE"> Disable Auto-Close Engine (AUTO_CLOSE=0)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagNoCron" value="NO_CRON"> Disable Cron (Saves 2.6KB RAM)
+						<input type="checkbox" id="flagNoCron" value="NO_CRON"> Disable Cron Stuff (NO_CRON)
 					</label>
 				</div>
 			</div>
@@ -180,16 +182,16 @@
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">3. Actuator & AC Electrical Profiles</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagThermoNO" value="THERMO_NO"> Actuator is Normally Open (Default NC)
+						<input type="checkbox" id="flagThermoNO" value="THERMO_NO"> Actuator is Normally Open (THERMO_NO)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagThermoAC2" value="THERMO_ON_AC_2"> Actuator Connected on AC 2
+						<input type="checkbox" id="flagThermoAC2" value="THERMO_ON_AC_2"> Actuator Connected on AC 2 (THERMO_ON_AC_2)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagLedAc" value="LED_ON_AC"> Use LED to Indicate AC State
+						<input type="checkbox" id="flagLedAc" value="LED_ON_AC"> Use LED to Indicate AC State (LED_ON_AC)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagAcTest" value="AC_TEST"> Run AC Test Loop Pattern
+						<input type="checkbox" id="flagAcTest" value="AC_TEST"> Run AC Test Loop Pattern (AC_TEST)
 					</label>
 				</div>
 			</div>
@@ -198,19 +200,19 @@
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Telemetry Debugging & Simulation</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging
+						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging (DEBUG)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagNoMeter" value="NO_METER"> Emulation Mode (DEBUG_NO_METER)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="checkbox" id="flagStackTrace" value="DEBUG_STACK_TRACE"> Capture Flash Stack Traces
+						<input type="checkbox" id="flagStackTrace" value="DEBUG_STACK_TRACE"> Capture Flash Stack Traces (DEBUG_STACK_TRACE)
 					</label>
 				</div>
 			</div>
 		</div>
 		
-		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Rebuild Firmware</button>
+		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Compile & Rebuild Profile</button>
 	</div>
 
 	<div id="progressWrapper" class="progress-container hidden">
@@ -273,7 +275,6 @@
 					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
 					searchInput.disabled = false;
 					
-					// Clear any outdated properties inside the old options tree first
 					const optionsContainer = document.getElementById('firmwareOptions');
 					optionsContainer.innerHTML = '';
 
@@ -285,12 +286,12 @@
 				});
 		}
 
-		// Initial pull sequence on execution setup
 		loadFirmwareList();
 
 		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
+			const profileMetaLabel = document.getElementById('profileMetaLabel');
 			
 			if (selectedFirmware) {
 				// Reset panel options back to clean defaults first
@@ -319,12 +320,24 @@
 					if (flagsString.includes('THERMO_ON_AC_2=1'))  document.getElementById('flagThermoAC2').checked = true;
 					if (flagsString.includes('LED_ON_AC=1'))       document.getElementById('flagLedAc').checked = true;
 					if (flagsString.includes('AC_TEST=1'))         document.getElementById('flagAcTest').checked = true;
-					if (flagsString.includes('DEBUG=1') && !flagsString.includes('DEBUG_NO_METER')) document.getElementById('flagSerialDebug').checked = true;
 					if (flagsString.includes('DEBUG_NO_METER=1'))  document.getElementById('flagNoMeter').checked = true;
 					if (flagsString.includes('DEBUG_STACK_TRACE=1')) document.getElementById('flagStackTrace').checked = true;
 					
+					// Catch general debug state, including dynamic configurations
+					if (flagsString.includes('DEBUG=1') || flagsString.includes('DEBUG_NO_METER=1')) {
+						document.getElementById('flagSerialDebug').checked = true;
+					}
+					
 					log(`[UI Settings] Auto-loaded parameters from profile flags string matching: "${flagsString}"`);
 				}
+				
+				// Show active tag inside the target label wrapper segment
+				const versionMatch = selectedFirmware.name.match(/\((.*?)\)/);
+				if (versionMatch && versionMatch[1] && profileMetaLabel) {
+					profileMetaLabel.textContent = ` (${versionMatch[1]})`;
+				}
+			} else {
+				if (profileMetaLabel) profileMetaLabel.textContent = '';
 			}
 		});
 
@@ -360,13 +373,12 @@
 			try {
 				rebuildBtn.disabled = true;
 				setLogVisibility(true);
-			
+				
 				logTitleText.textContent = "Log (Compiling)";
 				log(`[Compiler] Issuing compile instructions payload configuration targeting Serial: ${selectedFirmware.serial}...`);
 
-				// Pass parameters securely via query string to prevent upstream mod_perl buffer exhaustion
 				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(selectedFirmware.serial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
-			
+				
 				const response = await fetch(targetApiUri, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' }
@@ -380,10 +392,9 @@
 				log(`[Compiler Success] Remote background job successfully generated and dispatched! Batch context assigned: ${outcome.batch_id}`);
 				log(`[Compiler Info] Give the compiler pipeline roughly ~45-90 seconds to bundle the specialized image asset stack context.`);
 				log(`[Compiler Info] You can reload or search again shortly to locate and download the finalized custom firmware structure!`);
-			
+				
 				alert("Custom compilation has successfully queued up on the remote cluster nodes!");
-
-				// Re-fetch index automatically after a short delay block interval to pull newly discovered images
+				
 				setTimeout(loadFirmwareList, 15000);
 			} catch (err) {
 				log(`[Compiler Error Failed] Build creation process failed: ${err.message}`);
@@ -464,7 +475,6 @@
 				const chosenMode = flashMode.value.toLowerCase();
 				const chosenSize = flashSize.value.toUpperCase();
 
-				// Calculate the combined size of all uncompressed bin chunks
 				const totalBatchBytes = fileArray.reduce((acc, file) => acc + file.data.byteLength, 0);
 				
 				let currentFileIndex = -1;
