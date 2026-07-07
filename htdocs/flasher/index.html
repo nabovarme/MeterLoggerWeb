@@ -141,10 +141,12 @@
 		</div>
 	</div>
 
+	<!-- Enhanced Compiler Panel Configuration Layer -->
 	<div class="options-row" style="flex-direction: column; align-items: flex-start; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; margin: 10px; padding: 15px; box-sizing: border-box; width: calc(100% - 20px);">
 		<div class="default-bold" style="font-size: 100%; margin-bottom: 12px; color: #2b7a70;">Dynamic Firmware Compiler Workspace</div>
 		
 		<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 15px;">
+			<!-- Hardware / Meter Core Type Group -->
 			<div>
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">1. Meter Protocol & Hardware Type</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
@@ -152,7 +154,7 @@
 						<input type="radio" name="meterProtocol" value="KMP" checked> Kamstrup KMP (Multical 601)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-						<input type="radio" name="meterProtocol" value="MC_66C"> Multical 66 C (EN61107)
+						<input type="radio" name="meterProtocol" value="EN61107"> Multical 66 C (EN61107)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="radio" name="meterProtocol" value="MC_66B"> Multical 66 B (MC_66B)
@@ -163,6 +165,7 @@
 				</div>
 			</div>
 
+			<!-- Operational & Valve Control Overrides -->
 			<div>
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">2. Valve & Functional Overrides</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
@@ -178,6 +181,7 @@
 				</div>
 			</div>
 
+			<!-- Actuator Configuration Flags -->
 			<div>
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">3. Actuator & AC Electrical Profiles</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
@@ -200,6 +204,7 @@
 				</div>
 			</div>
 
+			<!-- Debug and Emulation Settings -->
 			<div>
 				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Telemetry Debugging & Simulation</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
@@ -308,34 +313,34 @@
 				if (flagMatch && flagMatch[1]) {
 					const flagsString = flagMatch[1];
 					
-					// 1. Radio Protocol Auto-Selectors (Enhanced with loose matching for standard 'MC')
-					if (flagsString.includes('MC_66B=1') || flagsString.includes('MC_66B')) {
+					// 1. Radio Protocol Auto-Selectors (Aligned to explicit whitelist variables only)
+					if (flagsString.includes('MC_66B')) {
 						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
-					} else if (flagsString.includes('EN61107=1') || flagsString.includes('EN61107') || flagsString.includes(' MC ') || flagsString.includes('CUSTOM MC ')) {
-						document.querySelector('input[name="meterProtocol"][value="MC_66C"]').checked = true;
-					} else if (flagsString.includes('IMPULSE=1') || flagsString.includes('IMPULSE')) {
+					} else if (flagsString.includes('EN61107')) {
+						document.querySelector('input[name="meterProtocol"][value="EN61107"]').checked = true;
+					} else if (flagsString.includes('IMPULSE')) {
 						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
 					}
 
 					// 2. Overrides & Modifiers Checkbox Selectors
-					if (flagsString.includes('FLOW_METER=1'))      document.getElementById('flagFlowMeter').checked = true;
-					if (flagsString.includes('AUTO_CLOSE=0'))      document.getElementById('flagAutoClose').checked = true;
-					if (flagsString.includes('NO_CRON=1'))         document.getElementById('flagNoCron').checked = true;
-					if (flagsString.includes('THERMO_ON_AC_2=1'))  document.getElementById('flagThermoAC2').checked = true;
-					if (flagsString.includes('LED_ON_AC=1'))       document.getElementById('flagLedAc').checked = true;
-					if (flagsString.includes('AC_TEST=1'))         document.getElementById('flagAcTest').checked = true;
-					if (flagsString.includes('DEBUG_NO_METER=1'))  document.getElementById('flagNoMeter').checked = true;
-					if (flagsString.includes('DEBUG_STACK_TRACE=1')) document.getElementById('flagStackTrace').checked = true;
+					if (flagsString.includes('FLOW_METER'))       document.getElementById('flagFlowMeter').checked = true;
+					if (flagsString.includes('NO_AUTO_CLOSE'))    document.getElementById('flagAutoClose').checked = true;
+					if (flagsString.includes('NO_CRON'))           document.getElementById('flagNoCron').checked = true;
+					if (flagsString.includes('THERMO_ON_AC_2'))   document.getElementById('flagThermoAC2').checked = true;
+					if (flagsString.includes('LED_ON_AC'))        document.getElementById('flagLedAc').checked = true;
+					if (flagsString.includes('AC_TEST'))          document.getElementById('flagAcTest').checked = true;
+					if (flagsString.includes('DEBUG_NO_METER'))   document.getElementById('flagNoMeter').checked = true;
+					if (flagsString.includes('DEBUG_STACK_TRACE')) document.getElementById('flagStackTrace').checked = true;
 					
 					// 3. Actuator State Dropdown Auto-Populate Logic
-					if (flagsString.includes('THERMO_NO=1') || flagsString.includes('THERMO_NO')) {
+					if (flagsString.includes('THERMO_NO')) {
 						document.getElementById('flagThermoActuator').value = 'THERMO_NO';
 					} else {
 						document.getElementById('flagThermoActuator').value = 'THERMO_NC';
 					}
 
 					// Catch general debug state, including dynamic configurations
-					if (flagsString.includes('DEBUG=1') || flagsString.includes('DEBUG_NO_METER=1')) {
+					if (flagsString.includes('DEBUG') || flagsString.includes('DEBUG_NO_METER')) {
 						document.getElementById('flagSerialDebug').checked = true;
 					}
 					

@@ -261,30 +261,34 @@ sub build_flags_from_sw_version {
 
 	my @flags = ('AP=1');
 
-	# Protocol / Hardware Mappings Directives
-	push @flags, 'EN61107=1'        if $sw_version =~ /MC_66C/;
-	push @flags, 'MC_66B=1'         if $sw_version =~ /MC_66B/;
-	push @flags, 'IMPULSE=1'        if $sw_version =~ /IMPULSE/;
-
-	# Retro-compatibility check for base-profile matches
-	push @flags, 'MC_66B=1'         if $sw_version =~ /MC-B/;
-	push @flags, 'EN61107=1'        if $sw_version =~ /MC/ && $sw_version !~ /MC_66B/;
+	# Strict Baseline Protocol Mapping Definitions (Omit MC check mapping entirely)
+	if ($sw_version =~ /\bEN61107\b/) {
+		push @flags, 'EN61107=1';
+	}
+	elsif ($sw_version =~ /\bMC_66B\b/) {
+		push @flags, 'MC_66B=1';
+	}
+	elsif ($sw_version =~ /\bIMPULSE\b/) {
+		push @flags, 'IMPULSE=1';
+	}
+	# Default fallback remains standard Kamstrup Multical 601 (KMP) mode passing nothing extra
 
 	# Functional Logic Modifiers
-	push @flags, 'FLOW_METER=1'     if $sw_version =~ /FLOW_METER/;
-	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /NO_AUTO_CLOSE/;
-	push @flags, 'NO_CRON=1'        if $sw_version =~ /NO_CRON/;
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /\bFLOW_METER\b/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /\bNO_AUTO_CLOSE\b/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /\bNO_CRON\b/;
 
 	# Electrical Actuator Configuration States
-	push @flags, 'THERMO_NO=1'      if $sw_version =~ /THERMO_NO/;
-	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /THERMO_ON_AC_2/;
-	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /LED_ON_AC/;
-	push @flags, 'AC_TEST=1'        if $sw_version =~ /AC_TEST/;
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /\bTHERMO_NO\b/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /\bTHERMO_NC\b/;
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /\bTHERMO_ON_AC_2\b/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /\bLED_ON_AC\b/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /\bAC_TEST\b/;
 
 	# Diagnostic Engine / Mock Environment Overrides
-	push @flags, 'DEBUG=1'                if $sw_version =~ /DEBUG/ && $sw_version !~ /DEBUG_NO_METER/ && $sw_version !~ /DEBUG_STACK_TRACE/;
-	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /NO_METER/;
-	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /DEBUG_STACK_TRACE/;
+	push @flags, 'DEBUG=1'                if $sw_version =~ /\bDEBUG\b/ && $sw_version !~ /\bDEBUG_NO_METER\b/ && $sw_version !~ /\bDEBUG_STACK_TRACE\b/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /\bNO_METER\b/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /\bDEBUG_STACK_TRACE\b/;
 
 	return join(' ', @flags);
 }
@@ -446,8 +450,10 @@ sub run_docker_build {
 
 	my $sw_version = $version;
 
+	# Force clean dash formatting throughout directory naming context
 	my $fs_version = $sw_version;
-	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
+	$fs_version =~ tr/_/-/;
+	$fs_version =~ s/[^a-zA-Z0-9.-]//g; 
 	$fs_version = 'unknown' if !$fs_version;
 
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
@@ -612,7 +618,6 @@ sub generate_manifest {
 	close($fh);
 }
 
-# --- ENHANCED DYNAMIC DROPDOWN MENU FORMATTING ENGINE ---
 sub generate_firmware_index {
 	opendir(my $dh, RELEASE_DIR) or die "Cannot open dir";
 
