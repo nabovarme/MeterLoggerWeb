@@ -93,7 +93,7 @@
 
 		.config-options { display: none; }
 		
-		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px 10px 10px; }
+		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px; }
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
 		.triangle.open { transform: rotate(90deg); }
 		
@@ -115,6 +115,7 @@
 		
 		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
 
+		<!-- Required configuration fields for underlying esptool execution blocks -->
 		<div class="config-options">
 			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
 			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
@@ -125,11 +126,11 @@
 		<div class="control-group">
 			<label for="baudRate" class="default-bold" style="font-size: 90%;">Baud Rate:</label>
 			<select id="baudRate">
-				<option value="115200" selected>115200</option>
+				<option value="115200">115200</option>
 				<option value="230400">230400</option>
 				<option value="460800">460800</option>
 				<option value="921600">921600</option>
-				<option value="1500000">1500000</option>
+				<option value="1500000" selected>1500000</option>
 			</select>
 		</div>
 
@@ -139,11 +140,100 @@
 		</div>
 	</div>
 
+	<!-- Toggle Anchor Header for Compiler Section -->
+	<div style="margin: 10px 0;">
+		<span id="toggleWorkspaceBtn" class="default default-bold console-toggle">
+			<span id="workspaceTriangleIcon" class="triangle">&#9658;</span> Dynamic Firmware Compiler Workspace
+		</span>
+	</div>
+
+	<!-- Enhanced Compiler Panel Configuration Layer (Hidden by Default) -->
+	<div id="compilerWorkspacePanel" class="options-row hidden" style="flex-direction: column; align-items: flex-start; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; margin: 5px 10px 10px 10px; padding: 15px; box-sizing: border-box; width: calc(100% - 20px);">
+		<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 15px;">
+			<!-- Hardware / Meter Core Type Group -->
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">1. Meter Protocol & Hardware Type</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="KMP" checked> Kamstrup KMP (Multical 601)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="EN61107"> Multical 66 C (EN61107)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="MC_66B"> Multical 66 B (MC_66B)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="IMPULSE"> Impulse-Based Meter (IMPULSE)
+					</label>
+				</div>
+			</div>
+
+			<!-- Operational & Valve Control Overrides -->
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">2. Valve & Functional Overrides</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagFlowMeter" value="FLOW_METER"> Force Flow Meter Mode (FLOW_METER)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagAutoClose" value="NO_AUTO_CLOSE"> Disable Auto-Close Engine (AUTO_CLOSE=0)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagNoCron" value="NO_CRON"> Disable Cron Stuff (NO_CRON)
+					</label>
+				</div>
+			</div>
+
+			<!-- Actuator Configuration Flags -->
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">3. Actuator & AC Electrical Profiles</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 6px;">
+						Actuator State:
+						<select id="flagThermoActuator" style="padding: 3px; font-family: Verdana; font-size: 85%;">
+							<option value="THERMO_NC" selected>Normally Closed (THERMO_NC)</option>
+							<option value="THERMO_NO">Normally Open (THERMO_NO)</option>
+						</select>
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagThermoAC2" value="THERMO_ON_AC_2"> Actuator Connected on AC 2 (THERMO_ON_AC_2)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagLedAc" value="LED_ON_AC"> Use LED to Indicate AC State (LED_ON_AC)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagAcTest" value="AC_TEST"> Run AC Test Loop Pattern (AC_TEST)
+					</label>
+				</div>
+			</div>
+
+			<!-- Debug and Emulation Settings -->
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Debugging & Simulation</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging (DEBUG)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagNoMeter" value="NO_METER"> Emulation Mode (DEBUG_NO_METER)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagStackTrace" value="DEBUG_STACK_TRACE"> Capture Flash Stack Traces (DEBUG_STACK_TRACE)
+					</label>
+				</div>
+			</div>
+		</div>
+		
+		<!-- Normalized button style matches flash element definitions directly -->
+		<button id="rebuildBtn" class="flash-btn-inline" style="align-self: flex-start;">Compile & Rebuild Firmware</button>
+	</div>
+
 	<div id="progressWrapper" class="progress-container hidden">
 		<progress id="flashProgress" value="0" max="100"></progress>
 	</div>
 
-	<div>
+	<div style="margin: 10px 0;">
 		<span id="toggleLogBtn" class="default default-bold console-toggle">
 			<span id="triangleIcon" class="triangle">&#9658;</span> <span id="logTitleText">Log</span>
 		</span>
@@ -164,6 +254,12 @@
 		const flashProgress = document.getElementById('flashProgress');
 		const baudRateSelect = document.getElementById('baudRate');
 		const eraseFlashCheckbox = document.getElementById('eraseFlash');
+		const rebuildBtn = document.getElementById('rebuildBtn');
+
+		// COMPILER WORKSPACE VISIBILITY REFERENCES
+		const toggleWorkspaceBtn = document.getElementById('toggleWorkspaceBtn');
+		const workspaceTriangleIcon = document.getElementById('workspaceTriangleIcon');
+		const compilerWorkspacePanel = document.getElementById('compilerWorkspacePanel');
 
 		let allFirmwares = [];
 		let selectedFirmware = null;
@@ -191,22 +287,218 @@
 			setLogVisibility(!isVisible);
 		});
 
-		fetch('firmware/firmwares.json')
-			.then(res => res.json())
-			.then(list => {
-				allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
-				searchInput.disabled = false;
-				allFirmwares.forEach(fw => {
-					const opt = document.createElement('option');
-					opt.value = fw.name;
-					document.getElementById('firmwareOptions').appendChild(opt);
-				});
-			});
+		// COMPILER WORKSPACE VISIBILITY TOGGLE CONTROLLER
+		function setWorkspaceVisibility(visible) {
+			if (visible) {
+				compilerWorkspacePanel.classList.remove('hidden');
+				workspaceTriangleIcon.classList.add('open');
+			} else {
+				compilerWorkspacePanel.classList.add('hidden');
+				workspaceTriangleIcon.classList.remove('open');
+			}
+		}
 
-		searchInput.addEventListener('input', () => {
-			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
+		toggleWorkspaceBtn.addEventListener('click', () => {
+			const isVisible = !compilerWorkspacePanel.classList.contains('hidden');
+			setWorkspaceVisibility(!isVisible);
 		});
 
+		// Dynamic list processor utilizing the unique, hidden filesystem 'version' id mapping context
+		function loadFirmwareList(targetVersionUniqueId = null) {
+			return fetch('firmware/firmwares.json')
+				.then(res => res.json())
+				.then(list => {
+					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
+					searchInput.disabled = false;
+					
+					const optionsContainer = document.getElementById('firmwareOptions');
+					optionsContainer.innerHTML = '';
+
+					allFirmwares.forEach(fw => {
+						const opt = document.createElement('option');
+						opt.value = fw.name;
+						optionsContainer.appendChild(opt);
+					});
+
+					// Safely locate and anchor selector using the absolute identifier key
+					if (targetVersionUniqueId) {
+						const matchingFw = allFirmwares.find(fw => fw.version === targetVersionUniqueId);
+						if (matchingFw) {
+							searchInput.value = matchingFw.name;
+							selectedFirmware = matchingFw;
+							searchInput.dispatchEvent(new Event('input'));
+							log(`[UI Target Selected] Locked selector interface onto folder signature: "${targetVersionUniqueId}"`);
+						} else {
+							console.warn(`[UI Warning] Auto-select failed to find entry version matching signature: "${targetVersionUniqueId}"`);
+						}
+					}
+				});
+		}
+
+		loadFirmwareList();
+
+		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
+		searchInput.addEventListener('input', () => {
+			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
+			
+			if (selectedFirmware) {
+				// Reset panel options back to clean defaults first
+				document.querySelectorAll('input[name="meterProtocol"]').forEach(r => r.checked = (r.value === 'KMP'));
+				document.querySelectorAll('.options-row input[type="checkbox"]').forEach(cb => cb.checked = false);
+				document.getElementById('flagThermoActuator').value = 'THERMO_NC';
+
+				// Parse bracketed flag strings out of the meta name profile string
+				const flagMatch = selectedFirmware.name.match(/\[(.*?)\]/);
+				if (flagMatch && flagMatch[1]) {
+					const flagsString = flagMatch[1];
+					
+					// 1. Radio Protocol Auto-Selectors (Aligned to explicit whitelist variables only)
+					if (flagsString.includes('MC_66B')) {
+						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
+					} else if (flagsString.includes('EN61107')) {
+						document.querySelector('input[name="meterProtocol"][value="EN61107"]').checked = true;
+					} else if (flagsString.includes('IMPULSE')) {
+						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
+					}
+
+					// 2. Overrides & Modifiers Checkbox Selectors
+					if (flagsString.includes('FLOW_METER'))       document.getElementById('flagFlowMeter').checked = true;
+					if (flagsString.includes('NO_AUTO_CLOSE'))    document.getElementById('flagAutoClose').checked = true;
+					if (flagsString.includes('NO_CRON'))           document.getElementById('flagNoCron').checked = true;
+					if (flagsString.includes('THERMO_ON_AC_2'))   document.getElementById('flagThermoAC2').checked = true;
+					if (flagsString.includes('LED_ON_AC'))        document.getElementById('flagLedAc').checked = true;
+					if (flagsString.includes('AC_TEST'))          document.getElementById('flagAcTest').checked = true;
+					if (flagsString.includes('DEBUG_NO_METER'))   document.getElementById('flagNoMeter').checked = true;
+					if (flagsString.includes('DEBUG_STACK_TRACE')) document.getElementById('flagStackTrace').checked = true;
+					
+					// 3. Actuator State Dropdown Auto-Populate Logic
+					if (flagsString.includes('THERMO_NO')) {
+						document.getElementById('flagThermoActuator').value = 'THERMO_NO';
+					} else {
+						document.getElementById('flagThermoActuator').value = 'THERMO_NC';
+					}
+
+					// Catch general debug state, including dynamic configurations
+					if (flagsString.includes('DEBUG') || flagsString.includes('DEBUG_NO_METER')) {
+						document.getElementById('flagSerialDebug').checked = true;
+					}
+					
+					log(`[UI Settings] Auto-loaded parameters from profile flags string matching: "${flagsString}"`);
+				}
+			}
+		});
+
+		// =========================================================================
+		// REMOTE COMPILER ACTION HANDLER (WITH INLINE FEEDBACK LOOP)
+		// =========================================================================
+		rebuildBtn.addEventListener('click', async () => {
+			if (!selectedFirmware) { 
+				alert("Please pick an existing firmware option path context from the search list profile options first!"); 
+				return; 
+			}
+
+			const modifiers = [];
+
+			const selectedProtocol = document.querySelector('input[name="meterProtocol"]:checked').value;
+			if (selectedProtocol !== 'KMP') {
+				modifiers.push(selectedProtocol);
+			}
+
+			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
+			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
+			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
+			
+			const thermoState = document.getElementById('flagThermoActuator').value;
+			modifiers.push(thermoState);
+
+			if (document.getElementById('flagThermoAC2').checked)   modifiers.push('THERMO_ON_AC_2');
+			if (document.getElementById('flagLedAc').checked)       modifiers.push('LED_ON_AC');
+			if (document.getElementById('flagAcTest').checked)      modifiers.push('AC_TEST');
+			if (document.getElementById('flagSerialDebug').checked)  modifiers.push('DEBUG');
+			if (document.getElementById('flagNoMeter').checked)     modifiers.push('NO_METER');
+			if (document.getElementById('flagStackTrace').checked)  modifiers.push('DEBUG_STACK_TRACE');
+
+			// JOIN WITH DASH: Choncatentates separate build flags cleanly using a dash (-)
+			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('-') : 'STANDARD';
+			const originalButtonText = rebuildBtn.textContent;
+
+			try {
+				// Inline UI Locking Feedback Loop
+				rebuildBtn.disabled = true;
+				rebuildBtn.textContent = 'Compiling Profile...';
+				
+				setLogVisibility(true);
+				logTitleText.textContent = "Log (Compiling)";
+				log(`[Compiler] Dispatching configuration rebuild request payload targeting serial: ${selectedFirmware.serial}...`);
+
+				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(selectedFirmware.serial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
+				
+				const response = await fetch(targetApiUri, { method: 'POST' });
+				const outcome = await response.json();
+
+				if (!response.ok || !outcome.success) {
+					throw new Error(outcome.error || `Server configuration mapping execution fault.`);
+				}
+
+				const batchId = outcome.batch_id;
+				log(`[Compiler Success] Remote build job dispatched into worker stack. Batch ID: ${batchId}`);
+
+				// --- BEGIN POLL CHECK INTERVAL LOOP USING THE CORRECT HIGH-RES PATH ---
+				const pollInterval = setInterval(async () => {
+					try {
+						const progressRes = await fetch(`/api/rebuild_progress?batch_id=${encodeURIComponent(batchId)}`);
+						if (!progressRes.ok) return;
+						
+						const status = await progressRes.json();
+						if (!status.success) return;
+
+						// If the batch has cleared out of the working queues, compilation has concluded
+						if (!status.is_active) {
+							clearInterval(pollInterval);
+							
+							// Restore original element states immediately
+							rebuildBtn.disabled = false;
+							rebuildBtn.textContent = originalButtonText;
+							
+							logTitleText.textContent = "Log (Build Complete)";
+							log(`[Compiler Finished] Custom firmware image compiled and indexed successfully.`);
+							
+							// Extract active baseline git version footprint tracking context
+							let baseFolderSignature = selectedFirmware.version || 'master';
+							
+							// Dynamic lookup splits cleanly on the custom uppercase dash boundary rule (-CUSTOM-)
+							if (baseFolderSignature.includes('-CUSTOM-')) {
+								baseFolderSignature = baseFolderSignature.split('-CUSTOM-')[0];
+							} else if (baseFolderSignature.includes('-custom-')) {
+								baseFolderSignature = baseFolderSignature.split('-custom-')[0];
+							}
+							
+							// CORRECTION MATCH LOOP: If no modifiers were checked, backend drops "-STANDARD" completely
+							let generatedFsVersionUniqueId = `${baseFolderSignature}-CUSTOM`;
+							if (swVersionSuffix !== 'STANDARD') {
+								generatedFsVersionUniqueId += `-${swVersionSuffix}`;
+							}
+							
+							// Silent list reload paired with unique identity folder signature selection lock
+							await loadFirmwareList(generatedFsVersionUniqueId);
+						}
+					} catch (pollErr) {
+						console.error("Polling resolution error wrapper caught: ", pollErr);
+					}
+				}, 1500); // Check tracking metrics table array bounds every 1.5 seconds
+
+			} catch (err) {
+				log(`[Compiler Error Failed] Build creation process failed: ${err.message}`);
+				alert(`Failed to trigger customized compilation stack: ${err.message}`);
+				
+				rebuildBtn.disabled = false;
+				rebuildBtn.textContent = originalButtonText;
+			}
+		});
+
+		// =========================================================================
+		// NATIVE WEBSERIAL HARDWARE FLASH HANDLER
+		// =========================================================================
 		flashBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
 
@@ -260,7 +552,7 @@
 				const esploader = new ESPLoader({
 					transport: transport,
 					baudrate: chosenBaud,
-					romBaudrate: 115200,
+					romBaudrate: 1500000,
 					debugLogging: false, 
 					terminal: { 
 						clean: () => { logDiv.textContent = ""; }, 
@@ -275,10 +567,6 @@
 				const chosenMode = flashMode.value.toLowerCase();
 				const chosenSize = flashSize.value.toUpperCase();
 
-				// =========================================================================
-				// GLOBAL PROGRESS TRACKING INITIALIZATION
-				// =========================================================================
-				// 1. Calculate the combined size of all uncompressed bin chunks
 				const totalBatchBytes = fileArray.reduce((acc, file) => acc + file.data.byteLength, 0);
 				
 				let currentFileIndex = -1;
@@ -293,24 +581,19 @@
 					eraseAll: shouldErase,
 					compress: true,
 					reportProgress: (fileIndex, written, total) => {
-						// Detect when esptool shifts execution to the next segment chunk in the array
 						if (fileIndex !== currentFileIndex) {
 							if (currentFileIndex >= 0) {
-								// Commit the full uncompressed length of the completed component to our offset baseline
 								completedBytesOffset += fileArray[currentFileIndex].data.byteLength;
 							}
 							currentFileIndex = fileIndex;
 						}
 
-						// Calculate the fraction of the current file complete
 						const currentFileTotal = fileArray[fileIndex].data.byteLength;
 						const currentProgressFraction = total > 0 ? (written / total) : 0;
 						
-						// Scale progress fraction against uncompressed byte limits to avoid compression tracking mismatches
 						const scaledCurrentWritten = currentProgressFraction * currentFileTotal;
 						const totalBytesProcessed = completedBytesOffset + scaledCurrentWritten;
 						
-						// Derive unified progress percentage across the full batch bounds
 						const pct = Math.min(100, Math.round((totalBytesProcessed / totalBatchBytes) * 100));
 						
 						flashProgress.value = pct;
