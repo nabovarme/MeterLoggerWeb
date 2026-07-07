@@ -139,6 +139,80 @@
 		</div>
 	</div>
 
+	<div class="options-row" style="flex-direction: column; align-items: flex-start; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; margin: 10px; padding: 15px; box-sizing: border-box; width: calc(100% - 20px);">
+		<div class="default-bold" style="font-size: 100%; margin-bottom: 12px; color: #2b7a70;">Dynamic Firmware Compiler Workspace</div>
+		
+		<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 15px;">
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">1. Meter Protocol & Hardware Type</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="KMP" checked> Kamstrup KMP (Multical 601)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="MC_66C"> Multical 66 C (EN61107)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="MC_66B"> Multical 66 B (EN61107)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="radio" name="meterProtocol" value="IMPULSE"> Impulse-Based Meter
+					</label>
+				</div>
+			</div>
+
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">2. Valve & Functional Overrides</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagFlowMeter" value="FLOW_METER"> Force Flow Meter Mode
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagAutoClose" value="NO_AUTO_CLOSE"> Disable Auto-Close Engine
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagNoCron" value="NO_CRON"> Disable Cron (Saves 2.6KB RAM)
+					</label>
+				</div>
+			</div>
+
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">3. Actuator & AC Electrical Profiles</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagThermoNO" value="THERMO_NO"> Actuator is Normally Open (Default NC)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagThermoAC2" value="THERMO_ON_AC_2"> Actuator Connected on AC 2
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagLedAc" value="LED_ON_AC"> Use LED to Indicate AC State
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagAcTest" value="AC_TEST"> Run AC Test Loop Pattern
+					</label>
+				</div>
+			</div>
+
+			<div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Telemetry Debugging & Simulation</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagNoMeter" value="NO_METER"> Emulation Mode (DEBUG_NO_METER)
+					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagStackTrace" value="DEBUG_STACK_TRACE"> Capture Flash Stack Traces
+					</label>
+				</div>
+			</div>
+		</div>
+		
+		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Compile & Rebuild Profile</button>
+	</div>
+
 	<div id="progressWrapper" class="progress-container hidden">
 		<progress id="flashProgress" value="0" max="100"></progress>
 	</div>
@@ -164,6 +238,7 @@
 		const flashProgress = document.getElementById('flashProgress');
 		const baudRateSelect = document.getElementById('baudRate');
 		const eraseFlashCheckbox = document.getElementById('eraseFlash');
+		const rebuildBtn = document.getElementById('rebuildBtn');
 
 		let allFirmwares = [];
 		let selectedFirmware = null;
@@ -191,22 +266,105 @@
 			setLogVisibility(!isVisible);
 		});
 
-		fetch('firmware/firmwares.json')
-			.then(res => res.json())
-			.then(list => {
-				allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
-				searchInput.disabled = false;
-				allFirmwares.forEach(fw => {
-					const opt = document.createElement('option');
-					opt.value = fw.name;
-					document.getElementById('firmwareOptions').appendChild(opt);
+		function loadFirmwareList() {
+			fetch('firmware/firmwares.json')
+				.then(res => res.json())
+				.then(list => {
+					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
+					searchInput.disabled = false;
+					
+					// Clear any outdated properties inside the old options tree first
+					const optionsContainer = document.getElementById('firmwareOptions');
+					optionsContainer.innerHTML = '';
+
+					allFirmwares.forEach(fw => {
+						const opt = document.createElement('option');
+						opt.value = fw.name;
+						optionsContainer.appendChild(opt);
+					});
 				});
-			});
+		}
+
+		// Initial pull sequence on execution setup
+		loadFirmwareList();
 
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
 		});
 
+		// =========================================================================
+		// REMOTE COMPILER ACTION HANDLER
+		// =========================================================================
+		rebuildBtn.addEventListener('click', async () => {
+			if (!selectedFirmware) { 
+				alert("Please pick an existing firmware option path context from the search list profile options first!"); 
+				return; 
+			}
+
+			// Capture selected modifier array strings
+			const modifiers = [];
+
+			// 1. Evaluate Protocol Selection Radio Group
+			const selectedProtocol = document.querySelector('input[name="meterProtocol"]:checked').value;
+			if (selectedProtocol !== 'KMP') {
+				modifiers.push(selectedProtocol);
+			}
+
+			// 2. Evaluate remaining checkboxes variables
+			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
+			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
+			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
+			if (document.getElementById('flagThermoNO').checked)    modifiers.push('THERMO_NO');
+			if (document.getElementById('flagThermoAC2').checked)   modifiers.push('THERMO_ON_AC_2');
+			if (document.getElementById('flagLedAc').checked)       modifiers.push('LED_ON_AC');
+			if (document.getElementById('flagAcTest').checked)      modifiers.push('AC_TEST');
+			if (document.getElementById('flagSerialDebug').checked)  modifiers.push('DEBUG');
+			if (document.getElementById('flagNoMeter').checked)     modifiers.push('NO_METER');
+			if (document.getElementById('flagStackTrace').checked)  modifiers.push('DEBUG_STACK_TRACE');
+
+			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('_') : 'STANDARD';
+
+			try {
+				rebuildBtn.disabled = true;
+				setLogVisibility(true);
+				
+				logTitleText.textContent = "Log (Compiling)";
+				log(`[Compiler] Issuing compile instructions payload configuration targeting Serial: ${selectedFirmware.serial}...`);
+
+				const targetApiUri = '/api/rebuild';
+				const response = await fetch(targetApiUri, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						serial: selectedFirmware.serial,
+						sw_version_modifiers: swVersionSuffix
+					})
+				});
+
+				const outcome = await response.json();
+				if (!response.ok || !outcome.success) {
+					throw new Error(outcome.error || `Server returned invalid compilation status execution state: ${response.status}`);
+				}
+
+				log(`[Compiler Success] Remote background job successfully generated and dispatched! Batch context assigned: ${outcome.batch_id}`);
+				log(`[Compiler Info] Give the compiler pipeline roughly ~45-90 seconds to bundle the specialized image asset stack context.`);
+				log(`[Compiler Info] You can reload or search again shortly to locate and download the finalized custom firmware structure!`);
+				
+				alert("Custom compilation has successfully queued up on the remote cluster nodes!");
+				
+				// Re-fetch index automatically after a short delay block interval to pull newly discovered images
+				setTimeout(loadFirmwareList, 15000);
+			} catch (err) {
+				log(`[Compiler Error Failed] Build creation process failed: ${err.message}`);
+				alert(`Failed to trigger customized compilation stack: ${err.message}`);
+			} finally {
+				rebuildBtn.disabled = false;
+			}
+		});
+
+		// =========================================================================
+		// NATIVE WEBSERIAL HARDWARE FLASH HANDLER
+		// =========================================================================
 		flashBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
 
@@ -275,10 +433,7 @@
 				const chosenMode = flashMode.value.toLowerCase();
 				const chosenSize = flashSize.value.toUpperCase();
 
-				// =========================================================================
-				// GLOBAL PROGRESS TRACKING INITIALIZATION
-				// =========================================================================
-				// 1. Calculate the combined size of all uncompressed bin chunks
+				// Calculate the combined size of all uncompressed bin chunks
 				const totalBatchBytes = fileArray.reduce((acc, file) => acc + file.data.byteLength, 0);
 				
 				let currentFileIndex = -1;
@@ -293,24 +448,19 @@
 					eraseAll: shouldErase,
 					compress: true,
 					reportProgress: (fileIndex, written, total) => {
-						// Detect when esptool shifts execution to the next segment chunk in the array
 						if (fileIndex !== currentFileIndex) {
 							if (currentFileIndex >= 0) {
-								// Commit the full uncompressed length of the completed component to our offset baseline
 								completedBytesOffset += fileArray[currentFileIndex].data.byteLength;
 							}
 							currentFileIndex = fileIndex;
 						}
 
-						// Calculate the fraction of the current file complete
 						const currentFileTotal = fileArray[fileIndex].data.byteLength;
 						const currentProgressFraction = total > 0 ? (written / total) : 0;
 						
-						// Scale progress fraction against uncompressed byte limits to avoid compression tracking mismatches
 						const scaledCurrentWritten = currentProgressFraction * currentFileTotal;
 						const totalBytesProcessed = completedBytesOffset + scaledCurrentWritten;
 						
-						// Derive unified progress percentage across the full batch bounds
 						const pct = Math.min(100, Math.round((totalBytesProcessed / totalBatchBytes) * 100));
 						
 						flashProgress.value = pct;
