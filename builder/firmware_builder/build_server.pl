@@ -456,8 +456,6 @@ sub run_docker_build {
 
 	my $sw_version = $version;
 
-	my $sw_version = $version;
-
 	my $fs_version = $sw_version;
 	$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 	$fs_version = 'unknown' if !$fs_version;
@@ -662,19 +660,15 @@ sub generate_firmware_index {
 				my $formatted_version = $meta->{sw_version} || $version;
 				my $bracket_flags = '';
 
-				# Dynamic matching pattern tracks any git branch name context cleanly
-				if ($version =~ /^(.+?)-\d+-[a-f0-9]+-custom_/) {
-					if ($version =~ /^(.+?)-\d+-[a-f0-9]+/ ) {
-						$formatted_version = $1;
-					}
-
+				# Extracts full branch-count-hash layout prefix safely
+				if ($version =~ /^(.+?-\d+-[a-f0-9]+)-CUSTOM-/) {
+					$formatted_version = $1;
+			      
 					my $raw_flags = $meta->{build_flags} // '';
 					$bracket_flags = "CUSTOM $raw_flags";
 				}
 				elsif ($version =~ /^(.+?)-\d+-[a-f0-9]+$/) {
 					$formatted_version = $version;
-				
-					# Enforce literal inclusion of raw flag values without filtering out baseline AP=1 configurations
 					$bracket_flags = $meta->{build_flags} // 'AP=1';
 				}
 				else {
