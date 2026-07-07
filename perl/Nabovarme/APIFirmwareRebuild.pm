@@ -13,40 +13,46 @@ use Redis ();
 use Nabovarme::Db;
 
 # Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
+# Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
 sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
 	return 'AP=1' unless defined $sw_version;
 
 	my @flags = ('AP=1');
 
+	# Clean boundary matching matrix allows dashes inside option strings (like MC-B)
+	# while splitting keywords cleanly via underscores or string borders.
+	my $boundary = qr/(?:^|_|\b)/;
+	my $end_bound = qr/(?:_|\b|$)/;
+
 	# Strict Protocol Mapping Target Parsing (README compliance verification boundaries)
-	if ($sw_version =~ /\bEN61107\b/) {
+	if ($sw_version =~ /${boundary}EN61107${end_bound}/) {
 		push @flags, 'EN61107=1';
 	}
-	elsif ($sw_version =~ /\bMC_66B\b/) {
+	elsif ($sw_version =~ /${boundary}MC_66B${end_bound}/) {
 		push @flags, 'MC_66B=1';
 	}
-	elsif ($sw_version =~ /\bIMPULSE\b/) {
+	elsif ($sw_version =~ /${boundary}IMPULSE${end_bound}/) {
 		push @flags, 'IMPULSE=1';
 	}
 
 	# Logic Modifier Overrides
-	push @flags, 'FLOW_METER=1'     if $sw_version =~ /\bFLOW_METER\b/;
-	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /\bNO_AUTO_CLOSE\b/;
-	push @flags, 'NO_CRON=1'        if $sw_version =~ /\bNO_CRON\b/;
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /${boundary}FLOW_METER${end_bound}/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /${boundary}NO_AUTO_CLOSE${end_bound}/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /${boundary}NO_CRON${end_bound}/;
 
 	# Synchronized Actuator State Flag Dictionary Map
-	push @flags, 'THERMO_NO=1'      if $sw_version =~ /\bTHERMO_NO\b/;
-	push @flags, 'THERMO_NO=0'      if $sw_version =~ /\bTHERMO_NC\b/;
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /${boundary}THERMO_NO${end_bound}/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /${boundary}THERMO_NC${end_bound}/;
 
-	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /\bTHERMO_ON_AC_2\b/;
-	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /\bLED_ON_AC\b/;
-	push @flags, 'AC_TEST=1'        if $sw_version =~ /\bAC_TEST\b/;
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /${boundary}THERMO_ON_AC_2${end_bound}/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /${boundary}LED_ON_AC${end_bound}/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /${boundary}AC_TEST${end_bound}/;
 
 	# Diagnostics / Mock Output Variables
-	push @flags, 'DEBUG=1'                if $sw_version =~ /\bDEBUG\b/ && $sw_version !~ /\bDEBUG_NO_METER\b/ && $sw_version !~ /\bDEBUG_STACK_TRACE\b/;
-	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /\bNO_METER\b/;
-	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /\bDEBUG_STACK_TRACE\b/;
+	push @flags, 'DEBUG=1'                if $sw_version =~ /${boundary}DEBUG${end_bound}/ && $sw_version !~ /${boundary}DEBUG_NO_METER${end_bound}/ && $sw_version !~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /${boundary}NO_METER${end_bound}/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
 
 	return join(' ', @flags);
 }
@@ -126,7 +132,7 @@ sub handler {
 
 		my $custom_version = "master-${git_suffix}-custom";
 		if ($modifiers ne 'STANDARD') {
-			$custom_version .= "-${modifiers}";
+			$custom_version .= "_${modifiers}";
 		}
 
 		my $redis;
