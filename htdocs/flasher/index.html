@@ -93,7 +93,7 @@
 
 		.config-options { display: none; }
 		
-		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px 10px 10px; }
+		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0; }
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
 		.triangle.open { transform: rotate(90deg); }
 		
@@ -117,6 +117,7 @@
 		
 		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
 
+		<!-- Required configuration fields for underlying esptool execution blocks -->
 		<div class="config-options">
 			<select id="flashMode"><option value="dout" selected>dout</option><option value="dio">dio</option></select>
 			<select id="flashSize"><option value="1MB" selected>1MB</option><option value="2MB">2MB</option><option value="4MB">4MB</option></select>
@@ -228,7 +229,7 @@
 		<progress id="flashProgress" value="0" max="100"></progress>
 	</div>
 
-	<div>
+	<div style="margin: 10px 0;">
 		<span id="toggleLogBtn" class="default default-bold console-toggle">
 			<span id="triangleIcon" class="triangle">&#9658;</span> <span id="logTitleText">Log</span>
 		</span>
@@ -358,7 +359,7 @@
 		});
 
 		// =========================================================================
-		// REMOTE COMPILER ACTION HANDLER
+		// REMOTE COMPILER ACTION HANDLER (WITH INLINE FEEDBACK LOOP)
 		// =========================================================================
 		rebuildBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { 
@@ -377,7 +378,6 @@
 			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
 			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
 			
-			// Actuator Dropdown Parameter Assignment Hook
 			const thermoState = document.getElementById('flagThermoActuator').value;
 			modifiers.push(thermoState);
 
@@ -389,38 +389,70 @@
 			if (document.getElementById('flagStackTrace').checked)  modifiers.push('DEBUG_STACK_TRACE');
 
 			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('_') : 'STANDARD';
+			const originalButtonText = rebuildBtn.textContent;
 
 			try {
+				// Inline UI Locking Feedback Loop
 				rebuildBtn.disabled = true;
-				setLogVisibility(true);
+				rebuildBtn.style.backgroundColor = '#cccccc';
+				rebuildBtn.style.cursor = 'not-allowed';
+				rebuildBtn.textContent = 'Compiling Profile...';
 				
+				setLogVisibility(true);
 				logTitleText.textContent = "Log (Compiling)";
-				log(`[Compiler] Issuing compile instructions payload configuration targeting Serial: ${selectedFirmware.serial}...`);
+				log(`[Compiler] Dispatching configuration rebuild request payload targeting serial: ${selectedFirmware.serial}...`);
 
 				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(selectedFirmware.serial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
 				
-				const response = await fetch(targetApiUri, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' }
-				});
-
+				const response = await fetch(targetApiUri, { method: 'POST' });
 				const outcome = await response.json();
+
 				if (!response.ok || !outcome.success) {
-					throw new Error(outcome.error || `Server returned invalid compilation status execution state: ${response.status}`);
+					throw new Error(outcome.error || `Server configuration mapping execution fault.`);
 				}
 
-				log(`[Compiler Success] Remote background job successfully generated and dispatched! Batch context assigned: ${outcome.batch_id}`);
-				log(`[Compiler Info] Give the compiler pipeline roughly ~45-90 seconds to bundle the specialized image asset stack context.`);
-				log(`[Compiler Info] You can reload or search again shortly to locate and download the finalized custom firmware structure!`);
-				
-				alert("Custom compilation has successfully queued up on the remote cluster nodes!");
-				
-				setTimeout(loadFirmwareList, 15000);
+				const batchId = outcome.batch_id;
+				log(`[Compiler Success] Remote build job dispatched into worker stack. Batch ID: ${batchId}`);
+
+				// --- BEGIN POLL CHECK INTERVAL LOOP USING THE CORRECT HIGH-RES PATH ---
+				const pollInterval = setInterval(async () => {
+					try {
+						const progressRes = await fetch(`/api/rebuild_progress?batch_id=${encodeURIComponent(batchId)}`);
+						if (!progressRes.ok) return;
+						
+						const status = await progressRes.json();
+						if (!status.success) return;
+
+						// If the batch has cleared out of the working queues, compilation has concluded
+						if (!status.is_active) {
+							clearInterval(pollInterval);
+							
+							// Restore original element states immediately
+							rebuildBtn.disabled = false;
+							rebuildBtn.style.backgroundColor = '#2b7a70';
+							rebuildBtn.style.cursor = 'pointer';
+							rebuildBtn.textContent = originalButtonText;
+							
+							logTitleText.textContent = "Log (Build Complete)";
+							log(`[Compiler Finished] Custom firmware image compiled and indexed successfully.`);
+							
+							// Silently refresh dropdown lists components with new data maps
+							loadFirmwareList();
+							//alert("Custom compilation complete! The firmware drop-down menu list has been refreshed automatically.");
+						}
+					} catch (pollErr) {
+						console.error("Polling resolution error wrapper caught: ", pollErr);
+					}
+				}, 1500); // Check tracking metrics table array bounds every 1.5 seconds
+
 			} catch (err) {
 				log(`[Compiler Error Failed] Build creation process failed: ${err.message}`);
 				alert(`Failed to trigger customized compilation stack: ${err.message}`);
-			} finally {
+				
 				rebuildBtn.disabled = false;
+				rebuildBtn.style.backgroundColor = '#2b7a70';
+				rebuildBtn.style.cursor = 'pointer';
+				rebuildBtn.textContent = originalButtonText;
 			}
 		});
 

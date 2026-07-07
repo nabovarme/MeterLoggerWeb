@@ -255,40 +255,46 @@ sub get_git_version_from_docker {
 	return "$branch-$count-$desc";
 }
 
+# Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
 sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
 	return 'AP=1' unless defined $sw_version;
 
 	my @flags = ('AP=1');
 
-	# Strict Baseline Protocol Mapping Definitions (Omit MC check mapping entirely)
-	if ($sw_version =~ /\bEN61107\b/) {
+	# Clean boundary matching matrix allows dashes inside option strings (like MC-B)
+	# while splitting keywords cleanly via underscores or string borders.
+	my $boundary = qr/(?:^|_|\b)/;
+	my $end_bound = qr/(?:_|\b|$)/;
+
+	# Strict Protocol Mapping Target Parsing (README compliance verification boundaries)
+	if ($sw_version =~ /${boundary}EN61107${end_bound}/) {
 		push @flags, 'EN61107=1';
 	}
-	elsif ($sw_version =~ /\bMC_66B\b/) {
+	elsif ($sw_version =~ /${boundary}MC_66B${end_bound}/) {
 		push @flags, 'MC_66B=1';
 	}
-	elsif ($sw_version =~ /\bIMPULSE\b/) {
+	elsif ($sw_version =~ /${boundary}IMPULSE${end_bound}/) {
 		push @flags, 'IMPULSE=1';
 	}
-	# Default fallback remains standard Kamstrup Multical 601 (KMP) mode passing nothing extra
 
-	# Functional Logic Modifiers
-	push @flags, 'FLOW_METER=1'     if $sw_version =~ /\bFLOW_METER\b/;
-	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /\bNO_AUTO_CLOSE\b/;
-	push @flags, 'NO_CRON=1'        if $sw_version =~ /\bNO_CRON\b/;
+	# Logic Modifier Overrides
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /${boundary}FLOW_METER${end_bound}/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /${boundary}NO_AUTO_CLOSE${end_bound}/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /${boundary}NO_CRON${end_bound}/;
 
-	# Electrical Actuator Configuration States
-	push @flags, 'THERMO_NO=1'      if $sw_version =~ /\bTHERMO_NO\b/;
-	push @flags, 'THERMO_NO=0'      if $sw_version =~ /\bTHERMO_NC\b/;
-	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /\bTHERMO_ON_AC_2\b/;
-	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /\bLED_ON_AC\b/;
-	push @flags, 'AC_TEST=1'        if $sw_version =~ /\bAC_TEST\b/;
+	# Synchronized Actuator State Flag Dictionary Map
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /${boundary}THERMO_NO${end_bound}/;
+	push @flags, 'THERMO_NO=0'      if $sw_version =~ /${boundary}THERMO_NC${end_bound}/;
 
-	# Diagnostic Engine / Mock Environment Overrides
-	push @flags, 'DEBUG=1'                if $sw_version =~ /\bDEBUG\b/ && $sw_version !~ /\bDEBUG_NO_METER\b/ && $sw_version !~ /\bDEBUG_STACK_TRACE\b/;
-	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /\bNO_METER\b/;
-	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /\bDEBUG_STACK_TRACE\b/;
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /${boundary}THERMO_ON_AC_2${end_bound}/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /${boundary}LED_ON_AC${end_bound}/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /${boundary}AC_TEST${end_bound}/;
+
+	# Diagnostics / Mock Output Variables
+	push @flags, 'DEBUG=1'                if $sw_version =~ /${boundary}DEBUG${end_bound}/ && $sw_version !~ /${boundary}DEBUG_NO_METER${end_bound}/ && $sw_version !~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /${boundary}NO_METER${end_bound}/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
 
 	return join(' ', @flags);
 }
@@ -450,10 +456,10 @@ sub run_docker_build {
 
 	my $sw_version = $version;
 
-	# Force clean dash formatting throughout directory naming context
+	my $sw_version = $version;
+
 	my $fs_version = $sw_version;
-	$fs_version =~ tr/_/-/;
-	$fs_version =~ s/[^a-zA-Z0-9.-]//g; 
+	$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 	$fs_version = 'unknown' if !$fs_version;
 
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
@@ -653,22 +659,32 @@ sub generate_firmware_index {
 
 				my $meta = decode_json($json_text);
 				
-				my $display_info = $meta->{info} || 'Meter';
 				my $formatted_version = $meta->{sw_version} || $version;
-				my $bracket_flags = $meta->{build_flags} || '';
+				my $bracket_flags = '';
 
-				# Parse the path layout: master-1462-a35f2-custom-OPTIONS...
-				if ($version =~ /^master-.*-custom/) {
-					# Isolate the exact matching segment block context cleanly for display: master-1462-a35f2
-					if ($version =~ /^(master-[^-]+-[^-]+)-custom/) {
+				# Dynamic matching pattern tracks any git branch name context cleanly
+				if ($version =~ /^(.+?)-\d+-[a-f0-9]+-custom_/) {
+					if ($version =~ /^(.+?)-\d+-[a-f0-9]+/ ) {
 						$formatted_version = $1;
-					} else {
-						$formatted_version = "master-custom";
 					}
-					$bracket_flags = $bracket_flags ? "CUSTOM $bracket_flags" : "CUSTOM";
+
+					my $raw_flags = $meta->{build_flags} // '';
+					$bracket_flags = "CUSTOM $raw_flags";
+				}
+				elsif ($version =~ /^(.+?)-\d+-[a-f0-9]+$/) {
+					$formatted_version = $version;
+				
+					# Enforce literal inclusion of raw flag values without filtering out baseline AP=1 configurations
+					$bracket_flags = $meta->{build_flags} // 'AP=1';
+				}
+				else {
+					$bracket_flags = '';
 				}
 
-				# Structure formatting output layout string precisely
+				my $display_info = $meta->{info} || '';
+				$display_info =~ s/^\s*~\s*//; 
+				$display_info = 'Meter' if $display_info eq '';
+
 				$name = "$serial ~ $display_info ($formatted_version)";
 				if ($bracket_flags) {
 					$name .= " [$bracket_flags]";
