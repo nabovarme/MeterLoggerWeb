@@ -93,7 +93,7 @@
 
 		.config-options { display: none; }
 		
-		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0; }
+		.console-toggle { display: inline-flex; align-items: center; cursor: pointer; user-select: none; margin: 0 10px; }
 		.triangle { display: inline-block; transition: transform 0.2s ease; margin-right: 5px; font-size: 12px; }
 		.triangle.open { transform: rotate(90deg); }
 		
@@ -104,13 +104,11 @@
 </head>
 
 <body>
-	<div class="header default-group" style="padding: 10px 10px 0 10px;">MeterLogger Firmware Flash Tool</div>
+	<div class="header default-group" style="padding: 10px 10px 0 10px;">Firmware Flash Tool</div>
 
 	<div class="action-row">
 		<div class="search-container">
-			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">
-				Select firmware profile:<span id="profileMetaLabel" style="color: #2b7a70; font-weight: normal; font-style: italic; font-size: 90%;"></span>
-			</label>
+			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
 			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
 			<datalist id="firmwareOptions"></datalist>
 		</div>
@@ -128,11 +126,11 @@
 		<div class="control-group">
 			<label for="baudRate" class="default-bold" style="font-size: 90%;">Baud Rate:</label>
 			<select id="baudRate">
-				<option value="115200" selected>115200</option>
+				<option value="115200">115200</option>
 				<option value="230400">230400</option>
 				<option value="460800">460800</option>
 				<option value="921600">921600</option>
-				<option value="1500000">1500000</option>
+				<option value="1500000" selected>1500000</option>
 			</select>
 		</div>
 
@@ -142,10 +140,15 @@
 		</div>
 	</div>
 
-	<!-- Enhanced Compiler Panel Configuration Layer -->
-	<div class="options-row" style="flex-direction: column; align-items: flex-start; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; margin: 10px; padding: 15px; box-sizing: border-box; width: calc(100% - 20px);">
-		<div class="default-bold" style="font-size: 100%; margin-bottom: 12px; color: #2b7a70;">Dynamic Firmware Compiler Workspace</div>
-		
+	<!-- Toggle Anchor Header for Compiler Section -->
+	<div style="margin: 10px 0;">
+		<span id="toggleWorkspaceBtn" class="default default-bold console-toggle">
+			<span id="workspaceTriangleIcon" class="triangle">&#9658;</span> Dynamic Firmware Compiler Workspace
+		</span>
+	</div>
+
+	<!-- Enhanced Compiler Panel Configuration Layer (Hidden by Default) -->
+	<div id="compilerWorkspacePanel" class="options-row hidden" style="flex-direction: column; align-items: flex-start; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; margin: 5px 10px 10px 10px; padding: 15px; box-sizing: border-box; width: calc(100% - 20px);">
 		<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; margin-bottom: 15px;">
 			<!-- Hardware / Meter Core Type Group -->
 			<div>
@@ -207,7 +210,7 @@
 
 			<!-- Debug and Emulation Settings -->
 			<div>
-				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Telemetry Debugging & Simulation</div>
+				<div class="default-bold" style="font-size: 85%; color: #666; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">4. Debugging & Simulation</div>
 				<div style="display: flex; flex-wrap: wrap; gap: 15px;">
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging (DEBUG)
@@ -222,7 +225,8 @@
 			</div>
 		</div>
 		
-		<button id="rebuildBtn" class="flash-btn-inline" style="background-color: #2b7a70; color: white; border: none; border-radius: 4px; padding: 8px 16px; font-size: 90%; cursor: pointer; align-self: flex-start;">Compile & Rebuild Profile</button>
+		<!-- Normalized button style matches flash element definitions directly -->
+		<button id="rebuildBtn" class="flash-btn-inline" style="align-self: flex-start;">Compile & Rebuild Firmware</button>
 	</div>
 
 	<div id="progressWrapper" class="progress-container hidden">
@@ -252,6 +256,11 @@
 		const eraseFlashCheckbox = document.getElementById('eraseFlash');
 		const rebuildBtn = document.getElementById('rebuildBtn');
 
+		// COMPILER WORKSPACE VISIBILITY REFERENCES
+		const toggleWorkspaceBtn = document.getElementById('toggleWorkspaceBtn');
+		const workspaceTriangleIcon = document.getElementById('workspaceTriangleIcon');
+		const compilerWorkspacePanel = document.getElementById('compilerWorkspacePanel');
+
 		let allFirmwares = [];
 		let selectedFirmware = null;
 		let transport = null;
@@ -276,6 +285,22 @@
 		toggleLogBtn.addEventListener('click', () => {
 			const isVisible = !logDiv.classList.contains('hidden');
 			setLogVisibility(!isVisible);
+		});
+
+		// COMPILER WORKSPACE VISIBILITY TOGGLE CONTROLLER
+		function setWorkspaceVisibility(visible) {
+			if (visible) {
+				compilerWorkspacePanel.classList.remove('hidden');
+				workspaceTriangleIcon.classList.add('open');
+			} else {
+				compilerWorkspacePanel.classList.add('hidden');
+				workspaceTriangleIcon.classList.remove('open');
+			}
+		}
+
+		toggleWorkspaceBtn.addEventListener('click', () => {
+			const isVisible = !compilerWorkspacePanel.classList.contains('hidden');
+			setWorkspaceVisibility(!isVisible);
 		});
 
 		// Dynamic list processor utilizing the unique, hidden filesystem 'version' id mapping context
@@ -303,6 +328,8 @@
 							selectedFirmware = matchingFw;
 							searchInput.dispatchEvent(new Event('input'));
 							log(`[UI Target Selected] Locked selector interface onto folder signature: "${targetVersionUniqueId}"`);
+						} else {
+							console.warn(`[UI Warning] Auto-select failed to find entry version matching signature: "${targetVersionUniqueId}"`);
 						}
 					}
 				});
@@ -313,7 +340,6 @@
 		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
-			const profileMetaLabel = document.getElementById('profileMetaLabel');
 			
 			if (selectedFirmware) {
 				// Reset panel options back to clean defaults first
@@ -359,14 +385,6 @@
 					
 					log(`[UI Settings] Auto-loaded parameters from profile flags string matching: "${flagsString}"`);
 				}
-				
-				// Show active tag inside the target label wrapper segment
-				const versionMatch = selectedFirmware.name.match(/\((.*?)\)/);
-				if (versionMatch && versionMatch[1] && profileMetaLabel) {
-					profileMetaLabel.textContent = ` (${versionMatch[1]})`;
-				}
-			} else {
-				if (profileMetaLabel) profileMetaLabel.textContent = '';
 			}
 		});
 
@@ -407,8 +425,6 @@
 			try {
 				// Inline UI Locking Feedback Loop
 				rebuildBtn.disabled = true;
-				rebuildBtn.style.backgroundColor = '#cccccc';
-				rebuildBtn.style.cursor = 'not-allowed';
 				rebuildBtn.textContent = 'Compiling Profile...';
 				
 				setLogVisibility(true);
@@ -442,8 +458,6 @@
 							
 							// Restore original element states immediately
 							rebuildBtn.disabled = false;
-							rebuildBtn.style.backgroundColor = '#2b7a70';
-							rebuildBtn.style.cursor = 'pointer';
 							rebuildBtn.textContent = originalButtonText;
 							
 							logTitleText.textContent = "Log (Build Complete)";
@@ -459,8 +473,11 @@
 								baseFolderSignature = baseFolderSignature.split('-custom-')[0];
 							}
 							
-							// Unified uppercase dash assembly chain sequence alignment
-							const generatedFsVersionUniqueId = `${baseFolderSignature}-CUSTOM-${swVersionSuffix}`;
+							// CORRECTION MATCH LOOP: If no modifiers were checked, backend drops "-STANDARD" completely
+							let generatedFsVersionUniqueId = `${baseFolderSignature}-CUSTOM`;
+							if (swVersionSuffix !== 'STANDARD') {
+								generatedFsVersionUniqueId += `-${swVersionSuffix}`;
+							}
 							
 							// Silent list reload paired with unique identity folder signature selection lock
 							await loadFirmwareList(generatedFsVersionUniqueId);
@@ -475,8 +492,6 @@
 				alert(`Failed to trigger customized compilation stack: ${err.message}`);
 				
 				rebuildBtn.disabled = false;
-				rebuildBtn.style.backgroundColor = '#2b7a70';
-				rebuildBtn.style.cursor = 'pointer';
 				rebuildBtn.textContent = originalButtonText;
 			}
 		});
@@ -537,7 +552,7 @@
 				const esploader = new ESPLoader({
 					transport: transport,
 					baudrate: chosenBaud,
-					romBaudrate: 115200,
+					romBaudrate: 1500000,
 					debugLogging: false, 
 					terminal: { 
 						clean: () => { logDiv.textContent = ""; }, 
