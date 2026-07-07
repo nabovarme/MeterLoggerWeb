@@ -107,7 +107,7 @@ for (1..$workers) {
 
 			my $job = decode_json($data);
 
-			print "Worker $$ building serial: $job->{serial}\n";
+			print "Worker $$ building serial: $job->{serial} with Version/Suffix: $job->{version}\n";
 
 			run_docker_build(
 				$redis,
@@ -260,43 +260,36 @@ sub get_git_version_from_docker {
 
 sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
+	return 'AP=1' unless defined $sw_version;
 
-	my $flags = 'AP=1';
+	my @flags = ('AP=1');
 
-	return $flags unless defined $sw_version;
+	# Protocol / Hardware Mappings Directives
+	push @flags, 'EN61107=1'        if $sw_version =~ /MC_66C/;
+	push @flags, 'MC_66B=1'         if $sw_version =~ /MC_66B/;
+	push @flags, 'IMPULSE=1'        if $sw_version =~ /IMPULSE/;
 
-	if ($sw_version =~ /NO_AUTO_CLOSE/) {
-		$flags .= ' AUTO_CLOSE=0';
-	}
+	# Retro-compatibility check for base-profile matches
+	push @flags, 'MC_66B=1'         if $sw_version =~ /MC-B/;
+	push @flags, 'EN61107=1'        if $sw_version =~ /MC/ && $sw_version !~ /MC_66B/;
 
-	if ($sw_version =~ /NO_CRON/) {
-		$flags .= ' NO_CRON=1';
-	}
+	# Functional Logic Modifiers
+	push @flags, 'FLOW_METER=1'     if $sw_version =~ /FLOW_METER/;
+	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /NO_AUTO_CLOSE/;
+	push @flags, 'NO_CRON=1'        if $sw_version =~ /NO_CRON/;
 
-	if ($sw_version =~ /DEBUG_STACK_TRACE/) {
-		$flags .= ' DEBUG_STACK_TRACE=1';
-	}
+	# Electrical Actuator Configuration States
+	push @flags, 'THERMO_NO=1'      if $sw_version =~ /THERMO_NO/;
+	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /THERMO_ON_AC_2/;
+	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /LED_ON_AC/;
+	push @flags, 'AC_TEST=1'        if $sw_version =~ /AC_TEST/;
 
-	if ($sw_version =~ /THERMO_ON_AC_2/) {
-		$flags .= ' THERMO_ON_AC_2=1';
-	}
+	# Diagnostic Engine / Mock Environment Overrides
+	push @flags, 'DEBUG=1'                if $sw_version =~ /DEBUG/ && $sw_version !~ /DEBUG_NO_METER/ && $sw_version !~ /DEBUG_STACK_TRACE/;
+	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /NO_METER/;
+	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /DEBUG_STACK_TRACE/;
 
-	if ($sw_version =~ /AC_TEST/)
-	{
-		$flags .= ' AC_TEST=1 LED_ON_AC=1';
-	}
-
-	if ($sw_version =~ /MC-B/) {
-		$flags .= ' MC_66B=1';
-	}
-	elsif ($sw_version =~ /MC/) {
-		$flags .= ' EN61107=1';
-	}
-	elsif ($sw_version =~ /NO_METER/) {
-		$flags .= ' DEBUG=1 DEBUG_NO_METER=1';
-	}
-
-	return $flags;
+	return join(' ', @flags);
 }
 
 sub print_progress {
