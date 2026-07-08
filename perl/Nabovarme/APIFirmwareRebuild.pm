@@ -23,8 +23,8 @@ sub build_flags_from_sw_version {
 		$flags_segment = $1;
 	}
 
-	# Split on spaces to isolate specific tokens like "FLOW_METER=1" or "NO_CRON=1"
-	my @tokens = split(/\s+/, $flags_segment);
+	# Split on spaces OR hyphens to isolate specific tokens like "FLOW_METER" or "NO_CRON=1"
+	my @tokens = split(/[\s\-]+/, $flags_segment);
 
 	# Helper function to extract explicit key/value bindings
 	my $check_flag = sub {
@@ -194,7 +194,7 @@ sub handler {
 			}
 		}
 
-		# Assemble the version key cleanly matching your strict uppercase dash layout rule
+		# Ensure the version variable string layout maintains the exact naming target written to storage paths
 		my $custom_version = "${git_branch}-${git_suffix}-CUSTOM";
 		if ($modifiers ne 'STANDARD') {
 			$custom_version .= "-${modifiers}";
