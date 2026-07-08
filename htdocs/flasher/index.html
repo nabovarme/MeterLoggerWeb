@@ -226,7 +226,7 @@
 		</div>
 		
 		<!-- Normalized button style matches flash element definitions directly -->
-		<button id="rebuildBtn" class="flash-btn-inline" style="align-self: flex-start;">Compile & Rebuild Firmware</button>
+		<button id="rebuildBtn" class="flash-btn-inline" style="align-self: flex-start;">Rebuild Firmware</button>
 	</div>
 
 	<div id="progressWrapper" class="progress-container hidden">
@@ -441,7 +441,7 @@
 			try {
 				// Inline UI Locking Feedback Loop
 				rebuildBtn.disabled = true;
-				rebuildBtn.textContent = 'Compiling Profile...';
+				rebuildBtn.textContent = 'Building Firmware...';
 				
 				setLogVisibility(true);
 				logTitleText.textContent = "Log (Compiling)";
