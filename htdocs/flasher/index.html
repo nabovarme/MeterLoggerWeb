@@ -347,60 +347,59 @@
 				document.querySelectorAll('.options-row input[type="checkbox"]').forEach(cb => cb.checked = false);
 				document.getElementById('flagThermoActuator').value = 'THERMO_NC';
 
-				// Parse bracketed flag strings out of the meta name profile string
-				const flagMatch = selectedFirmware.name.match(/\[(.*?)\]/);
-				if (flagMatch && flagMatch[1]) {
-					const flagsString = flagMatch[1];
-					
-					// Split string tokens into an array of discrete parts (e.g., ["AP=1", "NO_CRON=1"])
-					const flagTokens = flagsString.split(/[\s\-]+/);
+				// Extract tokens from the FULL name string layout to catch automatic build tags
+				const fullProfileText = selectedFirmware.name;
+				
+				// Standardized token separator matching backend split configurations
+				const flagTokens = fullProfileText.split(/[\s\-()\[\]]+/);
 
-					// Helper function to read the precise value assignment context safely
-					function checkFlagState(flagName, defaultOnMatch = true) {
-						// Look for explicit key=value tokens inside the parsed options matrix
-						const explicitMatch = flagTokens.find(token => token.startsWith(flagName + '='));
-						if (explicitMatch) {
-							const flagVal = explicitMatch.split('=')[1];
-							return flagVal === '1';
-						}
-						// Fallback match check for clean unassigned variable entries
-						return flagTokens.includes(flagName) ? defaultOnMatch : false;
+				// Helper function to read the precise value assignment context safely
+				function checkFlagState(flagName, defaultOnMatch = true) {
+					// Check explicit assignments (e.g., FLOW_METER=1 or NO_CRON=1)
+					const explicitMatch = flagTokens.find(token => token.startsWith(flagName + '='));
+					if (explicitMatch) {
+						return explicitMatch.split('=')[1] === '1';
 					}
-
-					// 1. Radio Protocol Auto-Selectors (Aligned to explicit whitelist variables only)
-					if (checkFlagState('MC_66B')) {
-						document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
-					} else if (checkFlagState('EN61107')) {
-						document.querySelector('input[name="meterProtocol"][value="EN61107"]').checked = true;
-					} else if (checkFlagState('IMPULSE')) {
-						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
-					}
-
-					// 2. Overrides & Modifiers Checkbox Selectors (FLOW_METER checks for "FLOW" token)
-					document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW');
-					document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (() => {
-						const am = flagTokens.find(t => t.startsWith('AUTO_CLOSE='));
-						return am ? am.split('=')[1] === '0' : false;
-					})();
-					document.getElementById('flagNoCron').checked      = checkFlagState('NO_CRON');
-					document.getElementById('flagThermoAC2').checked   = checkFlagState('THERMO_ON_AC_2');
-					document.getElementById('flagLedAc').checked       = checkFlagState('LED_ON_AC');
-					document.getElementById('flagAcTest').checked      = checkFlagState('AC_TEST');
-					document.getElementById('flagNoMeter').checked     = checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
-					document.getElementById('flagStackTrace').checked  = checkFlagState('DEBUG_STACK_TRACE');
-					
-					// 3. Actuator State Dropdown Auto-Populate Logic
-					if (checkFlagState('THERMO_NO')) {
-						document.getElementById('flagThermoActuator').value = 'THERMO_NO';
-					} else {
-						document.getElementById('flagThermoActuator').value = 'THERMO_NC';
-					}
-
-					// Catch general debug state strictly without false-triggering on subword extensions
-					document.getElementById('flagSerialDebug').checked = checkFlagState('DEBUG') || checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
-					
-					log(`[UI Settings] Auto-loaded parameters from profile flags string matching: "${flagsString}"`);
+					// Fallback to strict array token containment checks
+					return flagTokens.includes(flagName) ? defaultOnMatch : false;
 				}
+
+				// 1. Radio Protocol Auto-Selectors (Backwards compatible fallback scanning layout)
+				if (checkFlagState('MC_66B') || flagTokens.includes('MC_B') || (flagTokens.includes('MC') && flagTokens.includes('B'))) {
+					document.querySelector('input[name="meterProtocol"][value="MC_66B"]').checked = true;
+				} else if (checkFlagState('EN61107') || flagTokens.includes('MC')) {
+					document.querySelector('input[name="meterProtocol"][value="EN61107"]').checked = true;
+				} else if (checkFlagState('IMPULSE')) {
+					document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
+				}
+
+				// 2. Overrides & Modifiers Checkbox Selectors (Bidirectional check accommodates FLOW folder tag and compiler output flag)
+				document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW') || checkFlagState('FLOW_METER');
+				document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (() => {
+					const am = flagTokens.find(t => t.startsWith('AUTO_CLOSE='));
+					return am ? am.split('=')[1] === '0' : false;
+				})();
+				document.getElementById('flagNoCron').checked      = checkFlagState('NO_CRON');
+				document.getElementById('flagThermoAC2').checked   = checkFlagState('THERMO_ON_AC_2');
+				document.getElementById('flagLedAc').checked       = checkFlagState('LED_ON_AC');
+				document.getElementById('flagAcTest').checked      = checkFlagState('AC_TEST');
+				document.getElementById('flagNoMeter').checked     = checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
+				document.getElementById('flagStackTrace').checked  = checkFlagState('DEBUG_STACK_TRACE');
+				
+				// 3. Actuator State Dropdown Auto-Populate Logic
+				if (checkFlagState('THERMO_NO') || (() => {
+					const ts = flagTokens.find(t => t.startsWith('THERMO_NO='));
+					return ts ? ts.split('=')[1] === '1' : false;
+				})()) {
+					document.getElementById('flagThermoActuator').value = 'THERMO_NO';
+				} else {
+					document.getElementById('flagThermoActuator').value = 'THERMO_NC';
+				}
+
+				// Catch general debug state strictly without false-triggering on subword extensions
+				document.getElementById('flagSerialDebug').checked = checkFlagState('DEBUG') || checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
+				
+				log(`[UI Settings] Auto-loaded parameters from full profile layout context.`);
 			}
 		});
 
@@ -417,7 +416,11 @@
 
 			const selectedProtocol = document.querySelector('input[name="meterProtocol"]:checked').value;
 			if (selectedProtocol !== 'KMP') {
-				modifiers.push(selectedProtocol);
+				if (selectedProtocol === 'MC_66B') {
+					modifiers.push('MC_B');
+				} else {
+					modifiers.push(selectedProtocol);
+				}
 			}
 
 			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW');

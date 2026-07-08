@@ -218,7 +218,7 @@ sub rebuild_firmware_sdk {
 
 	my $cmd = "docker build --build-arg CACHEBUST=\$(date +%s) -t firmware_sdk:latest -f /docker_root/builder/firmware_sdk/Dockerfile /docker_root 2>&1";
 
-	# Open a real-time command pipeline read stream to output logs as they happen
+	# Open a real-time command pipeline read stream to output logs as they happen safely
 	open(my $ph, "-|", $cmd)
 		or die "Failed to execute docker build pipeline link: $!";
 
@@ -266,10 +266,10 @@ sub build_flags_from_sw_version {
 		$flags_segment = $1;
 	}
 
-	# Split on spaces OR hyphens to isolate specific dashed tokens like "FLOW_METER" or "NO_CRON=1"
+	# Split on spaces OR hyphens to isolate specific tokens safely
 	my @tokens = split(/[\s\-]+/, $flags_segment);
 
-	# Helper function to extract explicit key/value bindings
+	# Helper function to extract explicit key/value bindings or bare keywords
 	my $check_flag = sub {
 		my ($flag_name, $default_on_match) = @_;
 		$default_on_match //= 1;
@@ -291,19 +291,19 @@ sub build_flags_from_sw_version {
 
 	my @flags = ('AP=1');
 
-	# 1. Core Hardware Protocol Auto-Selectors
-	if (($check_flag->('MC_66B') // 0) == 1) {
+	# 1. Core Hardware Protocol Auto-Selectors (Backwards compatible across MC_66B, MC_B, and legacy hyphen splits)
+	if (($check_flag->('MC_66B') // 0) == 1 || grep { $_ eq 'MC_B' } @tokens || (grep { $_ eq 'MC' } @tokens && grep { $_ eq 'B' } @tokens)) {
 		push @flags, 'MC_66B=1';
 	}
-	elsif (($check_flag->('EN61107') // 0) == 1) {
+	elsif (($check_flag->('EN61107') // 0) == 1 || grep { $_ eq 'MC' } @tokens) {
 		push @flags, 'EN61107=1';
 	}
 	elsif (($check_flag->('IMPULSE') // 0) == 1) {
 		push @flags, 'IMPULSE=1';
 	}
 
-	# 2. Logic Overrides & Modifiers
-	my $flow_meter = $check_flag->('FLOW_METER');
+	# 2. Logic Overrides & Modifiers (Maps "FLOW" folder token directly to FLOW_METER output flag)
+	my $flow_meter = $check_flag->('FLOW');
 	push @flags, "FLOW_METER=1" if defined $flow_meter && $flow_meter == 1;
 
 	# Note: NO_AUTO_CLOSE=1 maps internally to AUTO_CLOSE=0
@@ -335,15 +335,15 @@ sub build_flags_from_sw_version {
 	my $ac_test = $check_flag->('AC_TEST');
 	push @flags, "AC_TEST=1" if defined $ac_test && $ac_test == 1;
 
-	# 4. Diagnostics & Trace Variables
-	my $debug          = $check_flag->('DEBUG');
-	my $debug_no_meter = $check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER');
+	# 4. Diagnostics & Trace Variables (SAFE APPEND: fixed destructive re-assignments)
+	my $debug          = (grep { $_ eq 'DEBUG' } @tokens) ? 1 : 0;
+	my $debug_no_meter = ($check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER')) // 0;
 	my $stack_trace    = $check_flag->('DEBUG_STACK_TRACE');
 
-	if ((defined $debug_no_meter && $debug_no_meter == 1)) {
-		push @flags, 'DEBUG=1 DEBUG_NO_METER=1';
+	if ($debug_no_meter == 1) {
+		push @flags, 'DEBUG=1', 'DEBUG_NO_METER=1';
 	}
-	elsif ((defined $debug && $debug == 1)) {
+	elsif ($debug == 1) {
 		push @flags, 'DEBUG=1';
 	}
 
@@ -599,7 +599,6 @@ sub prepare_release_structure {
 
 	make_path($version_dir);
 
-	# Look for components in the isolated serial directory matching Makefile updates
 	my $isolated_src_dir = "$base_dir/$serial";
 
 	my @components = (
@@ -621,7 +620,6 @@ sub prepare_release_structure {
 		}
 	}
 
-	# Clean up the intermediate staging serial subdirectory context cleanly
 	rmdir($isolated_src_dir);
 
 	my $latest_link = "$serial_dir/latest";
@@ -713,7 +711,6 @@ sub generate_firmware_index {
 				my $formatted_version = $meta->{sw_version} || $version;
 				my $bracket_flags = '';
 
-				# Extracts full branch-count-hash layout prefix safely out of custom dashed chains
 				if ($version =~ /^([a-zA-Z0-9._-]+-\d+-[a-f0-9]+)-CUSTOM(?:-(.+))?$/) {
 					$formatted_version = $1;
 			      

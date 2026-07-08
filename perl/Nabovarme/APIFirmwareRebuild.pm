@@ -23,10 +23,10 @@ sub build_flags_from_sw_version {
 		$flags_segment = $1;
 	}
 
-	# Split on spaces OR hyphens to isolate specific tokens like "FLOW_METER" or "NO_CRON=1"
+	# Split on spaces OR hyphens to isolate specific tokens safely
 	my @tokens = split(/[\s\-]+/, $flags_segment);
 
-	# Helper function to extract explicit key/value bindings
+	# Helper function to extract explicit key/value bindings or bare keywords
 	my $check_flag = sub {
 		my ($flag_name, $default_on_match) = @_;
 		$default_on_match //= 1;
@@ -48,18 +48,18 @@ sub build_flags_from_sw_version {
 
 	my @flags = ('AP=1');
 
-	# 1. Core Hardware Protocol Auto-Selectors
-	if (($check_flag->('MC_66B') // 0) == 1) {
+	# 1. Core Hardware Protocol Auto-Selectors (Backwards compatible across MC_66B, MC_B, and legacy hyphen splits)
+	if (($check_flag->('MC_66B') // 0) == 1 || grep { $_ eq 'MC_B' } @tokens || (grep { $_ eq 'MC' } @tokens && grep { $_ eq 'B' } @tokens)) {
 		push @flags, 'MC_66B=1';
 	}
-	elsif (($check_flag->('EN61107') // 0) == 1) {
+	elsif (($check_flag->('EN61107') // 0) == 1 || grep { $_ eq 'MC' } @tokens) {
 		push @flags, 'EN61107=1';
 	}
 	elsif (($check_flag->('IMPULSE') // 0) == 1) {
 		push @flags, 'IMPULSE=1';
 	}
 
-	# 2. Logic Overrides & Modifiers (Maps "FLOW" folder token token directly to FLOW_METER output flag)
+	# 2. Logic Overrides & Modifiers (Maps "FLOW" folder token directly to FLOW_METER output flag)
 	my $flow_meter = $check_flag->('FLOW');
 	push @flags, "FLOW_METER=1" if defined $flow_meter && $flow_meter == 1;
 
@@ -92,15 +92,15 @@ sub build_flags_from_sw_version {
 	my $ac_test = $check_flag->('AC_TEST');
 	push @flags, "AC_TEST=1" if defined $ac_test && $ac_test == 1;
 
-	# 4. Diagnostics & Trace Variables
-	my $debug          = $check_flag->('DEBUG');
-	my $debug_no_meter = $check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER');
+	# 4. Diagnostics & Trace Variables (SAFE APPEND: fixed destructive re-assignments)
+	my $debug          = (grep { $_ eq 'DEBUG' } @tokens) ? 1 : 0;
+	my $debug_no_meter = ($check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER')) // 0;
 	my $stack_trace    = $check_flag->('DEBUG_STACK_TRACE');
 
-	if ((defined $debug_no_meter && $debug_no_meter == 1)) {
-		push @flags, 'DEBUG=1 DEBUG_NO_METER=1';
+	if ($debug_no_meter == 1) {
+		push @flags, 'DEBUG=1', 'DEBUG_NO_METER=1';
 	}
-	elsif ((defined $debug && $debug == 1)) {
+	elsif ($debug == 1) {
 		push @flags, 'DEBUG=1';
 	}
 
@@ -160,7 +160,7 @@ sub handler {
 		my $db_version_string = $meter->{sw_version} // '';
 
 		# Match standard full branch layouts: [branch]-[count]-[hash]
-		if ($db_version_string =~ /^([a-zA-Z0-9._-]+)-(\d+-[a-fA-F0-9]+)/) {
+		if ($db_version_string =~ /^([a-zA-Z0-9._-]+)-(\d+-[a-f0-9]+)/) {
 			$git_branch = $1;
 			$git_suffix = $2;
 			
@@ -169,7 +169,7 @@ sub handler {
 			}
 		}
 		# Fallback tracking for legacy -master-[count]-[hash]- structures anywhere inside the string
-		elsif ($db_version_string =~ /-(master)-(\d+-[a-fA-F0-9]+)/) {
+		elsif ($db_version_string =~ /-(master)-(\d+-[a-f0-9]+)/) {
 			$git_branch = $1;
 			$git_suffix = $2;
 		}
@@ -189,7 +189,6 @@ sub handler {
 					$git_branch = $git_brn if $git_brn ne 'HEAD';
 				}
 			} else {
-				# Dynamic split fallback extracting layout context from raw database baseline records safely
 				if ($db_version_string =~ /^([a-zA-Z0-9._-]+?)(?:-custom)?$/) {
 					my @parts = split(/-/, $1);
 					if (@parts >= 3) {
