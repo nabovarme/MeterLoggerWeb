@@ -732,7 +732,7 @@ sub generate_firmware_index {
 				$display_info =~ s/^\s*~\s*//; 
 				$display_info = 'Meter' if $display_info eq '';
 
-				$name = "$serial ~ $display_info ($formatted_version)";
+				$name = "$serial $display_info ($formatted_version)";
 				if ($bracket_flags) {
 					$name .= " [$bracket_flags]";
 				}
