@@ -260,41 +260,94 @@ sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
 	return 'AP=1' unless defined $sw_version;
 
+	# Extract out the bracketed segment metadata if present, otherwise read full string tokens
+	my $flags_segment = $sw_version;
+	if ($sw_version =~ /\[(.*?)\]/) {
+		$flags_segment = $1;
+	}
+
+	# Split on spaces to isolate specific tokens like "FLOW_METER=1" or "NO_CRON=1"
+	my @tokens = split(/\s+/, $flags_segment);
+
+	# Helper function to extract explicit key/value bindings
+	my $check_flag = sub {
+		my ($flag_name, $default_on_match) = @_;
+		$default_on_match //= 1;
+
+		# Find explicit token matching "FLAG_NAME=" key pairs
+		my ($matched_token) = grep { $_ =~ /^$flag_name=/ } @tokens;
+		if ($matched_token) {
+			my (undef, $val) = split(/=/, $matched_token, 2);
+			return $val eq '1' ? 1 : 0;
+		}
+
+		# Fallback to bare keyword check if present without explicit values
+		if (grep { $_ eq $flag_name } @tokens) {
+			return $default_on_match;
+		}
+
+		return undef;
+	};
+
 	my @flags = ('AP=1');
 
-	# Clean boundary matching matrix allows dashes inside option strings (like MC-B)
-	# while splitting keywords cleanly via underscores or string borders.
-	my $boundary = qr/(?:^|_|\b)/;
-	my $end_bound = qr/(?:_|\b|$)/;
-
-	# Strict Protocol Mapping Target Parsing (README compliance verification boundaries)
-	if ($sw_version =~ /${boundary}EN61107${end_bound}/) {
-		push @flags, 'EN61107=1';
-	}
-	elsif ($sw_version =~ /${boundary}MC_66B${end_bound}/) {
+	# 1. Core Hardware Protocol Auto-Selectors
+	if (($check_flag->('MC_66B') // 0) == 1) {
 		push @flags, 'MC_66B=1';
 	}
-	elsif ($sw_version =~ /${boundary}IMPULSE${end_bound}/) {
+	elsif (($check_flag->('EN61107') // 0) == 1) {
+		push @flags, 'EN61107=1';
+	}
+	elsif (($check_flag->('IMPULSE') // 0) == 1) {
 		push @flags, 'IMPULSE=1';
 	}
 
-	# Logic Modifier Overrides
-	push @flags, 'FLOW_METER=1'     if $sw_version =~ /${boundary}FLOW_METER${end_bound}/;
-	push @flags, 'AUTO_CLOSE=0'     if $sw_version =~ /${boundary}NO_AUTO_CLOSE${end_bound}/;
-	push @flags, 'NO_CRON=1'        if $sw_version =~ /${boundary}NO_CRON${end_bound}/;
+	# 2. Logic Overrides & Modifiers
+	my $flow_meter = $check_flag->('FLOW_METER');
+	push @flags, "FLOW_METER=1" if defined $flow_meter && $flow_meter == 1;
 
-	# Synchronized Actuator State Flag Dictionary Map
-	push @flags, 'THERMO_NO=1'      if $sw_version =~ /${boundary}THERMO_NO${end_bound}/;
-	push @flags, 'THERMO_NO=0'      if $sw_version =~ /${boundary}THERMO_NC${end_bound}/;
+	# Note: NO_AUTO_CLOSE=1 maps internally to AUTO_CLOSE=0
+	my $no_auto_close = $check_flag->('NO_AUTO_CLOSE');
+	my $auto_close    = $check_flag->('AUTO_CLOSE');
+	if ((defined $no_auto_close && $no_auto_close == 1) || (defined $auto_close && $auto_close == 0)) {
+		push @flags, 'AUTO_CLOSE=0';
+	}
 
-	push @flags, 'THERMO_ON_AC_2=1' if $sw_version =~ /${boundary}THERMO_ON_AC_2${end_bound}/;
-	push @flags, 'LED_ON_AC=1'      if $sw_version =~ /${boundary}LED_ON_AC${end_bound}/;
-	push @flags, 'AC_TEST=1'        if $sw_version =~ /${boundary}AC_TEST${end_bound}/;
+	my $no_cron = $check_flag->('NO_CRON');
+	push @flags, "NO_CRON=1" if defined $no_cron && $no_cron == 1;
 
-	# Diagnostics / Mock Output Variables
-	push @flags, 'DEBUG=1'                if $sw_version =~ /${boundary}DEBUG${end_bound}/ && $sw_version !~ /${boundary}DEBUG_NO_METER${end_bound}/ && $sw_version !~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
-	push @flags, 'DEBUG=1 DEBUG_NO_METER=1' if $sw_version =~ /${boundary}NO_METER${end_bound}/;
-	push @flags, 'DEBUG_STACK_TRACE=1'    if $sw_version =~ /${boundary}DEBUG_STACK_TRACE${end_bound}/;
+	# 3. Actuator Configuration States
+	my $thermo_no = $check_flag->('THERMO_NO');
+	my $thermo_nc = $check_flag->('THERMO_NC');
+	if ((defined $thermo_no && $thermo_no == 1) || (defined $thermo_nc && $thermo_nc == 0)) {
+		push @flags, 'THERMO_NO=1';
+	}
+	elsif ((defined $thermo_nc && $thermo_nc == 1) || (defined $thermo_no && $thermo_no == 0)) {
+		push @flags, 'THERMO_NO=0';
+	}
+
+	my $thermo_ac2 = $check_flag->('THERMO_ON_AC_2');
+	push @flags, "THERMO_ON_AC_2=1" if defined $thermo_ac2 && $thermo_ac2 == 1;
+
+	my $led_on_ac = $check_flag->('LED_ON_AC');
+	push @flags, "LED_ON_AC=1" if defined $led_on_ac && $led_on_ac == 1;
+
+	my $ac_test = $check_flag->('AC_TEST');
+	push @flags, "AC_TEST=1" if defined $ac_test && $ac_test == 1;
+
+	# 4. Diagnostics & Trace Variables
+	my $debug          = $check_flag->('DEBUG');
+	my $debug_no_meter = $check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER');
+	my $stack_trace    = $check_flag->('DEBUG_STACK_TRACE');
+
+	if ((defined $debug_no_meter && $debug_no_meter == 1)) {
+		push @flags, 'DEBUG=1 DEBUG_NO_METER=1';
+	}
+	elsif ((defined $debug && $debug == 1)) {
+		push @flags, 'DEBUG=1';
+	}
+
+	push @flags, "DEBUG_STACK_TRACE=1" if defined $stack_trace && $stack_trace == 1;
 
 	return join(' ', @flags);
 }
