@@ -222,7 +222,7 @@ sub rebuild_firmware_sdk {
 	open(my $ph, "-|", $cmd)
 		or die "Failed to execute docker build pipeline link: $!";
 
-	for (my $line = <$ph>) {
+	while (my $line = <$ph>) {
 		print $line;
 	}
 
