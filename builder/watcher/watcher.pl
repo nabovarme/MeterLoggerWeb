@@ -17,15 +17,18 @@ my $REPO_URL = $ENV{'WATCHER_REPO_URL'}
 
 my $CHECK_INTERVAL = 300;
 
-# Redis connection
+# Redis connection configurations
 my $redis_host = $ENV{'REDIS_HOST'}
 	or die "ERROR: REDIS_HOST environment variable not set";
 
 my $redis_port = $ENV{'REDIS_PORT'}
 	or die "ERROR: REDIS_PORT environment variable not set";
 
+# Auto-reconnection prevents drops over extended sleep loops
 my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
+	server    => "$redis_host:$redis_port",
+	reconnect => 5,    # Retry 5 times on drop
+	every     => 1000, # Wait 1000ms between attempts
 );
 
 # Redis keys
@@ -81,6 +84,8 @@ while ($running) {
 		warn "GitHub check failed: " . $res->status_line;
 	}
 
+	# Explicit check to stop sleeping instantly if a termination signal was caught
+	last unless $running;
 	sleep($CHECK_INTERVAL);
 }
 
@@ -89,11 +94,33 @@ sub trigger_build {
 
 	print "Triggering build ($reason)\n";
 
-	# just emit a trigger event — no payload needed
-	$redis->rpush($REDIS_TRIGGER, encode_json({
-		reason => $reason,
-		time => time()
-	}));
+	# Wrap push action in an evaluation block to recover connection dynamically if stale
+	eval {
+		$redis->ping; # Validates connection life trace before issuing pipeline mutations
+		$redis->rpush($REDIS_TRIGGER, encode_json({
+			reason => $reason,
+			time => time()
+		}));
+	};
+	if ($@) {
+		warn "Redis push exception intercepted, attempting fallback drop reconnect sequence: $@\n";
+		eval {
+			$redis = Redis->new(
+				server    => "$redis_host:$redis_port",
+				reconnect => 5,
+				every     => 1000,
+			);
+			$redis->rpush($REDIS_TRIGGER, encode_json({
+				reason => $reason,
+				time => time()
+			}));
+		};
+		if ($@) {
+			die "Fatal: Absolute connection loss to Redis task pipeline broker network: $@";
+		}
+	}
 
 	print "Trigger sent\n";
 }
+
+1;
