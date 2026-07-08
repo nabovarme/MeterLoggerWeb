@@ -107,7 +107,7 @@ for (1..$workers) {
 
 			my $job = decode_json($data);
 
-			print "Worker $$ building serial: $job->{serial} with Version/Suffix: $job->{version}\n";
+			print "firmware_builder [$job->{serial}] | Worker checked out compilation task targeting version: $job->{version}\n";
 
 			run_docker_build(
 				$redis,
@@ -353,7 +353,7 @@ sub build_flags_from_sw_version {
 }
 
 sub print_progress {
-	my ($batch_id) = @_;
+	my ($batch_id, $serial) = @_;
 
 	my $total = $redis->get("$REDIS_JOBS_TOTAL:$batch_id") || 0;
 	my $done  = $redis->get("$REDIS_JOBS_DONE:$batch_id") || 0;
@@ -363,11 +363,12 @@ sub print_progress {
 	return if $total == 0;
 
 	my $percent = int((($done + $skip + $fail) / $total) * 100);
+	my $log_prefix = defined $serial ? "firmware_builder [$serial] | " : "";
 
-	print "Progress: $done done, $skip skipped, $fail failed ($percent%)\n";
+	print "${log_prefix}Progress: $done done, $skip skipped, $fail failed ($percent%)\n";
 
 	if (($done + $skip + $fail) >= $total) {
-		print "ALL JOBS COMPLETED ($batch_id)\n";
+		print "${log_prefix}ALL JOBS COMPLETED ($batch_id)\n";
 	}
 }
 
@@ -485,9 +486,9 @@ sub run_docker_build {
 	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
 
 	if (!$got_lock) {
-		print "Skipping $serial (already in progress)\n";
+		print "firmware_builder [$serial] | Skipping (already in progress)\n";
 		$redis->incr($skip_key);
-		print_progress($batch_id);
+		print_progress($batch_id, $serial);
 		return;
 	}
 
@@ -516,18 +517,18 @@ sub run_docker_build {
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 	if (-f $firmware_path) {
-		print "Skipping build for $serial (already exists)\n";
+		print "firmware_builder [$serial] | Skipping build (already exists)\n";
 
 		$redis->del($lock_key);
 		$redis->incr($skip_key);
 
-		print_progress($batch_id);
+		print_progress($batch_id, $serial);
 		return;
 	}
 
 	my $docker_cmd = join(" ",
 		"docker run --rm",
-		"--name firmware_builder_$serial",
+		"--name firmware_sdk_$serial",
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
 		"-e BUILD_FLAGS=\"$build_flags\"",
@@ -535,7 +536,7 @@ sub run_docker_build {
 		DOCKER_IMAGE
 	);
 
-	print "Running: $docker_cmd\n";
+	print "firmware_builder [$serial] | Running: $docker_cmd\n";
 
 	my $success;
 	my $exit_code;
@@ -580,7 +581,7 @@ sub run_docker_build {
 	# always release lock
 	$redis->del($lock_key);
 
-	print_progress($batch_id);
+	print_progress($batch_id, $serial);
 
 	die $err if $err;
 
