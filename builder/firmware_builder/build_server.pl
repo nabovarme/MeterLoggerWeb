@@ -527,6 +527,7 @@ sub run_docker_build {
 
 	my $docker_cmd = join(" ",
 		"docker run --rm",
+		"--name firmware_builder_$serial",
 		"-e SERIAL=$serial",
 		"-e KEY=$key",
 		"-e BUILD_FLAGS=\"$build_flags\"",
