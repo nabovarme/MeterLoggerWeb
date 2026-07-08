@@ -533,21 +533,31 @@ sub run_docker_build {
 		"-e KEY=$key",
 		"-e BUILD_FLAGS=\"$build_flags\"",
 		"-v firmware_release:" . RELEASE_DIR,
-		DOCKER_IMAGE
+		DOCKER_IMAGE,
+		"2>&1"
 	);
 
 	print "firmware_builder [$serial] | Running: $docker_cmd\n";
 
 	my $success;
-	my $exit_code;
+	my $exit_code = 0;
 
 	eval {
-		system($docker_cmd);
+		# Capture the inner Docker console output stream and filter line-by-line real-time
+		open(my $ph, "-|", $docker_cmd)
+			or die "Failed to execute compiler execution pipeline: $!";
+
+		while (my $line = <$ph>) {
+			chomp $line;
+			print "firmware_builder [$serial] | $line\n";
+		}
+
+		close($ph);
 		$exit_code = $? >> 8;
 		$success = ($exit_code == 0);
 
 		if (!$success) {
-			warn "Build failed for $serial\n";
+			warn "firmware_builder [$serial] | Build execution failed inside container\n";
 			$redis->incr($fail_key);
 		}
 
