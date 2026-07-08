@@ -143,7 +143,7 @@
 	<!-- Toggle Anchor Header for Compiler Section -->
 	<div style="margin: 10px 0;">
 		<span id="toggleWorkspaceBtn" class="default default-bold console-toggle">
-			<span id="workspaceTriangleIcon" class="triangle">&#9658;</span>Custom Firmware Build Settings
+			<span id="workspaceTriangleIcon" class="triangle">&#9658;</span> Dynamic Firmware Compiler Workspace
 		</span>
 	</div>
 
@@ -215,7 +215,7 @@
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagSerialDebug" value="DEBUG"> Enable Serial Output Debugging (DEBUG)
 					</label>
-					<label class="default" style="font-size: 85%; height: 16px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagNoMeter" value="NO_METER"> Emulation Mode (DEBUG_NO_METER)
 					</label>
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
@@ -353,7 +353,7 @@
 					const flagsString = flagMatch[1];
 					
 					// Split string tokens into an array of discrete parts (e.g., ["AP=1", "NO_CRON=1"])
-					const flagTokens = flagsString.split(/\s+/);
+					const flagTokens = flagsString.split(/[\s\-]+/);
 
 					// Helper function to read the precise value assignment context safely
 					function checkFlagState(flagName, defaultOnMatch = true) {
@@ -378,7 +378,7 @@
 
 					// 2. Overrides & Modifiers Checkbox Selectors
 					document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW_METER');
-					document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (explicitMatch => {
+					document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (() => {
 						const am = flagTokens.find(t => t.startsWith('AUTO_CLOSE='));
 						return am ? am.split('=')[1] === '0' : false;
 					})();

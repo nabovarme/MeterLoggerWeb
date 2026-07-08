@@ -266,8 +266,8 @@ sub build_flags_from_sw_version {
 		$flags_segment = $1;
 	}
 
-	# Split on spaces to isolate specific tokens like "FLOW_METER=1" or "NO_CRON=1"
-	my @tokens = split(/\s+/, $flags_segment);
+	# Split on spaces OR hyphens to isolate specific dashed tokens like "FLOW_METER" or "NO_CRON=1"
+	my @tokens = split(/[\s\-]+/, $flags_segment);
 
 	# Helper function to extract explicit key/value bindings
 	my $check_flag = sub {
@@ -713,8 +713,8 @@ sub generate_firmware_index {
 				my $formatted_version = $meta->{sw_version} || $version;
 				my $bracket_flags = '';
 
-				# Extracts full branch-count-hash layout prefix safely
-				if ($version =~ /^(.+?-\d+-[a-f0-9]+)-CUSTOM-/) {
+				# Extracts full branch-count-hash layout prefix safely out of custom dashed chains
+				if ($version =~ /^([a-zA-Z0-9._-]+-\d+-[a-f0-9]+)-CUSTOM(?:-(.+))?$/) {
 					$formatted_version = $1;
 			      
 					my $raw_flags = $meta->{build_flags} // '';
