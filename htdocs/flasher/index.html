@@ -376,8 +376,8 @@
 						document.querySelector('input[name="meterProtocol"][value="IMPULSE"]').checked = true;
 					}
 
-					// 2. Overrides & Modifiers Checkbox Selectors
-					document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW_METER');
+					// 2. Overrides & Modifiers Checkbox Selectors (FLOW_METER checks for "FLOW" token)
+					document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW');
 					document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (() => {
 						const am = flagTokens.find(t => t.startsWith('AUTO_CLOSE='));
 						return am ? am.split('=')[1] === '0' : false;
@@ -420,7 +420,7 @@
 				modifiers.push(selectedProtocol);
 			}
 
-			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
+			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW');
 			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
 			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
 			
