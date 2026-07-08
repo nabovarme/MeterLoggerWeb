@@ -59,8 +59,8 @@ sub build_flags_from_sw_version {
 		push @flags, 'IMPULSE=1';
 	}
 
-	# 2. Logic Overrides & Modifiers
-	my $flow_meter = $check_flag->('FLOW_METER');
+	# 2. Logic Overrides & Modifiers (Maps "FLOW" folder token token directly to FLOW_METER output flag)
+	my $flow_meter = $check_flag->('FLOW');
 	push @flags, "FLOW_METER=1" if defined $flow_meter && $flow_meter == 1;
 
 	# Note: NO_AUTO_CLOSE=1 maps internally to AUTO_CLOSE=0
