@@ -303,8 +303,8 @@
 			setWorkspaceVisibility(!isVisible);
 		});
 
-		// Dynamic list processor utilizing the unique, hidden filesystem 'version' id mapping context
-		function loadFirmwareList(targetVersionUniqueId = null) {
+		// Dynamic list processor tracking the serial identity boundary mapping for post-compilation auto-select locks
+		function loadFirmwareList(targetDeviceSerial = null) {
 			return fetch('firmware/firmwares.json')
 				.then(res => res.json())
 				.then(list => {
@@ -320,17 +320,29 @@
 						optionsContainer.appendChild(opt);
 					});
 
-					// Safely locate and anchor selector using the absolute identifier key
-					if (targetVersionUniqueId) {
-						const matchingFw = allFirmwares.find(fw => fw.version === targetVersionUniqueId);
-						if (matchingFw) {
-							searchInput.value = matchingFw.name;
-							selectedFirmware = matchingFw;
-							searchInput.dispatchEvent(new Event('input'));
-							log(`[UI Target Selected] Locked selector interface onto folder signature: "${targetVersionUniqueId}"`);
-						} else {
-							console.warn(`[UI Warning] Auto-select failed to find entry version matching signature: "${targetVersionUniqueId}"`);
-						}
+					// ROBUST AUTO-SELECT ENGINE: Targets serial identity paired with custom tag boundaries to bypass path translation changes
+					if (targetDeviceSerial) {
+						setTimeout(() => {
+							const matchingFw = allFirmwares.find(fw => 
+								fw.serial === targetDeviceSerial && 
+								(fw.version.includes('CUSTOM') || fw.version.includes('custom') || fw.name.includes('CUSTOM'))
+							);
+							if (matchingFw) {
+								searchInput.value = matchingFw.name;
+								selectedFirmware = matchingFw;
+								searchInput.dispatchEvent(new Event('input'));
+								log(`[UI Target Selected] Successfully locked option select engine back onto serial target: "${targetDeviceSerial}"`);
+							} else {
+								console.warn(`[UI Warning] Robust serial locator fell back; attempting baseline version literal check loop...`);
+								// Final safety catch: if exact serial + CUSTOM match fails, lock onto the absolute first entry matching that serial context
+								const fallbackFw = allFirmwares.find(fw => fw.serial === targetDeviceSerial);
+								if (fallbackFw) {
+									searchInput.value = fallbackFw.name;
+									selectedFirmware = fallbackFw;
+									searchInput.dispatchEvent(new Event('input'));
+								}
+							}
+						}, 50);
 					}
 				});
 		}
@@ -423,7 +435,7 @@
 				}
 			}
 
-			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW');
+			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER');
 			if (document.getElementById('flagAutoClose').checked)   modifiers.push('NO_AUTO_CLOSE');
 			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON');
 			
@@ -440,6 +452,7 @@
 			// JOIN WITH DASH: Choncatentates separate build flags cleanly using a dash (-)
 			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('-') : 'STANDARD';
 			const originalButtonText = rebuildBtn.textContent;
+			const buildTargetSerial = selectedFirmware.serial; // Capture local scope context before re-instantiation
 
 			try {
 				// Inline UI Locking Feedback Loop
@@ -448,9 +461,9 @@
 				
 				setLogVisibility(true);
 				logTitleText.textContent = "Log (Compiling)";
-				log(`[Compiler] Dispatching configuration rebuild request payload targeting serial: ${selectedFirmware.serial}...`);
+				log(`[Compiler] Dispatching configuration rebuild request payload targeting serial: ${buildTargetSerial}...`);
 
-				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(selectedFirmware.serial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
+				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(buildTargetSerial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
 				
 				const response = await fetch(targetApiUri, { method: 'POST' });
 				const outcome = await response.json();
@@ -462,7 +475,7 @@
 				const batchId = outcome.batch_id;
 				log(`[Compiler Success] Remote build job dispatched into worker stack. Batch ID: ${batchId}`);
 
-				// --- BEGIN POLL CHECK INTERVAL LOOP USING THE CORRECT HIGH-RES PATH ---
+				// --- BEGIN POLL CHECK INTERVAL LOOP ---
 				const pollInterval = setInterval(async () => {
 					try {
 						const progressRes = await fetch(`/api/rebuild_progress?batch_id=${encodeURIComponent(batchId)}`);
@@ -482,24 +495,8 @@
 							logTitleText.textContent = "Log (Build Complete)";
 							log(`[Compiler Finished] Custom firmware image compiled and indexed successfully.`);
 							
-							// Extract active baseline git version footprint tracking context
-							let baseFolderSignature = selectedFirmware.version || 'master';
-							
-							// Dynamic lookup splits cleanly on the custom uppercase dash boundary rule (-CUSTOM-)
-							if (baseFolderSignature.includes('-CUSTOM-')) {
-								baseFolderSignature = baseFolderSignature.split('-CUSTOM-')[0];
-							} else if (baseFolderSignature.includes('-custom-')) {
-								baseFolderSignature = baseFolderSignature.split('-custom-')[0];
-							}
-							
-							// CORRECTION MATCH LOOP: If no modifiers were checked, backend drops "-STANDARD" completely
-							let generatedFsVersionUniqueId = `${baseFolderSignature}-CUSTOM`;
-							if (swVersionSuffix !== 'STANDARD') {
-								generatedFsVersionUniqueId += `-${swVersionSuffix}`;
-							}
-							
-							// Silent list reload paired with unique identity folder signature selection lock
-							await loadFirmwareList(generatedFsVersionUniqueId);
+							// Pass target device serial down to the reloader stack for explicit identification lock
+							await loadFirmwareList(buildTargetSerial);
 						}
 					} catch (pollErr) {
 						console.error("Polling resolution error wrapper caught: ", pollErr);
