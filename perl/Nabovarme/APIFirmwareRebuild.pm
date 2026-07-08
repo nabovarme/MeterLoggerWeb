@@ -189,8 +189,21 @@ sub handler {
 					$git_branch = $git_brn if $git_brn ne 'HEAD';
 				}
 			} else {
-				$git_branch = "master";
-				$git_suffix = "1462-a35f2"; 
+				# Dynamic split fallback extracting layout context from raw database baseline records safely
+				if ($db_version_string =~ /^([a-zA-Z0-9._-]+?)(?:-custom)?$/) {
+					my @parts = split(/-/, $1);
+					if (@parts >= 3) {
+						$git_suffix = pop(@parts);
+						$git_suffix = pop(@parts) . "-" . $git_suffix;
+						$git_branch = join("-", @parts);
+					} else {
+						$git_branch = $db_version_string || 'master';
+						$git_suffix = 'build-error';
+					}
+				} else {
+					$git_branch = 'master';
+					$git_suffix = 'unknown';
+				}
 			}
 		}
 
