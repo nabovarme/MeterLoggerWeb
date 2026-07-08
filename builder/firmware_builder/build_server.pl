@@ -107,7 +107,7 @@ for (1..$workers) {
 
 			my $job = decode_json($data);
 
-			print "firmware_builder [$job->{serial}] | Worker checked out compilation task targeting version: $job->{version}\n";
+			print "[$job->{serial}] | Worker checked out compilation task targeting version: $job->{version}\n";
 
 			run_docker_build(
 				$redis,
@@ -363,7 +363,7 @@ sub print_progress {
 	return if $total == 0;
 
 	my $percent = int((($done + $skip + $fail) / $total) * 100);
-	my $log_prefix = defined $serial ? "firmware_builder [$serial] | " : "";
+	my $log_prefix = defined $serial ? "[$serial] | " : "";
 
 	print "${log_prefix}Progress: $done done, $skip skipped, $fail failed ($percent%)\n";
 
@@ -486,7 +486,7 @@ sub run_docker_build {
 	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
 
 	if (!$got_lock) {
-		print "firmware_builder [$serial] | Skipping (already in progress)\n";
+		print "[$serial] | Skipping (already in progress)\n";
 		$redis->incr($skip_key);
 		print_progress($batch_id, $serial);
 		return;
@@ -517,7 +517,7 @@ sub run_docker_build {
 	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 	if (-f $firmware_path) {
-		print "firmware_builder [$serial] | Skipping build (already exists)\n";
+		print "[$serial] | Skipping build (already exists)\n";
 
 		$redis->del($lock_key);
 		$redis->incr($skip_key);
@@ -537,19 +537,18 @@ sub run_docker_build {
 		"2>&1"
 	);
 
-	print "firmware_builder [$serial] | Running: $docker_cmd\n";
+	print "[$serial] | Running: $docker_cmd\n";
 
 	my $success;
 	my $exit_code = 0;
 
 	eval {
-		# Capture the inner Docker console output stream and filter line-by-line real-time
 		open(my $ph, "-|", $docker_cmd)
 			or die "Failed to execute compiler execution pipeline: $!";
 
 		while (my $line = <$ph>) {
 			chomp $line;
-			print "firmware_builder [$serial] | $line\n";
+			print "[$serial] | $line\n";
 		}
 
 		close($ph);
@@ -557,7 +556,7 @@ sub run_docker_build {
 		$success = ($exit_code == 0);
 
 		if (!$success) {
-			warn "firmware_builder [$serial] | Build execution failed inside container\n";
+			warn "[$serial] | Build execution failed inside container\n";
 			$redis->incr($fail_key);
 		}
 
