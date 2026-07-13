@@ -2,7 +2,8 @@
 
 use strict;
 use Data::Dumper;
-use Net::MQTT::Simple;
+use AnyEvent;
+use AnyEvent::MQTT;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw( sha256 hmac_sha256 );
@@ -21,38 +22,59 @@ my $redis_host = $ENV{'REDIS_HOST'}
 my $redis_port = $ENV{'REDIS_PORT'}
 	or log_die("ERROR: REDIS_PORT environment variable not set", {-no_script_name => 1});
 
+# Establish Redis connection with auto-reconnect fallback
 my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
+	server    => "$redis_host:$redis_port",
+	reconnect => 60,
 );
 
 my $queue_name = 'mqtt';
 
 warn("starting...\n");
 
-my $mqtt = Net::MQTT::Simple->new("$mqtt_host:$mqtt_port");
+# Initialize the AnyEvent::MQTT client
+# Setting clean_session to 0 tells the broker to buffer messages for us if we disconnect
+my $mqtt = AnyEvent::MQTT->new(
+	host          => $mqtt_host,
+	port          => $mqtt_port,
+	clean_session => 0,
+	client_id     => "nabovarme_mqtt_bridge_" . $$,
+);
 
 my $mqtt_data = undef;
 
-# start mqtt run loop
-$mqtt->run(	q[/sample/v2/#] => \&mqtt_handler,
-	q[/version/v2/#] => \&mqtt_handler,
-	q[/status/v2/#] => \&mqtt_handler,
-	q[/uptime/v2/#] => \&mqtt_handler,
-	q[/ssid/v2/#] => \&mqtt_handler,
-	q[/rssi/v2/#] => \&mqtt_handler,
-	q[/wifi_status/v2/#] => \&mqtt_handler,
-	q[/ap_status/v2/#] => \&mqtt_handler,
-	q[/set_ap_mesh_pwd/v2/#] => \&mqtt_handler,
-	q[/reset_reason/v2/#] => \&mqtt_handler,
-	q[/scan_result/v2/#] => \&mqtt_handler,
-	q[/offline/v1/#] => \&mqtt_handler,
-	q[/chip_id/v2/#] => \&mqtt_handler,
-	q[/flash_id/v2/#] => \&mqtt_handler,
-	q[/flash_size/v2/#] => \&mqtt_handler,
-	q[/flash_error/v2/#] => \&mqtt_handler,
-	q[/reset_reason/v2/#] => \&mqtt_handler,
-	q[/network_quality/v2/#] => \&mqtt_handler
+# Define all topics to subscribe to (QoS 1 guarantees 'At Least Once' delivery)
+my @topics = (
+	q[/sample/v2/#],
+	q[/version/v2/#],
+	q[/status/v2/#],
+	q[/uptime/v2/#],
+	q[/ssid/v2/#],
+	q[/rssi/v2/#],
+	q[/wifi_status/v2/#],
+	q[/ap_status/v2/#],
+	q[/set_ap_mesh_pwd/v2/#],
+	q[/reset_reason/v2/#],
+	q[/scan_result/v2/#],
+	q[/offline/v1/#],
+	q[/chip_id/v2/#],
+	q[/flash_id/v2/#],
+	q[/flash_size/v2/#],
+	q[/flash_error/v2/#],
+	q[/network_quality/v2/#]
 );
+
+# Register subscriptions inside the asynchronous event loop
+foreach my $topic_filter (@topics) {
+	$mqtt->subscribe(
+		topic    => $topic_filter,
+		qos      => 1,
+		callback => \&mqtt_handler,
+	);
+}
+
+# Enter the AnyEvent main loop (this keeps the script running asynchronously)
+AnyEvent->condvar->recv;
 
 # end of main
 
@@ -60,18 +82,25 @@ $mqtt->run(	q[/sample/v2/#] => \&mqtt_handler,
 sub mqtt_handler {
 	my ($topic, $message) = @_;
 
-	# Create the next id
-	my $id = $redis->incr(join(':',$queue_name, 'id'));
-	my $job_id = join(':', $queue_name, $id);
+	# Protect against Redis downtime or errors using eval
+	eval {
+		# 1. Fetch the next sequential ID (instantly flushed, no pipelining delays)
+		my $id = $redis->incr(join(':', $queue_name, 'id'));
+		
+		if ($id) {
+			my $job_id = join(':', $queue_name, $id);
+			my %data = (topic => $topic, message => $message);
 
-	my %data = (topic => $topic, message => $message);
+			# 2. Store payload hash
+			$redis->hmset($job_id, %data);
 
-	# Set the data first
-	$redis->hmset($job_id, %data);
-
-	# Then add the job to the queue
-	$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
+			# 3. Push job reference to the processing queue for the DB worker
+			$redis->rpush(join(':', $queue_name, 'queue'), $job_id);
+		}
+	};
+	if ($@) {
+		warn("Error pushing MQTT data to Redis: $@\n");
+	}
 }
-
 
 __END__

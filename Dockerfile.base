@@ -76,6 +76,7 @@ ENV LANG=en_US.UTF-8 \
 
 # 3. Install standard CPAN modules not available/preferred via apt-get
 RUN PERL_MM_USE_DEFAULT=1 cpanm \
+	AnyEvent::MQTT \
 	Cpanel::JSON::XS \
 	Crypt::Random::Source::Factory \
 	Exporter::Tiny \
