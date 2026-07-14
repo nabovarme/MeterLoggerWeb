@@ -82,6 +82,10 @@ AnyEvent->condvar->recv;
 sub mqtt_handler {
 	my ($topic, $message) = @_;
 
+	# Safely isolate empty or malformed network packets on startup
+	return unless defined $topic;
+	$message = '' unless defined $message;
+
 	# Protect against Redis downtime or errors using eval
 	eval {
 		# 1. Fetch the next sequential ID (instantly flushed, no pipelining delays)
