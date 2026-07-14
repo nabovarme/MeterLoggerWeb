@@ -6,7 +6,7 @@ echo "export REDIS_PORT=${REDIS_PORT}" >> /etc/cron_env
 echo "export GOOGLE_API_KEY=${GOOGLE_API_KEY}" >> /etc/cron_env
 echo "export GOOGLE_GEOLOCATION_API_URL=${GOOGLE_GEOLOCATION_API_URL}" >> /etc/cron_env
 echo "export TZ=${TZ}" >> /etc/cron_env
-echo "export PERL5LIB=/etc/apache2/perl" >> /etc/cron_env
+echo "export PERL5LIB=/usr/local/lib/perl" >> /etc/cron_env
 echo "export ENABLE_DEBUG=${ENABLE_DEBUG}" >> /etc/cron_env
 
 # Start cron in the background
