@@ -61,6 +61,11 @@ while (1) {
 	
 		my %data = $redis->hgetall($job_id);
 	
+		# If the DB connection is dead, crash immediately and let Docker handle the restart
+		unless ($dbh && $dbh->ping) {
+			log_die("Database connection lost. Exiting for Docker to restart.", {-no_script_name => 1});
+		}
+
 		# Route payloads matching specified namespaces to target handler subroutines
 		if ($data{topic} =~ /sample\/v2\//) {
 			mqtt_sample_handler($data{topic}, $data{message});
