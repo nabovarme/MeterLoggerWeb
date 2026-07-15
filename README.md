@@ -25,6 +25,42 @@ docker exec -it db /docker-entrypoint-initdb.d/nabovarme_triggers.sh
 
 ---
 
+## 🏗️ Architecture & Docker Services
+
+The application is split into highly isolated micro-services orchestrated by Docker:
+
+* **`web`**: Apache/mod_perl interface containing database-driven diagnostics and the **WebSerial Flash Tool**.
+* **`db`**: Robust MariaDB container managing telemetry caches, configurations, and alarm parameters.
+* **`mqtt`**: Standard Mosquitto broker distributing secure upstream/downstream packet blocks.
+* **`redis`**: High-performance in-memory queue broker decoupling telemetry ingestion from database writes.
+* **`firmware_sdk`**: Minimal build context containing ESP8266 compilers and system libraries.
+* **`firmware_builder`**: Multithreaded Perl daemon checking out parallel compilations from Redis and wrapping them in virtualized Docker workers.
+* **`smsd`**: Cellular SMS gateway routing warning dispatches asynchronously over localized D-Link cellular interfaces.
+
+---
+
+## ⚡ Asynchronous Build Pipeline (How Rebuilding Works)
+
+[Browser GUI: /flasher/index.html]
+│ (Sends HTTP Rebuild Request)
+▼
+[Web Container (Apache)]
+│ (Pushes compile task JSON payload)
+▼
+[Redis: firmware_build_queue]
+│ (Pops task asynchronously)
+▼
+[firmware_builder (build_server.pl)] ➔ Spins up ➔ [docker run firmware_sdk]
+│
+[Web-Serial Flash Tool (Live Updates)] ◀── [firmwares.json] ◀──┘ (Saves compiled .bin files)
+
+1. **Rebuild Request**: The UI (`/flasher/index.html`) sends a `POST` request to `/api/rebuild` specifying the target meter's serial and selected build modifier options.
+2. **Task Queueing**: The Web container translates this into a JSON job block containing compile flags and pushes it onto the `firmware_build_queue` list in Redis.
+3. **Execution**: The `build_server.pl` daemon running in the `firmware_builder` container pops the job, grabs the unique cryptography keys for that meter from MariaDB, and triggers a virtualized `docker run firmware_sdk` compilation on the host's Docker socket.
+4. **Indexing & UI Sync**: On successful compilation, files are structured under `release/[serial]/[version]`, and an updated `firmwares.json` index is generated. The web browser polls for completion and automatically updates the GUI dropdown once the build is ready to flash.
+
+---
+
 ## ⚙️ Environment Configuration (`.env`)
 
 MeterLoggerWeb uses environment variables for configuration. You can create a `.env` file in the project root based on `.env.example`. This file contains settings for SMTP, SMS device, and database credentials.
