@@ -17,7 +17,7 @@
 		font-size: 24px;
 		margin-bottom: 16px;
 	}
-	input[type="number"] {
+	input[type="tel"] {
 		font-size: 18px;
 		padding: 12px;
 		border: 1px solid #ccc;
@@ -49,7 +49,7 @@
 <body>
 	<form method="POST" action="">
 		<b>SMS Code</b>
-		<input type="number" name="sms_code" id="sms_code" inputmode="numeric" pattern="[0-9]*" autofocus autocomplete="one-time-code">
+		<input type="tel" name="sms_code" id="sms_code" inputmode="numeric" pattern="[0-9]*" autofocus autocomplete="one-time-code">
 		
 		<label>
 			<input type="checkbox" name="stay_logged_in" value="true" checked>Stay Logged in
