@@ -186,6 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Keyboard shortcuts and navigation
 	document.addEventListener('keydown', (e) => {
+		// =========================
+		// SEARCH SHORTCUT (Ctrl+F or Alt+F)
+		// =========================
+		if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.altKey) && !e.metaKey) {
+			if (filterInput) {
+				e.preventDefault();
+				filterInput.focus();
+				filterInput.select(); // Highlight existing text for quick re-typing
+				return;
+			}
+		}
+
+		// Arrow key navigation
 		if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
 		const menuEl = document.getElementById('menu');
 		if (menuEl && menuEl.classList.contains('show')) return;
@@ -198,6 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Initialize app
 	async function init() {
+		// Focus input immediately on page setup
+		if (filterInput) {
+			filterInput.focus();
+		}
+
 		await fetchAlarms();
 		const urlState = loadStateFromURL();
 		filterInput.value = urlState.search;
