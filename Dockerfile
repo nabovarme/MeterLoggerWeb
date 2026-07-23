@@ -5,7 +5,6 @@ FROM perl-base:1.0
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	# --- Graphics, QR & TeX Engine ---
 	imagemagick \
 	pbzip2 \
 	qrencode \
@@ -13,7 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	texlive-fonts-extra \
 	texlive-latex-base \
 	texlive-latex-extra \
-	# --- Apache Web Server & mod_perl ---
 	apache2 \
 	apache2-bin \
 	apache2-doc \
@@ -23,7 +21,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libapache2-mod-perl2-doc \
 	libapache2-reload-perl \
 	libembperl-perl \
-	# --- Frontend Dependency Manager ---
 	nodejs \
 	npm \
 	&& rm -rf /var/lib/apt/lists/*
