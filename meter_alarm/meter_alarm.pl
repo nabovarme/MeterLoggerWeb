@@ -21,6 +21,7 @@ use DateTime;
 use Nabovarme::Db;
 use Nabovarme::Utils;
 use Nabovarme::ConditionEvaluator qw(evaluate);
+use Nabovarme::Number::Phone;
 
 # --------------------------
 # CONSTANTS
@@ -191,11 +192,48 @@ sub process_alarms {
 
 	$sth->execute;
 
+	# Prepare query to check user alarm enabled status
+	my $user_sth = $dbh->prepare(qq[
+		SELECT alarm_enabled
+		FROM users
+		WHERE phone = ?
+		LIMIT 1
+	]);
+
 	# --------------------------------------------------
 	# PROCESS EACH ALARM INDEPENDENTLY
 	# --------------------------------------------------
 	# Each row represents a fully self-contained evaluation unit.
 	while (my $alarm = $sth->fetchrow_hashref) {
+
+		# --------------------------------------------------
+		# USER ALARM ENABLED CHECK (PHONE NORMALIZATION)
+		# --------------------------------------------------
+		if ($alarm->{sms_notification}) {
+			my $skip_alarm = 0;
+			my @phones = split /\s*,\s*/, $alarm->{sms_notification};
+
+			for my $raw_phone (@phones) {
+				my $phone_obj = Nabovarme::Number::Phone->new($raw_phone);
+				if ($phone_obj && $phone_obj->is_valid) {
+					my $normalized_phone = $phone_obj->compact;
+
+					$user_sth->execute($normalized_phone);
+					my ($user_alarm_enabled) = $user_sth->fetchrow_array;
+
+					# Skip if user exists in DB and alarm_enabled is NOT 1
+					if (defined $user_alarm_enabled && $user_alarm_enabled != 1) {
+						log_debug("Skipping alarm evaluation: user phone $normalized_phone has alarm_enabled != 1", {
+							-custom_tag => "ALARM:$run_id:$alarm->{serial}:$alarm->{id}"
+						});
+						$skip_alarm = 1;
+						last;
+					}
+				}
+			}
+
+			next if $skip_alarm;
+		}
 
 		# --------------------------------------------------
 		# CONFIGURATION LAYERING (DB > DEFAULT CONSTANTS)
@@ -865,10 +903,6 @@ sub resolve_var {
 	return "\$$var";
 }
 
-# --------------------------
-# ALARM HANDLER
-# --------------------------
-# Manages state changes, snooze, and exponential backoff for notifications
 # --------------------------
 # ALARM HANDLER
 # --------------------------
