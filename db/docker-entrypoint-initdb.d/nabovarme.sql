@@ -532,6 +532,7 @@ DROP TABLE IF EXISTS `users`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `alarm_enabled` tinyint(1) DEFAULT 1,
   `username` varchar(256) NOT NULL DEFAULT '',
   `password` varchar(256) NOT NULL DEFAULT '',
   `admin_group` varchar(256) DEFAULT NULL,
