@@ -1154,9 +1154,9 @@ sub sms_send {
 			$user_sth->execute($normalized_phone);
 			my ($user_alarm_enabled) = $user_sth->fetchrow_array;
 
-			# Skip recipient if user exists in DB and alarm_enabled is NOT 1
-			if (defined $user_alarm_enabled && $user_alarm_enabled != 1) {
-				log_debug("SMS to $normalized_phone suppressed (users.alarm_enabled != 1)");
+			# Skip recipient if user exists in DB and alarm_enabled is false (0)
+			if (defined $user_alarm_enabled && !$user_alarm_enabled) {
+				log_debug("SMS to $normalized_phone suppressed (users.alarm_enabled is false)");
 				next;
 			}
 
