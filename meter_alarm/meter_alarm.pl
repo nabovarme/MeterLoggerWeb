@@ -1177,7 +1177,7 @@ sub sms_send {
 	return unless $to;
 
 	for my $r ($to =~ /\d+/g) {
-		log_debug("SMS -> 45$r: $msg");
+		log_debug("SMS -> $r: $msg");
 		send_notification($r, $msg);
 	}
 }
