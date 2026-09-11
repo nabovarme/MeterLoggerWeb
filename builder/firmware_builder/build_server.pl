@@ -5,6 +5,7 @@ use warnings;
 
 use JSON;
 use Redis;
+use Digest::MD5 qw(md5_hex);
 
 use File::Path qw(make_path rmtree);
 use File::Copy qw(move);
@@ -390,9 +391,9 @@ sub process_build {
 
 	my $git_version = get_git_version_from_docker();
 
-	my $fs_version = $git_version;
-	$fs_version =~ s/[^a-zA-Z0-9._-]/_/g;
-	$fs_version = 'unknown' if !$fs_version;
+	my $fs_version_base = $git_version;
+	$fs_version_base =~ s/[^a-zA-Z0-9._-]/_/g;
+	$fs_version_base = 'unknown' if !$fs_version_base;
 
 	my %active_db_meters;
 	my @jobs_to_queue;
@@ -401,13 +402,22 @@ sub process_build {
 	while (my $row = $sth->fetchrow_hashref) {
 		$active_db_meters{$row->{serial}} = 1;
 
+		my $build_flags = build_flags_from_sw_version($row->{sw_version});
+		
+		my $meter_fs_version = $fs_version_base;
+		if ($build_flags) {
+			my $flags_hash = substr(md5_hex($build_flags), 0, 6);
+			$meter_fs_version .= "-$flags_hash";
+		}
+
 		if (!$force_full_rebuild) {
-			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$fs_version/manifest.json";
+			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
 			if (-f $firmware_path) {
 				next;
 			}
 		}
 
+		$row->{_build_flags} = $build_flags;
 		push @jobs_to_queue, $row;
 		$job_count++;
 	}
@@ -456,14 +466,12 @@ sub process_build {
 
 	foreach my $row (@jobs_to_queue) {
 
-		my $build_flags = build_flags_from_sw_version($row->{sw_version});
-
 		my $job = encode_json({
 			serial       => $row->{serial},
 			info         => $row->{info},
 			trigger_time => time(),
 			version      => $git_version,
-			build_flags  => $build_flags,
+			build_flags  => $row->{_build_flags},
 			batch_id     => $batch_id
 		});
 
@@ -476,8 +484,7 @@ sub process_build {
 sub run_docker_build {
 	my ($redis, $serial, $info, $version, $build_flags, $batch_id) = @_;
 
-	my $lock_key = "$REDIS_BUILD_LOCK:$serial";
-
+	my $lock_key  = "$REDIS_BUILD_LOCK:$serial";
 	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
 	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
 	my $skip_key  = "$REDIS_JOBS_SKIP:$batch_id";
@@ -492,57 +499,49 @@ sub run_docker_build {
 		return;
 	}
 
-	my $dbh = Nabovarme::Db->my_connect
-		or die "DB connection failed";
-
-	my $sth = $dbh->prepare("
-		SELECT `key`
-		FROM meters
-		WHERE serial = ?
-	");
-
-	$sth->execute($serial);
-
-	my $row = $sth->fetchrow_hashref
-		or die "No meter found for serial $serial";
-
-	my $key = $row->{key};
-
-	my $sw_version = $version;
-
-	my $fs_version = $sw_version;
-	$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
-	$fs_version = 'unknown' if !$fs_version;
-
-	my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
-
-	if (-f $firmware_path) {
-		print "[$serial] Skipping build (already exists)\n";
-
-		$redis->del($lock_key);
-		$redis->incr($skip_key);
-
-		print_progress($batch_id, $serial);
-		return;
-	}
-
-	my $docker_cmd = join(" ",
-		"docker run --rm",
-		"--name firmware_sdk_$serial",
-		"-e SERIAL=$serial",
-		"-e KEY=$key",
-		"-e BUILD_FLAGS=\"$build_flags\"",
-		"-v firmware_release:" . RELEASE_DIR,
-		DOCKER_IMAGE,
-		"2>&1"
-	);
-
-	print "[$serial] Running: $docker_cmd\n";
-
-	my $success;
+	my $success = 0;
 	my $exit_code = 0;
 
 	eval {
+		my $dbh = Nabovarme::Db->my_connect
+			or die "DB connection failed";
+
+		my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ?");
+		$sth->execute($serial);
+
+		my $row = $sth->fetchrow_hashref
+			or die "No meter found for serial $serial";
+
+		my $key = $row->{key};
+		my $sw_version = $version;
+		my $fs_version = $sw_version;
+		$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
+		$fs_version = 'unknown' if !$fs_version;
+
+		my $flags_hash = substr(md5_hex($build_flags), 0, 6);
+		$fs_version .= "-$flags_hash" if $build_flags;
+
+		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
+
+		if (-f $firmware_path) {
+			print "[$serial] Skipping build (already exists with these flags)\n";
+			$redis->incr($skip_key);
+			return;
+		}
+
+		my $docker_cmd = join(" ",
+			"docker run --rm",
+			"--name firmware_sdk_$serial",
+			"-e SERIAL=$serial",
+			"-e KEY=$key",
+			"-e BUILD_FLAGS=\"$build_flags\"",
+			"-v firmware_release:" . RELEASE_DIR,
+			DOCKER_IMAGE,
+			"2>&1"
+		);
+
+		print "[$serial] Running: $docker_cmd\n";
+
 		open(my $ph, "-|", $docker_cmd)
 			or die "Failed to execute compiler execution pipeline: $!";
 
@@ -556,47 +555,43 @@ sub run_docker_build {
 		$success = ($exit_code == 0);
 
 		if (!$success) {
-			warn "[$serial] Build execution failed inside container\n";
-			$redis->incr($fail_key);
+			die "Build execution failed inside container (Exit: $exit_code)";
 		}
 
-		if ($success) {
-			prepare_release_structure($serial, $fs_version);
-			generate_manifest($serial, $info, $sw_version, $fs_version);
+		prepare_release_structure($serial, $fs_version);
+		generate_manifest($serial, $info, $sw_version, $fs_version);
 
-			my $dir = RELEASE_DIR . "/$serial/$fs_version";
-			make_path($dir);
+		my $dir = RELEASE_DIR . "/$serial/$fs_version";
+		make_path($dir);
 
-			my $meta = {
-				serial      => $serial,
-				info        => $info,
-				sw_version  => $sw_version,
-				build_flags => $build_flags,
-				built_at    => time(),
-			};
+		my $meta = {
+			serial      => $serial,
+			info        => $info,
+			sw_version  => $sw_version,
+			build_flags => $build_flags,
+			built_at    => time(),
+		};
 
-			open(my $fh, ">", "$dir/meta.json")
-				or die "Cannot write meta.json: $!";
+		open(my $fh, ">", "$dir/meta.json") or die "Cannot write meta.json: $!";
+		print $fh encode_json($meta);
+		close($fh);
 
-			print $fh encode_json($meta);
-			close($fh);
-
-			$redis->incr($done_key);
-		}
+		$redis->incr($done_key);
 	};
 
 	my $err = $@;
 
-	# always release lock
-	$redis->del($lock_key);
+	if ($err) {
+		warn "[$serial] ERROR: $err\n";
+		$redis->incr($fail_key);
+	}
 
+	$redis->del($lock_key);
 	print_progress($batch_id, $serial);
 
-	die $err if $err;
-
 	return {
-		serial => $serial,
-		success => $success ? 1 : 0,
+		serial    => $serial,
+		success   => $success ? 1 : 0,
 		exit_code => $exit_code
 	};
 }
