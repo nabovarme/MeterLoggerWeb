@@ -381,7 +381,7 @@ sub process_build {
 		or die "DB connection failed";
 
 	my $sth = $dbh->prepare("
-		SELECT `serial`, `info`, `sw_version`
+		SELECT `serial`, `info`, `sw_version`, `key`
 		FROM meters
 		WHERE enabled = 1
 		ORDER BY serial
@@ -404,11 +404,11 @@ sub process_build {
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
 		
+		# Hash both build_flags and the encryption key
 		my $meter_fs_version = $fs_version_base;
-		if ($build_flags) {
-			my $flags_hash = substr(md5_hex($build_flags), 0, 6);
-			$meter_fs_version .= "-$flags_hash";
-		}
+		my $config_str = ($build_flags || "") . ":" . ($row->{key} || "");
+		my $config_hash = substr(md5_hex($config_str), 0, 6);
+		$meter_fs_version .= "-$config_hash";
 
 		if (!$force_full_rebuild) {
 			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
@@ -518,13 +518,15 @@ sub run_docker_build {
 		$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 		$fs_version = 'unknown' if !$fs_version;
 
-		my $flags_hash = substr(md5_hex($build_flags), 0, 6);
-		$fs_version .= "-$flags_hash" if $build_flags;
+		# Hash both build_flags and the encryption key exactly like process_build
+		my $config_str = ($build_flags || "") . ":" . ($key || "");
+		my $config_hash = substr(md5_hex($config_str), 0, 6);
+		$fs_version .= "-$config_hash";
 
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 
 		if (-f $firmware_path) {
-			print "[$serial] Skipping build (already exists with these flags)\n";
+			print "[$serial] Skipping build (already exists with these flags and key)\n";
 			$redis->incr($skip_key);
 			return;
 		}
@@ -728,7 +730,7 @@ sub generate_firmware_index {
 					$bracket_flags = $meta->{build_flags} // 'AP=1';
 				}
 				else {
-					$bracket_flags = '';
+					$bracket_flags = $meta->{build_flags} // '';
 				}
 
 				my $display_info = $meta->{info} || '';
