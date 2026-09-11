@@ -1,6 +1,6 @@
 # perl_base
 
-FROM debian:bullseye
+FROM debian:bookworm
 
 # Prevent interactive prompts during installation and optimize cpanm
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	sed \
 	software-properties-common \
 	sudo \
-	netcat \
+	netcat-traditional \
 	# --- Build Chain Dependencies ---
 	autoconf \
 	automake \
