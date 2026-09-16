@@ -130,20 +130,6 @@ html, body {
 	width: 100%;
 }
 
-#payments_table {
-	width: 100%;
-	margin-top: 2em;
-	display: flex;
-	flex-direction: column;
-}
-
-#add_payment {
-	width: 100%;
-	padding-right: 6px;
-	padding-left: 6px;
-	margin-bottom: 2em;
-}
-
 #last_energy {
 	width: 100%;
 	margin-bottom: 2em;
@@ -161,6 +147,30 @@ html, body {
 	font-weight: bold;
 }
 
+/* Shared Rounded Panels (History, Add Payment, Subscription) */
+#payments_table,
+#add_payment,
+#recurring_subscription {
+	margin: 2em 0;             /* 2em top/bund, 0 side margin så den flugter med teksten */
+	padding: 15px 20px;
+	background-color: #f2f2f2; /* Lysegrå boks */
+	border-radius: 16px;       /* Afrunding af hjørner */
+	box-sizing: border-box;
+}
+
+#payments_table {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Common Header for all rounded panels */
+.panel-header {
+	margin-bottom: 12px;
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+
 /* Payment row layout */
 .payment-row {
 	width: 100%;
@@ -173,13 +183,16 @@ html, body {
 }
 
 .payment-row.highlight {
-	background-color: #f2f2f2;
+	background-color: #e0e0e0; /* Darker grey to contrast with panel #f2f2f2 */
 	transition: background-color 0.3s ease;
 	font-weight: normal;
+	border-radius: 4px;
+	padding-left: 4px;         /* Slight indent when highlighted */
+	margin-left: -4px;
 }
 
 .payment-row.highlight-clicked {
-	background-color: #f2f2f2;
+	background-color: #d0d0d0;
 	transition: background-color 0.5s ease;
 }
 
@@ -222,45 +235,26 @@ input {
 	box-sizing: border-box;
 }
 
-/* Keep this block commented out */
- /*
-input[type="checkbox"] {
-	transform: scale(1.5);
-	-ms-transform: scale(1.5);
-	-webkit-transform: scale(1.5);
-	transform-origin: 0 0;
-	margin-right: 6px;
-	vertical-align: middle;
-}
-*/
-
-/* Recurring Subscription Panel */
-#recurring_subscription {
-	width: 100%;
-	padding-right: 6px;
-	padding-left: 6px;
-	margin-top: 2em;
-	padding-top: 1.5em;
-	border-top: 1px solid #ccc;
-	margin-bottom: 2em;
-}
-
-.subscription-header {
-	margin-bottom: 10px;
+/* Subscription specific styling */
+.subscription-next {
+	font-weight: normal;
+	font-size: 0.85em;
+	color: #555;
 }
 
 .subscription-row {
 	width: 100%;
 	font-family: Verdana, Geneva, sans-serif;
 	display: grid;
-	/* Grid: Checkbox (1.5fr), Text (2.5fr), Amount (1.5fr), Next (2fr) */
+	/* Grid: Checkbox (1.5fr), Text (2.5fr), Amount (1.5fr), Frequency (2fr) */
 	grid-template-columns: 1.5fr 2.5fr 1.5fr 2fr; 
 	align-items: center;
 	gap: 10px;
 	padding: 6px 0;
 }
 
-.subscription-row input[type="text"] {
+.subscription-row input[type="text"],
+.subscription-row select {
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -275,7 +269,7 @@ input[type="checkbox"] {
 .subscription-row .cell {
 	display: flex;
 	align-items: center;
-	gap: 4px; /* Space between input and "kr/mo" text */
+	gap: 4px; /* Space between input and "kr" text */
 }
 
 /* Responsive adjustments */
@@ -284,18 +278,22 @@ input[type="checkbox"] {
 		height: 300px;
 	}
 	
-	/* Responsive Subscription Panel */
+	/* Responsive Rounded Panels */
+	#payments_table,
+	#add_payment,
+	#recurring_subscription {
+		border-radius: 12px;   /* Lidt mindre afrunding på små skærme */
+		padding: 15px 10px;    /* Mindre indvendig margin på mobilen */
+	}
+
 	.subscription-row {
 		grid-template-columns: 1fr 1fr; /* Stack into a 2x2 grid on mobile */
 		gap: 12px;
 	}
+	
 	#recurring_subscription input[type="submit"] {
 		width: 100% !important; /* Full width button on mobile */
 	}
-
-//	input[type="checkbox"] {
-//		transform: scale(2);
-//	}
 }
 
 .watermark {

@@ -12,17 +12,18 @@
 
 	# Variables for recurring membership state
 	$sub_enabled = 0;
-	$sub_amount = 50;
+	$sub_amount = '';
 	$sub_info = 'Membership';
+	$sub_frequency = 'monthly';
 	$sub_next = '';
 
 	# Handle saving/updating the Recurring Membership configuration
 	if ($is_admin && $fdat{action} eq 'update_subscription') {
 		if ($dbh = Nabovarme::Db->my_connect) {
 			my $enabled = $fdat{sub_enabled} ? 1 : 0;
-			my $amount = (defined $fdat{sub_amount} && length $fdat{sub_amount}) ? Nabovarme::Admin::normalize_amount($fdat{sub_amount}) : 50;
+			my $amount = (defined $fdat{sub_amount} && length $fdat{sub_amount}) ? Nabovarme::Admin::normalize_amount($fdat{sub_amount}) : 0;
 			my $info_prefix = (defined $fdat{sub_info} && length $fdat{sub_info}) ? $fdat{sub_info} : 'Membership';
-			my $frequency = 'monthly';
+			my $frequency = (defined $fdat{sub_frequency} && length $fdat{sub_frequency}) ? $fdat{sub_frequency} : 'monthly';
 			
 			# If it's a new subscription, default the next payment to the 1st of next month at 00:00:00
 			my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time());
@@ -34,6 +35,7 @@
 				ON DUPLICATE KEY UPDATE
 					enabled = VALUES(enabled),
 					amount = VALUES(amount),
+					frequency = VALUES(frequency),
 					info_prefix = VALUES(info_prefix)
 			]);
 			$sub_sth->execute($fdat{serial}, $enabled, $amount, $frequency, $info_prefix, $next_payment_time);
@@ -63,11 +65,12 @@
 		}
 
 		# Fetch current recurring membership state for the UI
-		my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
+		my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, frequency, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
 		$sub_fetch_sth->execute($fdat{'serial'});
 		if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
 			$sub_enabled = $sub->{enabled};
 			$sub_amount = $sub->{amount};
+			$sub_frequency = $sub->{frequency} || 'monthly';
 			$sub_info = $sub->{info_prefix} || 'Membership';
 			$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
 		}
@@ -92,6 +95,8 @@
 	</HEAD>
 	<BODY>
 		<div id="error_message"></div>
+		
+		<!-- Expanded page wrapper encapsulates all panels -->
 		<div class="page-wrapper">
 			<!-- >
 				<div class="watermark">BETA-TEST</div>
@@ -122,124 +127,138 @@
 			<div id="consumption_in_range"></div>
 			<div id="kwh_remaining"></div>
 
+			<!-- Account history panel -->
 			<div id="payments_table" align="left" valign="bottom"></div>
-		</div>
 
 		[$ if ($is_admin) $]
 			[$ if ($fdat{add_state} =~ /preview/i) $]
-		<form method="GET" action="">
-		<div id="add_payment" align="left" valign="bottom">
-			<div class="payment-row">
-				<div class="cell">
-					<span class="default-highlight">
-						[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]
-					</span>
+			<!-- Add Payment Panel (Preview) -->
+			<form method="GET" action="">
+			<div id="add_payment" align="left" valign="bottom">
+				<div class="default-bold panel-header">Add Payment (Preview)</div>
+				<div class="payment-row">
+					<div class="cell">
+						<span class="default-highlight">
+							[+ time_format('dd.mm.yyyy hh:mm:ss', time()) +]
+						</span>
+					</div>
+					<div class="cell">
+						<span class="default-highlight">
+							[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]
+						</span>
+					</div>
+					<div class="cell">
+						<span class="default-highlight">
+							[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr
+						</span>
+					</div>
+					<div class="cell">
+						<span class="default-highlight">
+							[$ if $fdat{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($fdat{price}) +] kr/kWh[$ endif $]
+						</span>
+					</div>
 				</div>
-				<div class="cell">
-					<span class="default-highlight">
-						[$ if $fdat{type} eq 'payment' $][+ sprintf("%.0f", (Nabovarme::Admin::normalize_amount($fdat{amount}) / Nabovarme::Admin::normalize_amount($fdat{price}))) . " kWh" +] [$ endif $][+ $fdat{info} +]
-					</span>
-				</div>
-				<div class="cell">
-					<span class="default-highlight">
-						[+ Nabovarme::Admin::normalize_amount($fdat{amount}) +] kr
-					</span>
-				</div>
-				<div class="cell">
-					<span class="default-highlight">
-						[$ if $fdat{type} eq 'payment' $][+ Nabovarme::Admin::normalize_amount($fdat{price}) +] kr/kWh[$ endif $]
-					</span>
+				<div class="payment-row">
+					<div class="cell">
+						<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+						<input type="hidden" name="type" value="[+ $fdat{type} +]">
+						<input type="hidden" name="low" value="[+ $fdat{low} +]">
+						<input type="hidden" name="unix_time" value="[+ time() +]">
+						<input type="hidden" name="info" value="[+ $fdat{info} +]">
+						<input type="hidden" name="amount" value="[+ $fdat{amount} +]">
+						<input type="hidden" name="price" value="[+ $fdat{price} +]">
+						<input type="hidden" name="add_state" value="add">
+						<input type="submit" name="add" value="Add" style="width: 100px;">
+					</div>
+					<div class="cell"></div>
+					<div class="cell"></div>
+					<div class="cell"></div>
 				</div>
 			</div>
-			<div class="payment-row">
-				<div class="cell">
-					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-					<input type="hidden" name="type" value="[+ $fdat{type} +]">
-					<input type="hidden" name="low" value="[+ $fdat{low} +]">
-					<input type="hidden" name="unix_time" value="[+ time() +]">
-					<input type="hidden" name="info" value="[+ $fdat{info} +]">
-					<input type="hidden" name="amount" value="[+ $fdat{amount} +]">
-					<input type="hidden" name="price" value="[+ $fdat{price} +]">
-					<input type="hidden" name="add_state" value="add">
-					<input type="submit" name="add" value="Add" style="width: 100px;">
-				</div>
-				<div class="cell"></div>
-				<div class="cell"></div>
-				<div class="cell"></div>
-			</div>
-		</div>
-		</form>
+			</form>
 			[$ else $]
-		<form method="GET" action="">
-		<div id="add_payment" align="left" valign="bottom">
-			<div class="payment-row">
-				<div class="cell">
-					<select name="type">
-						<option value="payment">Payment</option>
-						<option value="membership">Membership</option>
-						<option value="charge">Charge</option>
-					</select>
-				</div>
-				<div class="cell">
-					<input type="text" inputmode="text" name="info" value="" size="32">
-				</div>
-				<div class="cell">
-					<input type="text" inputmode="text" name="amount" value="" size="5">
-				</div>
-				<div class="cell">
-					<input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3">
-				</div>
-			</div>
-			<div class="payment-row">
-				<div class="cell">
-					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-					<input type="hidden" name="low" value="[+ $fdat{low} +]">
-					<input type="hidden" name="add_state" value="preview">
-					<input type="submit" name="add" value="Preview" style="width: 100px;">
-				</div>
-				<div class="cell"></div>
-				<div class="cell"></div>
-				<div class="cell"></div>
-			</div>
-		</div>
-		</form>
-
-		<!-- NEW: Dedicated Recurring Membership Configuration Panel -->
-		<form method="GET" action="">
-		<div id="recurring_subscription">
-			<div class="default-bold subscription-header">Recurring Membership (Auto-billing)</div>
 			
-			<div class="subscription-row">
-				<div class="cell">
-					<label class="default">
-						<input type="checkbox" name="sub_enabled" value="1" [$ if $sub_enabled $]checked[$ endif $]> Enabled
-					</label>
+			<!-- Add Payment Panel (Input) -->
+			<form method="GET" action="">
+			<div id="add_payment" align="left" valign="bottom">
+				<div class="default-bold panel-header">Add Payment</div>
+				<div class="payment-row">
+					<div class="cell">
+						<select name="type">
+							<option value="payment">Payment</option>
+							<option value="membership">Membership</option>
+							<option value="charge">Charge</option>
+						</select>
+					</div>
+					<div class="cell">
+						<input type="text" inputmode="text" name="info" value="" size="32" placeholder="Info">
+					</div>
+					<div class="cell">
+						<input type="text" inputmode="text" name="amount" value="" size="5" placeholder="Amount">
+					</div>
+					<div class="cell">
+						<input type="text" inputmode="text" name="price" value="[+ sprintf(qq[%.2f], $admin->default_price_for_serial($fdat{serial})) +]" size="3">
+					</div>
 				</div>
-				<div class="cell">
-					<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)">
+				<div class="payment-row">
+					<div class="cell">
+						<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+						<input type="hidden" name="low" value="[+ $fdat{low} +]">
+						<input type="hidden" name="add_state" value="preview">
+						<input type="submit" name="add" value="Preview" style="width: 100px;">
+					</div>
+					<div class="cell"></div>
+					<div class="cell"></div>
+					<div class="cell"></div>
 				</div>
-				<div class="cell">
-					<input type="text" inputmode="decimal" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount"> kr/mo
-				</div>
-				<div class="cell">
-					<span class="default-highlight">
-						[$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $]
+			</div>
+			</form>
+
+			<!-- Dedicated Recurring Membership Configuration Panel -->
+			<form method="GET" action="">
+			<div id="recurring_subscription">
+				<div class="default-bold panel-header">
+					Recurring Membership 
+					<span class="subscription-next">
+						([$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $])
 					</span>
 				</div>
-			</div>
+				
+				<div class="subscription-row">
+					<div class="cell">
+						<label class="default">
+							<input type="checkbox" name="sub_enabled" value="1" [$ if $sub_enabled $]checked[$ endif $]> Enabled
+						</label>
+					</div>
+					<div class="cell">
+						<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)">
+					</div>
+					<div class="cell">
+						<input type="text" inputmode="decimal" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount"> kr
+					</div>
+					<div class="cell">
+						<select name="sub_frequency">
+							<option value="monthly" [$ if $sub_frequency eq 'monthly' $]selected[$ endif $]>Monthly</option>
+							<option value="quarterly" [$ if $sub_frequency eq 'quarterly' $]selected[$ endif $]>Quarterly</option>
+							<option value="yearly" [$ if $sub_frequency eq 'yearly' $]selected[$ endif $]>Yearly</option>
+						</select>
+					</div>
+				</div>
 
-			<div class="subscription-row">
-				<div class="cell">
-					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-					<input type="hidden" name="action" value="update_subscription">
-					<input type="submit" value="Save Membership" style="width: 150px;">
+				<div class="subscription-row" style="margin-top: 10px;">
+					<div class="cell">
+						<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+						<input type="hidden" name="action" value="update_subscription">
+						<input type="submit" value="Save Membership" style="width: 150px;">
+					</div>
 				</div>
 			</div>
-		</div>
-		</form>
-
+			</form>
 			[$ endif $]
 		[$ endif $]
+		
+		</div> <!-- End of expanded page-wrapper -->
+
 		<script>
 			document.addEventListener("keydown", function(e) {
 				const active = document.activeElement;
