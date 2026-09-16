@@ -534,8 +534,8 @@ DROP TABLE IF EXISTS `subscriptions`;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `subscriptions` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `serial` varchar(16) NOT NULL,
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `serial` varchar(16) NOT NULL,
   `amount` float NOT NULL DEFAULT 100,
   `frequency` enum('monthly','quarterly','yearly') NOT NULL DEFAULT 'monthly',
   `info_prefix` varchar(128) DEFAULT 'Subscription',
