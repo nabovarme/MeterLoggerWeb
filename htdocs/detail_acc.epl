@@ -143,8 +143,11 @@
 				</div>
 			</div>
 
-			<div id="consumption_in_range"></div>
-			<div id="kwh_remaining"></div>
+			<!-- Statistics panel -->
+			<div id="stats_panel">
+				<div id="consumption_in_range"></div>
+				<div id="kwh_remaining"></div>
+			</div>
 
 			<!-- Account history panel -->
 			<div id="payments_table" align="left" valign="bottom"></div>
