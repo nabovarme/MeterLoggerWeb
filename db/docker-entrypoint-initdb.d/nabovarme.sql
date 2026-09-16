@@ -82,7 +82,7 @@ CREATE TABLE `accounts` (
   UNIQUE KEY `unique_idx` (`serial`,`payment_time`,`amount`,`price`),
   KEY `serial_idx` (`serial`),
   KEY `accounts_serial_idx` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=8804 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8805 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -142,7 +142,7 @@ CREATE TABLE `accounts_log` (
   PRIMARY KEY (`id`),
   KEY `idx_serial_time` (`serial`,`unix_time`),
   KEY `idx_user_time` (`username`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=1244 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1245 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -247,7 +247,7 @@ CREATE TABLE `command_queue` (
   `timeout` int(11) NOT NULL DEFAULT 0,
   `sent_count` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=902642347 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=902678560 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -292,6 +292,7 @@ DROP TABLE IF EXISTS `meter_groups`;
 CREATE TABLE `meter_groups` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(256) NOT NULL DEFAULT '',
+  `subscription_enabled` tinyint(1) DEFAULT NULL,
   `mobile_pay_receiver` varchar(256) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -370,7 +371,7 @@ CREATE TABLE `meters_state` (
   `last_updated` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `serial` (`serial`)
-) ENGINE=InnoDB AUTO_INCREMENT=3073701929 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3074784249 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -522,7 +523,7 @@ CREATE TABLE `sms_messages` (
   PRIMARY KEY (`id`),
   KEY `unix_time_phone_idx` (`unix_time`,`phone`),
   KEY `phone_unix_time_idx` (`phone`,`unix_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=1970121 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1970287 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -544,7 +545,7 @@ CREATE TABLE `subscriptions` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `serial_unique` (`serial`),
   KEY `next_payment_idx` (`enabled`,`next_payment_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=405 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=372 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -613,4 +614,4 @@ CREATE TABLE `wifi_scan` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-09-16 20:00:37
+-- Dump completed on 2026-09-16 22:00:14
