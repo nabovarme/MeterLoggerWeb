@@ -26,7 +26,6 @@ my $sth = $dbh->prepare(qq[
 		s.id, 
 		s.serial, 
 		s.amount, 
-		s.price, 
 		s.frequency, 
 		s.info_prefix, 
 		s.next_payment_time
@@ -45,7 +44,7 @@ while (my $sub = $sth->fetchrow_hashref) {
 	my $serial       = $sub->{serial};
 	# Ensure the amount is NEGATIVE to deduct from the meter's balance
 	my $amount       = -abs($sub->{amount});
-	my $price        = $sub->{price} || 1;
+	my $price        = 1; # Fixed price multiplier for fiat currency charges
 	my $frequency    = $sub->{frequency};
 	my $prefix       = (defined $sub->{info_prefix} && length $sub->{info_prefix}) 
 	                   ? $sub->{info_prefix} 
