@@ -89,7 +89,7 @@
 					$sub_amount = $sub->{amount};
 					$sub_frequency = $sub->{frequency} || 'monthly';
 					$sub_info = $sub->{info_prefix} || 'Membership';
-					$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+					$sub_next = $sub->{next_payment_time} ? time_format('d.m.yyyy', $sub->{next_payment_time}) : '';
 				}
 			}
 		}
