@@ -480,8 +480,8 @@ function fetchAndUpdateGraph() {
 								axisLabelFormatter: function(x) {
 									const d = new Date(x);
 									return d.toLocaleString('da-DA', {
-										day: '2-digit',
-										month: '2-digit',
+										day: 'numeric',
+										month: 'numeric',
 										year: 'numeric',
 										hour: '2-digit',
 										minute: '2-digit'
