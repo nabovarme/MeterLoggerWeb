@@ -12,74 +12,86 @@
  * - Dynamically renders a payment history table and filters it based on the visible time window in the graph.
  * - Refreshes account data and nudges the graph forward every 60 seconds to stay up-to-date in real time.
 
-                   ┌────────────────────────────────────┐
-                   │ Start                              │
-                   │ fetchAndUpdateGraph()              │
-                   └────────────┬───────────────────────┘
-                                │
-                                ▼
+                    ┌────────────────────────────────────┐
+                    │ Start                              │
+                    │ fetchAndUpdateGraph()              │
+                    └────────────┬───────────────────────┘
+                                 │
+                                 ▼
                 ┌────────────────────────────────────┐
                 │ Fetch Coarse CSV                   │
                 │ fetch(dataUrlCoarse)               │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Convert CSV timestamps             │
                 │ convertCsvSecondsToMs()            │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Init or Update Dygraph             │
                 │ new Dygraph(...)                   │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Fetch Account Info                 │
                 │ fetch(accountUrl)                  │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Update UI Stats                            │
                 │ updateRemainingKwhInfo(),                  │
                 │ updateLastReadingStats()                   │
                 └────────────┬───────────────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Create & Set Graph Annotations             │
                 │ graph.setAnnotations(),                    │
                 │ snapToNearestTimestamp()                   │
                 └────────────┬───────────────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Bind Annotation Events                     │
                 │ bindAnnotationEventsAndIds(),              │
                 │ handleAnnotationClick(), etc.              │
                 └────────────┬───────────────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Fetch Fine CSV                     │
                 │ fetch(dataUrlFine)                 │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Merge Coarse + Fine CSV            │
                 │ mergeCsv()                         │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────┐
                 │ Update Dygraph with Merged Data    │
                 │ g.updateOptions()                  │
                 └────────────┬───────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Calculate Consumption for Range            │
                 │ updateConsumptionFromGraphRange()          │
                 └────────────┬───────────────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Filter Payment Table by Graph Range        │
                 │ filterPaymentsBySelectedGraphRange()       │
                 └────────────┬───────────────────────────────┘
+                             │
                              ▼
                 ┌────────────────────────────────────────────┐
                 │ Repeat Every 60 Seconds                    │
@@ -240,7 +252,7 @@ function renderPaymentRowsFromAccountData(payments) {
 			: '';
 		// Format Unix timestamp as "D.M.YYYY HH:MM" in 24-hour
 		const dateObj = new Date(d.payment_time * 1000); 
-	    const dateStr = `${dateObj.getDate()}.${dateObj.getMonth() + 1}.${dateObj.getFullYear()} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
+		const dateStr = `${dateObj.getDate()}.${dateObj.getMonth() + 1}.${dateObj.getFullYear()} ${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
 
 		row.innerHTML = `
 			<div>${dateStr}</div>
@@ -539,11 +551,11 @@ function fetchAndUpdateGraph() {
 			return fetchAndRenderAccountInfo(g);
 		})
 		.then(() => {
-			// ✅ Hide spinner after graph + annotations + table are ready
+			// Hide spinner after graph + annotations + table are ready
 			const spinner = document.getElementById("graph_spinner");
 			if (spinner) spinner.style.display = "none";
 			
-			// ✅ Start fine data fetch here
+			// Start fine data fetch here
 			return fetch(dataUrlFine);
 		})
 		.then(r => r.text())
@@ -557,7 +569,7 @@ function fetchAndUpdateGraph() {
 			console.error("Error during graph update:", error);
 		})
 		.finally(() => {
-			// ✅ Always hide spinner no matter what
+			// Always hide spinner no matter what
 			const spinner = document.getElementById("graph_spinner");
 			if (spinner) spinner.style.display = "none";
 		});

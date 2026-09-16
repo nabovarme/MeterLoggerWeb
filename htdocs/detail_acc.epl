@@ -1,6 +1,7 @@
 ﻿<HTML>
 [- 
 	use Time::Format qw( time_format );
+	use POSIX qw( mktime );
 
 	use Nabovarme::Db;
 	use Nabovarme::Admin;
@@ -9,6 +10,39 @@
 	$admin = new Nabovarme::Admin;
 	$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
 
+	# Variables for recurring membership state
+	$sub_enabled = 0;
+	$sub_amount = 50;
+	$sub_info = 'Membership';
+	$sub_next = '';
+
+	# Handle saving/updating the Recurring Membership configuration
+	if ($is_admin && $fdat{action} eq 'update_subscription') {
+		if ($dbh = Nabovarme::Db->my_connect) {
+			my $enabled = $fdat{sub_enabled} ? 1 : 0;
+			my $amount = (defined $fdat{sub_amount} && length $fdat{sub_amount}) ? Nabovarme::Admin::normalize_amount($fdat{sub_amount}) : 50;
+			my $info_prefix = (defined $fdat{sub_info} && length $fdat{sub_info}) ? $fdat{sub_info} : 'Membership';
+			my $frequency = 'monthly';
+			
+			# If it's a new subscription, default the next payment to the 1st of next month at 00:00:00
+			my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time());
+			my $next_payment_time = POSIX::mktime(0, 0, 0, 1, $mon + 1, $year);
+
+			my $sub_sth = $dbh->prepare(qq[
+				INSERT INTO subscriptions (serial, enabled, amount, frequency, info_prefix, next_payment_time)
+				VALUES (?, ?, ?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE
+					enabled = VALUES(enabled),
+					amount = VALUES(amount),
+					info_prefix = VALUES(info_prefix)
+			]);
+			$sub_sth->execute($fdat{serial}, $enabled, $amount, $frequency, $info_prefix, $next_payment_time);
+		}
+		# Redirect to clear query parameters
+		$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial};
+	}
+
+	# Handle creation of one-off manual payments, memberships, or charges
 	if ($is_admin && ($fdat{add_state} =~ /add/i)) {
 		$admin->add_payment($fdat{serial}, $fdat{type}, $fdat{unix_time}, $fdat{info}, $fdat{amount}, $fdat{price});
 		$http_headers_out{'Location'} = "detail_acc.epl?serial=" . $fdat{serial};
@@ -22,11 +56,21 @@
 		$latest_sample_sth = $dbh->prepare(qq[SELECT hours, volume, energy FROM samples_cache WHERE serial LIKE $quoted_serial ORDER BY `unix_time` DESC LIMIT 1]);
 		$latest_sample_sth->execute;
 
-	if ($meter_info_sth->rows) {
-		if ($d = $meter_info_sth->fetchrow_hashref) {
-			$info = $d->{info};
+		if ($meter_info_sth->rows) {
+			if ($d = $meter_info_sth->fetchrow_hashref) {
+				$info = $d->{info};
+			}
 		}
-	}
+
+		# Fetch current recurring membership state for the UI
+		my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
+		$sub_fetch_sth->execute($fdat{'serial'});
+		if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
+			$sub_enabled = $sub->{enabled};
+			$sub_amount = $sub->{amount};
+			$sub_info = $sub->{info_prefix} || 'Membership';
+			$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+		}
 	}
 -] 
 	<HEAD>
@@ -159,6 +203,40 @@
 			</div>
 		</div>
 		</form>
+
+		<!-- NEW: Dedicated Recurring Membership Configuration Panel -->
+		<form method="GET" action="">
+		<div id="recurring_subscription" align="left" valign="bottom" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #777;">
+			<div class="default" style="margin-bottom: 5px;"><b>Recurring Membership (Auto-billing)</b></div>
+			<div class="payment-row">
+				<div class="cell">
+					<label style="cursor: pointer;">
+						<input type="checkbox" name="sub_enabled" value="1" [$ if $sub_enabled $]checked[$ endif $]> Enabled
+					</label>
+				</div>
+				<div class="cell">
+					<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)" size="20">
+				</div>
+				<div class="cell">
+					<input type="text" inputmode="text" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount" size="5"> kr/mo
+				</div>
+				<div class="cell">
+					<span class="default-highlight">[$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $]</span>
+				</div>
+			</div>
+			<div class="payment-row" style="margin-top: 5px;">
+				<div class="cell">
+					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
+					<input type="hidden" name="action" value="update_subscription">
+					<input type="submit" value="Save Membership" style="width: 150px;">
+				</div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+				<div class="cell"></div>
+			</div>
+		</div>
+		</form>
+
 			[$ endif $]
 		[$ endif $]
 		<script>
