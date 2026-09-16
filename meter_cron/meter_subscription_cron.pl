@@ -57,7 +57,7 @@ while (my $sub = $sth->fetchrow_hashref) {
 	# End of period is 1 second before next period starts
 	my $end_time     = $next_time - 1;
 
-	# Format dates as dd.mm.yyyy
+	# Format dates as dd.mm.yyyy (e.g. 01.10.2026-31.10.2026)
 	my $start_str    = strftime('%d.%m.%Y', localtime($start_time));
 	my $end_str      = strftime('%d.%m.%Y', localtime($end_time));
 
@@ -106,6 +106,7 @@ sub calculate_next_payment_time {
 
 	my ($sec, $min, $hour, $mday, $mon, $year) = localtime($current_target);
 
+	# Increment months/years based on interval frequency
 	if ($frequency eq 'monthly') {
 		$mon += 1;
 	}
@@ -116,15 +117,16 @@ sub calculate_next_payment_time {
 		$year += 1;
 	}
 
-	my $next_target = mktime(0, 0, 0, $mday, $mon, $year);
+	# Force day to 1st of the month at midnight (00:00:00)
+	my $next_target = mktime(0, 0, 0, 1, $mon, $year);
 
-	# If calculation is somehow still in the past, push it into the future
+	# Catch-up loop: if calculation is still in the past relative to execution time, push forward
 	while ($next_target <= $now) {
 		($sec, $min, $hour, $mday, $mon, $year) = localtime($next_target);
-		if ($frequency eq 'monthly')     { $mon += 1; }
-		elsif ($frequency eq 'quarterly') { $mon += 3; }
-		elsif ($frequency eq 'yearly')   { $year += 1; }
-		$next_target = mktime(0, 0, 0, $mday, $mon, $year);
+		if ($frequency eq 'monthly')      { $mon += 1; }
+		elsif ($frequency eq 'quarterly')  { $mon += 3; }
+		elsif ($frequency eq 'yearly')    { $year += 1; }
+		$next_target = mktime(0, 0, 0, 1, $mon, $year);
 	}
 
 	return $next_target;
