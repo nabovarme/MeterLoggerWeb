@@ -224,8 +224,17 @@ function renderPaymentRowsFromAccountData(payments) {
 	const container = document.getElementById("payments_table");
 	container.innerHTML = '';
 
+	// Add Shared Rounded Panel Header
+	const title = document.createElement('div');
+	title.className = 'default-bold panel-header';
+	title.innerText = 'Account History';
+	container.appendChild(title);
+
 	if (!payments.length) {
-		container.innerHTML = '<div class="payment-row empty">No payments data available</div>';
+		const emptyRow = document.createElement('div');
+		emptyRow.className = 'payment-row empty';
+		emptyRow.innerText = 'No payments data available';
+		container.appendChild(emptyRow);
 		return;
 	}
 
