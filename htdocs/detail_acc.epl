@@ -65,28 +65,32 @@
 			}
 		}
 
-		# 1. Check if the meter's group has subscriptions enabled
-		my $grp_check_sth = $dbh->prepare(qq[
-			SELECT mg.subscription_enabled 
-			FROM meters m 
-			JOIN meters_group mg ON m.meter_group = mg.id 
-			WHERE m.serial = ?
-		]);
-		$grp_check_sth->execute($fdat{'serial'});
-		if (my $grp = $grp_check_sth->fetchrow_hashref) {
-			$show_subscription_panel = $grp->{subscription_enabled} ? 1 : 0;
-		}
+		# Only fetch subscription admin data if the user is actually an admin
+		if ($is_admin) {
+			# 1. Check if the meter's group has subscriptions enabled
+			# Using backticks around `group` because it's a reserved SQL keyword
+			my $grp_check_sth = $dbh->prepare(qq[
+				SELECT mg.subscription_enabled 
+				FROM meters m 
+				JOIN meter_groups mg ON m.`group` = mg.id 
+				WHERE m.serial = ?
+			]);
+			$grp_check_sth->execute($fdat{'serial'});
+			if (my $grp = $grp_check_sth->fetchrow_hashref) {
+				$show_subscription_panel = $grp->{subscription_enabled} ? 1 : 0;
+			}
 
-		# 2. Fetch current recurring membership state for the UI (only if the panel should be shown)
-		if ($show_subscription_panel) {
-			my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, frequency, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
-			$sub_fetch_sth->execute($fdat{'serial'});
-			if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
-				$sub_enabled = $sub->{enabled};
-				$sub_amount = $sub->{amount};
-				$sub_frequency = $sub->{frequency} || 'monthly';
-				$sub_info = $sub->{info_prefix} || 'Membership';
-				$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+			# 2. Fetch current recurring membership state for the UI (only if the panel should be shown)
+			if ($show_subscription_panel) {
+				my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, frequency, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
+				$sub_fetch_sth->execute($fdat{'serial'});
+				if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
+					$sub_enabled = $sub->{enabled};
+					$sub_amount = $sub->{amount};
+					$sub_frequency = $sub->{frequency} || 'monthly';
+					$sub_info = $sub->{info_prefix} || 'Membership';
+					$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+				}
 			}
 		}
 	}
