@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use POSIX qw( mktime localtime strftime );
-use lib qw( /usr/local/share/perl /etc/apache2/perl );
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
@@ -48,7 +47,7 @@ while (my $sub = $sth->fetchrow_hashref) {
 	my $frequency    = $sub->{frequency};
 	my $prefix       = (defined $sub->{info_prefix} && length $sub->{info_prefix}) 
 	                   ? $sub->{info_prefix} 
-	                   : 'Abonnement';
+	                   : 'Subscription';
 
 	my $start_time   = $sub->{next_payment_time};
 	my $next_time    = calculate_next_payment_time($start_time, $frequency, $now);
@@ -64,7 +63,7 @@ while (my $sub = $sth->fetchrow_hashref) {
 	my $info         = sprintf('%s %s-%s', $prefix, $start_str, $end_str);
 
 	# 1. Insert membership charge (negative amount) into `accounts`
-	# NOTE: Trigger command_queue_insert_after will fire automatically and recalculate open_until!
+	# NOTE: Triggers handle both command_queue command inserts and accounts_log writing automatically!
 	my $acc_sth = $dbh->prepare(qq[
 		INSERT INTO accounts (type, serial, payment_time, amount, info, price, auto)
 		VALUES ('membership', ?, ?, ?, ?, ?, 1)
@@ -74,14 +73,7 @@ while (my $sub = $sth->fetchrow_hashref) {
 		$processed_count++;
 		log_info("Created subscription charge: serial $serial, amount: $amount, info: '$info'");
 
-		# 2. Write record into audit log
-		my $log_sth = $dbh->prepare(qq[
-			INSERT INTO accounts_log (username, admin_group, serial, type, info, amount, price, remote_addr, user_agent, unix_time)
-			VALUES ('system_cron', 'system', ?, 'membership_auto', ?, ?, ?, '127.0.0.1', 'meter_cron', ?)
-		]);
-		$log_sth->execute($serial, $info, $amount, $price, $now);
-
-		# 3. Update subscription metadata with the new next_payment_time
+		# 2. Update subscription metadata with the new next_payment_time
 		my $upd_sth = $dbh->prepare(qq[
 			UPDATE subscriptions
 			SET last_payment_time = ?,
