@@ -537,7 +537,6 @@ CREATE TABLE `subscriptions` (
   `serial` varchar(16) NOT NULL,
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
   `amount` float NOT NULL DEFAULT 100,
-  `price` float NOT NULL DEFAULT 1,
   `frequency` enum('monthly','quarterly','yearly') NOT NULL DEFAULT 'monthly',
   `info_prefix` varchar(128) DEFAULT 'Subscription',
   `last_payment_time` int(11) DEFAULT NULL,
