@@ -257,7 +257,7 @@
 						<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)">
 					</div>
 					<div class="cell">
-						<input type="text" inputmode="decimal" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount"> kr
+						<input type="text" inputmode="decimal" class="subscription-amount-input" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount"> kr
 					</div>
 					<div class="cell">
 						<select name="sub_frequency">

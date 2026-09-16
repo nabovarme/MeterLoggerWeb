@@ -137,7 +137,7 @@ html, body {
 
 #kwh_remaining {
 	font-weight: bold;
-	margin-top: 8px; /* Added spacing between the two lines */
+	margin-top: 8px; /* Spacing between stats lines */
 }
 
 #error_message {
@@ -153,10 +153,10 @@ html, body {
 #payments_table,
 #add_payment,
 #recurring_subscription {
-	margin: 2em 0;             /* 2em top/bund, 0 side margin så den flugter med teksten */
+	margin: 2em 0;             /* 2em top/bottom, 0 side margin to align with text */
 	padding: 15px 20px;
-	background-color: #f2f2f2; /* Lysegrå boks */
-	border-radius: 16px;       /* Afrunding af hjørner */
+	background-color: #f2f2f2; /* Light gray box */
+	border-radius: 16px;       /* Corner rounding */
 	box-sizing: border-box;
 }
 
@@ -261,9 +261,23 @@ input {
 	box-sizing: border-box;
 }
 
+.subscription-row input[type="checkbox"] {
+	width: auto;                  /* Overruler width: 100% fra globale inputs */
+	height: 1.1em;
+	width: 1.1em;
+	cursor: pointer;
+	margin: 0;
+	display: inline-block !important; /* Tvinger tjekboksen til at vise sig */
+}
+
+.subscription-row input.subscription-amount-input {
+	width: 80px; /* Compact width for amounts like 50-100 kr */
+}
+
 .subscription-row label {
 	cursor: pointer;
 	display: flex;
+	flex-direction: row; /* Force checkbox and text to sit horizontally side-by-side */
 	align-items: center;
 	gap: 6px;
 }
@@ -285,8 +299,8 @@ input {
 	#payments_table,
 	#add_payment,
 	#recurring_subscription {
-		border-radius: 12px;   /* Lidt mindre afrunding på små skærme */
-		padding: 15px 10px;    /* Mindre indvendig margin på mobilen */
+		border-radius: 12px;   /* Slightly smaller rounding on mobile */
+		padding: 15px 10px;    /* Compact padding for mobile */
 	}
 
 	.subscription-row {
