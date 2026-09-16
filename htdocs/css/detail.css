@@ -6,7 +6,7 @@ html, body {
 	font-family: Verdana, Geneva, sans-serif;
 	font-size: 100%;
 	overflow-x: hidden; /* Prevent horizontal scroll */
-	overflow-y: auto;	 /* Allow vertical scroll */
+	overflow-y: auto;   /* Allow vertical scroll */
 	box-sizing: border-box;
 }
 
@@ -91,8 +91,8 @@ html, body {
 
 /* Dygraph layout */
 #div_dygraph {
-	width: calc(100% - 10px);	/* fix clipping */
-	max-width: 100%;						/* avoid horizontal overflow */
+	width: calc(100% - 10px);  /* fix clipping */
+	max-width: 100%;           /* avoid horizontal overflow */
 	height: 400px;
 	position: relative;
 	top: 0;
@@ -195,7 +195,7 @@ html, body {
 
 #checkbox-container {
 	display: flex;
-	flex-wrap: wrap;				/* Allow wrapping */
+	flex-wrap: wrap;        /* Allow wrapping */
 	gap: 12px;
 	padding: 0 10px;
 	box-sizing: border-box;
@@ -204,8 +204,8 @@ html, body {
 }
 
 .checkbox-item {
-	flex: 0 1 auto;				 /* Shrink or grow as needed */
-	min-width: 150px;			 /* Give each checkbox enough minimum width */
+	flex: 0 1 auto;         /* Shrink or grow as needed */
+	min-width: 150px;       /* Give each checkbox enough minimum width */
 }
 
 label.default {
@@ -234,11 +234,65 @@ input[type="checkbox"] {
 }
 */
 
+/* Recurring Subscription Panel */
+#recurring_subscription {
+	width: 100%;
+	padding-right: 6px;
+	padding-left: 6px;
+	margin-top: 2em;
+	padding-top: 1.5em;
+	border-top: 1px solid #ccc;
+	margin-bottom: 2em;
+}
+
+.subscription-header {
+	margin-bottom: 10px;
+}
+
+.subscription-row {
+	width: 100%;
+	font-family: Verdana, Geneva, sans-serif;
+	display: grid;
+	/* Grid: Checkbox (1.5fr), Text (2.5fr), Amount (1.5fr), Next (2fr) */
+	grid-template-columns: 1.5fr 2.5fr 1.5fr 2fr; 
+	align-items: center;
+	gap: 10px;
+	padding: 6px 0;
+}
+
+.subscription-row input[type="text"] {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.subscription-row label {
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.subscription-row .cell {
+	display: flex;
+	align-items: center;
+	gap: 4px; /* Space between input and "kr/mo" text */
+}
+
 /* Responsive adjustments */
 @media (max-width: 600px) {
 	#div_dygraph {
 		height: 300px;
 	}
+	
+	/* Responsive Subscription Panel */
+	.subscription-row {
+		grid-template-columns: 1fr 1fr; /* Stack into a 2x2 grid on mobile */
+		gap: 12px;
+	}
+	#recurring_subscription input[type="submit"] {
+		width: 100% !important; /* Full width button on mobile */
+	}
+
 //	input[type="checkbox"] {
 //		transform: scale(2);
 //	}

@@ -206,33 +206,34 @@
 
 		<!-- NEW: Dedicated Recurring Membership Configuration Panel -->
 		<form method="GET" action="">
-		<div id="recurring_subscription" align="left" valign="bottom" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #777;">
-			<div class="default" style="margin-bottom: 5px;"><b>Recurring Membership (Auto-billing)</b></div>
-			<div class="payment-row">
+		<div id="recurring_subscription">
+			<div class="default-bold subscription-header">Recurring Membership (Auto-billing)</div>
+			
+			<div class="subscription-row">
 				<div class="cell">
-					<label style="cursor: pointer;">
+					<label class="default">
 						<input type="checkbox" name="sub_enabled" value="1" [$ if $sub_enabled $]checked[$ endif $]> Enabled
 					</label>
 				</div>
 				<div class="cell">
-					<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)" size="20">
+					<input type="text" inputmode="text" name="sub_info" value="[+ $sub_info +]" placeholder="Prefix (e.g. Membership)">
 				</div>
 				<div class="cell">
-					<input type="text" inputmode="text" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount" size="5"> kr/mo
+					<input type="text" inputmode="decimal" name="sub_amount" value="[+ $sub_amount +]" placeholder="Amount"> kr/mo
 				</div>
 				<div class="cell">
-					<span class="default-highlight">[$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $]</span>
+					<span class="default-highlight">
+						[$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $]
+					</span>
 				</div>
 			</div>
-			<div class="payment-row" style="margin-top: 5px;">
+
+			<div class="subscription-row">
 				<div class="cell">
 					<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 					<input type="hidden" name="action" value="update_subscription">
 					<input type="submit" value="Save Membership" style="width: 150px;">
 				</div>
-				<div class="cell"></div>
-				<div class="cell"></div>
-				<div class="cell"></div>
 			</div>
 		</div>
 		</form>
