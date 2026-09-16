@@ -237,11 +237,11 @@
 			</form>
 
 			[$ if ($show_subscription_panel) $]
-			<!-- Dedicated Recurring Membership Configuration Panel -->
+			<!-- Dedicated Automatic Membership Configuration Panel -->
 			<form method="GET" action="">
 			<div id="recurring_subscription">
 				<div class="default-bold panel-header">
-					Recurring Membership 
+					Automatic Membership 
 					<span class="subscription-next">
 						([$ if $sub_next $]Next: [+ $sub_next +][$ else $]Next: 1st of month[$ endif $])
 					</span>
@@ -272,7 +272,7 @@
 					<div class="cell">
 						<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 						<input type="hidden" name="action" value="update_subscription">
-						<input type="submit" value="Save Membership" style="width: 150px;">
+						<input type="submit" value="Save Subscription" style="width: 150px;">
 					</div>
 				</div>
 			</div>
