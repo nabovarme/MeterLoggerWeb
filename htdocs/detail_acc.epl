@@ -13,7 +13,7 @@
 	# Variables for recurring membership state
 	$sub_enabled = 0;
 	$sub_amount = '';
-	$sub_info = 'Membership';
+	$sub_info = '';
 	$sub_frequency = 'monthly';
 	$sub_next = '';
 	$show_subscription_panel = 0;
