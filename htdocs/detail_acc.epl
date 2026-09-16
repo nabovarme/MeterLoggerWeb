@@ -272,7 +272,7 @@
 					<div class="cell">
 						<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
 						<input type="hidden" name="action" value="update_subscription">
-						<input type="submit" value="Save Subscription" style="width: 150px;">
+						<input type="submit" value="Save Membership" style="width: 150px;">
 					</div>
 				</div>
 			</div>
