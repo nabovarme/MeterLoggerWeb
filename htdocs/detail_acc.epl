@@ -16,6 +16,7 @@
 	$sub_info = 'Membership';
 	$sub_frequency = 'monthly';
 	$sub_next = '';
+	$show_subscription_panel = 0;
 
 	# Handle saving/updating the Recurring Membership configuration
 	if ($is_admin && $fdat{action} eq 'update_subscription') {
@@ -64,15 +65,29 @@
 			}
 		}
 
-		# Fetch current recurring membership state for the UI
-		my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, frequency, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
-		$sub_fetch_sth->execute($fdat{'serial'});
-		if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
-			$sub_enabled = $sub->{enabled};
-			$sub_amount = $sub->{amount};
-			$sub_frequency = $sub->{frequency} || 'monthly';
-			$sub_info = $sub->{info_prefix} || 'Membership';
-			$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+		# 1. Check if the meter's group has subscriptions enabled
+		my $grp_check_sth = $dbh->prepare(qq[
+			SELECT mg.subscription_enabled 
+			FROM meters m 
+			JOIN meters_group mg ON m.meter_group = mg.id 
+			WHERE m.serial = ?
+		]);
+		$grp_check_sth->execute($fdat{'serial'});
+		if (my $grp = $grp_check_sth->fetchrow_hashref) {
+			$show_subscription_panel = $grp->{subscription_enabled} ? 1 : 0;
+		}
+
+		# 2. Fetch current recurring membership state for the UI (only if the panel should be shown)
+		if ($show_subscription_panel) {
+			my $sub_fetch_sth = $dbh->prepare(qq[SELECT enabled, amount, frequency, info_prefix, next_payment_time FROM subscriptions WHERE serial = ?]);
+			$sub_fetch_sth->execute($fdat{'serial'});
+			if (my $sub = $sub_fetch_sth->fetchrow_hashref) {
+				$sub_enabled = $sub->{enabled};
+				$sub_amount = $sub->{amount};
+				$sub_frequency = $sub->{frequency} || 'monthly';
+				$sub_info = $sub->{info_prefix} || 'Membership';
+				$sub_next = $sub->{next_payment_time} ? time_format('dd.mm.yyyy', $sub->{next_payment_time}) : '';
+			}
 		}
 	}
 -] 
@@ -214,6 +229,7 @@
 			</div>
 			</form>
 
+			[$ if ($show_subscription_panel) $]
 			<!-- Dedicated Recurring Membership Configuration Panel -->
 			<form method="GET" action="">
 			<div id="recurring_subscription">
@@ -254,6 +270,8 @@
 				</div>
 			</div>
 			</form>
+			[$ endif $]
+			
 			[$ endif $]
 		[$ endif $]
 		
