@@ -261,94 +261,104 @@ sub build_flags_from_sw_version {
 	my ($sw_version) = @_;
 	return 'AP=1' unless defined $sw_version;
 
-	# Extract out the bracketed segment metadata if present, otherwise read full string tokens
+	# Extract out the bracketed segment metadata if present
 	my $flags_segment = $sw_version;
 	if ($sw_version =~ /\[(.*?)\]/) {
 		$flags_segment = $1;
 	}
 
-	# Split on spaces OR hyphens to isolate specific tokens safely
+	# Split on spaces OR hyphens
 	my @tokens = split(/[\s\-]+/, $flags_segment);
-
-	# Helper function to extract explicit key/value bindings or bare keywords
-	my $check_flag = sub {
-		my ($flag_name, $default_on_match) = @_;
-		$default_on_match //= 1;
-
-		# Find explicit token matching "FLAG_NAME=" key pairs
-		my ($matched_token) = grep { $_ =~ /^$flag_name=/ } @tokens;
-		if ($matched_token) {
-			my (undef, $val) = split(/=/, $matched_token, 2);
-			return $val eq '1' ? 1 : 0;
-		}
-
-		# Fallback to bare keyword check if present without explicit values
-		if (grep { $_ eq $flag_name } @tokens) {
-			return $default_on_match;
-		}
-
-		return undef;
-	};
-
 	my @flags = ('AP=1');
 
-	# 1. Core Hardware Protocol Auto-Selectors (Backwards compatible across MC_66B, MC_B, and legacy hyphen splits)
-	if (($check_flag->('MC_66B') // 0) == 1 || grep { $_ eq 'MC_B' } @tokens || ((grep { $_ eq 'MC' } @tokens) && (grep { $_ eq 'B' } @tokens))) {
+	# Create a hash of all bare tokens for bulletproof O(1) lookups
+	my %has_token = map { $_ => 1 } @tokens;
+
+	# Helper for explicit "FLAG=1" overrides
+	my $get_explicit_val = sub {
+		my ($key) = @_;
+		my ($match) = grep { /^$key=/ } @tokens;
+		return $match ? (split(/=/, $match, 2))[1] : undef;
+	};
+
+	# ---------------------------------------------------------
+	# 1. Core Hardware Protocol Auto-Selectors (From version.h)
+	# ---------------------------------------------------------
+	if (($get_explicit_val->('MC_66B') // '') eq '1' || $has_token{'MC_66B'} || $has_token{'MC_B'} || ($has_token{'MC'} && $has_token{'B'})) {
+		# Handles: MC_66B=1, MC_B, and MC-B
 		push @flags, 'MC_66B=1';
 	}
-	elsif (($check_flag->('EN61107') // 0) == 1 || grep { $_ eq 'MC' } @tokens) {
+	elsif (($get_explicit_val->('EN61107') // '') eq '1' || $has_token{'EN61107'} || $has_token{'MC'}) {
+		# Handles: EN61107=1 and MC
 		push @flags, 'EN61107=1';
 	}
-	elsif (($check_flag->('IMPULSE') // 0) == 1) {
+	elsif (($get_explicit_val->('IMPULSE') // '') eq '1' || $has_token{'IMPULSE'}) {
+		# Handles: IMPULSE
 		push @flags, 'IMPULSE=1';
 	}
+	# Note: Default fallback (KMP) requires no extra flags
 
-	# 2. Logic Overrides & Modifiers (Maps "FLOW" folder token directly to FLOW_METER output flag)
-	my $flow_meter = $check_flag->('FLOW');
-	push @flags, "FLOW_METER=1" if defined $flow_meter && $flow_meter == 1;
+	# ---------------------------------------------------------
+	# 2. Logic Overrides & Modifiers
+	# ---------------------------------------------------------
+	if (($get_explicit_val->('FLOW') // '') eq '1' || $has_token{'FLOW'} || $has_token{'FLOW_METER'}) {
+		push @flags, 'FLOW_METER=1';
+	}
 
-	# Note: NO_AUTO_CLOSE=1 maps internally to AUTO_CLOSE=0
-	my $no_auto_close = $check_flag->('NO_AUTO_CLOSE');
-	my $auto_close    = $check_flag->('AUTO_CLOSE');
-	if ((defined $no_auto_close && $no_auto_close == 1) || (defined $auto_close && $auto_close == 0)) {
+	# Note: version.h outputs "-NO_AUTO_CLOSE", which maps to AUTO_CLOSE=0
+	my $auto_close_val = $get_explicit_val->('AUTO_CLOSE');
+	if ($has_token{'NO_AUTO_CLOSE'} || (defined $auto_close_val && $auto_close_val eq '0')) {
 		push @flags, 'AUTO_CLOSE=0';
 	}
 
-	my $no_cron = $check_flag->('NO_CRON');
-	push @flags, "NO_CRON=1" if defined $no_cron && $no_cron == 1;
+	if (($get_explicit_val->('NO_CRON') // '') eq '1' || $has_token{'NO_CRON'}) {
+		push @flags, 'NO_CRON=1';
+	}
 
+	# ---------------------------------------------------------
 	# 3. Actuator Configuration States
-	my $thermo_no = $check_flag->('THERMO_NO');
-	my $thermo_nc = $check_flag->('THERMO_NC');
-	if ((defined $thermo_no && $thermo_no == 1) || (defined $thermo_nc && $thermo_nc == 0)) {
+	# ---------------------------------------------------------
+	my $thermo_no = $get_explicit_val->('THERMO_NO');
+	if ($has_token{'THERMO_NO'} || (defined $thermo_no && $thermo_no eq '1')) {
 		push @flags, 'THERMO_NO=1';
 	}
-	elsif ((defined $thermo_nc && $thermo_nc == 1) || (defined $thermo_no && $thermo_no == 0)) {
+	elsif ($has_token{'THERMO_NC'} || (defined $thermo_no && $thermo_no eq '0')) {
 		push @flags, 'THERMO_NO=0';
 	}
 
-	my $thermo_ac2 = $check_flag->('THERMO_ON_AC_2');
-	push @flags, "THERMO_ON_AC_2=1" if defined $thermo_ac2 && $thermo_ac2 == 1;
+	if (($get_explicit_val->('THERMO_ON_AC_2') // '') eq '1' || $has_token{'THERMO_ON_AC_2'}) {
+		push @flags, 'THERMO_ON_AC_2=1';
+	}
 
-	my $led_on_ac = $check_flag->('LED_ON_AC');
-	push @flags, "LED_ON_AC=1" if defined $led_on_ac && $led_on_ac == 1;
+	if (($get_explicit_val->('LED_ON_AC') // '') eq '1' || $has_token{'LED_ON_AC'}) {
+		push @flags, 'LED_ON_AC=1';
+	}
 
-	my $ac_test = $check_flag->('AC_TEST');
-	push @flags, "AC_TEST=1" if defined $ac_test && $ac_test == 1;
+	if (($get_explicit_val->('AC_TEST') // '') eq '1' || $has_token{'AC_TEST'}) {
+		push @flags, 'AC_TEST=1';
+	}
 
-	# 4. Diagnostics & Trace Variables (SAFE APPEND: fixed destructive re-assignments)
-	my $debug          = (grep { $_ eq 'DEBUG' } @tokens) ? 1 : 0;
-	my $debug_no_meter = ($check_flag->('DEBUG_NO_METER') // $check_flag->('NO_METER')) // 0;
-	my $stack_trace    = $check_flag->('DEBUG_STACK_TRACE');
+	# ---------------------------------------------------------
+	# 4. Diagnostics & Trace Variables
+	# ---------------------------------------------------------
+	my $wants_debug = $has_token{'DEBUG'} || ($get_explicit_val->('DEBUG') // '') eq '1';
+	# version.h outputs NO_METER, Makefile expects DEBUG_NO_METER
+	my $wants_debug_no_meter = $has_token{'DEBUG_NO_METER'} || $has_token{'NO_METER'};
 
-	if ($debug_no_meter == 1) {
+	if ($wants_debug_no_meter) {
 		push @flags, 'DEBUG=1', 'DEBUG_NO_METER=1';
 	}
-	elsif ($debug == 1) {
+	elsif ($wants_debug) {
 		push @flags, 'DEBUG=1';
 	}
 
-	push @flags, "DEBUG_STACK_TRACE=1" if defined $stack_trace && $stack_trace == 1;
+	if (($get_explicit_val->('DEBUG_STACK_TRACE') // '') eq '1' || $has_token{'DEBUG_STACK_TRACE'}) {
+		push @flags, 'DEBUG_STACK_TRACE=1';
+	}
+
+	if (($get_explicit_val->('DEBUG_SHORT_WEB_CONFIG_TIME') // '') eq '1' || $has_token{'DEBUG_SHORT_WEB_CONFIG_TIME'}) {
+		push @flags, 'DEBUG_SHORT_WEB_CONFIG_TIME=1';
+	}
 
 	return join(' ', @flags);
 }
@@ -506,21 +516,36 @@ sub run_docker_build {
 		my $dbh = Nabovarme::Db->my_connect
 			or die "DB connection failed";
 
-		my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ?");
+		my $sth =$dbh->prepare("SELECT `key` FROM meters WHERE serial = ?");
 		$sth->execute($serial);
 
-		my $row = $sth->fetchrow_hashref
+		my $row =$sth->fetchrow_hashref
 			or die "No meter found for serial $serial";
 
-		my $key = $row->{key};
-		my $sw_version = $version;
-		my $fs_version = $sw_version;
+		my $key =$row->{key};
+
+		# Interrogate the Docker image for the actual compiled source version (e.g., master-1465-4e0b)
+		my $true_git_version = get_git_version_from_docker();
+		
+		my $sw_version =$version;
+		
+		# If the job came from the Web API, it contains a stale database version prefix.
+		# We must strip off the stale prefix and inject the true git version.
+		if ($sw_version =~ /-CUSTOM/i) {
+			# Replaces "master-1449-dff6d-CUSTOM..." with "master-1465-4e0b-CUSTOM..."
+			$sw_version =~ s/^.*?-CUSTOM/$true_git_version-CUSTOM/i;
+		} else {
+			$sw_version =$true_git_version;
+		}
+		# ----------------------------------------------------------
+
+		my $fs_version =$sw_version;
 		$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 		$fs_version = 'unknown' if !$fs_version;
 
 		# Hash both build_flags and the encryption key exactly like process_build
 		my $config_str = ($build_flags || "") . ":" . ($key || "");
-		my $config_hash = substr(md5_hex($config_str), 0, 6);
+		my $config_hash = substr(Digest::MD5::md5_hex($config_str), 0, 6);
 		$fs_version .= "-$config_hash";
 
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
