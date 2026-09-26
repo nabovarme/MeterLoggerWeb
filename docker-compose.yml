@@ -82,14 +82,12 @@ services:
       retries: 5
     labels:
       com.docker.compose.service: "db"
-      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: nabovarme
       MYSQL_USER: ${METERLOGGER_DB_USER}
       MYSQL_PASSWORD: ${METERLOGGER_DB_PASSWORD}
       TZ: Europe/Copenhagen
-      GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
   mqtt:
     image: eclipse-mosquitto:latest
@@ -104,10 +102,8 @@ services:
     restart: always
     labels:
       com.docker.compose.service: "mqtt"
-      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       TZ: 'Europe/Copenhagen'
-      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 1883"]
       interval: 10s
@@ -121,13 +117,11 @@ services:
     restart: always
     environment:
       TZ: 'Europe/Copenhagen'
-      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
     labels:
       com.docker.compose.service: "redis"
-      app.git.commit: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -604,13 +598,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       com.docker.compose.service: "docker-proxy"
-      app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       - CONTAINERS=1 # Enforces strict read-only access to container state specs
       - TIMEOUT_CONNECT=5s
       - TIMEOUT_CLIENT=30s
       - TIMEOUT_SERVER=30s
-      - GIT_COMMIT=${GIT_COMMIT:-unknown}
 
 volumes:
   postfix_spool:
