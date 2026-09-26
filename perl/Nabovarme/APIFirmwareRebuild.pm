@@ -18,7 +18,7 @@ sub build_flags_from_sw_version {
 	return 'AP=1' unless defined $sw_version;
 
 	# Extract out the bracketed segment metadata if present
-	my $flags_segment =$sw_version;
+	my $flags_segment = $sw_version;
 	if ($sw_version =~ /\[(.*?)\]/) {
 		$flags_segment = $1;
 	}
@@ -57,7 +57,7 @@ sub build_flags_from_sw_version {
 		push @flags, 'FLOW_METER=1';
 	}
 
-	my $auto_close_val =$get_explicit_val->('AUTO_CLOSE');
+	my $auto_close_val = $get_explicit_val->('AUTO_CLOSE');
 	if ($has_token{'NO_AUTO_CLOSE'} || (defined $auto_close_val && $auto_close_val eq '0')) {
 		push @flags, 'AUTO_CLOSE=0';
 	}
@@ -69,7 +69,7 @@ sub build_flags_from_sw_version {
 	# ---------------------------------------------------------
 	# 3. Actuator Configuration States
 	# ---------------------------------------------------------
-	my $thermo_no =$get_explicit_val->('THERMO_NO');
+	my $thermo_no = $get_explicit_val->('THERMO_NO');
 	if ($has_token{'THERMO_NO'} || (defined $thermo_no && $thermo_no eq '1')) {
 		push @flags, 'THERMO_NO=1';
 	}
@@ -126,18 +126,18 @@ sub handler {
 		}
 
 		my %params;
-		my $args_string =$r->args || '';
+		my $args_string = $r->args || '';
 		foreach my $pair (split(/[&;]/,$args_string)) {
 			my ($key, $val) = split(/=/,$pair, 2);
 			next unless defined $key;
 			$val = '' unless defined$val;
 			$key =~ tr/+/ /;$key =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
 			$val =~ tr/+/ /;$val =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
-			$params{$key} =$val;
+			$params{$key} = $val;
 		}
 
-		my $serial    =$params{serial};
-		my $modifiers =$params{sw_version_modifiers} || 'STANDARD';
+		my $serial    = $params{serial};
+		my $modifiers = $params{sw_version_modifiers} || 'STANDARD';
 
 		if (!defined $serial || $serial eq '') {$r->print(JSON->new->utf8->canonical->encode({ success => 0, error => "Missing target serial identity parameter context" }));
 			return Apache2::Const::OK;
@@ -146,7 +146,7 @@ sub handler {
 		my $sql = q[SELECT info, sw_version FROM meters WHERE serial = ? AND enabled = 1 LIMIT 1];
 		$sth = $dbh->prepare($sql);
 		$sth->execute($serial);
-		my $meter =$sth->fetchrow_hashref;
+		my $meter = $sth->fetchrow_hashref;
 
 		if (!$meter) {$r->print(JSON->new->utf8->canonical->encode({ success => 0, error => "Active targeted meter context not found" }));
 			return Apache2::Const::OK;
@@ -155,7 +155,7 @@ sub handler {
 		# --- TARGETED DATABASE GIT REVISION & BRANCH PARSER ---
 		my $git_branch = 'master';
 		my $git_suffix = '';
-		my $db_version_string =$meter->{sw_version} // '';
+		my $db_version_string = $meter->{sw_version} // '';
 
 		# Match standard full branch layouts: [branch]-[count]-[hash]
 		if ($db_version_string =~ /^([a-zA-Z0-9._-]+)-(\d+-[a-f0-9]+)/) {$git_branch = $1;

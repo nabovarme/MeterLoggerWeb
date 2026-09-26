@@ -516,18 +516,18 @@ sub run_docker_build {
 		my $dbh = Nabovarme::Db->my_connect
 			or die "DB connection failed";
 
-		my $sth =$dbh->prepare("SELECT `key` FROM meters WHERE serial = ?");
+		my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ?");
 		$sth->execute($serial);
 
-		my $row =$sth->fetchrow_hashref
+		my $row = $sth->fetchrow_hashref
 			or die "No meter found for serial $serial";
 
-		my $key =$row->{key};
+		my $key = $row->{key};
 
 		# Interrogate the Docker image for the actual compiled source version (e.g., master-1465-4e0b)
 		my $true_git_version = get_git_version_from_docker();
 		
-		my $sw_version =$version;
+		my $sw_version = $version;
 		
 		# If the job came from the Web API, it contains a stale database version prefix.
 		# We must strip off the stale prefix and inject the true git version.
@@ -535,11 +535,11 @@ sub run_docker_build {
 			# Replaces "master-1449-dff6d-CUSTOM..." with "master-1465-4e0b-CUSTOM..."
 			$sw_version =~ s/^.*?-CUSTOM/$true_git_version-CUSTOM/i;
 		} else {
-			$sw_version =$true_git_version;
+			$sw_version = $true_git_version;
 		}
 		# ----------------------------------------------------------
 
-		my $fs_version =$sw_version;
+		my $fs_version = $sw_version;
 		$fs_version =~ s/[^a-zA-Z0-9._-]//g; 
 		$fs_version = 'unknown' if !$fs_version;
 
