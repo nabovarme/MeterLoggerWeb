@@ -293,7 +293,7 @@ sub build_flags_from_sw_version {
 	my @flags = ('AP=1');
 
 	# 1. Core Hardware Protocol Auto-Selectors (Backwards compatible across MC_66B, MC_B, and legacy hyphen splits)
-	if (($check_flag->('MC_66B') // 0) == 1 || grep { $_ eq 'MC_B' } @tokens || (grep { $_ eq 'MC' } @tokens && grep { $_ eq 'B' } @tokens)) {
+	if (($check_flag->('MC_66B') // 0) == 1 || grep { $_ eq 'MC_B' } @tokens || ((grep { $_ eq 'MC' } @tokens) && (grep { $_ eq 'B' } @tokens))) {
 		push @flags, 'MC_66B=1';
 	}
 	elsif (($check_flag->('EN61107') // 0) == 1 || grep { $_ eq 'MC' } @tokens) {
