@@ -208,7 +208,11 @@
 			showStatus('Requesting permissions...', '#555');
 
 			try {
-				// 1. Fetch server VAPID key
+				// 1. Request browser notification permission FIRST to satisfy iOS WebKit user-gesture requirement
+				const permission = await Notification.requestPermission();
+				if (permission !== 'granted') throw new Error('Notification permission denied by user.');
+
+				// 2. Fetch server VAPID key
 				const vapidRes = await fetch('/api/vapid_key');
 				if (!vapidRes.ok) throw new Error('Failed to retrieve VAPID key configuration.');
 				const vapidData = await vapidRes.json();
@@ -218,13 +222,9 @@
 					throw new Error(vapidData.error || 'Server returned empty VAPID public key.');
 				}
 
-				// 2. Register Service Worker with root scope
-				const registration = await navigator.serviceWorker.register('/service-worker.js', { scope: '/js/' });
+				// 3. Register Service Worker (scope defaults to root '/')
+				const registration = await navigator.serviceWorker.register('/service-worker.js');
 				await navigator.serviceWorker.ready;
-
-				// 3. Request browser notification permission
-				const permission = await Notification.requestPermission();
-				if (permission !== 'granted') throw new Error('Notification permission denied by user.');
 
 				// 4. Clean up any existing subscription
 				let subscription = await registration.pushManager.getSubscription();
