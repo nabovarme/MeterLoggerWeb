@@ -3,7 +3,28 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>MeterLogger - Push Notifications</title>
+	<title>MeterLoggerWeb - Push Notifications</title>
+	<meta name="description" content="Backend monitoring and alarm system for MeterLogger devices. Processes meter data, evaluates user-defined alarm conditions, and sends notifications based on various metrics and conditions.">
+
+	<!-- Web App Manifest -->
+	<link rel="manifest" href="/site.webmanifest">
+
+	<!-- Favicons & App Icons -->
+	<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+	<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+	<link rel="shortcut icon" href="/favicon.ico">
+
+	<!-- iOS Safari PWA / Home Screen Settings -->
+	<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="default">
+	<meta name="apple-mobile-web-app-title" content="MeterLoggerWeb">
+
+	<!-- Browser Theme Colors -->
+	<meta name="theme-color" content="#1a73e8">
+	<meta name="msapplication-TileColor" content="#1a73e8">
+	<meta name="msapplication-config" content="/browserconfig.xml">
+
 	<link rel="stylesheet" href="/css/menu.css">
 	<script src="/js/menu.js.epl" defer></script>
 	<style>
@@ -256,12 +277,12 @@
 					throw new Error('Browser failed to generate push encryption keys.');
 				}
 
-				// 7. Post subscription payload to backend
+				// 7. Post subscription payload directly to backend
 				const response = await fetch('/api/subscribe_push', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
-						phone: phoneInput, // Changed from serial to phone
+						phone: phoneInput,
 						endpoint: subscription.endpoint,
 						p256dh: p256dhKey,
 						auth: authKey
