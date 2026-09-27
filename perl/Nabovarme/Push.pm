@@ -14,6 +14,7 @@ use Crypt::Mac::HMAC qw(hmac);
 use Crypt::AuthEnc::GCM;
 use URI;
 use Nabovarme::Db;
+use Nabovarme::Number::Phone;
 
 # send_notification_to_serial -> send_notification_to_phone
 sub send_notification_to_phone {
@@ -22,6 +23,14 @@ sub send_notification_to_phone {
 	unless ($payload_args && ref($payload_args) eq 'HASH') {
 		warn "[Nabovarme::Push Error] Invalid arguments. Expected a HashRef for notification payload.\n";
 		return 0;
+	}
+
+	# Normalize and compact phone number to match database storage format
+	if ($phone) {
+		my $phone_obj = Nabovarme::Number::Phone->new($phone);
+		if ($phone_obj && $phone_obj->is_valid) {
+			$phone = $phone_obj->compact;
+		}
 	}
 
 	my %payload_data = %$payload_args;
@@ -52,7 +61,7 @@ sub send_notification_to_phone {
 		return 0;
 	}
 
-	# Query by phone instead of serial
+	# Query by compacted phone instead of serial
 	my $sth = $dbh->prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE phone = ?");
 	$sth->execute($phone);
 
