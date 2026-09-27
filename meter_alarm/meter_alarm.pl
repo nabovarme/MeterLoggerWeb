@@ -1186,16 +1186,28 @@ sub push_send {
 
 	my $serial   = $alarm->{serial};
 	my $alarm_id = $alarm->{id};
-	my $url      = "/$serial";
 
-	# Parse title up to the first delimiter (, or () or newline, otherwise use full $msg
+	# ----------------------------------------------------
+	# RESOLVE PRIMARY TARGET URL
+	# ----------------------------------------------------
+	# If the alarm is active, has a repeat interval (> 0), and a valid snooze auth key,
+	# route the notification click directly to the snooze page.
+	# Otherwise, route to the standard meter detail page.
+	my $url = "/$serial";
+	my $is_repeating = ($alarm->{repeat} && $alarm->{repeat} > 0) ? 1 : 0;
+
+	if ($is_active && $is_repeating && $alarm->{snooze_auth_key}) {
+		$url = "/snooze.html?" . $alarm->{snooze_auth_key};
+	}
+
+	# Parse title up to the first delimiter (, or ( or newline)
 	my $title = $msg;
 	if ($msg =~ /^([^,(\n\r]+)/) {
 		$title = $1;
 		$title =~ s/\s+$//; # Strip trailing whitespace
 	}
 
-	# Tag is fixed per serial + alarm ID. Reusing this tag replaces any existing visible push.
+	# Pre-compute Push Notification Payload
 	my %push_payload = (
 		title    => $title,
 		body     => $msg,
@@ -1207,9 +1219,19 @@ sub push_send {
 	if ($is_active) {
 		$push_payload{requireInteraction} = JSON::true;
 		$push_payload{vibrate} = [500, 250, 500, 250, 500];
+
+		# Additional action buttons for Android / Desktop Chrome
 		$push_payload{actions} = [
-			{ action => "view", title => "View Meter", url => $url }
+			{ action => "view", title => "View Meter", url => "/$serial" }
 		];
+
+		if ($alarm->{snooze_auth_key}) {
+			push @{$push_payload{actions}}, {
+				action => "snooze",
+				title  => "Snooze",
+				url    => "/snooze.html?" . $alarm->{snooze_auth_key}
+			};
+		}
 	} else {
 		$push_payload{vibrate} = [100, 50, 100];
 	}
