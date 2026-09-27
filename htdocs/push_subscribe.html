@@ -118,8 +118,8 @@
 
 		<form id="push-form" onsubmit="handleSubscribe(event)">
 			<div class="form-group">
-				<label for="meter-serial">Meter Serial Number</label>
-				<input type="text" id="meter-serial" placeholder="e.g. 0906863" required autocomplete="off">
+				<label for="user-phone">Phone Number</label>
+				<input type="tel" id="user-phone" placeholder="e.g. +45 12 34 56 78" required autocomplete="off">
 			</div>
 
 			<button type="submit" id="btn-subscribe" class="btn-submit">
@@ -133,9 +133,9 @@
 	<script>
 		document.addEventListener('DOMContentLoaded', () => {
 			const urlParams = new URLSearchParams(window.location.search);
-			const serialParam = urlParams.get('serial');
-			if (serialParam) {
-				document.getElementById('meter-serial').value = serialParam;
+			const phoneParam = urlParams.get('phone');
+			if (phoneParam) {
+				document.getElementById('user-phone').value = phoneParam;
 			}
 			checkPermission();
 		});
@@ -196,10 +196,10 @@
 			event.preventDefault();
 
 			const btn = document.getElementById('btn-subscribe');
-			const serialInput = document.getElementById('meter-serial').value.trim();
+			const phoneInput = document.getElementById('user-phone').value.trim();
 
-			if (!serialInput) {
-				showStatus('Please enter a valid meter serial.', '#c5221f');
+			if (!phoneInput) {
+				showStatus('Please enter a valid phone number.', '#c5221f');
 				return;
 			}
 
@@ -261,7 +261,7 @@
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
-						serial: serialInput,
+						phone: phoneInput, // Changed from serial to phone
 						endpoint: subscription.endpoint,
 						p256dh: p256dhKey,
 						auth: authKey
@@ -273,7 +273,7 @@
 					btn.disabled = false;
 					btn.innerText = 'Update Subscription';
 					btn.style.backgroundColor = 'var(--success-color)';
-					showStatus(`Successfully subscribed meter ${serialInput}!`, 'var(--success-color)');
+					showStatus(`Successfully subscribed phone ${phoneInput}!`, 'var(--success-color)');
 				} else {
 					throw new Error(result.error || 'Server rejected subscription payload.');
 				}

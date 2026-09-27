@@ -396,6 +396,9 @@ services:
       com.docker.compose.service: "meter-alarm"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
       TZ: Europe/Copenhagen
       ENABLE_DEBUG: ${ENABLE_DEBUG}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}

@@ -17,11 +17,13 @@ use Math::Random::Secure qw(irand);
 use File::Basename;
 use File::Path qw(make_path);
 use DateTime;
+use JSON;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
 use Nabovarme::ConditionEvaluator qw(evaluate);
 use Nabovarme::Number::Phone;
+use Nabovarme::Push;
 
 # --------------------------
 # CONSTANTS
@@ -898,6 +900,7 @@ sub handle_alarm {
 		if ($alarm->{alarm_state} == 0) {
 			# Send initial alarm notification immediately
 			sms_send($alarm->{sms_notification}, $down);
+			push_send($alarm, $down, 1);
 
 			# Reset counter to 1 (first occurrence)
 			$count = 1;
@@ -939,6 +942,7 @@ sub handle_alarm {
 
 				# Send repeated alarm notification
 				sms_send($alarm->{sms_notification}, $down);
+				push_send($alarm, $down, 1);
 
 				# Increment occurrence count (affects future backoff)
 				$count++;
@@ -999,6 +1003,7 @@ sub handle_alarm {
 
 			# Send "recovery" / "back to normal" notification
 			sms_send($alarm->{sms_notification}, $up);
+			push_send($alarm, $down, 1);
 
 			# Reset alarm state in DB
 			$dbh->do(qq[
@@ -1166,6 +1171,67 @@ sub sms_send {
 			log_debug("SMS -> $r: $msg");
 			send_notification($r, $msg);
 		}
+	}
+}
+
+# --------------------------
+# WEB PUSH HANDLER
+# --------------------------
+sub push_send {
+	my ($alarm, $msg, $is_active) = @_;
+	
+	my $to = $alarm->{sms_notification};
+	return unless $to;
+
+	my $serial = $alarm->{serial};
+	my $alarm_id = $alarm->{id};
+	my $title = $is_active ? "ALARM: Meter $serial" : "CLEARED: Meter $serial";
+	my $url = "/$serial";
+
+	# Pre-compute Push Notification Payload
+	my %push_payload = (
+		title    => $title,
+		body     => $msg,
+		url      => $url,
+		tag      => "alarm-$serial-$alarm_id",
+		renotify => JSON::true,
+	);
+
+	if ($is_active) {
+		$push_payload{requireInteraction} = JSON::true;
+		$push_payload{vibrate} = [500, 250, 500, 250, 500];
+		$push_payload{actions} = [
+			{ action => "view", title => "View Meter", url => $url }
+		];
+	} else {
+		$push_payload{vibrate} = [100, 50, 100];
+	}
+
+	my $user_sth = $dbh->prepare(qq[
+		SELECT alarm_enabled
+		FROM users
+		WHERE phone = ?
+		LIMIT 1
+	]);
+
+	for my $r ($to =~ /\d+/g) {
+		my $phone_obj = Nabovarme::Number::Phone->new($r);
+		my $target_phone = ($phone_obj && $phone_obj->is_valid) ? $phone_obj->compact : $r;
+
+		# Check DB permissions
+		if ($phone_obj && $phone_obj->is_valid) {
+			$user_sth->execute($target_phone);
+			my ($user_alarm_enabled) = $user_sth->fetchrow_array;
+
+			if (defined $user_alarm_enabled && !$user_alarm_enabled) {
+				log_debug("Push to $target_phone suppressed (users.alarm_enabled is false)");
+				next;
+			}
+		}
+
+		# Send Web Push
+		my $push_count = Nabovarme::Push->send_notification_to_phone($target_phone, \%push_payload);
+		log_debug("Push -> $target_phone: Sent to $push_count devices") if $push_count > 0;
 	}
 }
 
