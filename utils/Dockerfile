@@ -39,6 +39,7 @@ COPY ./utils/mqtt_send.pl mqtt_send.pl
 COPY ./utils/find_alternative_ssid.pl find_alternative_ssid.pl
 COPY ./utils/mesh_topology.pl mesh_topology.pl
 COPY ./utils/generate_vapid_keys.pl generate_vapid_keys.pl
+COPY ./utils/push_send.pl push_send.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
 
