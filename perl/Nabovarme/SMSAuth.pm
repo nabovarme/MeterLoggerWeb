@@ -24,17 +24,6 @@ use Nabovarme::Number::Phone;
 sub handler {
 	my $r = shift;
 
-	# Preserve POST body in pnotes so downstream response handlers can read it
-	if ($r->method eq 'POST') {
-		unless ($r->pnotes('POST_DATA')) {
-			my $len = $r->headers_in->{'Content-Length'} || 0;
-			if ($len > 0) {
-				my $buf = '';$r->read($buf, $len);
-				$r->pnotes('POST_DATA' =>$buf);
-			}
-		}
-	}
-
 	my $logout_path     = $r->dir_config('LogoutPath') || 'logout';
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.html';
 	my $public_access   = $r->dir_config('PublicAccess') || '';
@@ -52,7 +41,7 @@ sub handler {
 
 	# Check single API path
 	if ($snooze_api && $orig_uri =~ m/^$snooze_api/) {
-		$r->warn("Request URI '$orig_uri' matched SnoozeAPIPath '$snooze_page'; SMSAuth allowed for page path.");
+		$r->warn("Request URI '$orig_uri' matched SnoozeAPIPath '$snooze_api'; SMSAuth allowed for API path.");
 		return Apache2::Const::OK;
 	}
 
@@ -107,9 +96,7 @@ sub login_handler {
 	my ($dbh, $sth, $d);
 	if ($dbh = Nabovarme::Db->my_connect) {
 
-		my $cgi = CGI->new($r);
-
-		# Parse existing cookie
+		# Parse existing cookie WITHOUT consuming POST body stream via CGI->new()
 		my $cookie_header = $r->headers_in->{Cookie} || '';
 		my %cookies = CGI::Cookie->parse($cookie_header);
 		my $passed_cookie_token = $cookies{'auth_token'} ? scalar $cookies{'auth_token'}->value : undef;
@@ -150,6 +137,9 @@ sub login_handler {
 				return Apache2::Const::REDIRECT;
 			}
 			elsif ($d->{auth_state} =~ /login/i) {
+				# Instantiate CGI only when we actually need to read the login form POST data
+				my $cgi = CGI->new($r);
+
 				# Attempt to match user's phone number
 				my $id = $cgi->param('id');
 				my $user_is_in_db = undef;
@@ -209,6 +199,9 @@ sub login_handler {
 				}
 			}
 			elsif ($d->{auth_state} =~ /sms_code_sent/i) {
+				# Instantiate CGI only when we actually need to read the SMS code POST data
+				my $cgi = CGI->new($r);
+
 				# Validate submitted SMS code
 				my $sms_code = $cgi->param('sms_code');
 				my $quoted_sms_code = $dbh->quote($sms_code);
@@ -217,9 +210,9 @@ sub login_handler {
 				if ($stay_logged_in) {
 					# Recreate persistent cookie (with expiration)
 					$cookie = CGI::Cookie->new(
-						-name	=> 'auth_token',
-						-value   => $passed_cookie_token,
-						-expires => '+1y',
+						-name	  => 'auth_token',
+						-value    => $passed_cookie_token,
+						-expires  => '+1y',
 						-httponly => 1,
 						-secure   => 0,
 					);
@@ -253,6 +246,9 @@ sub login_handler {
 				}
 			}
 			elsif ($d->{auth_state} =~ /sms_code_verified/i) {
+				# User is fully authenticated. 
+				# CGI->new($r) is deliberately skipped here, leaving POST data intact for downsteam APIs.
+
 				# User is authenticated; possibly use session cookie
 				$sth = $dbh->prepare(qq[SELECT `session` FROM sms_auth WHERE `cookie_token` LIKE $quoted_passed_cookie_token LIMIT 1]);
 				$sth->execute;
@@ -373,7 +369,7 @@ sub add_set_cookie_once {
 	my @cookies = $r->err_headers_out->get('Set-Cookie');
 	foreach my $c (@cookies) {
 		# Compare the cookie strings roughly (you can customize this)
-		if ($c eq $cookie->as_string) {
+		if ($c eq$cookie->as_string) {
 			return;  # Cookie already set
 		}
 	}
