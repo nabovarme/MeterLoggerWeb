@@ -1195,7 +1195,7 @@ sub push_send {
 		$title =~ s/\s+$//; # Strip trailing whitespace
 	}
 
-	# Pre-compute Push Notification Payload using $msg
+	# Tag is fixed per serial + alarm ID. Reusing this tag replaces any existing visible push.
 	my %push_payload = (
 		title    => $title,
 		body     => $msg,
