@@ -16,9 +16,26 @@ use URI;
 use Nabovarme::Db;
 
 sub send_notification_to_serial {
-	my ($class, $serial, $title, $body, $url) = @_;
+	my ($class, $serial, $payload_args) = @_;
 
-	$url ||= '/';
+	unless ($payload_args && ref($payload_args) eq 'HASH') {
+		warn "[Nabovarme::Push Error] Invalid arguments. Expected a HashRef for notification payload.\n";
+		return 0;
+	}
+
+	my %payload_data = %$payload_args;
+
+	# Provide safe defaults for minimum required fields
+	$payload_data{title} ||= 'Notification';
+	$payload_data{body}  ||= '';
+	$payload_data{url}   ||= '/';
+
+	# Enforce the Web Push strict 2-action limit if actions are provided
+	if ($payload_data{actions} && ref($payload_data{actions}) eq 'ARRAY') {
+		my @valid_actions = splice(@{$payload_data{actions}}, 0, 2);
+		$payload_data{actions} = \@valid_actions;
+	}
+
 	my $vapid_public  = $ENV{VAPID_PUBLIC_KEY}  || '';
 	my $vapid_private = $ENV{VAPID_PRIVATE_KEY} || '';
 	my $vapid_subject = $ENV{VAPID_SUBJECT}     || 'mailto:admin@nabovarme.dk';
@@ -38,12 +55,7 @@ sub send_notification_to_serial {
 	$sth->execute($serial);
 
 	my $ua = LWP::UserAgent->new(timeout => 10);
-	my $payload_json = JSON::encode_json({
-		title => $title,
-		body  => $body,
-		url   => $url,
-	});
-
+	my $payload_json = JSON::encode_json(\%payload_data);
 	my $sent_count = 0;
 
 	while (my $row = $sth->fetchrow_hashref) {
