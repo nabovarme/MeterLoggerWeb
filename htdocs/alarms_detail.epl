@@ -120,6 +120,9 @@
 		# --------------------------------------------------
 		# UPDATE
 		# --------------------------------------------------
+		my $new_enabled =$fdat->{enabled} ? 1 : 0;
+		my $last_notification = $new_enabled ? $old->{last_notification} : undef;
+
 		$dbh->do(qq[
 			UPDATE alarms SET
 				enabled = ?,
@@ -132,10 +135,11 @@
 				`comment` = ?,
 				active_from_sec = ?,
 				active_to_sec = ?,
-				ignore_auto_update = ?
+				ignore_auto_update = ?,
+				last_notification = ?
 			WHERE id = ?
 		], undef,
-			$fdat->{enabled} ? 1 : 0,
+			$new_enabled,
 			$fdat->{sms_notification},
 			$fdat->{condition},
 			$fdat->{repeat} || 0,
@@ -146,6 +150,7 @@
 			$fdat->{active_from_sec},
 			$fdat->{active_to_sec},
 			$new_ignore,
+			$last_notification,
 			$id
 		);
 
