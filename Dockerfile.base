@@ -49,14 +49,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	cpanplus \
 	libcgi-pm-perl \
 	libconfig-simple-perl \
+	libcrypt-openssl-rsa-perl \
+	libcryptx-perl \
 	libcurses-perl \
 	libdatetime-perl \
 	libdbd-mysql-perl \
 	libdbi-perl \
 	libemail-mime-perl \
 	libemail-simple-perl \
+	libhttp-tiny-perl \
 	libjson-perl \
 	libjson-xs-perl \
+	libcrypt-jwt-perl \
 	liblocal-lib-perl \
 	libnet-server-mail-perl \
 	libnet-smtp-server-perl \
@@ -64,6 +68,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libparallel-forkmanager-perl \
 	libproc-pid-file-perl \
 	libtime-duration-perl \
+	liburi-perl \
 	libwww-perl \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -80,6 +85,7 @@ RUN PERL_MM_USE_DEFAULT=1 cpanm \
 	Crypt::Random::Source::Factory \
 	Exporter::Tiny \
 	File::chown \
+	HTTP::Request::Webpush \
 	IO::Socket::Timeout \
 	JSON \
 	Math::Random::ISAAC \

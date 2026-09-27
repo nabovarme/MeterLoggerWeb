@@ -24,6 +24,17 @@ use Nabovarme::Number::Phone;
 sub handler {
 	my $r = shift;
 
+	# Preserve POST body in pnotes so downstream response handlers can read it
+	if ($r->method eq 'POST') {
+		unless ($r->pnotes('POST_DATA')) {
+			my $len = $r->headers_in->{'Content-Length'} || 0;
+			if ($len > 0) {
+				my $buf = '';$r->read($buf, $len);
+				$r->pnotes('POST_DATA' =>$buf);
+			}
+		}
+	}
+
 	my $logout_path     = $r->dir_config('LogoutPath') || 'logout';
 	my $logged_out_path = $r->dir_config('LoggedOutPath') || '/logged_out.html';
 	my $public_access   = $r->dir_config('PublicAccess') || '';
@@ -114,9 +125,9 @@ sub login_handler {
 			# Generate new token and cookie
 			$cookie_token = unpack('H*', join('', map(chr(int Math::Random::Secure::rand(256)), 1..16)));
 			$cookie = CGI::Cookie->new(
-				-name  => 'auth_token',
-				-value => $cookie_token,
-				-expires => '+1y',
+				-name     => 'auth_token',
+				-value    => $cookie_token,
+				-expires  => '+1y',
 				-httponly => 1,
 				-secure   => 0
 			);
@@ -182,8 +193,8 @@ sub login_handler {
 
 					# Start with a session cookie
 					$cookie = CGI::Cookie->new(
-						-name  => 'auth_token',
-						-value => $cookie_token,
+						-name     => 'auth_token',
+						-value    => $cookie_token,
 						-httponly => 1,
 						-secure   => 0
 					);
@@ -215,8 +226,8 @@ sub login_handler {
 				} else {
 					# Create session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
-						-name  => 'auth_token',
-						-value => $passed_cookie_token,
+						-name     => 'auth_token',
+						-value    => $passed_cookie_token,
 						-httponly => 1,
 						-secure   => 0
 					);
@@ -250,8 +261,8 @@ sub login_handler {
 				if ($d->{session}) {
 					# Session cookie (no expiration)
 					$cookie = CGI::Cookie->new(
-						-name  => 'auth_token',
-						-value => $passed_cookie_token,
+						-name     => 'auth_token',
+						-value    => $passed_cookie_token,
 						-httponly => 1,
 						-secure   => 0
 					);
@@ -335,9 +346,9 @@ sub logout_handler {
 			$passed_cookie_token = $cookies{'auth_token'} ? scalar $cookies{'auth_token'}->value : undef;
 		}
 		my $cookie = CGI::Cookie->new(
-			-name  => 'auth_token',
-			-value => $passed_cookie_token,
-			-expires => '-1y',
+			-name     => 'auth_token',
+			-value    => $passed_cookie_token,
+			-expires  => '-1y',
 			-httponly => 1,
 			-secure   => 0
 		);
