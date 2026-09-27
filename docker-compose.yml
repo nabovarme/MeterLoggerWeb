@@ -473,6 +473,9 @@ services:
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
