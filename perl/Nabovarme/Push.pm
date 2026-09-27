@@ -15,8 +15,9 @@ use Crypt::AuthEnc::GCM;
 use URI;
 use Nabovarme::Db;
 
-sub send_notification_to_serial {
-	my ($class, $serial, $payload_args) = @_;
+# send_notification_to_serial -> send_notification_to_phone
+sub send_notification_to_phone {
+	my ($class, $phone, $payload_args) = @_;
 
 	unless ($payload_args && ref($payload_args) eq 'HASH') {
 		warn "[Nabovarme::Push Error] Invalid arguments. Expected a HashRef for notification payload.\n";
@@ -51,8 +52,9 @@ sub send_notification_to_serial {
 		return 0;
 	}
 
-	my $sth = $dbh->prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE serial = ?");
-	$sth->execute($serial);
+	# Query by phone instead of serial
+	my $sth = $dbh->prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE phone = ?");
+	$sth->execute($phone);
 
 	my $ua = LWP::UserAgent->new(timeout => 10);
 	my $payload_json = JSON::encode_json(\%payload_data);
