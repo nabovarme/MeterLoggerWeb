@@ -18,19 +18,11 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	# 1. Read POST body reliably in mod_perl 2
+	# Read POST JSON body natively from the pristine request stream
 	my $body_data = '';
-
-	# Primary Method: Read directly from Apache request stream using $r->read()
 	my $content_length = $r->headers_in->{'Content-Length'} || 0;
 	if ($content_length > 0) {
 		$r->read($body_data, $content_length);
-	}
-
-	# Fallback Method: If $r->read() returned 0 bytes because an access handler
-	# already consumed the filter stream, check $r->pnotes or $r->args
-	if (!$body_data && $r->pnotes('POST_DATA')) {
-		$body_data = $r->pnotes('POST_DATA');
 	}
 
 	my $payload = eval { JSON::decode_json($body_data) } || {};
@@ -38,16 +30,6 @@ sub handler {
 	my $endpoint = $payload->{endpoint} || '';
 	my $p256dh   = $payload->{p256dh}   || '';
 	my $auth     = $payload->{auth}     || '';
-
-	# Direct Parameter Fallback: In case the POST payload was parsed as form-urlencoded
-	if (!$serial || !$endpoint || !$p256dh || !$auth) {
-		if ($r->can('param')) {
-			$serial   ||= $r->param('serial')   || '';
-			$endpoint ||= $r->param('endpoint') || '';
-			$p256dh   ||= $r->param('p256dh')   || '';
-			$auth     ||= $r->param('auth')     || '';
-		}
-	}
 
 	if (!$serial || !$endpoint || !$p256dh || !$auth) {
 		warn sprintf("[APIPushSubscribe Error] Missing parameters -> serial: '%s', endpoint: '%s', p256dh: '%s', auth: '%s'\n",
