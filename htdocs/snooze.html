@@ -155,10 +155,14 @@
 				const data = await res.json();
 
 				if (data.authorized && data.alarm && typeof data.alarm.snooze === 'number') {
-					// Show alarm info at the very top
+					// Show alarm info at the very top with serial linked to detail_acc.epl
 					const infoContainer = document.getElementById('alarmInfo');
+					const serial = data.alarm.serial || '';
+					const info = data.alarm.info ? `${data.alarm.info} ` : '';
+					const comment = data.alarm.comment ? `, ${data.alarm.comment}` : '';
+
 					infoContainer.innerHTML =
-						`<div><strong>${data.alarm.info || ''} (${data.alarm.serial || ''}), ${data.alarm.comment || ''}</strong></div>`;
+						`<div><strong>${info}(<a href="/detail_acc.epl?serial=${encodeURIComponent(serial)}">${serial}</a>)${comment}</strong></div>`;
 
 					// Use repeat value as minimum snooze
 					if (typeof data.alarm.repeat === 'number' && data.alarm.repeat > 0) {
