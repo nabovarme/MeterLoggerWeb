@@ -8,6 +8,7 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE);
 use JSON ();
 use Nabovarme::Db;
+use Nabovarme::Number::Phone;
 
 sub handler {
 	my $r = shift;
@@ -26,14 +27,14 @@ sub handler {
 	}
 
 	my $payload = eval { JSON::decode_json($body_data) } || {};
-	my $serial   = $payload->{serial}   || '';
-	my $endpoint = $payload->{endpoint} || '';
-	my $p256dh   = $payload->{p256dh}   || '';
-	my $auth     = $payload->{auth}     || '';
+	my $raw_phone = $payload->{phone}    || '';
+	my $endpoint  = $payload->{endpoint} || '';
+	my $p256dh    = $payload->{p256dh}   || '';
+	my $auth      = $payload->{auth}     || '';
 
-	if (!$serial || !$endpoint || !$p256dh || !$auth) {
-		warn sprintf("[APIPushSubscribe Error] Missing parameters -> serial: '%s', endpoint: '%s', p256dh: '%s', auth: '%s'\n",
-			$serial, $endpoint, $p256dh, $auth);
+	if (!$raw_phone || !$endpoint || !$p256dh || !$auth) {
+		warn sprintf("[APIPushSubscribe Error] Missing parameters -> phone: '%s', endpoint: '%s', p256dh: '%s', auth: '%s'\n",
+			$raw_phone, $endpoint, $p256dh, $auth);
 
 		$r->content_type("application/json; charset=utf-8");
 		$r->print(JSON->new->utf8->encode({ 
@@ -43,13 +44,17 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
+	# Normalize and compact the phone number for consistent database matching
+	my $phone_obj = Nabovarme::Number::Phone->new($raw_phone);
+	my $phone = ($phone_obj && $phone_obj->is_valid) ? $phone_obj->compact : $raw_phone;
+
 	my $dbh = Nabovarme::Db->my_connect;
 	if ($dbh) {
 		my $sql = q[
-			INSERT INTO push_subscriptions (serial, endpoint, p256dh, auth, user_agent, unix_time)
+			INSERT INTO push_subscriptions (phone, endpoint, p256dh, auth, user_agent, unix_time)
 			VALUES (?, ?, ?, ?, ?, unix_timestamp())
 			ON DUPLICATE KEY UPDATE
-				serial = VALUES(serial),
+				phone = VALUES(phone),
 				p256dh = VALUES(p256dh),
 				auth = VALUES(auth),
 				user_agent = VALUES(user_agent),
@@ -58,7 +63,7 @@ sub handler {
 
 		my $user_agent = $r->headers_in->{'User-Agent'} || '';
 		my $sth = $dbh->prepare($sql);
-		$sth->execute($serial, $endpoint, $p256dh, $auth, $user_agent);
+		$sth->execute($phone, $endpoint, $p256dh, $auth, $user_agent);
 
 		$r->content_type("application/json; charset=utf-8");
 		$r->print(JSON->new->utf8->encode({ success => 1 }));

@@ -1003,7 +1003,7 @@ sub handle_alarm {
 
 			# Send "recovery" / "back to normal" notification
 			sms_send($alarm->{sms_notification}, $up);
-			push_send($alarm, $down, 1);
+			push_send($alarm, $up, 0);
 
 			# Reset alarm state in DB
 			$dbh->do(qq[
@@ -1182,13 +1182,20 @@ sub push_send {
 	
 	my $to = $alarm->{sms_notification};
 	return unless $to;
+	return unless $msg;
 
-	my $serial = $alarm->{serial};
+	my $serial   = $alarm->{serial};
 	my $alarm_id = $alarm->{id};
-	my $title = $is_active ? "ALARM: Meter $serial" : "CLEARED: Meter $serial";
-	my $url = "/$serial";
+	my $url      = "/$serial";
 
-	# Pre-compute Push Notification Payload
+	# Parse title up to the first delimiter (, or () or newline, otherwise use full $msg
+	my $title = $msg;
+	if ($msg =~ /^([^,(\n\r]+)/) {
+		$title = $1;
+		$title =~ s/\s+$//; # Strip trailing whitespace
+	}
+
+	# Pre-compute Push Notification Payload using $msg
 	my %push_payload = (
 		title    => $title,
 		body     => $msg,
