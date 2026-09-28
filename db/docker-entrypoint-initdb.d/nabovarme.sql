@@ -193,6 +193,8 @@ CREATE TABLE `alarms` (
   `default_snooze` int(11) NOT NULL DEFAULT 1800,
   `snooze_auth_key` varchar(64) DEFAULT NULL,
   `sms_notification` varchar(64) DEFAULT NULL,
+  `sms_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `push_enabled` tinyint(1) NOT NULL DEFAULT 0,
   `down_message` longtext DEFAULT NULL,
   `up_message` longtext DEFAULT NULL,
   `in_active_window` tinyint(1) DEFAULT NULL,
@@ -223,6 +225,8 @@ CREATE TABLE `alarms_auto` (
   `repeat` int(11) NOT NULL DEFAULT 0,
   `default_snooze` int(11) NOT NULL DEFAULT 1800,
   `sms_notification` varchar(64) DEFAULT NULL,
+  `sms_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `push_enabled` tinyint(1) NOT NULL DEFAULT 0,
   `active_from_sec` int(11) DEFAULT NULL,
   `active_to_sec` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
