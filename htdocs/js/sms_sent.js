@@ -117,12 +117,18 @@ async function loadSMS() {
 				return `(<a href="/detail_acc.epl?serial=${serial}">${serial}</a>)`;
 			});
 
+			// Format direction label (sent / received / push)
+			let directionDisplay = row.direction || '';
+//			if (directionDisplay === 'push') {
+//				directionDisplay = '<span style="color: #007aff; font-weight: bold;">push</span>';
+//			}
+
 			tr.innerHTML = `
 				<td align="left">${phoneLink}</td>
 				<td>&nbsp;</td>
 				<td align="left"><span class="default">${messageHTML}</span></td>
 				<td>&nbsp;</td>
-				<td align="left"><span class="default">${row.direction}</span></td>
+				<td align="left"><span class="default">${directionDisplay}</span></td>
 				<td>&nbsp;</td>
 				<td align="left"><span class="default">${row.time}</span></td>
 			`;

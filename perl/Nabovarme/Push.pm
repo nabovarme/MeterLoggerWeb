@@ -16,7 +16,7 @@ use URI;
 use Nabovarme::Db;
 use Nabovarme::Number::Phone;
 
-# send_notification_to_serial -> send_notification_to_phone
+# send_notification_to_phone
 sub send_notification_to_phone {
 	my ($class, $phone, $payload_args) = @_;
 
@@ -137,6 +137,19 @@ sub send_notification_to_phone {
 				warn sprintf("[Nabovarme::Push Error] Push failed to ID %s (HTTP %s): %s\n",
 					$row->{id}, $code, $res->status_line);
 			}
+		}
+	}
+
+	# 5. Log dispatched notification to push_messages table if delivered to at least 1 device
+	if ($sent_count > 0 && $phone) {
+		eval {
+			$dbh->do(qq[
+				INSERT INTO push_messages (phone, title, message, url, devices_reached, unix_time)
+				VALUES (?, ?, ?, ?, ?, ?)
+			], undef, $phone, $payload_data{title}, $payload_data{body}, $payload_data{url}, $sent_count, time());
+		};
+		if ($@) {
+			warn "[Nabovarme::Push Error] Could not save push message to push_messages: $@\n";
 		}
 	}
 
