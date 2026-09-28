@@ -8,7 +8,7 @@ use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_SERVICE_UNAVAILABLE HTTP_FORBIDDEN);
 use HTTP::Date;
 use JSON ();
-use Time::HiRes qw(gettimeofday tv_interval); # Used for precision microsecond telemetry metrics
+use Time::HiRes qw(gettimeofday tv_interval);
 
 use Nabovarme::Db;
 use Nabovarme::Admin;
@@ -41,11 +41,6 @@ sub handler {
 		return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 	}
 
-	# =========================================================================
-	# BATCH NOTIFICATION STRING AGGREGATION (HIGH-SPEED LAYER)
-	# Combines all group evaluation targets into a single high-speed database call.
-	# Server-side object parser overhead is stripped since formatting maps to frontend JS.
-	# =========================================================================
 	my $t0 = [gettimeofday];
 	my %phones;
 	$phones{$auth_phone} = 1; # Seed lookup hash with the primary administrator's phone
@@ -70,13 +65,13 @@ sub handler {
 		while (my ($sms_notification) = $sth_batch->fetchrow_array) {
 			for my $phone (split /\s*,\s*/, $sms_notification) {
 				next unless $phone;
-				$phones{$phone} = 1; # Record raw string unique key allocations
+				$phones{$phone} = 1;
 			}
 		}
 	}
 
 	my @phones = sort keys %phones;
-	warn sprintf("PERF: HIGH-SPEED Step 3 (pure string aggregation) took %.4f seconds (Found %d phones across %d groups)\n", 
+	warn sprintf("PERF: Step 2 took %.4f seconds (Found %d phones across %d groups)\n", 
 		tv_interval($t0), scalar(@phones), scalar(@admin_groups));
 
 	unless (@phones) {
@@ -95,16 +90,37 @@ sub handler {
 	# Build explicit target array filter requirements list
 	my $in_clause_items = join(', ', map { $dbh->quote($_) } @phones);
 
+	# COMBINED UNION QUERY (SMS + Push Notifications)
 	my $sql = qq[
 		SELECT
 			direction,
 			phone,
 			message,
+			unix_time,
 			FROM_UNIXTIME(unix_time, '%e.%c.%Y %H:%i') AS `time`
-		FROM sms_messages
-		WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
-			AND unix_time < UNIX_TIMESTAMP()
-			AND phone IN ($in_clause_items)
+		FROM (
+			SELECT
+				direction,
+				phone,
+				message,
+				unix_time
+			FROM sms_messages
+			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
+				AND unix_time < UNIX_TIMESTAMP()
+				AND phone IN ($in_clause_items)
+
+			UNION ALL
+
+			SELECT
+				'push' AS direction,
+				phone,
+				message,
+				unix_time
+			FROM push_messages
+			WHERE unix_time >= UNIX_TIMESTAMP(NOW() - INTERVAL 3 MONTH)
+				AND unix_time < UNIX_TIMESTAMP()
+				AND phone IN ($in_clause_items)
+		) AS combined_messages
 		ORDER BY unix_time DESC
 	];
 
@@ -112,15 +128,14 @@ sub handler {
 	my $t_sql = [gettimeofday];
 	$sth = $dbh->prepare($sql);
 	$sth->execute();
-	warn sprintf("PERF: Main SQL verification took %.4f seconds\n", tv_interval($t_sql));
-	
-	# Fetch environment configurations or resolve custom application verification token placeholders
+	warn sprintf("PERF: Main SQL query took %.4f seconds\n", tv_interval($t_sql));
+
+	# Mask explicit SMS verification codes out of outbound history logs
 	my $sms_template = $ENV{'NOTIFICATION_SMS_CODE_MESSAGE'} || 'SMS Code: {sms_code}';
 	my $escaped_template = quotemeta($sms_template);
 	my $placeholder_regex = quotemeta('\{sms_code\}');
 	$escaped_template =~ s/$placeholder_regex/(\\d+)/;
 
-	# Secure validation loops: Mask explicit passcodes out of outbound history logs
 	my $t_rows = [gettimeofday];
 	my @rows;
 	while (my $row = $sth->fetchrow_hashref) {
@@ -129,9 +144,10 @@ sub handler {
 			my $masked = '*' x length($digits);
 			$row->{message} =~ s/\Q$digits\E/$masked/;
 		}
+		delete $row->{unix_time}; # Strip raw epoch key before JSON output
 		push @rows, $row;
 	}
-	warn sprintf("PERF: Message validation loop took %.4f seconds (Processed %d records)\n", tv_interval($t_rows), scalar(@rows));
+	warn sprintf("PERF: Validation loop took %.4f seconds (Processed %d records)\n", tv_interval($t_rows), scalar(@rows));
 
 	# Direct stream delivery serialization
 	$r->print(
