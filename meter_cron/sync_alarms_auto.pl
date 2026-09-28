@@ -114,7 +114,9 @@ sub sync_auto_alarms {
 						`sms_notification` = ?,
 						`comment` = ?,
 						`active_from_sec` = ?,
-						`active_to_sec` = ?
+						`active_to_sec` = ?,
+						`sms_enabled` = ?,
+						`push_enabled` = ?
 					WHERE serial = ? AND auto_id = ? AND ignore_auto_update = 0
 				], undef,
 					$aa->{condition},
@@ -126,8 +128,9 @@ sub sync_auto_alarms {
 					$aa->{description} || '',
 					$aa->{active_from_sec},
 					$aa->{active_to_sec},
-					$serial,
-					$aa->{id}
+					defined $aa->{sms_enabled}  ? $aa->{sms_enabled}  : 1,
+					defined $aa->{push_enabled} ? $aa->{push_enabled} : 0,
+					$serial, $aa->{id}
 				);
 
 				log_info("Updated auto-alarm for serial $serial from template $aa->{id}");
@@ -140,21 +143,24 @@ sub sync_auto_alarms {
 						`serial`, `condition`, `down_message`, `up_message`,
 						`repeat`, `default_snooze`, `enabled`, `auto_id`,
 						`sms_notification`, `comment`, `ignore_auto_update`,
-						`active_from_sec`, `active_to_sec`
+						`active_from_sec`, `active_to_sec`,
+						`sms_enabled`, `push_enabled`
 					)
-					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, ?, ?)
+					VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 0, ?, ?, ?, ?)
 				], undef,
-				    $serial,
-				    $aa->{condition},
-				    $aa->{down_message} || 'alarm',
-				    $aa->{up_message}   || 'normal',
-				    $aa->{repeat}       || 0,
-				    $aa->{default_snooze} || 1800,
-				    $aa->{id},
-				    $aa->{sms_notification} || '',
-				    $aa->{description} || '',
-				    $aa->{active_from_sec},
-				    $aa->{active_to_sec}
+					$serial,
+					$aa->{condition},
+					$aa->{down_message} || 'alarm',
+					$aa->{up_message}   || 'normal',
+					$aa->{repeat}       || 0,
+					$aa->{default_snooze} || 1800,
+					$aa->{id},
+					$aa->{sms_notification} || '',
+					$aa->{description} || '',
+					$aa->{active_from_sec},
+					$aa->{active_to_sec},
+					defined $aa->{sms_enabled}  ? $aa->{sms_enabled}  : 1,
+					defined $aa->{push_enabled} ? $aa->{push_enabled} : 0
 				);
 
 				log_info("Created auto-alarm for serial $serial from template $aa->{id}");

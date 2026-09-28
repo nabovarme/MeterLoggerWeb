@@ -51,6 +51,8 @@
 		# NORMALIZE INPUT
 		# --------------------------------------------------
 		$fdat->{sms_notification} ||= '';
+		$fdat->{sms_enabled}        = $fdat->{sms_enabled} ? 1 : 0;
+		$fdat->{push_enabled}       = $fdat->{push_enabled} ? 1 : 0;
 		$fdat->{condition}        ||= '';
 		$fdat->{repeat}           = $fdat->{repeat} + 0 if defined $fdat->{repeat};
 		$fdat->{default_snooze}   = $fdat->{default_snooze} + 0 if defined $fdat->{default_snooze};
@@ -75,6 +77,8 @@
 		my $changed = 0;
 
 		$changed ||= (($old->{sms_notification} // '') ne ($cmp{sms_notification} // ''));
+		$changed ||= (($old->{sms_enabled} // 1) != ($cmp{sms_enabled} // 0));
+		$changed ||= (($old->{push_enabled} // 0) != ($cmp{push_enabled} // 0));
 		$changed ||= (($old->{condition} // '') ne ($cmp{condition} // ''));
 		$changed ||= (($old->{repeat} + 0) != ($cmp{repeat} + 0));
 		$changed ||= (($old->{default_snooze} + 0) != ($cmp{default_snooze} + 0));
@@ -106,6 +110,8 @@
 			if ($aa) {
 				$fdat->{enabled}          = 1;
 				$fdat->{sms_notification} = $aa->{sms_notification} || '';
+				$fdat->{sms_enabled}      = defined $aa->{sms_enabled} ? $aa->{sms_enabled} : 1;
+				$fdat->{push_enabled}     = defined $aa->{push_enabled} ? $aa->{push_enabled} : 0;
 				$fdat->{condition}        = $aa->{condition};
 				$fdat->{repeat}           = $aa->{repeat} || 0;
 				$fdat->{default_snooze}   = $aa->{default_snooze} || 1800;
@@ -120,13 +126,15 @@
 		# --------------------------------------------------
 		# UPDATE
 		# --------------------------------------------------
-		my $new_enabled =$fdat->{enabled} ? 1 : 0;
+		my $new_enabled = $fdat->{enabled} ? 1 : 0;
 		my $last_notification = $new_enabled ? $old->{last_notification} : undef;
 
 		$dbh->do(qq[
 			UPDATE alarms SET
 				enabled = ?,
 				sms_notification = ?,
+				sms_enabled = ?,
+				push_enabled = ?,
 				`condition` = ?,
 				`repeat` = ?,
 				default_snooze = ?,
@@ -140,18 +148,13 @@
 			WHERE id = ?
 		], undef,
 			$new_enabled,
-			$fdat->{sms_notification},
-			$fdat->{condition},
-			$fdat->{repeat} || 0,
-			$fdat->{default_snooze} || 0,
-			$fdat->{up_message},
-			$fdat->{down_message},
-			$fdat->{comment},
-			$fdat->{active_from_sec},
-			$fdat->{active_to_sec},
-			$new_ignore,
-			$last_notification,
-			$id
+			$fdat->{sms_notification}, $fdat->{sms_enabled},
+			$fdat->{push_enabled}, $fdat->{condition},
+			$fdat->{repeat} || 0, $fdat->{default_snooze} || 0,
+			$fdat->{up_message}, $fdat->{down_message},
+			$fdat->{comment}, $fdat->{active_from_sec},
+			$fdat->{active_to_sec}, $new_ignore,
+			$last_notification, $id
 		);
 
 		return $changed;
@@ -500,6 +503,20 @@ sub next_notification_in {
 	.popup-label {
 		font-weight: bold;
 	}
+
+	.channels-group {
+		margin-top: 10px;
+		display: flex;
+		gap: 16px;
+		align-items: center;
+	}
+	.channels-group label {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 0;
+		font-weight: normal;
+	}
 </style>
 
 	<!-- Inline CSS for help text about variables that can be used in the condition field  -->
@@ -732,6 +749,19 @@ document.addEventListener('DOMContentLoaded', function () {
 				<label>Alarm receiver</label>
 				<textarea name="sms_notification">[+ $d->{sms_notification} +]</textarea>
 
+				<!-- Channel Selection -->
+				<label>Send via</label>
+				<div class="channels-group">
+					<label>
+						<input type="checkbox" name="sms_enabled" value="1" [$ if ($d->{sms_enabled} // 1)$]checked[$endif$]>
+						SMS
+					</label>
+					<label>
+						<input type="checkbox" name="push_enabled" value="1" [$ if ($d->{push_enabled} // 0)$]checked[$endif$]>
+						Web Push
+					</label>
+				</div>
+
 				<!-- Alarm triggering condition -->
 				<label>
 					<span class="tooltip">
@@ -739,38 +769,38 @@ document.addEventListener('DOMContentLoaded', function () {
 						<span class="tooltiptext">
 							<h2>Alarm Variables Cheat Sheet</h2>
 							<div>
-							  <strong>Meter Readings</strong><br>
-							  <span title="Seconds since the meter last reported data">$offline</span>, 
-							  <span title="Total volume usage in the past 24 hours">$volume_day</span>, 
-							  <span title="Total energy usage in the past 24 hours">$energy_day</span>, 
-							  <span title="Median of last 5 flow readings (liters/hour)">$flow</span>, 
-							  <span title="Median of last 5 volume readings">$volume</span>, 
-							  <span title="Median of last 5 energy readings">$energy</span>, 
-							  <span title="Median of last 5 temperature difference readings">$temp_diff</span>, 
-							  <span title="Current valve status: 'open', 'closed', etc.">$valve_status</span>, 
-							  <span title="1 if the valve is installed, 0 if not">$valve_installed</span>
+								<strong>Meter Readings</strong><br>
+								<span title="Seconds since the meter last reported data">$offline</span>, 
+								<span title="Total volume usage in the past 24 hours">$volume_day</span>, 
+								<span title="Total energy usage in the past 24 hours">$energy_day</span>, 
+								<span title="Median of last 5 flow readings (liters/hour)">$flow</span>, 
+								<span title="Median of last 5 volume readings">$volume</span>, 
+								<span title="Median of last 5 energy readings">$energy</span>, 
+								<span title="Median of last 5 temperature difference readings">$temp_diff</span>, 
+								<span title="Current valve status: 'open', 'closed', etc.">$valve_status</span>, 
+								<span title="1 if the valve is installed, 0 if not">$valve_installed</span>
 							</div>
 
 							<div>
-							  <strong>Alarm-Specific Data</strong><br>
-							  <span title="Meter serial number">$serial</span>, 
-							  <span title="Alarm ID in the system">$id</span>, 
-							  <span title="Default snooze time (seconds)">$default_snooze</span>, 
-							  <span title="Unique key used for snoozing the alarm">$snooze_auth_key</span>
+								<strong>Alarm-Specific Data</strong><br>
+								<span title="Meter serial number">$serial</span>, 
+								<span title="Alarm ID in the system">$id</span>, 
+								<span title="Default snooze time (seconds)">$default_snooze</span>, 
+								<span title="Unique key used for snoozing the alarm">$snooze_auth_key</span>
 							</div>
 
 							<div>
-							  <strong>Predefined Variables</strong><br>
-							  <span title="Alias for: valve is stably closed (delayed/hysteresis checked)">$closed</span>,<br>
-							  <span title="Derived value: flow that has persisted over time AND only evaluates when valve is stably closed (leakage detection with hysteresis)">$leakage</span>
+								<strong>Predefined Variables</strong><br>
+								<span title="Alias for: valve is stably closed (delayed/hysteresis checked)">$closed</span>,<br>
+								<span title="Derived value: flow that has persisted over time AND only evaluates when valve is stably closed (leakage detection with hysteresis)">$leakage</span>
 							</div>
 
 							<div>
-							  <strong>Examples</strong><br>
-							  <code>$closed</code> — False closed detection condition<br>
-							  <code>$flow &lt; 2</code> — Low flow condition<br>
-							  Message example:<br>
-							  <code>Alarm triggered on $serial. Last update: $offline seconds ago.</code>
+								<strong>Examples</strong><br>
+								<code>$closed</code> — False closed detection condition<br>
+								<code>$flow &lt; 2</code> — Low flow condition<br>
+								Message example:<br>
+								<code>Alarm triggered on $serial. Last update: $offline seconds ago.</code>
 							</div>
 						</span>
 					</span>
