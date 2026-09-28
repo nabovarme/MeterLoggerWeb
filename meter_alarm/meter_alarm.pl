@@ -183,7 +183,8 @@ sub process_alarms {
 			alarms.alarm_clear_delay, alarms.valve_close_delay, alarms.leakage_delay,
 			alarms.clear_pending_since, alarms.valve_closed_since, alarms.leak_since,
 			alarms.snooze, alarms.default_snooze, alarms.snooze_auth_key,
-			alarms.sms_notification, alarms.down_message, alarms.up_message,
+			alarms.sms_notification, alarms.sms_enabled, alarms.push_enabled,
+			alarms.down_message, alarms.up_message,
 			alarms.in_active_window, alarms.active_from_sec, alarms.active_to_sec,
 			alarms.timezone, alarms.comment,
 			meters.info, meters.valve_status, meters.valve_installed, meters.last_updated
@@ -899,7 +900,7 @@ sub handle_alarm {
 		# --------------------------------------------------
 		if ($alarm->{alarm_state} == 0) {
 			# Send initial alarm notification immediately
-			sms_send($alarm->{sms_notification}, $down);
+			sms_send($alarm, $down);
 			push_send($alarm, $down, 1);
 
 			# Reset counter to 1 (first occurrence)
@@ -941,7 +942,7 @@ sub handle_alarm {
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
 
 				# Send repeated alarm notification
-				sms_send($alarm->{sms_notification}, $down);
+				sms_send($alarm, $down);
 				push_send($alarm, $down, 1);
 
 				# Increment occurrence count (affects future backoff)
@@ -1002,7 +1003,7 @@ sub handle_alarm {
 		if ($alarm->{alarm_state} == 1) {
 
 			# Send "recovery" / "back to normal" notification
-			sms_send($alarm->{sms_notification}, $up);
+			sms_send($alarm, $up);
 			push_send($alarm, $up, 0);
 
 			# Reset alarm state in DB
@@ -1141,8 +1142,14 @@ sub process_active_window {
 # SMS
 # --------------------------
 sub sms_send {
-	my ($to, $msg) = @_;
+	my ($alarm, $msg) = @_;
+
+	# Skip if SMS is explicitly disabled for this alarm
+	return if defined $alarm->{sms_enabled} && !$alarm->{sms_enabled};
+
+	my $to = $alarm->{sms_notification};
 	return unless $to;
+	return unless $msg;
 
 	my $user_sth = $dbh->prepare(qq[
 		SELECT alarm_enabled
@@ -1179,6 +1186,9 @@ sub sms_send {
 # --------------------------
 sub push_send {
 	my ($alarm, $msg, $is_active) = @_;
+
+	# Skip if Web Push is disabled for this alarm (defaults to 0 / disabled)
+	return if defined $alarm->{push_enabled} && !$alarm->{push_enabled};
 	
 	my $to = $alarm->{sms_notification};
 	return unless $to;
