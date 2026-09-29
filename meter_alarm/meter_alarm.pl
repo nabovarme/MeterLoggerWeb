@@ -1158,26 +1158,26 @@ sub sms_send {
 		LIMIT 1
 	]);
 
-	for my $r ($to =~ /\d+/g) {
-		my $phone_obj = Nabovarme::Number::Phone->new($r);
-		if ($phone_obj && $phone_obj->is_valid) {
-			my $normalized_phone = $phone_obj->compact;
+	# Split comma-separated targets and normalize each token FIRST
+	for my $raw_phone (split /\s*,\s*/, $to) {
+		next unless defined $raw_phone && length $raw_phone;
 
-			$user_sth->execute($normalized_phone);
+		my $phone_obj = Nabovarme::Number::Phone->new($raw_phone);
+		my $target_phone = ($phone_obj && $phone_obj->is_valid) ? $phone_obj->compact : $raw_phone;
+
+		if ($phone_obj && $phone_obj->is_valid) {
+			$user_sth->execute($target_phone);
 			my ($user_alarm_enabled) = $user_sth->fetchrow_array;
 
 			# Skip recipient if user exists in DB and alarm_enabled is false (0)
 			if (defined $user_alarm_enabled && !$user_alarm_enabled) {
-				log_debug("SMS to $normalized_phone suppressed (users.alarm_enabled is false)");
+				log_debug("SMS to $target_phone suppressed (users.alarm_enabled is false)");
 				next;
 			}
-
-			log_debug("SMS -> $normalized_phone: $msg");
-			send_notification($normalized_phone, $msg);
-		} else {
-			log_debug("SMS -> $r: $msg");
-			send_notification($r, $msg);
 		}
+
+		log_debug("SMS -> $target_phone: $msg");
+		send_notification($target_phone, $msg);
 	}
 }
 
@@ -1187,7 +1187,6 @@ sub sms_send {
 sub push_send {
 	my ($alarm, $msg, $is_active) = @_;
 
-	# Skip if Web Push is disabled for this alarm (defaults to 0 / disabled)
 	return if defined $alarm->{push_enabled} && !$alarm->{push_enabled};
 	
 	my $to = $alarm->{sms_notification};
@@ -1197,12 +1196,6 @@ sub push_send {
 	my $serial   = $alarm->{serial};
 	my $alarm_id = $alarm->{id};
 
-	# ----------------------------------------------------
-	# RESOLVE PRIMARY TARGET URL
-	# ----------------------------------------------------
-	# If the alarm is active, has a repeat interval (> 0), and a valid snooze auth key,
-	# route the notification click directly to the snooze page.
-	# Otherwise, route to the standard meter detail page.
 	my $url = "/$serial";
 	my $is_repeating = ($alarm->{repeat} && $alarm->{repeat} > 0) ? 1 : 0;
 
@@ -1210,14 +1203,12 @@ sub push_send {
 		$url = "/snooze.html?" . $alarm->{snooze_auth_key};
 	}
 
-	# Parse title up to the first delimiter (, or ( or newline)
 	my $title = $msg;
 	if ($msg =~ /^([^,(\n\r]+)/) {
 		$title = $1;
-		$title =~ s/\s+$//; # Strip trailing whitespace
+		$title =~ s/\s+$//;
 	}
 
-	# Pre-compute Push Notification Payload
 	my %push_payload = (
 		title    => $title,
 		body     => $msg,
@@ -1230,7 +1221,6 @@ sub push_send {
 		$push_payload{requireInteraction} = JSON::true;
 		$push_payload{vibrate} = [500, 250, 500, 250, 500];
 
-		# Additional action buttons for Android / Desktop Chrome
 		$push_payload{actions} = [
 			{ action => "view", title => "View Meter", url => "/$serial" }
 		];
@@ -1253,11 +1243,14 @@ sub push_send {
 		LIMIT 1
 	]);
 
-	for my $r ($to =~ /\d+/g) {
-		my $phone_obj = Nabovarme::Number::Phone->new($r);
-		my $target_phone = ($phone_obj && $phone_obj->is_valid) ? $phone_obj->compact : $r;
+	# Split comma-separated targets and normalize each token FIRST
+	for my $raw_phone (split /\s*,\s*/, $to) {
+		next unless defined $raw_phone && length $raw_phone;
 
-		# Check DB permissions
+		my $phone_obj = Nabovarme::Number::Phone->new($raw_phone);
+		my $target_phone = ($phone_obj && $phone_obj->is_valid) ? $phone_obj->compact : $raw_phone;
+
+		# Now $target_phone is ALWAYS "+4588888888" matching users.phone & push_subscriptions.phone
 		if ($phone_obj && $phone_obj->is_valid) {
 			$user_sth->execute($target_phone);
 			my ($user_alarm_enabled) = $user_sth->fetchrow_array;
@@ -1268,7 +1261,6 @@ sub push_send {
 			}
 		}
 
-		# Send Web Push
 		my $push_count = Nabovarme::Push->send_notification_to_phone($target_phone, \%push_payload);
 		log_debug("Push -> $target_phone: Sent to $push_count devices") if $push_count > 0;
 	}
