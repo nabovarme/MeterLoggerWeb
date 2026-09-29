@@ -5,8 +5,10 @@ use warnings;
 use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_FORBIDDEN HTTP_NOT_FOUND HTTP_SERVICE_UNAVAILABLE);
+use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_FORBIDDEN HTTP_NOT_FOUND HTTP_SERVICE_UNAVAILABLE HTTP_INTERNAL_SERVER_ERROR);
 use JSON qw(encode_json decode_json);
+
+use Nabovarme::Utils qw(log_debug log_info log_warn);
 use Nabovarme::Db;
 use Nabovarme::Admin;
 
@@ -15,6 +17,7 @@ sub handler {
 
 	my $dbh = Nabovarme::Db->my_connect;
 	unless ($dbh) {
+		log_warn("[APIAlarmDetail] Could not connect to database");
 		$r->err_headers_out->set('Retry-After' => '60');
 		return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 	}
@@ -30,31 +33,52 @@ sub handler {
 	my $id = $args{id};
 
 	unless ($id && $id =~ /^\d+$/) {
+		log_debug("[APIAlarmDetail] Invalid or missing alarm ID param in request");
 		$r->status(Apache2::Const::HTTP_BAD_REQUEST);
 		$r->print(encode_json({ success => 0, error => "Missing or invalid alarm 'id' parameter" }));
 		return Apache2::Const::OK;
 	}
 
-	# Check existing alarm & verify admin permissions
-	my $sth = $dbh->prepare(qq[
-		SELECT alarms.*, meters.info 
-		FROM alarms 
-		LEFT JOIN meters ON alarms.serial = meters.serial 
-		WHERE alarms.id = ?
-	]);
-	$sth->execute($id);
-	my $alarm = $sth->fetchrow_hashref;
+	# Fetch existing alarm safely with exception handling
+	my $alarm;
+	eval {
+		my $sth = $dbh->prepare(qq[
+			SELECT alarms.*, meters.info 
+			FROM alarms 
+			LEFT JOIN meters ON alarms.serial = meters.serial 
+			WHERE alarms.id = ?
+		]);
+		$sth->execute($id);
+		$alarm = $sth->fetchrow_hashref;
+	};
+
+	if ($@) {
+		my $err = $@;
+		log_warn("[APIAlarmDetail] SQL error fetching alarm ID '$id': " . ($err || ''));
+		$r->status(Apache2::Const::HTTP_INTERNAL_SERVER_ERROR);
+		$r->print(encode_json({ success => 0, error => "Database query failed" }));
+		return Apache2::Const::OK;
+	}
 
 	unless ($alarm) {
+		log_debug("[APIAlarmDetail] Alarm ID '$id' not found");
 		$r->status(Apache2::Const::HTTP_NOT_FOUND);
 		$r->print(encode_json({ success => 0, error => "Alarm not found" }));
 		return Apache2::Const::OK;
 	}
 
-	my $is_admin = $admin->cookie_is_admin_for_serial($r, $alarm->{serial});
+	my $is_admin = eval {
+		$admin->cookie_is_admin_for_serial($r, $alarm->{serial})
+	};
+
+	if ($@) {
+		my $err = $@;
+		log_warn("[APIAlarmDetail] Permission check error for serial '$alarm->{serial}': " . ($err || ''));
+	}
 
 	# --- GET REQUEST (Fetch details) ---
 	if ($method eq 'GET') {
+		log_debug(sprintf("[APIAlarmDetail] GET alarm ID %s (serial: %s, is_admin: %d)", $id, $alarm->{serial} // '', $is_admin ? 1 : 0));
 		$alarm->{is_admin} = $is_admin ? 1 : 0;
 		$r->print(encode_json({ success => 1, alarm => $alarm }));
 		return Apache2::Const::OK;
@@ -63,6 +87,7 @@ sub handler {
 	# --- POST/PUT REQUEST (Update details) ---
 	if ($method eq 'POST' || $method eq 'PUT') {
 		unless ($is_admin) {
+			log_debug(sprintf("[APIAlarmDetail] Unauthorized update attempt for alarm ID %s (serial: %s)", $id, $alarm->{serial} // ''));
 			$r->status(Apache2::Const::HTTP_FORBIDDEN);
 			$r->print(encode_json({ success => 0, error => "Forbidden: Admin permission required" }));
 			return Apache2::Const::OK;
@@ -76,7 +101,19 @@ sub handler {
 
 		my $fdat = eval { decode_json($body_data) } || {};
 
-		update_alarm_and_set_ignore_if_changed($dbh, $id, $alarm, $fdat);
+		eval {
+			update_alarm_and_set_ignore_if_changed($dbh, $id, $alarm, $fdat);
+		};
+
+		if ($@) {
+			my $err = $@;
+			log_warn("[APIAlarmDetail] SQL update failed for alarm ID '$id': " . ($err || ''));
+			$r->status(Apache2::Const::HTTP_INTERNAL_SERVER_ERROR);
+			$r->print(encode_json({ success => 0, error => "Failed to update alarm" }));
+			return Apache2::Const::OK;
+		}
+
+		log_warn(sprintf("[APIAlarmDetail] Alarm ID %s updated successfully for serial %s", $id, $alarm->{serial} // ''));
 
 		$r->print(encode_json({ success => 1, message => "Alarm updated successfully" }));
 		return Apache2::Const::OK;
@@ -89,9 +126,14 @@ sub handler {
 
 sub hhmm_to_sec {
 	my ($hhmm) = @_;
-	return undef unless defined $hhmm && $hhmm =~ /^(\d{1,2}):(\d{2})$/;
+	return undef unless defined $hhmm;
+	$hhmm =~ s/^\s+|\s+$//g;
+	return undef if $hhmm eq '';
+	return undef unless $hhmm =~ /^(\d{1,2}):(\d{2})$/;
+
 	my ($h, $m) = ($1, $2);
 	return undef if $h > 23 || $m > 59;
+
 	return ($h * 3600) + ($m * 60);
 }
 
@@ -125,7 +167,8 @@ sub update_alarm_and_set_ignore_if_changed {
 	$changed ||= (($old->{active_from_sec} // 0) != ($fdat->{active_from_sec} // 0));
 	$changed ||= (($old->{active_to_sec} // 0) != ($fdat->{active_to_sec} // 0));
 
-	if ($old->{auto_id} && $old_ignore == 0 && $changed) {$new_ignore = 1;
+	if ($old->{auto_id} && $old_ignore == 0 && $changed) {
+		$new_ignore = 1;
 	}
 
 	# Switch back to AUTO template
