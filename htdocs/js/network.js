@@ -521,7 +521,13 @@ window.addEventListener('load', () => {
 	filterInput.value = urlState.search;
 	offlineCheckbox.checked = urlState.offlineOnly;
 
-	filterInput.focus();
+	// Conditional auto-focus: Only focus search input if push banner is not active
+	const pushPermission = (typeof Notification !== 'undefined') ? Notification.permission : 'granted';
+	const pushDismissed = localStorage.getItem('push_prompt_dismissed');
+
+	if (filterInput && (pushPermission !== 'default' || pushDismissed)) {
+		filterInput.focus();
+	}
 
 	// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
 	document.addEventListener('keydown', (e) => {

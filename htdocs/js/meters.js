@@ -224,8 +224,14 @@ document.addEventListener('DOMContentLoaded', () => {
 		filterInput.addEventListener('input', debounce(filterMeters));
 		disabledCheckbox.addEventListener('change', filterMeters);
 
-		// Focus search input on page load
-		filterInput.focus();
+		// Conditional auto-focus: Only focus if the push banner won't be shown
+		const pushPermission = Notification.permission;
+		const pushDismissed = localStorage.getItem('push_prompt_dismissed');
+
+		// If permission is already granted/denied, OR user dismissed it, focus automatically
+		if (pushPermission !== 'default' || pushDismissed) {
+			filterInput.focus();
+		}
 
 		// Keyboard shortcuts: Ctrl+F or Alt+F to focus search
 		document.addEventListener('keydown', (e) => {

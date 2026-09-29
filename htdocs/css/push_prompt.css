@@ -1,0 +1,75 @@
+/* Floating Push Notification Banner */
+#pushPromptContainer {
+	position: fixed;
+	bottom: 20px;
+	right: 20px;
+	left: 20px;
+	max-width: 420px;
+	margin: 0 auto;
+	background: #ffffff;
+	border: 1px solid #dcdcdc;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+	border-radius: 10px;
+	padding: 16px;
+	z-index: 9999;
+	font-family: Verdana, Geneva, sans-serif;
+	font-size: 14px;
+	box-sizing: border-box;
+	transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#pushPromptContainer.hidden {
+	display: none;
+}
+
+.push-prompt-content {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.push-prompt-title {
+	font-weight: bold;
+	font-size: 15px;
+	color: #222;
+}
+
+.push-prompt-body {
+	color: #555;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.push-prompt-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 6px;
+}
+
+.push-btn {
+	padding: 8px 16px;
+	border-radius: 6px;
+	border: none;
+	cursor: pointer;
+	font-weight: bold;
+	font-size: 13px;
+}
+
+.push-btn-enable {
+	background-color: #007aff;
+	color: #ffffff;
+}
+
+.push-btn-enable:hover {
+	background-color: #0056b3;
+}
+
+.push-btn-dismiss {
+	background-color: #e5e5ea;
+	color: #333333;
+}
+
+.push-btn-dismiss:hover {
+	background-color: #d1d1d6;
+}

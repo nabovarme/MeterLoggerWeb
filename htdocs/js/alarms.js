@@ -211,8 +211,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	// Initialize app
 	async function init() {
-		// Focus input immediately on page setup
-		if (filterInput) {
+		// Conditional auto-focus: Only focus search input if push banner is not active
+		const pushPermission = (typeof Notification !== 'undefined') ? Notification.permission : 'granted';
+		const pushDismissed = localStorage.getItem('push_prompt_dismissed');
+
+		if (filterInput && (pushPermission !== 'default' || pushDismissed)) {
 			filterInput.focus();
 		}
 
