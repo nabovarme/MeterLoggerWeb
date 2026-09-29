@@ -117,10 +117,10 @@ sub send_notification_to_phone {
 
 		# 3. Build HTTP POST Request
 		my $req = HTTP::Request->new('POST', $endpoint);
-		$req->header('Authorization'     => 'vapid t=' . $jwt . ', k=' . $vapid_public);
-		$req->header('TTL'               => '86400');
-		$req->header('Content-Encoding'  => 'aes128gcm');
-		$req->header('Content-Type'      => 'application/octet-stream');
+		$req->header('Authorization'    => 'vapid t=' . $jwt . ', k=' . $vapid_public);
+		$req->header('TTL'              => '86400');
+		$req->header('Content-Encoding' => 'aes128gcm');
+		$req->header('Content-Type'     => 'application/octet-stream');
 		$req->content($encrypted_body);
 
 		# 4. Dispatch Request
@@ -130,8 +130,9 @@ sub send_notification_to_phone {
 			$sent_count++;
 		} else {
 			my $code = $res->code;
-			if ($code == 404 || $code == 410) {
-				warn "[Nabovarme::Push Prune] Subscription ID $row->{id} expired (HTTP $code), removing.\n";
+			# Prune dead subscriptions on 404 (Not Found), 410 (Gone), 401 (Unauthorized), or 403 (Forbidden/Revoked)
+			if ($code == 404 || $code == 410 || $code == 401 || $code == 403) {
+				warn sprintf("[Nabovarme::Push Prune] Subscription ID %s expired/revoked (HTTP %s), removing.\n", $row->{id}, $code);
 				$dbh->do("DELETE FROM push_subscriptions WHERE id = ?", undef, $row->{id});
 			} else {
 				warn sprintf("[Nabovarme::Push Error] Push failed to ID %s (HTTP %s): %s\n",
