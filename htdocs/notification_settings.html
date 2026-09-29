@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="robots" content="noindex" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>MeterLogger Notification Settings</title>
+
+	<!-- Style and JS for burger menu -->
+	<link rel="stylesheet" href="/css/menu.css" />
+	<script src="/js/menu.js.epl" defer></script>
+
+	<link rel="manifest" href="/manifest.json">
+
+	<!-- Web Push Prompt Component -->
+	<link rel="stylesheet" href="/css/push_prompt.css">
+	<script src="/js/push_prompt.js" defer></script>
+
+	<!-- Dedicated page logic -->
+	<script src="/js/notification_settings.js" defer></script>
+
+	<style>
+		body, input, label {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 90%;
+		}
+		.container {
+			max-width: 500px;
+			margin: 2em auto;
+			padding: 0 16px;
+		}
+		.card {
+			background: #fff;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 20px;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+		}
+		h2 {
+			margin-top: 0;
+			font-size: 120%;
+			color: #222;
+			margin-bottom: 16px;
+		}
+		.setting-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 12px 0;
+			border-bottom: 1px solid #eee;
+		}
+		.setting-row:last-child {
+			border-bottom: none;
+		}
+		.setting-label {
+			font-weight: bold;
+		}
+		.setting-desc {
+			font-size: 80%;
+			color: #666;
+			margin-top: 2px;
+		}
+		.status-msg {
+			padding: 10px 12px;
+			margin-bottom: 16px;
+			border-radius: 4px;
+			font-size: 85%;
+			display: none;
+		}
+		.status-success { background: #d4edda; color: #155724; }
+		.status-error { background: #f8d7da; color: #721c24; }
+		
+		/* Switch UI */
+		.switch {
+			position: relative;
+			display: inline-block;
+			width: 44px;
+			height: 24px;
+		}
+		.switch input {
+			opacity: 0;
+			width: 0;
+			height: 0;
+		}
+		.slider {
+			position: absolute;
+			cursor: pointer;
+			top: 0; left: 0; right: 0; bottom: 0;
+			background-color: #ccc;
+			transition: .2s;
+			border-radius: 24px;
+		}
+		.slider:before {
+			position: absolute;
+			content: "";
+			height: 18px;
+			width: 18px;
+			left: 3px;
+			bottom: 3px;
+			background-color: white;
+			transition: .2s;
+			border-radius: 50%;
+		}
+		input:checked + .slider {
+			background-color: #007aff;
+		}
+		input:checked + .slider:before {
+			transform: translateX(20px);
+		}
+		.section-divider {
+			margin: 16px 0 8px 0;
+			font-weight: bold;
+			font-size: 85%;
+			color: #888;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+	</style>
+</head>
+<body>
+
+<div class="container">
+	<div id="statusMsg" class="status-msg"></div>
+
+	<div class="card">
+		<h2>Notification Settings</h2>
+
+		<form id="notificationForm">
+			<div class="setting-row">
+				<div>
+					<div class="setting-label">Master Alarm Enable</div>
+					<div class="setting-desc">Globally enable or pause all alarm notifications for your account</div>
+				</div>
+				<label class="switch">
+					<input type="checkbox" id="alarmEnabled">
+					<span class="slider"></span>
+				</label>
+			</div>
+
+			<div class="section-divider">Delivery Channels</div>
+
+			<div class="setting-row">
+				<div>
+					<div class="setting-label">SMS Notifications</div>
+					<div class="setting-desc">Enable SMS delivery across all your alarms</div>
+				</div>
+				<label class="switch">
+					<input type="checkbox" id="smsEnabled">
+					<span class="slider"></span>
+				</label>
+			</div>
+
+			<div class="setting-row">
+				<div>
+					<div class="setting-label">Web Push Notifications</div>
+					<div class="setting-desc">Enable Web Push delivery across all your alarms</div>
+				</div>
+				<label class="switch">
+					<input type="checkbox" id="pushEnabled">
+					<span class="slider"></span>
+				</label>
+			</div>
+		</form>
+	</div>
+</div>
+
+</body>
+</html>

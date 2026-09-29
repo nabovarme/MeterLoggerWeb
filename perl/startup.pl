@@ -24,6 +24,8 @@ use Nabovarme::APIFirmwareRebuild;
 use Nabovarme::APIFirmwareRebuildProgress;
 use Nabovarme::APIPushSubscribe;
 use Nabovarme::APIVapidKey;
+use Nabovarme::APIAlarmDetail;
+use Nabovarme::APINotificationSettings;
 use Nabovarme::Number::Phone;
 
 1;
