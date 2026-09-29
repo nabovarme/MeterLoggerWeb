@@ -20,6 +20,9 @@
 	<script src="/js/notification_settings.js" defer></script>
 
 	<style>
+		*, *:before, *:after {
+			box-sizing: border-box;
+		}
 		body, input, label {
 			font-family: Verdana, Geneva, sans-serif;
 			font-size: 90%;
@@ -48,6 +51,7 @@
 			justify-content: space-between;
 			padding: 12px 0;
 			border-bottom: 1px solid #eee;
+			gap: 12px;
 		}
 		.setting-row:last-child {
 			border-bottom: none;
@@ -76,6 +80,7 @@
 			display: inline-block;
 			width: 44px;
 			height: 24px;
+			flex-shrink: 0;
 		}
 		.switch input {
 			opacity: 0;
