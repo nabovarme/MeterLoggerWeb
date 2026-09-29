@@ -1222,7 +1222,7 @@ sub push_send {
 		$push_payload{vibrate} = [500, 250, 500, 250, 500];
 
 		$push_payload{actions} = [
-			{ action => "view", title => "View Meter", url => "/$serial" }
+			{ action => "view", title => "View Meter", url => "/detail.epl?serial=$serial" }
 		];
 
 		if ($alarm->{snooze_auth_key}) {
