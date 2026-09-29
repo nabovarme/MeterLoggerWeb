@@ -1196,7 +1196,7 @@ sub push_send {
 	my $serial   = $alarm->{serial};
 	my $alarm_id = $alarm->{id};
 
-	my $url = "/$serial";
+	my $url = "/detail.epl?serial=$serial";
 	my $is_repeating = ($alarm->{repeat} && $alarm->{repeat} > 0) ? 1 : 0;
 
 	if ($is_active && $is_repeating && $alarm->{snooze_auth_key}) {
