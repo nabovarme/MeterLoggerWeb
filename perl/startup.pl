@@ -13,6 +13,8 @@ use Nabovarme::APIDataAcc;
 use Nabovarme::APIMeters;
 use Nabovarme::APIMetersNetworkTree;
 use Nabovarme::APIAlarms;
+use Nabovarme::APIAlarmDetail;
+use Nabovarme::APIAlarmTemplates;
 use Nabovarme::APISnooze;
 use Nabovarme::APIPaymentsPending;
 use Nabovarme::APIAccount;
@@ -24,7 +26,6 @@ use Nabovarme::APIFirmwareRebuild;
 use Nabovarme::APIFirmwareRebuildProgress;
 use Nabovarme::APIPushSubscribe;
 use Nabovarme::APIVapidKey;
-use Nabovarme::APIAlarmDetail;
 use Nabovarme::APINotificationSettings;
 use Nabovarme::Number::Phone;
 
