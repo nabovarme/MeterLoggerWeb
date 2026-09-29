@@ -10,9 +10,10 @@
 	# Instantiate admin checker
 	$admin = new Nabovarme::Admin;
 
-	$is_admin = $admin->cookie_is_admin($req_rec);
+	$is_signed_in = $admin->cookie_is_signed_in($req_rec);
+	$is_admin     = $admin->cookie_is_admin($req_rec);
 -]
-
+[$ if ($is_signed_in)$]
 // Global type-ahead variables
 let typeAheadBuffer = "";
 let typeAheadTimer;
@@ -28,11 +29,11 @@ const menuItems = [
 	{ text: "Wi-Fi pending", href: "/wifi_pending.html" },
 	{ text: "User log", href: "/users.epl" },
 	{ text: "Valve control", href: "/valve_control.epl" },
-[$ if ($is_admin) $]
+[$ if ($is_admin)$]
 	{ text: "Firmware flasher", href: "/flasher/index.html" },
 	{ text: "Settings", href: "/notification_settings.html" },
 	{ text: "About", href: "/about.epl" },
-[$ endif $]
+[$endif$]
 	{ type: "separator" },
 	{ text: "Logout", href: "/logout" }
 ];
@@ -224,3 +225,6 @@ function closeMenu() {
 
 // Initialize menu
 document.addEventListener("DOMContentLoaded", insertMenu);
+[$else$]
+// User not authenticated
+[$endif$]

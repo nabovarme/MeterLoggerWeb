@@ -24,6 +24,36 @@ sub new {
 	return bless $self, $class;
 }
 
+sub cookie_is_signed_in {
+	my ($self, $r) = @_;
+
+	my $passed_cookie = $r->headers_in->{Cookie} || '';
+	my ($passed_cookie_token) = $passed_cookie =~ /auth_token=([^;]+)/;
+
+	return 0 unless $passed_cookie_token;
+
+	my $quoted_passed_cookie_token = $self->{dbh}->quote($passed_cookie_token);
+
+	my $sth =$self->{dbh}->prepare(qq[
+		SELECT `sms_auth`.phone
+		FROM `sms_auth`
+		WHERE `sms_auth`.cookie_token LIKE $quoted_passed_cookie_token
+			AND `sms_auth`.auth_state = 'sms_code_verified'
+		LIMIT 1
+	]);
+
+	$sth->execute;
+
+	if (my $d = $sth->fetchrow_hashref) {
+		$self->{user_agent} = $r->headers_in->{'User-Agent'};
+		return 1;
+	}
+
+	$self->{user_agent} = $r->headers_in->{'User-Agent'};
+
+	return 0;
+}
+
 sub cookie_is_admin {
 	my ($self, $r) = @_;
 
