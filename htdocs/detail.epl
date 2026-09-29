@@ -33,6 +33,10 @@ if ($meter_info_sth->rows) {
 		<link rel="stylesheet" href="/css/dygraph.css">
 
 		<link rel="stylesheet" href="/css/detail.css">
+
+		<!-- Web Push Prompt Component (Include on any page) -->
+		<link rel="stylesheet" href="/css/push_prompt.css">
+		<script src="/js/push_prompt.js" defer></script>
 	</head>
 
 	<body>

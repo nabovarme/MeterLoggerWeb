@@ -61,6 +61,13 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	});
 
-	input.focus();
+	// Conditional auto-focus: Only focus search input if push banner is not active
+	const pushPermission = (typeof Notification !== 'undefined') ? Notification.permission : 'granted';
+	const pushDismissed = localStorage.getItem('push_prompt_dismissed');
+
+	if (input && (pushPermission !== 'default' || pushDismissed)) {
+		input.focus();
+	}
+
 	scheduleRefresh();
 });
