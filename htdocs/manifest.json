@@ -1,0 +1,9 @@
+{
+  "name": "MeterLogger",
+  "short_name": "MeterLogger",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#007aff"
+}
