@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="robots" content="noindex" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Meterlogger alarm detail</title>
+
+	<!-- Style and JS for burger menu -->
+	<link rel="stylesheet" href="/css/menu.css">
+	<script src="/js/menu.js.epl" defer></script>
+
+	<link rel="manifest" href="/manifest.json">
+
+	<!-- Web Push Prompt Component -->
+	<link rel="stylesheet" href="/css/push_prompt.css">
+	<script src="/js/push_prompt.js" defer></script>
+
+	<!-- Phone parsing libraries -->
+	<script src="/js/libphonenumber-max.js"></script>
+	<script src="/js/NabovarmeNumberPhone.js"></script>
+
+	<!-- Dedicated page logic -->
+	<script src="/js/alarms_detail.js" defer></script>
+
+<style>
+	/* Base font styles */
+	body, label, input, textarea {
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 90%;
+	}
+	
+	/* Label styling */
+	label {
+		display: block;
+		margin-top: 12px;
+		font-weight: bold;
+	}
+
+	.label-red-border {
+		border: 2px solid red;
+	}
+	
+	.label-hint {
+		font-weight: normal;
+		font-size: 70%;
+		color: #666;
+		margin-left: 8px;
+	}
+	
+	textarea {
+		width: 100%;
+		min-height: 4em;
+		font-family: Verdana, Geneva, sans-serif;
+		font-size: 90%;
+	}
+	
+	.container {
+		max-width: 600px;
+		margin: 1em auto;
+	}
+
+	.default-headline {
+		font-family: Verdana, Geneva, sans-serif;
+		font-weight: bold;
+		font-size: 120%;
+	}
+	
+	.alarm-state {
+		background-color: #ffdddd;
+		padding: 1em;
+		border-radius: 6px;
+		margin-bottom: 1em;
+	}
+	
+	#condition-popup {
+		position: absolute;
+		display: none;
+		background: #fff;
+		border: 1px solid #ccc;
+		border-radius: 6px;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+		z-index: 1000;
+		font-family: Verdana, sans-serif;
+		font-size: 13px;
+		max-width: 320px;
+	}
+	
+	.popup-item {
+		padding: 8px 12px;
+		cursor: pointer;
+		border-bottom: 1px solid #eee;
+	}
+	.popup-item:last-child {
+		border-bottom: none;
+	}
+	.popup-item:hover {
+		background: #f5f5f5;
+	}
+	
+	.popup-label {
+		font-weight: bold;
+	}
+
+	.channels-group {
+		margin-top: 10px;
+		display: flex;
+		gap: 16px;
+		align-items: center;
+	}
+	.channels-group label {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 0;
+		font-weight: normal;
+	}
+
+	.status-msg {
+		padding: 8px 12px;
+		margin-bottom: 12px;
+		border-radius: 4px;
+		display: none;
+	}
+	.status-success { background: #d4edda; color: #155724; }
+	.status-error { background: #f8d7da; color: #721c24; }
+
+	.tooltip {
+		position: relative;
+		display: inline-block;
+		cursor: help;
+		max-width: 100%;
+	}
+	
+	.tooltiptext {
+		visibility: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.3s;
+		width: max-content;
+		max-width: 350px;
+		max-height: 600px;
+		overflow-y: auto;
+		background-color: #333;
+		color: #fff;
+		padding: 8px;
+		border-radius: 6px;
+		text-align: left;
+		font-size: 12px;
+		white-space: normal;
+		word-wrap: break-word;
+		position: absolute;
+		z-index: 100;
+		bottom: 125%;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+	
+	.tooltip:hover .tooltiptext,
+	.tooltip .tooltiptext:hover {
+		visibility: visible;
+		opacity: 1;
+		pointer-events: auto;
+	}
+</style>
+</head>
+
+<body>
+<div class="container">
+	<div id="statusMsg" class="status-msg"></div>
+
+	<div id="alarmCard" style="display:none;">
+		<div id="headline" class="default-headline"></div>
+		
+		<form id="alarmForm">
+			<input type="hidden" name="id" id="alarmId">
+
+			<!-- Enable/disable alarm checkbox -->
+			<label>
+				<input type="checkbox" name="enabled" id="enabled">
+				Enabled
+			</label>
+
+			<div id="autoSection" style="display:none;">
+				<label style="margin-top:8px;">
+					<input type="checkbox" name="ignore_auto_update" id="ignoreAutoUpdate">
+					Manual override
+				</label>
+				<span class="label-hint" id="ignoreAutoHint"></span>
+			</div>
+
+			<!-- Alarm target contact(s) -->
+			<label>Alarm receiver</label>
+			<textarea name="sms_notification" id="smsNotification"></textarea>
+
+			<!-- Channel Selection -->
+			<label>Send via</label>
+			<div class="channels-group">
+				<label>
+					<input type="checkbox" name="sms_enabled" id="smsEnabled">
+					SMS
+				</label>
+				<label>
+					<input type="checkbox" name="push_enabled" id="pushEnabled">
+					Web Push
+				</label>
+			</div>
+
+			<!-- Alarm triggering condition -->
+			<label>
+				<span class="tooltip">
+					Condition
+					<span class="tooltiptext">
+						<h2>Alarm Variables Cheat Sheet</h2>
+						<div>
+							<strong>Meter Readings</strong><br>
+							<span title="Seconds since the meter last reported data">$offline</span>, 
+							<span title="Total volume usage in the past 24 hours">$volume_day</span>, 
+							<span title="Total energy usage in the past 24 hours">$energy_day</span>, 
+							<span title="Median of last 5 flow readings (liters/hour)">$flow</span>, 
+							<span title="Median of last 5 volume readings">$volume</span>, 
+							<span title="Median of last 5 energy readings">$energy</span>, 
+							<span title="Median of last 5 temperature difference readings">$temp_diff</span>, 
+							<span title="Current valve status: 'open', 'closed', etc.">$valve_status</span>, 
+							<span title="1 if the valve is installed, 0 if not">$valve_installed</span>
+						</div>
+
+						<div>
+							<strong>Alarm-Specific Data</strong><br>
+							<span title="Meter serial number">$serial</span>, 
+							<span title="Alarm ID in the system">$id</span>, 
+							<span title="Default snooze time (seconds)">$default_snooze</span>, 
+							<span title="Unique key used for snoozing the alarm">$snooze_auth_key</span>
+						</div>
+
+						<div>
+							<strong>Predefined Variables</strong><br>
+							<span title="Alias for: valve is stably closed (delayed/hysteresis checked)">$closed</span>,<br>
+							<span title="Derived value: flow that has persisted over time AND only evaluates when valve is stably closed (leakage detection with hysteresis)">$leakage</span>
+						</div>
+
+						<div>
+							<strong>Examples</strong><br>
+							<code>$closed</code> — False closed detection condition<br>
+							<code>$flow &lt; 2</code> — Low flow condition<br>
+							Message example:<br>
+							<code>Alarm triggered on $serial. Last update: $offline seconds ago.</code>
+						</div>
+					</span>
+				</span>
+				<span class="label-hint">(type '@' to show template conditions)</span>
+			</label>
+			<textarea name="condition" id="conditionField"></textarea>
+			<div id="condition-popup"></div>
+
+			<label>Active Window</label>
+			<div style="display:flex; gap:10px; align-items:center;">
+				<input type="time" name="active_from" id="activeFrom">
+				<span style="font-weight:bold;">→</span>
+				<input type="time" name="active_to" id="activeTo">
+			</div>
+			<div class="label-hint">
+				Leave both empty for always active.
+				Supports overnight windows (example: 22:00 → 06:00).
+			</div>
+
+			<label>Timezone</label>
+			<input type="text" name="timezone" id="timezone">
+
+			<div id="lastNotificationWrapper" style="display:none;">
+				<label>Last notification</label>
+				<textarea id="lastNotification" readonly></textarea>
+			</div>
+
+			<label>Repeating</label>
+			<textarea name="repeat" id="repeat"></textarea>
+
+			<div id="snoozedWrapper" style="display:none;">
+				<label>Snoozed</label>
+				<textarea id="snooze" readonly></textarea>
+			</div>
+
+			<label>Default snooze</label>
+			<textarea name="default_snooze" id="defaultSnooze"></textarea>
+
+			<label>Up Message</label>
+			<textarea name="up_message" id="upMessage"></textarea>
+
+			<label>Down Message</label>
+			<textarea name="down_message" id="downMessage"></textarea>
+
+			<label>Comment</label>
+			<textarea name="comment" id="comment"></textarea>
+
+			<div id="submitBtnWrapper" style="margin-top: 20px; display:none;">
+				<input type="submit" value="Update">
+			</div>
+		</form>
+	</div>
+</div>
+</body>
+</html>

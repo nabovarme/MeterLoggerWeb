@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					}
 
 					rowDiv.innerHTML = `
-						<div><a href="alarms_detail.epl?id=${alarm.id}">${alarm.id || ''}</a></div>
+						<div><a href="alarms_detail.html?id=${alarm.id}">${alarm.id || ''}</a></div>
 						<div>${smsReceiverHtml}</div>
 						<div class="condition${alarm.enabled > 0 ? '' : ' alarm-disabled'}">${alarm.condition}</div>
 						<div>${alarm.repeat ? `every ${alarm.repeat}` : 'no'}</div>
