@@ -147,7 +147,7 @@ sub handler {
 			return Apache2::Const::OK;
 		}
 
-		log_info(sprintf("[APINotificationSettings] Updated settings for %s -> master: %d, sms: %d, push: %d (Updated %d alarms, %d auto_alarms)",
+		log_warn(sprintf("[APINotificationSettings] Updated settings for %s -> master: %d, sms: %d, push: %d (Updated %d alarms, %d auto_alarms)",
 			$phone, $global_enabled, $sms_enabled, $push_enabled, $updated_alarms, $updated_auto));
 
 		$r->print(encode_json({ success => 1, message => "Notification settings updated globally" }));
