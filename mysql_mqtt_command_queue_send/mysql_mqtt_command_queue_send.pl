@@ -13,10 +13,10 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # --- Constants ---
-use constant DELAY_BETWEEN_RETRANSMIT    => 10;       # 10 second
-use constant DELAY_BETWEEN_SERIALS       => 1;        # 1 second
-use constant DB_POLL_DELAY               => 1;        # 1 second
-use constant DELAY_BETWEEN_COMMAND_USEC  => 20_000;   # 20 mS
+use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # 10 second
+use constant DELAY_BETWEEN_SERIALS      => 1;        # 1 second delay when switching functions
+use constant DB_POLL_DELAY              => 0.2;      # 200 ms for fast UI responsiveness
+use constant DELAY_BETWEEN_COMMAND_USEC => 20_000;   # 20 mS
 
 # --- Config from environment ---
 
@@ -29,8 +29,6 @@ my $mqtt_port = $ENV{'MQTT_PORT'}
 # --- Globals ---
 my ($dbh, $sth, $d);
 my ($current_function, $last_function);
-
-#print Dumper $pp->pidfile();
 
 log_info("starting...", {-no_script_name => 1});
 
@@ -79,7 +77,8 @@ while (1) {
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
 
-		if ($current_function ne $last_function) {
+		# Safely delay 1 second ONLY when switching between different functions
+		if (defined $last_function && $current_function ne $last_function) {
 			usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
 		}
 
@@ -96,7 +95,7 @@ while (1) {
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-			
+
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 			$dbh->do(qq[UPDATE command_queue SET `sent_count` = `sent_count` + 1 WHERE `id` = ?], undef, $d->{id})
 				or warn $DBI::errstr;
@@ -122,8 +121,7 @@ while (1) {
 		$last_function = $current_function;
 	} 	   
 	
-	# wait and retransmit     
-#	usleep(DELAY_BETWEEN_RETRANSMIT);
+	# wait and poll db again
 	usleep(DB_POLL_DELAY * 1_000_000);
 }
 
@@ -134,5 +132,3 @@ sub debug_print {
 }
 
 1;
-
-__END__
