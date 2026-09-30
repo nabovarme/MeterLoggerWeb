@@ -30,6 +30,8 @@ my $mqtt_port = $ENV{'MQTT_PORT'}
 my ($dbh, $sth, $d);
 my ($current_function, $last_function);
 
+#print Dumper $pp->pidfile();
+
 log_info("starting...", {-no_script_name => 1});
 
 # --- MQTT publisher ---
@@ -54,7 +56,8 @@ my $m = Crypt::Mode::CBC->new('AES');
 
 while (1) {
 	# Clean up old states
-	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $DBI::errstr;
+	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout'])
+		or warn $DBI::errstr;
 	# Garbage collect orphaned completed commands (where the HTTP client timed out and stopped waiting)
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
@@ -73,19 +76,20 @@ while (1) {
 		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() \
 		AND command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		ORDER BY `function` ASC, `unix_time` ASC \
+		ORDER BY IF(`sent_count` = 0, 0, 1) ASC, `function` ASC, `unix_time` ASC \
 	]);
-	$sth->execute || warn $DBI::errstr;
+	$sth->execute or warn$DBI::errstr;
 
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
 
-		# Safely delay 1 second ONLY when switching between different functions
-		if (defined $last_function && $current_function ne $last_function) {
-			usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
-		}
+		if ($d->{unix_time} + $d->{sent_count} * DELAY_BETWEEN_RETRANSMIT <= time()) {
+			
+			if (defined $last_function && $current_function ne $last_function) {
+				usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
+			}
+			$last_function = $current_function;
 
-		if ($d->{unix_time} + $d->{sent_count} * DELAY_BETWEEN_RETRANSMIT < time()) {
 			# send mqtt function to meter
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
@@ -120,9 +124,7 @@ while (1) {
 				}
 			}
 		}
-		
-		$last_function = $current_function;
-	} 	   
+	} 	 
 	
 	# wait and poll db again
 	usleep(DB_POLL_DELAY_USEC);
