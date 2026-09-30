@@ -188,9 +188,12 @@
 	[$ while ($d = $sth->fetchrow_hashref) $]
 		[- 
 		# ugly hack here to remove padding null characters
-		$d->{valve_status} =~ s/[\x00\s]+$//; $d->{valve_status} .= '';
-		$d->{ssid} =~ s/[\x00\s]+$//; $d->{ssid} .= '';
-		$d->{sw_version} =~ s/[\x00\s]+$//; $d->{sw_version} .= '';
+		$d->{valve_status} =~ s/[\x00\s]+$//;
+		$d->{valve_status} .= '';
+		$d->{ssid} =~ s/[\x00\s]+$//;
+		$d->{ssid} .= '';
+		$d->{sw_version} =~ s/[\x00\s]+$//;
+		$d->{sw_version} .= '';
 		-]
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
@@ -219,12 +222,17 @@
 							'[$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]' +
 							'<b>Version: </b>[+ $d->{sw_version} +]<br>' +
 
-							// Flex container for triangle + label
-							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; cursor:pointer;">' +
-								'<span class="toggle-wifi-triangle">' +
-									'<svg viewBox="0 0 12 12" width="10" height="10"><polygon points="0,0 12,6 0,12" fill="black"/></svg>' +
-								'</span>' +
-								'<b>Visible WiFi:</b>' +
+							// Flex container for triangle + label + Rescan button
+							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-top:6px;">' +
+								'<div style="display:flex; align-items:center;">' +
+									'<span class="toggle-wifi-triangle">' +
+										'<svg viewBox="0 0 12 12" width="10" height="10"><polygon points="0,0 12,6 0,12" fill="black"/></svg>' +
+									'</span>' +
+									'<b>Visible WiFi:</b>' +
+								'</div>' +
+								'<button class="btn btn-xs btn-default rescan-wifi-btn" data-serial="[+ $d->{serial} +]" style="padding:1px 6px; font-size:11px;">' +
+									'<i class="fa fa-refresh"></i> Rescan' +
+								'</button>' +
 							'</div>' +
 
 							'<div class="wifi-table" data-serial="[+ $d->{serial} +]" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;"><i>Loading...</i></div>' +
@@ -363,80 +371,132 @@
 					if (!popup) return;
 
 					const container = popup.getElement();
-					const serial = container.querySelector('.toggle-wifi-container').dataset.serial;
+					const toggleContainer = container.querySelector('.toggle-wifi-container');
+					if (!toggleContainer) return;
+
+					const serial = toggleContainer.dataset.serial;
 					const tableDiv = container.querySelector(`.wifi-table[data-serial="${serial}"]`);
 					const triangle = container.querySelector('.toggle-wifi-triangle svg');
+					const rescanBtn = container.querySelector('.rescan-wifi-btn[data-serial="' + serial + '"]');
 
 					// Fetch weakest RSSI for this serial
 					const rssiSpan = container.querySelector('.chain-rssi[data-serial="' + serial + '"]');
 					if (rssiSpan && !rssiSpan.dataset.loaded) {
+						fetch('/api/wifi_mesh_rssi/' + encodeURIComponent(serial))
+							.then(res => res.json())
+							.then(data => {
+								if (!data || typeof data.weakest_rssi === 'undefined') {
+									rssiSpan.innerHTML = 'N/A';
+									return;
+								}
 
-							fetch('/api/wifi_mesh_rssi/' + encodeURIComponent(serial))
-									.then(res => res.json())
-									.then(data => {
+								const hops = data.hop_count || (data.chain ? data.chain.length : 0);
+								rssiSpan.innerHTML =
+									`<span>${data.weakest_rssi} dBm` +
+										(hops ? ` (${hops} hop${hops > 1 ? 's' : ''})` : '') +
+									`</span>`;
 
-											if (!data || typeof data.weakest_rssi === 'undefined') {
-													rssiSpan.innerHTML = 'N/A';
-													return;
-											}
-
-											const hops = data.hop_count || (data.chain ? data.chain.length : 0);
-
-											rssiSpan.innerHTML =
-												`<span>${data.weakest_rssi} dBm` +
-													(hops ? ` (${hops} hop${hops > 1 ? 's' : ''})` : '') +
-												`</span>`;
-
-											rssiSpan.dataset.loaded = "1";
-									})
-									.catch(() => {
-											rssiSpan.innerHTML = 'Error';
-									});
+								rssiSpan.dataset.loaded = "1";
+							})
+							.catch(() => {
+								rssiSpan.innerHTML = 'Error';
+							});
 					}
 
-					if (!container.dataset.loaded) {
-							fetch('/api/wifi_scan/' + encodeURIComponent(serial))
-									.then(res => res.json())
-									.then(data => {
-											if (!data.length) {
-													tableDiv.innerHTML = '<i>No scan data</i>';
-													return;
-											}
+					// Function to load/reload WiFi scan data table
+					function loadWifiTable(forceRefresh = false) {
+						if (forceRefresh) {
+							tableDiv.innerHTML = '<i>Refreshing scan data...</i>';
+							delete container.dataset.loaded;
+						} else if (container.dataset.loaded) {
+							return;
+						}
 
-										tableDiv.innerHTML = `
-											<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
-												<thead><tr><th>SSID</th><th>RSSI</th><th>Hop</th><th>Ch</th><th>Auth</th></tr></thead>
-												<tbody>${data.map(ap => {
-													const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
-													// URL encode SSID
-													const encodedSSID = encodeURIComponent(ap.ssid || '');
-													return `<tr>
-														<td><a href="/update_wifi.epl?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
-														<td style="color:${color}">${ap.rssi} dBm</td>
-														<td>${ap.hop || ''}</td>
-														<td>${ap.channel}</td>
-														<td>${ap.auth_mode}</td>
-													</tr>`;
-												}).join('')}</tbody>
-											</table>`;
+						fetch('/api/wifi_scan/' + encodeURIComponent(serial))
+							.then(res => res.json())
+							.then(data => {
+								if (!data || !data.length) {
+									tableDiv.innerHTML = '<i>No scan data</i>';
+									return;
+								}
 
-										container.dataset.loaded = "1";
-									})
-									.catch(() => {
-											tableDiv.innerHTML = '<span style="color:red">Error loading WiFi</span>';
-									});
+								tableDiv.innerHTML = `
+									<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
+										<thead><tr><th>SSID</th><th>RSSI</th><th>Hop</th><th>Ch</th><th>Auth</th></tr></thead>
+										<tbody>${data.map(ap => {
+											const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
+											const encodedSSID = encodeURIComponent(ap.ssid || '');
+											return `<tr>
+												<td><a href="/update_wifi.epl?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
+												<td style="color:${color}">${ap.rssi} dBm</td>
+												<td>${ap.hop || ''}</td>
+												<td>${ap.channel}</td>
+												<td>${ap.auth_mode}</td>
+											</tr>`;
+										}).join('')}</tbody>
+									</table>`;
+
+								container.dataset.loaded = "1";
+							})
+							.catch(() => {
+								tableDiv.innerHTML = '<span style="color:red">Error loading WiFi</span>';
+							});
 					}
 
-					// toggle on **click anywhere in the container**
-					container.querySelector('.toggle-wifi-container').addEventListener('click', () => {
-							if (tableDiv.style.display === 'none') {
-									tableDiv.style.display = 'block';
-									triangle.style.transform = 'rotate(90deg)';
-							} else {
-									tableDiv.style.display = 'none';
-									triangle.style.transform = 'rotate(0deg)';
-							}
+					// Initial WiFi scan load
+					loadWifiTable();
+
+					// Toggle visibility on click of container
+					toggleContainer.addEventListener('click', (evt) => {
+						// Don't toggle collapse if user clicked the rescan button directly
+						if (evt.target.closest('.rescan-wifi-btn')) return;
+
+						if (tableDiv.style.display === 'none') {
+							tableDiv.style.display = 'block';
+							triangle.style.transform = 'rotate(90deg)';
+						} else {
+							tableDiv.style.display = 'none';
+							triangle.style.transform = 'rotate(0deg)';
+						}
 					});
+
+					// Rescan button click handler
+					if (rescanBtn && !rescanBtn.dataset.bound) {
+						rescanBtn.dataset.bound = "1";
+						rescanBtn.addEventListener('click', (evt) => {
+							evt.stopPropagation(); // prevent collapsing toggle
+
+							rescanBtn.disabled = true;
+							rescanBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Scanning...';
+
+							fetch('/api/wifi_scan_request/' + encodeURIComponent(serial), { method: 'POST' })
+								.then(res => res.json())
+								.then(data => {
+									if (data.status === 'ok') {
+										// Automatically open table if collapsed
+										tableDiv.style.display = 'block';
+										triangle.style.transform = 'rotate(90deg)';
+
+										// Wait 3 seconds for meter scan roundtrip then refresh table
+										setTimeout(() => {
+											loadWifiTable(true);
+											rescanBtn.disabled = false;
+											rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
+										}, 3000);
+									} else {
+										alert(data.error || 'Failed to request Wi-Fi scan');
+										rescanBtn.disabled = false;
+										rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
+									}
+								})
+								.catch(err => {
+									console.error(err);
+									alert('Error connecting to server');
+									rescanBtn.disabled = false;
+									rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
+								});
+						});
+					}
 				});
 	</script>
 
