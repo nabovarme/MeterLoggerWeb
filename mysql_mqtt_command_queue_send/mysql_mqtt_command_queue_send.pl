@@ -13,9 +13,9 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # --- Constants ---
-use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # 10 second
+use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # 10 seconds
 use constant DELAY_BETWEEN_SERIALS      => 1;        # 1 second delay when switching functions
-use constant DB_POLL_DELAY              => 0.2;      # 200 ms for fast UI responsiveness
+use constant DB_POLL_DELAY_USEC         => 200_000;  # 200 ms for fast UI responsiveness
 use constant DELAY_BETWEEN_COMMAND_USEC => 20_000;   # 20 mS
 
 # --- Config from environment ---
@@ -52,10 +52,13 @@ else {
 
 my $m = Crypt::Mode::CBC->new('AES');
 
-# delete commands timed out
-$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $DBI::errstr;
-
 while (1) {
+	# Clean up old states
+	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout']) or warn $DBI::errstr;
+	# Garbage collect orphaned completed commands (where the HTTP client timed out and stopped waiting)
+	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
+		or warn $DBI::errstr;
+
 	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
@@ -122,7 +125,7 @@ while (1) {
 	} 	   
 	
 	# wait and poll db again
-	usleep(DB_POLL_DELAY * 1_000_000);
+	usleep(DB_POLL_DELAY_USEC);
 }
 
 # --- debug print helper ---
