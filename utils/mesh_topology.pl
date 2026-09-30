@@ -11,16 +11,15 @@ binmode(STDERR, ":utf8");
 
 # Config
 my $MAX_CHILDREN  = 5;
-my $LOOKBACK_DAYS = 31;   # Look back 7 days (was 100)
+my $LOOKBACK_DAYS = 31;   # Look back 31 days
 
 # Connect to DB
-my $dbh;
-if ($dbh = Nabovarme::Db->my_connect) {
-	$dbh->{'mysql_auto_reconnect'} = 1;
-}
+my $dbh = Nabovarme::Db->my_connect or die "DB connection failed";
+$dbh->{'mysql_auto_reconnect'} = 1;
 
 # Calculate time window
 my ($latest_time) = $dbh->selectrow_array("SELECT MAX(unix_time) FROM wifi_scan");
+$latest_time //= time(); # Fallback if table is empty
 my $start_time = $latest_time - (3600 * 24 * $LOOKBACK_DAYS);
 
 # Meters list (only enabled)
@@ -36,12 +35,13 @@ my $active_aps = $dbh->selectcol_arrayref("
 
 my %allowed_aps = map { $_ => 1 } @$active_aps;
 
-# Aggregate last 7 days scans
+# Aggregate last N days scans - OPTIMIZED: Joined with meters to filter out disabled devices early
 my $scans = $dbh->selectall_arrayref("
-	SELECT serial, ssid, AVG(rssi) as avg_rssi, COUNT(*) as seen_count
-	FROM wifi_scan
-	WHERE unix_time BETWEEN ? AND ?
-	GROUP BY serial, ssid
+	SELECT ws.serial, ws.ssid, AVG(ws.rssi) as avg_rssi, COUNT(*) as seen_count
+	FROM wifi_scan ws
+	JOIN meters m ON ws.serial = m.serial
+	WHERE ws.unix_time BETWEEN ? AND ? AND m.enabled = 1
+	GROUP BY ws.serial, ws.ssid
 ", { Slice => {} }, $start_time, $latest_time);
 
 # Build seen networks hash
@@ -49,23 +49,37 @@ my %seen_networks;
 foreach my $row (@$scans) {
 	my $score = $row->{avg_rssi} + (2 * $row->{seen_count});
 	push @{ $seen_networks{$row->{serial}} }, {
-		ssid	   => $row->{ssid},
+		ssid       => $row->{ssid},
 		avg_rssi   => $row->{avg_rssi},
 		seen_count => $row->{seen_count},
-		score	  => $score
+		score      => $score
 	};
 }
 
 # Parent-child structure
 my (%parent, %children);
 
-# Build mesh links
-foreach my $esp (keys %$meters) {
+# Cycle detection helper - prevents A->B->C->A deep cycles
+sub creates_cycle {
+	my ($node, $proposed_parent) = @_;
+	my $curr = $proposed_parent;
+	while (defined $curr) {
+		return 1 if $curr eq $node;
+		$curr = $parent{$curr};
+	}
+	return 0;
+}
+
+# Build mesh links (Sorted iteration for deterministic topology building)
+foreach my $esp (sort keys %$meters) {
 	my $candidates = $seen_networks{$esp} || [];
 	next unless @$candidates;
 
-	# Sort by best score (RSSI + stability)
-	my @sorted = sort { $b->{score} <=> $a->{score} } @$candidates;
+	# Sort by best score, fallback to ssid to resolve ties consistently
+	my @sorted = sort { 
+		$b->{score} <=> $a->{score} || 
+		$a->{ssid} cmp $b->{ssid} 
+	} @$candidates;
 
 	my $chosen;
 	for my $cand (@sorted) {
@@ -74,13 +88,14 @@ foreach my $esp (keys %$meters) {
 			$chosen = $cand;
 			last;
 		} elsif ($cand->{ssid} =~ /^mesh-(\d+)/) {
-			my ($target_serial) = $cand->{ssid} =~ /^mesh-(\d+)/;
-			# Check mesh parent is valid
-			next if $esp eq $target_serial;						   # no self-loop
-			next unless exists $meters->{$target_serial};			# parent must be enabled
-			next if exists $parent{$target_serial} 
-				&& $parent{$target_serial} eq $esp;				  # avoid cycles
-			next if scalar(@{ $children{$target_serial} || [] }) >= $MAX_CHILDREN;
+			my $target_serial = $1;
+			
+			# Strict validity checks
+			next if $esp eq $target_serial;                           # no self-loop
+			next unless exists $meters->{$target_serial};             # parent must be enabled
+			next if creates_cycle($esp, $target_serial);              # prevent infinite loops
+			next if scalar(@{ $children{$target_serial} || [] }) >= $MAX_CHILDREN; # capacity check
+			
 			$chosen = $cand;
 			last;
 		}
@@ -97,15 +112,18 @@ foreach my $esp (keys %$meters) {
 			print "meter $esp → mesh-$p (score=$chosen->{score})\n";
 		}
 	} else {
-		print "DEBUG: meter $esp has no suitable parent (all candidates invalid)\n";
+		print "DEBUG: meter $esp has no suitable parent (all candidates invalid/full)\n";
 	}
 }
 
-# --- Print the mesh tree ---
-my @roots = grep { defined $parent{$_} && $parent{$_} =~ /^AP:/ } keys %parent;
+# --- Print the mesh tree & Track Nodes ---
+my %printed;
+my @roots = sort grep { defined $parent{$_} && $parent{$_} =~ /^AP:/ } keys %parent;
 
 sub print_tree {
 	my ($node, $prefix) = @_;
+	$printed{$node} = 1;
+	
 	my $info  = $meters->{$node}->{info} || '';
 	my $label = $node;
 	$label .= " ($info)" if $info ne '';
@@ -115,7 +133,7 @@ sub print_tree {
 	print $prefix, $label, "\n";
 
 	if (exists $children{$node}) {
-		foreach my $child (@{ $children{$node} }) {
+		foreach my $child (sort @{ $children{$node} }) {
 			print_tree($child, $prefix . "  ");
 		}
 	}
@@ -126,19 +144,8 @@ foreach my $root (@roots) {
 	print_tree($root, "");
 }
 
-# --- Track printed nodes properly ---
-my %printed;
-sub mark_printed {
-	my ($node) = @_;
-	$printed{$node} = 1;
-	if (exists $children{$node}) {
-		mark_printed($_) for @{ $children{$node} };
-	}
-}
-mark_printed($_) for @roots;
-
-# --- Print isolated (not printed anywhere) ---
-my @isolated = grep { ! $printed{$_} } keys %$meters;
+# --- Print isolated ---
+my @isolated = sort grep { ! $printed{$_} } keys %$meters;
 if (@isolated) {
 	print "\n--- Isolated Meters (no connection) ---\n";
 	foreach my $m (@isolated) {
