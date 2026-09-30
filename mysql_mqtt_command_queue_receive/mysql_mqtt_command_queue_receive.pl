@@ -145,24 +145,14 @@ sub mqtt_handler {
 		# --------------------
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
-			$sth = $dbh->prepare(qq[SELECT id FROM command_queue \
+			# Delete the confirmed command AND any superseded older commands (smaller param)
+			$dbh->do(qq[DELETE FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = ] . $dbh->quote($function) . qq[ \
-				AND param > ] . ($cleartext - $tolerance) . qq[ \
-				AND param < ] . ($cleartext + $tolerance) . qq[ \
-				LIMIT 1 \
-			]);
-			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
-
-			if ($sth->rows) {
-				my $row = $sth->fetchrow_hashref;
-				$dbh->do(qq[DELETE FROM command_queue \
-					WHERE id = ] . $row->{id} . qq[ \
-				]) or log_warn($DBI::errstr, {-no_script_name => 1});			
-				log_info("Deleted open_until command for $meter_serial, param: $cleartext", {-no_script_name => 1});
-			} else {
-				log_info("No matching open_until command found for $meter_serial, param: $cleartext", {-no_script_name => 1});
-			}
+				AND param <= ] . ($cleartext + $tolerance) . qq[ \
+			]) or log_warn($DBI::errstr, {-no_script_name => 1});
+		
+			log_info("Cleared open_until commands <= $cleartext for $meter_serial", {-no_script_name => 1});
 			return;
 		}
 
@@ -188,7 +178,7 @@ sub mqtt_handler {
 		]);
 		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 
-		if ($d = $sth->fetchrow_hashref) {
+		while ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
 				$dbh->do(qq[UPDATE command_queue SET \
 					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \

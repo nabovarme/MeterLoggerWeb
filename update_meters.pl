@@ -8,7 +8,7 @@ use Time::HiRes qw( usleep );
 use Nabovarme::MQTT_RPC;
 use Nabovarme::Utils;
 
-use constant RPC_TIMEOUT => 300;	# 5 minutes
+use constant RPC_TIMEOUT => 0;	# 0 = never time out in queue, wait for meter reply
 
 $SIG{HUP} = \&get_version_and_status;
 $SIG{USR1} = \&get_wifi_scan_results_and_daily;
