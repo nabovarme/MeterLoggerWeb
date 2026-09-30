@@ -11,7 +11,11 @@ binmode(STDERR, ":utf8");
 
 # Config
 my $MAX_CHILDREN  = 5;
-my $LOOKBACK_DAYS = 31;   # Look back 31 days
+
+# Default lookback in days; override via first CLI argument (e.g., ./mesh_topology.pl 90)
+my $default_lookback = 31;
+my $LOOKBACK_DAYS    = ($ARGV[0] && $ARGV[0] =~ /^\d+$/) ? $ARGV[0] : $default_lookback;
+print "Using lookback period: $LOOKBACK_DAYS days\n";
 
 # Connect to DB
 my $dbh = Nabovarme::Db->my_connect or die "DB connection failed";
