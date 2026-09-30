@@ -35,19 +35,22 @@ sub handler {
 
 	my $scan_success = 0;
 	my $timeout_occurred = 0;
+	my $scan_timeout_sec = 8; # 8 seconds (less than OpenResty's proxy timeout)
 
-	# Try MQTT RPC call with callback and 10-second timeout
+	# Execute MQTT call guarded by a hard SIGALRM timer
 	eval {
+		local $SIG{ALRM} = sub { die "TIMEOUT\n" };
+		alarm($scan_timeout_sec);
+
 		my $mqtt = Nabovarme::MQTT_RPC->new();
 		if ($mqtt && $mqtt->connect()) {
 			my $res = $mqtt->call({
 				serial   => $serial,
 				function => 'scan',
 				param    => '1',
-				timeout  => 10, # 10 second timeout for the meter to report back
+				timeout  => $scan_timeout_sec,
 				callback => sub {
 					my $reply = shift;
-					# Executed when command_queue state becomes 'received' or 'timeout'
 				}
 			});
 
@@ -57,7 +60,18 @@ sub handler {
 				$timeout_occurred = 1;
 			}
 		}
+
+		alarm(0); # Cancel alarm if completed in time
 	};
+	alarm(0); # Ensure alarm is reset in case of errors
+
+	if ($@) {
+		if ($@ eq "TIMEOUT\n") {
+			$timeout_occurred = 1;
+		} else {
+			warn "Error during scan request for serial $serial: $@";
+		}
+	}
 
 	if ($scan_success) {
 		$r->print(JSON->new->utf8->encode({ status => 'ok', message => 'Scan completed' }));
@@ -65,12 +79,13 @@ sub handler {
 	}
 
 	if ($timeout_occurred) {
+		# Return structured JSON with HTTP 408 before gateway proxy times out
 		$r->status(Apache2::Const::HTTP_REQUEST_TIME_OUT);
-		$r->print(JSON->new->utf8->encode({ error => 'Meter timed out during scan' }));
+		$r->print(JSON->new->utf8->encode({ error => 'Timeout waiting for meter response' }));
 		return Apache2::Const::OK;
 	}
 
-	# Fallback: If MQTT connection failed entirely, queue command without waiting
+	# Fallback: Queue scan command if MQTT failed entirely
 	my $dbh = Nabovarme::Db->my_connect
 		or return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 
@@ -84,7 +99,7 @@ sub handler {
 		return Apache2::Const::OK;
 	} else {
 		$r->status(Apache2::Const::HTTP_INTERNAL_SERVER_ERROR);
-		$r->print(JSON->new->utf8->encode({ error => 'Failed to queue command' }));
+		$r->print(JSON->new->utf8->encode({ error => 'Queue failed' }));
 		return Apache2::Const::OK;
 	}
 }
