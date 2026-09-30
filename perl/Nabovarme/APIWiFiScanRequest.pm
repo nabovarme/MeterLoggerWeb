@@ -48,7 +48,7 @@ sub handler {
 				serial   => $serial,
 				function => 'scan',
 				param    => '1',
-				timeout  => $scan_timeout_sec,
+				timeout  => 0,
 				callback => sub {
 					my $reply = shift;
 				}

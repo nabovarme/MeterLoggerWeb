@@ -93,11 +93,30 @@ sub mqtt_handler {
 	# scan_result special case
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
-		log_info("Received MQTT reply from $meter_serial: $function, deleting from MySQL queue");
-		$dbh->do(qq[DELETE FROM command_queue \
+		log_info("Received MQTT reply from $meter_serial: $function");
+	
+		# Check if the scan command is waiting for a synchronous callback
+		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 			AND function = 'scan' \
-		]) or log_warn($DBI::errstr, {-no_script_name => 1});
+			AND state = 'sent' \
+			LIMIT 1 \
+		]);
+		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+
+		if (my $row = $sth->fetchrow_hashref) {
+			if ($row->{has_callback}) {
+				# Update state so MQTT_RPC unblocks immediately
+				$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id}) 
+					or log_warn($DBI::errstr, {-no_script_name => 1});
+				log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
+			} else {
+				# Standard async cleanup
+				$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id}) 
+					or log_warn($DBI::errstr, {-no_script_name => 1});
+				log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
+			}
+		}
 		return;
 	}
 
