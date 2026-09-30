@@ -34,7 +34,7 @@ sub cookie_is_signed_in {
 
 	my $quoted_passed_cookie_token = $self->{dbh}->quote($passed_cookie_token);
 
-	my $sth =$self->{dbh}->prepare(qq[
+	my $sth = $self->{dbh}->prepare(qq[
 		SELECT `sms_auth`.phone
 		FROM `sms_auth`
 		WHERE `sms_auth`.cookie_token LIKE $quoted_passed_cookie_token
@@ -334,20 +334,58 @@ sub add_payment {
 			INSERT INTO `accounts_log`
 			(`username`, `admin_group`, `serial`, `type`, `info`,
 			 `amount`, `price`, `remote_addr`, `user_agent`)
-			VALUES ($quoted_user, $quoted_group, $quoted_serial, $quoted_type,
-			 $quoted_info, $quoted_amount, $quoted_price, $quoted_ip, $quoted_ua)
+			VALUES (
+				$quoted_user, $quoted_group, $quoted_serial, $quoted_type, $quoted_info,
+				$quoted_amount, $quoted_price, $quoted_ip, $quoted_ua
+			)
 		]);
 
 		$self->{dbh}->commit;
 	};
 
-	if ($@) {
-		$self->{dbh}->rollback;
+	if ($@) {$self->{dbh}->rollback;
 		$self->{dbh}->{AutoCommit} = 1;
 		die "add_payment transaction failed: $@";
 	}
 
 	$self->{dbh}->{AutoCommit} = 1;
+}
+
+sub process_subscription_charge {
+	my ($self, $sub_id, $serial, $amount, $price, $info, $payment_time, $next_payment_time) = @_;
+
+	# Disable AutoCommit for atomic transaction execution
+	$self->{dbh}->{AutoCommit} = 0;
+
+	eval {
+		# 1. Insert membership charge into accounts table
+		my $acc_sth = $self->{dbh}->prepare(qq[
+			INSERT INTO accounts (type, serial, payment_time, amount, info, price, auto)
+			VALUES ('membership', ?, ?, ?, ?, ?, 1)
+		]);
+		$acc_sth->execute($serial, $payment_time, $amount, $info, $price);
+
+		# 2. Update subscription metadata with the new payment time state
+		my $sub_sth = $self->{dbh}->prepare(qq[
+			UPDATE subscriptions
+			SET last_payment_time = ?,
+			    next_payment_time = ?
+			WHERE id = ?
+		]);
+		$sub_sth->execute($payment_time, $next_payment_time, $sub_id);
+
+		$self->{dbh}->commit;
+	};
+
+	if ($@) {
+		my $err = $@;
+		$self->{dbh}->rollback;
+		$self->{dbh}->{AutoCommit} = 1;
+		die "process_subscription_charge transaction failed for sub ID $sub_id:$err";
+	}
+
+	$self->{dbh}->{AutoCommit} = 1;
+	return 1;
 }
 
 sub default_price_for_serial {
