@@ -28,7 +28,7 @@ my $start_time = $latest_time - (3600 * 24 * $LOOKBACK_DAYS);
 
 # Meters list (only enabled)
 my $meters = $dbh->selectall_hashref("
-	SELECT serial, info, ssid FROM meters WHERE enabled=1
+	SELECT serial, info, ssid, rssi FROM meters WHERE enabled=1
 ", 'serial');
 
 # Active external APs (roots)
@@ -39,7 +39,7 @@ my $active_aps = $dbh->selectcol_arrayref("
 
 my %allowed_aps = map { $_ => 1 } @$active_aps;
 
-# Aggregate last N days scans - OPTIMIZED: Joined with meters to filter out disabled devices early
+# Aggregate last N days scans
 my $scans = $dbh->selectall_arrayref("
 	SELECT ws.serial, ws.ssid, AVG(ws.rssi) as avg_rssi, COUNT(*) as seen_count
 	FROM wifi_scan ws
@@ -54,14 +54,14 @@ foreach my $row (@$scans) {
 	my $score = $row->{avg_rssi} + (2 * $row->{seen_count});
 	push @{ $seen_networks{$row->{serial}} }, {
 		ssid       => $row->{ssid},
-		avg_rssi   => $row->{avg_rssi},
+		avg_rssi   => int($row->{avg_rssi}),
 		seen_count => $row->{seen_count},
 		score      => $score
 	};
 }
 
-# Parent-child structure
-my (%parent, %children);
+# Parent-child structure & proposed link stats
+my (%parent, %children, %link_stats);
 
 # Cycle detection helper - prevents A->B->C->A deep cycles
 sub creates_cycle {
@@ -74,27 +74,69 @@ sub creates_cycle {
 	return 0;
 }
 
+# Helper matching APIWiFiScan: Walk the LIVE network to find upstream bottleneck
+sub get_live_chain_info {
+	my ($node_serial, $direct_rssi) = @_;
+	
+	my $min_rssi = $direct_rssi;
+	my $hops     = 1;
+	my $curr     = $node_serial;
+	my %seen_live;
+
+	while (1) {
+		last if $seen_live{$curr}++; # Prevent infinite loop if live DB has a cycle
+		
+		my $m = $meters->{$curr};
+		last unless $m && defined $m->{ssid} && $m->{ssid} ne '';
+		
+		if (defined $m->{rssi} && $m->{rssi} < $min_rssi) {
+			$min_rssi = $m->{rssi};
+		}
+		
+		if ($m->{ssid} =~ /^mesh-(.*)$/) {
+			$curr = $1;
+			$hops++;
+		} else {
+			last; # Reached external AP
+		}
+	}
+	return ($min_rssi, $hops);
+}
+
 # Build mesh links (Sorted iteration for deterministic topology building)
 foreach my $esp (sort keys %$meters) {
 	my $candidates = $seen_networks{$esp} || [];
 	next unless @$candidates;
 
-	# Sort by best score, fallback to ssid to resolve ties consistently
+	# Calculate upstream bottleneck for each candidate to adjust its effective score
+	foreach my $cand (@$candidates) {
+		if ($cand->{ssid} =~ /^mesh-(\d+)/) {
+			my $target_serial = $1;
+			my ($min_rssi, $hops) = get_live_chain_info($target_serial, $cand->{avg_rssi});
+			$cand->{eff_rssi}  = $min_rssi;
+			$cand->{hops}      = $hops;
+			$cand->{eff_score} = $min_rssi + (2 * $cand->{seen_count});
+		} else {
+			$cand->{eff_rssi}  = $cand->{avg_rssi};
+			$cand->{hops}      = 1;
+			$cand->{eff_score} = $cand->{score};
+		}
+	}
+
+	# Sort candidates using the bottleneck-adjusted effective score
 	my @sorted = sort { 
-		$b->{score} <=> $a->{score} || 
+		$b->{eff_score} <=> $a->{eff_score} || 
 		$a->{ssid} cmp $b->{ssid} 
 	} @$candidates;
 
 	my $chosen;
 	for my $cand (@sorted) {
 		if (exists $allowed_aps{$cand->{ssid}}) {
-			# Connect directly to external AP
 			$chosen = $cand;
 			last;
 		} elsif ($cand->{ssid} =~ /^mesh-(\d+)/) {
 			my $target_serial = $1;
 			
-			# Strict validity checks
 			next if $esp eq $target_serial;                           # no self-loop
 			next unless exists $meters->{$target_serial};             # parent must be enabled
 			next if creates_cycle($esp, $target_serial);              # prevent infinite loops
@@ -106,17 +148,19 @@ foreach my $esp (sort keys %$meters) {
 	}
 
 	if ($chosen) {
+		$link_stats{$esp} = $chosen;
+
 		if (exists $allowed_aps{$chosen->{ssid}}) {
 			$parent{$esp} = "AP:$chosen->{ssid}";
-			print "meter $esp → external AP $chosen->{ssid} (score=$chosen->{score})\n";
+			print "meter $esp → external AP $chosen->{ssid} (rssi=$chosen->{eff_rssi} dBm, score=$chosen->{eff_score})\n";
 		} elsif ($chosen->{ssid} =~ /^mesh-(\d+)/) {
 			my $p = $1;
 			$parent{$esp} = $p;
 			push @{ $children{$p} }, $esp;
-			print "meter $esp → mesh-$p (score=$chosen->{score})\n";
+			print "meter $esp → mesh-$p (local_rssi=$chosen->{avg_rssi} dBm, min_chain_rssi=$chosen->{eff_rssi} dBm, hops=$chosen->{hops}, score=$chosen->{eff_score})\n";
 		}
 	} else {
-		print "DEBUG: meter $esp has no suitable parent (all candidates invalid/full)\n";
+		print "DEBUG: meter $esp has no suitable parent\n";
 	}
 }
 
@@ -131,9 +175,19 @@ sub print_tree {
 	my $info  = $meters->{$node}->{info} || '';
 	my $label = $node;
 	$label .= " ($info)" if $info ne '';
+
+	if (my $stats = $link_stats{$node}) {
+		if ($stats->{ssid} =~ /^mesh-/) {
+			$label .= sprintf(" [local_rssi=%d, min_chain_rssi=%d, hops=%d]", $stats->{avg_rssi}, $stats->{eff_rssi}, $stats->{hops});
+		} else {
+			$label .= sprintf(" [rssi=%d, hops=1]", $stats->{eff_rssi});
+		}
+	}
+
 	if ($parent{$node} && $parent{$node} =~ /^AP:(.+)/) {
 		$label .= " [ROOT via AP: $1]";
 	}
+	
 	print $prefix, $label, "\n";
 
 	if (exists $children{$node}) {
