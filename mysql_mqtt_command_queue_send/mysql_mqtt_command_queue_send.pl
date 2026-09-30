@@ -62,68 +62,55 @@ while (1) {
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
+	# Clean up commands that exceeded their timeout limit directly in MySQL
+	$dbh->do(qq[UPDATE command_queue SET `state` = 'timeout' WHERE `state` = 'sent' AND `timeout` > 0 AND `has_callback` = 1 AND UNIX_TIMESTAMP() - `unix_time` > `timeout`])
+		or warn $DBI::errstr;
+	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'sent' AND `timeout` > 0 AND `has_callback` = 0 AND UNIX_TIMESTAMP() - `unix_time` > `timeout`])
+		or warn $DBI::errstr;
+
+	# Fetch next batch of 50 commands ready to send
+	# Prioritize: 1. UI Commands (has_callback), 2. New Commands (sent_count=0)
 	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
 			command_queue.`function`, \
 			command_queue.`param`, \
-			command_queue.`unix_time`, \
-			command_queue.`has_callback`, \
-			command_queue.`timeout`, \
-			command_queue.`sent_count`, \
 			meters.`key` \
 		FROM command_queue, meters \
-		WHERE FROM_UNIXTIME(`unix_time`) <= NOW() \
-		AND command_queue.`serial` = meters.`serial` \
+		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		ORDER BY IF(`sent_count` = 0, 0, 1) ASC, `function` ASC, `unix_time` ASC \
+		AND (command_queue.`unix_time` + (command_queue.`sent_count` * ] . DELAY_BETWEEN_RETRANSMIT . qq[)) <= UNIX_TIMESTAMP() \
+		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`function` ASC, command_queue.`unix_time` ASC \
+		LIMIT 50 \
 	]);
 	$sth->execute or warn$DBI::errstr;
 
 	while ($d = $sth->fetchrow_hashref) {
 		$current_function = $d->{function};			
 
-		if ($d->{unix_time} + $d->{sent_count} * DELAY_BETWEEN_RETRANSMIT <= time()) {
-			
-			if (defined $last_function && $current_function ne $last_function) {
-				usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
-			}
-			$last_function = $current_function;
-
-			# send mqtt function to meter
-			my $key = $d->{key};
-			my $sha256 = sha256(pack('H*', $key));
-			my $aes_key = substr($sha256, 0, 16);
-			my $hmac_sha256_key = substr($sha256, 16, 16);
-			log_info("send mqtt function " . $d->{function} . " to " . $d->{serial}, {-no_script_name => 1});
-			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
-			my $message = $d->{param} . "\0";
-			my $iv = join('', map(chr(int rand(256)), 1..16));
-			$message = $m->encrypt($message, $aes_key, $iv);
-			$message = $iv . $message;
-			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-
-			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
-			$dbh->do(qq[UPDATE command_queue SET `sent_count` = `sent_count` + 1 WHERE `id` = ?], undef, $d->{id})
-				or warn $DBI::errstr;
-			
-			usleep(DELAY_BETWEEN_COMMAND_USEC);
+		if (defined $last_function && $current_function ne $last_function) {
+			usleep(DELAY_BETWEEN_SERIALS * 1_000_000);
 		}
+		$last_function = $current_function;
+
+		# send mqtt function to meter
+		my $key = $d->{key};
+		my $sha256 = sha256(pack('H*', $key));
+		my $aes_key = substr($sha256, 0, 16);
+		my $hmac_sha256_key = substr($sha256, 16, 16);
+		log_info("send mqtt function " . $d->{function} . " to " . $d->{serial}, {-no_script_name => 1});
 		
-		# remove timed out calls from db
-		if ($d->{timeout}) {
-			if (time() - $d->{unix_time} > $d->{timeout}) {
-				log_warn("function " . $d->{function} . " to " . $d->{serial} . " timed out", {-no_script_name => 1});
-				if ($d->{has_callback}) {
-					$dbh->do(qq[UPDATE command_queue SET `state` = 'timeout' WHERE `id` = ?], undef, $d->{id})
-						or warn $DBI::errstr;
-				}
-				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $d->{id})
-						or warn $DBI::errstr;
-				}
-			}
-		}
+		my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $d->{function};
+		my $message = $d->{param} . "\0";
+		my $iv = join('', map(chr(int rand(256)), 1..16));
+		
+		$message = $m->encrypt($message, $aes_key, $iv);$message = $iv . $message;
+		my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		$publish_mqtt->publish($topic =>$hmac_sha256_hash . $message);
+		$dbh->do(qq[UPDATE command_queue SET `sent_count` = `sent_count` + 1 WHERE `id` = ?], undef, $d->{id})
+			or warn $DBI::errstr;
+		
+		usleep(DELAY_BETWEEN_COMMAND_USEC);
 	} 	 
 	
 	# wait and poll db again
