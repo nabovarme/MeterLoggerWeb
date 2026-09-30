@@ -411,15 +411,21 @@
 						if (forceRefresh) {
 							tableDiv.innerHTML = '<i>Refreshing scan data...</i>';
 							delete container.dataset.loaded;
-						} else if (container.dataset.loaded) {
+						} else if (container.dataset.loaded === "1") {
 							return;
 						}
 
+						tableDiv.innerHTML = '<i>Loading...</i>';
+
 						fetch('/api/wifi_scan/' + encodeURIComponent(serial))
-							.then(res => res.json())
+							.then(res => {
+								if (!res.ok) throw new Error('HTTP ' + res.status);
+								return res.json();
+							})
 							.then(data => {
 								if (!data || !data.length) {
 									tableDiv.innerHTML = '<i>No scan data</i>';
+									container.dataset.loaded = "1";
 									return;
 								}
 
@@ -442,11 +448,12 @@
 								container.dataset.loaded = "1";
 							})
 							.catch(() => {
-								tableDiv.innerHTML = '<span style="color:red">Error loading WiFi</span>';
+								delete container.dataset.loaded;
+								tableDiv.innerHTML = '<span style="color:red">Error loading WiFi (click Visible WiFi to retry)</span>';
 							});
 					}
 
-					// Initial WiFi scan load
+					// Initial WiFi scan load on popup open
 					loadWifiTable();
 
 					// Toggle visibility on click of container
@@ -457,6 +464,8 @@
 						if (tableDiv.style.display === 'none') {
 							tableDiv.style.display = 'block';
 							triangle.style.transform = 'rotate(90deg)';
+							// Ensure data is loaded when expanding if it previously failed or hasn't loaded
+							loadWifiTable();
 						} else {
 							tableDiv.style.display = 'none';
 							triangle.style.transform = 'rotate(0deg)';
