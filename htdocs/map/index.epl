@@ -222,7 +222,7 @@
 							'[$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]' +
 							'<b>Version: </b>[+ $d->{sw_version} +]<br>' +
 
-							// Flex container for triangle + label + Rescan button
+							// Flex container for triangle + label + inline status + Rescan button
 							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-top:6px;">' +
 								'<div style="display:flex; align-items:center;">' +
 									'<span class="toggle-wifi-triangle">' +
@@ -230,9 +230,12 @@
 									'</span>' +
 									'<b>Visible WiFi:</b>' +
 								'</div>' +
-								'<button class="btn btn-xs btn-default rescan-wifi-btn" data-serial="[+ $d->{serial} +]" style="padding:1px 6px; font-size:11px;">' +
-									'<i class="fa fa-refresh"></i> Rescan' +
-								'</button>' +
+								'<div style="display:flex; align-items:center;">' +
+									'<span class="rescan-wifi-status" data-serial="[+ $d->{serial} +]" style="font-size:11px; color:#d9534f; margin-right:6px;"></span>' +
+									'<button class="btn btn-xs btn-default rescan-wifi-btn" data-serial="[+ $d->{serial} +]" style="padding:1px 6px; font-size:11px;">' +
+										'<i class="fa fa-refresh"></i> Rescan' +
+									'</button>' +
+								'</div>' +
 							'</div>' +
 
 							'<div class="wifi-table" data-serial="[+ $d->{serial} +]" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;"><i>Loading...</i></div>' +
@@ -477,21 +480,17 @@
 										tableDiv.style.display = 'block';
 										triangle.style.transform = 'rotate(90deg)';
 
-										// Wait 3 seconds for meter scan roundtrip then refresh table
-										setTimeout(() => {
-											loadWifiTable(true);
-											rescanBtn.disabled = false;
-											rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
-										}, 3000);
+										// Reload scan data immediately because backend callback waited for response
+										loadWifiTable(true);
 									} else {
 										alert(data.error || 'Failed to request Wi-Fi scan');
-										rescanBtn.disabled = false;
-										rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
 									}
 								})
 								.catch(err => {
 									console.error(err);
 									alert('Error connecting to server');
+								})
+								.finally(() => {
 									rescanBtn.disabled = false;
 									rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
 								});
