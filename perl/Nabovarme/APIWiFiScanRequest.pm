@@ -41,7 +41,7 @@ sub handler {
 		if ($mqtt && $mqtt->connect()) {
 			$mqtt->call({
 				serial   => $serial,
-				function => 'wifi_scan',
+				function => 'scan',
 				param    => '1',
 				callback => undef,
 				timeout  => undef
@@ -61,7 +61,7 @@ sub handler {
 
 	my $sth = $dbh->prepare(q{
 		INSERT INTO command_queue (serial, function, param, unix_time)
-		VALUES (?, 'wifi_scan', '1', UNIX_TIMESTAMP())
+		VALUES (?, 'scan', '1', UNIX_TIMESTAMP())
 	});
 
 	if ($sth->execute($serial)) {
