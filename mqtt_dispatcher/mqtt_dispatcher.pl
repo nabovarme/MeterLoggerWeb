@@ -85,7 +85,7 @@ while (1) {
 			AND c2.state = 'sent' \
 			AND c1.id < c2.id \
 			AND c1.function NOT IN ('set_cron', 'clear_cron') \
-	]) or warn$DBI::errstr;
+	]) or warn $DBI::errstr;
 
 	# Fetch pending commands eligible for transmission/retransmission
 	$sth = $dbh->prepare(qq[SELECT \
