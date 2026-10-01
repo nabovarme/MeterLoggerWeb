@@ -41,34 +41,39 @@ sub call {
 	my $quoted_message = $self->{dbh}->quote($message);
 	my $quoted_timeout = $self->{dbh}->quote($timeout);
 	my $quoted_stateful = $self->{dbh}->quote($is_stateful);
+	my $has_callback = $callback ? 1 : 0;
 	
 	my $d = undef;
 
 	my $sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
-		$sth = $self->{dbh}->prepare(qq[SELECT `id` FROM command_queue \
-			WHERE serial = $quoted_serial \
-				AND `function` = $quoted_mqtt_function \
-				AND `param` = $quoted_message \
-				AND `state` = 'sent' \
-				AND `has_callback` = ] . ($callback ? 1 : 0) . qq[\
-				AND `timeout` <> 0 \
-			LIMIT 1]);
-		$sth->execute;
-		if ($d = $sth->fetchrow_hashref) {
-			# update mqtt command queue
+		# Deduplicate ONLY if stateless (is_stateful == 0)
+		if (!$is_stateful) {
+			$sth = $self->{dbh}->prepare(qq[SELECT `id` FROM command_queue \
+				WHERE serial = $quoted_serial \
+					AND `function` = $quoted_mqtt_function \
+					AND `state` = 'sent' \
+					AND `is_stateful` = 0 \
+				LIMIT 1]);
+			$sth->execute;
+			$d = $sth->fetchrow_hashref;
+		}
+
+		if ($d) {
+			# Update existing stateless command
 			$self->{dbh}->do(qq[UPDATE command_queue \
-				SET `unix_time` = UNIX_TIMESTAMP(NOW()), \
-					`timeout` = $quoted_timeout, \
-					`is_stateful` = $quoted_stateful \
+				SET `param` = $quoted_message, \
+					`unix_time` = UNIX_TIMESTAMP(NOW()), \
+					`has_callback` = $has_callback, \
+					`timeout` = $quoted_timeout \
 				WHERE `id` = ] . $d->{id}
 			);
 		}
 		else {
-			# insert into db mqtt command queue
+			# Insert new command
 			$self->{dbh}->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`, `is_stateful`) \
-				VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', ] . ($callback ? 1 : 0) . qq[, $quoted_timeout, $quoted_stateful)]);
+				VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', $has_callback, $quoted_timeout, $quoted_stateful)]);
 		}
 	}
 	
@@ -93,7 +98,6 @@ sub call {
 	}
 	return 1;
 }
-
 
 1;
 
