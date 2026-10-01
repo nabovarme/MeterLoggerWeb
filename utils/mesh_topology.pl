@@ -39,25 +39,41 @@ my $active_aps = $dbh->selectcol_arrayref("
 
 my %allowed_aps = map { $_ => 1 } @$active_aps;
 
-# Aggregate last N days scans - OPTIMIZED: Joined with meters to filter out disabled devices early
-my $scans = $dbh->selectall_arrayref("
-	SELECT ws.serial, ws.ssid, AVG(ws.rssi) as avg_rssi, COUNT(*) as seen_count
+# Stream raw scans to calculate median RSSI in Perl (avoids slow MariaDB Window Functions)
+my $sth = $dbh->prepare("
+	SELECT ws.serial, ws.ssid, ws.rssi
 	FROM wifi_scan ws
 	JOIN meters m ON ws.serial = m.serial
 	WHERE ws.unix_time BETWEEN ? AND ? AND m.enabled = 1
-	GROUP BY ws.serial, ws.ssid
-", { Slice => {} }, $start_time, $latest_time);
+	  AND ws.rssi IS NOT NULL
+");
+$sth->execute($start_time, $latest_time);
 
-# Build seen networks hash
+my %scan_groups;
+while (my $row = $sth->fetchrow_arrayref) {
+	push @{ $scan_groups{$row->[0]}{$row->[1]} }, $row->[2];
+}
+
+# Build seen networks hash with median RSSI
 my %seen_networks;
-foreach my $row (@$scans) {
-	my $score = $row->{avg_rssi} + (2 * $row->{seen_count});
-	push @{ $seen_networks{$row->{serial}} }, {
-		ssid       => $row->{ssid},
-		avg_rssi   => int($row->{avg_rssi}),
-		seen_count => $row->{seen_count},
-		score      => $score
-	};
+foreach my $serial (keys %scan_groups) {
+	foreach my $ssid (keys %{ $scan_groups{$serial} }) {
+		my @rssis = sort { $a <=> $b } @{ $scan_groups{$serial}{$ssid} };
+		my $count = scalar(@rssis);
+		
+		my $mid = int($count / 2);
+		my $median_rssi = ($count % 2)
+			? $rssis[$mid]
+			: int(($rssis[$mid-1] + $rssis[$mid]) / 2);
+			
+		my $score = $median_rssi + (2 * $count);
+		push @{ $seen_networks{$serial} }, {
+			ssid        => $ssid,
+			median_rssi => $median_rssi,
+			seen_count  => $count,
+			score       => $score
+		};
+	}
 }
 
 # Parent-child structure & proposed link stats
@@ -80,7 +96,7 @@ sub get_proposed_chain_info {
 	my $stats = $link_stats{$node};
 	return (0, 0) unless $stats;
 	
-	my $min_rssi = $stats->{avg_rssi};
+	my $min_rssi = $stats->{median_rssi};
 	my $hops     = 1;
 	my $curr     = $node;
 	my %seen;
@@ -93,7 +109,7 @@ sub get_proposed_chain_info {
 		last if $p =~ /^AP:/;
 		
 		if (defined $link_stats{$p}) {
-			$min_rssi = $link_stats{$p}->{avg_rssi} if $link_stats{$p}->{avg_rssi} < $min_rssi;
+			$min_rssi = $link_stats{$p}->{median_rssi} if $link_stats{$p}->{median_rssi} < $min_rssi;
 			$hops++;
 			$curr = $p;
 		} else {
@@ -166,9 +182,9 @@ sub print_tree {
 	if (my $stats = $link_stats{$node}) {
 		my ($min_rssi, $hops) = get_proposed_chain_info($node);
 		if ($stats->{ssid} =~ /^mesh-/) {
-			$label .= sprintf(" [local_rssi=%d, min_chain_rssi=%d, hops=%d]", $stats->{avg_rssi}, $min_rssi, $hops);
+			$label .= sprintf(" [local_rssi=%d, min_chain_rssi=%d, hops=%d]", $stats->{median_rssi}, $min_rssi, $hops);
 		} else {
-			$label .= sprintf(" [rssi=%d, hops=1]", $stats->{avg_rssi});
+			$label .= sprintf(" [rssi=%d, hops=1]", $stats->{median_rssi});
 		}
 	}
 
