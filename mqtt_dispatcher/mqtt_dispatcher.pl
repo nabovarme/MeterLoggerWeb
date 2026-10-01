@@ -62,6 +62,7 @@ Mojo::IOLoop->recurring(10 => sub {
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
+	# Timeouts are still correctly calculated based on original unix_time
 	$dbh->do(qq[UPDATE command_queue \
 		SET `state` = 'timeout' \
 		WHERE `state` = 'sent' \
@@ -92,8 +93,8 @@ Mojo::IOLoop->recurring(10 => sub {
 # Event-Driven Dispatcher Routine
 # --------------------------------------------------
 sub process_queue {
-	# Fetch ALL due commands across all meters
-	$sth =$dbh->prepare(qq[SELECT \
+	# Fetch ALL due commands using the new last_sent column
+	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
 			command_queue.`function`, \
@@ -103,7 +104,7 @@ sub process_queue {
 		FROM command_queue, meters \
 		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		AND (command_queue.`unix_time` + (command_queue.`sent_count` * ] . DELAY_BETWEEN_RETRANSMIT . qq[)) <= UNIX_TIMESTAMP() \
+		AND (command_queue.`last_sent` = 0 OR command_queue.`last_sent` + ] . DELAY_BETWEEN_RETRANSMIT . qq[ <= UNIX_TIMESTAMP()) \
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn $DBI::errstr;
@@ -149,15 +150,18 @@ sub process_queue {
 		# Update database immediately so subsequent 1-second DB polls do NOT re-select this row
 		if ($is_stateful) {
 			$dbh->do(qq[UPDATE command_queue \
-				SET `sent_count` = `sent_count` + 1 \
+				SET `sent_count` = `sent_count` + 1, \
+				    `last_sent`  = UNIX_TIMESTAMP() \
 				WHERE `id` = ?], undef, $cmd_id
 			) or warn $DBI::errstr;
-		} else {
+		}
+		else {
 			$dbh->do(qq[UPDATE command_queue \
-				SET `sent_count` = `sent_count` + 1 \
+				SET `sent_count` = `sent_count` + 1, \
+				    `last_sent`  = UNIX_TIMESTAMP() \
 				WHERE `serial` = ? \
 					AND `function` = ? \
-					AND `state` = 'sent'], undef, $serial,$current_function
+					AND `state` = 'sent'], undef, $serial, $current_function
 			) or warn $DBI::errstr;
 		}
 
