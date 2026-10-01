@@ -172,7 +172,7 @@ sub process_queue {
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 
-			log_warn("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
+			log_debug("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
 			
 			my $topic = '/config/v2/' . $serial . '/' . time() . '/' . $current_function;
 			my $message = $d->{param} . "\0";
