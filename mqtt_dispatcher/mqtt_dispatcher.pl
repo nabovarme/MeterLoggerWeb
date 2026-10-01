@@ -76,19 +76,18 @@ while (1) {
 			AND UNIX_TIMESTAMP() - `unix_time` > `timeout` \
 	]) or warn $DBI::errstr;
 
-	# Clean up duplicate stateful commands (except cron which can have multiple valid overlapping commands)
+	# Clean up ALL duplicate commands per meter (both stateful and stateless)
+	# (except cron which can have multiple valid overlapping commands)
 	$dbh->do(qq[DELETE c1 FROM command_queue c1 \
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
 		WHERE c1.state = 'sent' \
 			AND c2.state = 'sent' \
-			AND c1.is_stateful = 1 \
-			AND c2.is_stateful = 1 \
 			AND c1.id < c2.id \
 			AND c1.function NOT IN ('set_cron', 'clear_cron') \
-	]) or warn $DBI::errstr;
+	]) or warn$DBI::errstr;
 
-	# Fetch ALL pending commands (Removed LIMIT 50)
+	# Fetch pending commands eligible for transmission/retransmission
 	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
