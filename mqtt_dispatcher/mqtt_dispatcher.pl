@@ -99,11 +99,7 @@ while (1) {
 		FROM command_queue, meters \
 		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		AND ( \
-			(command_queue.`is_stateful` = 1 AND (command_queue.`unix_time` + (command_queue.`sent_count` * ] . DELAY_BETWEEN_RETRANSMIT . qq[)) <= UNIX_TIMESTAMP()) \
-			OR \
-			(command_queue.`is_stateful` = 0 AND command_queue.`sent_count` = 0) \
-		) \
+		AND (command_queue.`unix_time` + (command_queue.`sent_count` * ] . DELAY_BETWEEN_RETRANSMIT . qq[)) <= UNIX_TIMESTAMP() \
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`function` ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn$DBI::errstr;
