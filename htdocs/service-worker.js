@@ -1,3 +1,13 @@
+// Force the new service worker to activate immediately upon downloading
+self.addEventListener('install', function(event) {
+	self.skipWaiting();
+});
+
+// Take control of all open tabs as soon as it activates
+self.addEventListener('activate', function(event) {
+	event.waitUntil(clients.claim());
+});
+
 self.addEventListener('push', function(event) {
 	if (!event.data) return;
 
