@@ -93,7 +93,7 @@ Mojo::IOLoop->recurring(10 => sub {
 # --------------------------------------------------
 sub process_queue {
 	# Fetch ALL due commands across all meters
-	$sth = $dbh->prepare(qq[SELECT \
+	$sth =$dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
 			command_queue.`function`, \
@@ -137,16 +137,31 @@ sub process_queue {
 			# Meter received a command recently -> delay to preserve per-meter processing window
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
 		} else {
-			# Add a 20ms offset to pace transmissions and avoid socket bursts
+			# Add offset to pace transmissions and avoid socket bursts
 			$delay = $dispatch_offset;
 			$dispatch_offset += COMMAND_OFFSET_INTERVAL;
 		}
 
-		# Mark the projected send time for this meter
+		# Mark projected send time and in-flight status IMMEDIATELY
 		$meter_last_sent_time{$serial} = $now +$delay;
 		$in_flight{$cmd_id} = 1;
 
-		# Schedule asynchronous dispatch
+		# Update database immediately so subsequent 1-second DB polls do NOT re-select this row
+		if ($is_stateful) {
+			$dbh->do(qq[UPDATE command_queue \
+				SET `sent_count` = `sent_count` + 1 \
+				WHERE `id` = ?], undef, $cmd_id
+			) or warn $DBI::errstr;
+		} else {
+			$dbh->do(qq[UPDATE command_queue \
+				SET `sent_count` = `sent_count` + 1 \
+				WHERE `serial` = ? \
+					AND `function` = ? \
+					AND `state` = 'sent'], undef, $serial,$current_function
+			) or warn $DBI::errstr;
+		}
+
+		# Schedule asynchronous MQTT transmission
 		Mojo::IOLoop->timer($delay => sub {
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
@@ -159,24 +174,13 @@ sub process_queue {
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
 			
-			$message = $m->encrypt($message, $aes_key, $iv);$message = $iv . $message;
+			$message = $m->encrypt($message, $aes_key, $iv);
+			$message = $iv . $message;
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 			
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
-			
-			if ($is_stateful) {$dbh->do(qq[UPDATE command_queue \
-					SET `sent_count` = `sent_count` + 1 \
-					WHERE `id` = ?], undef, $cmd_id
-				) or warn $DBI::errstr;
-			} else {
-				$dbh->do(qq[UPDATE command_queue \
-					SET `sent_count` = `sent_count` + 1 \
-					WHERE `serial` = ? \
-						AND `function` = ? \
-						AND `state` = 'sent'], undef, $serial, $current_function
-				) or warn $DBI::errstr;
-			}
 
+			# Release in-flight flag after transmission finishes
 			delete $in_flight{$cmd_id};
 		});
 	}
