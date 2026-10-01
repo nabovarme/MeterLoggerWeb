@@ -1,4 +1,4 @@
-# mysql_mqtt_command_queue_receive
+# mysql_mqtt_command_queue_send
 
 FROM perl-base:1.0
 
@@ -8,7 +8,7 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./mysql_mqtt_command_queue_receive/mysql_mqtt_command_queue_receive.pl /usr/local/bin/mysql_mqtt_command_queue_receive.pl
+COPY ./mysql_mqtt_command_queue_send/mqtt_dispatcher.pl /usr/local/bin/mqtt_dispatcher.pl
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -19,4 +19,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-CMD ["/usr/local/bin/mysql_mqtt_command_queue_receive.pl"]
+CMD ["/usr/local/bin/mqtt_dispatcher.pl"]

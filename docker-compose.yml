@@ -226,10 +226,10 @@ services:
       TZ: 'Europe/Copenhagen'
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
-  mysql_mqtt_command_queue_receive:
+  mqtt_listener:
     build:
       context: '.'
-      dockerfile: ./mysql_mqtt_command_queue_receive/Dockerfile
+      dockerfile: ./mqtt_listener/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -237,7 +237,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
-    container_name: mysql_mqtt_command_queue_receive
+    container_name: mqtt_listener
     hostname: mysql-mqtt-command-queue-receive
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
@@ -252,10 +252,10 @@ services:
       ENABLE_DEBUG: ${ENABLE_DEBUG}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
-  mysql_mqtt_command_queue_send:
+  mqtt_dispatcher:
     build:
       context: '.'
-      dockerfile: ./mysql_mqtt_command_queue_send/Dockerfile
+      dockerfile: ./mqtt_dispatcher/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -263,7 +263,7 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
-    container_name: mysql_mqtt_command_queue_send
+    container_name: mqtt_dispatcher
     hostname: mysql-mqtt-command-queue-send
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
