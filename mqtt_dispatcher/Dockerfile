@@ -1,4 +1,4 @@
-# mqtt_listener
+# mqtt_dispatcher
 
 FROM perl-base:1.0
 
@@ -8,7 +8,7 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./mqtt_listener/mqtt_dispatcher.pl /usr/local/bin/mqtt_dispatcher.pl
+COPY ./mqtt_dispatcher/mqtt_dispatcher.pl /usr/local/bin/mqtt_dispatcher.pl
 
 ENV PERL5LIB=/usr/local/lib/perl
 
