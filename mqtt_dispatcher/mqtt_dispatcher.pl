@@ -88,7 +88,7 @@ while (1) {
 			AND c1.function NOT IN ('set_cron', 'clear_cron') \
 	]) or warn $DBI::errstr;
 
-	# Fetch batch using the new is_stateful column
+	# Fetch ALL pending commands (Removed LIMIT 50)
 	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
@@ -105,7 +105,6 @@ while (1) {
 			(command_queue.`is_stateful` = 0 AND command_queue.`sent_count` = 0) \
 		) \
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`function` ASC, command_queue.`unix_time` ASC \
-		LIMIT 50 \
 	]);
 	$sth->execute or warn$DBI::errstr;
 
@@ -137,22 +136,23 @@ while (1) {
 		my $message = $d->{param} . "\0";
 		my $iv = join('', map(chr(int rand(256)), 1..16));
 		
-		$message = $m->encrypt($message, $aes_key, $iv);$message = $iv . $message;
+		$message = $m->encrypt($message, $aes_key, $iv);
+		$message = $iv . $message;
 		my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
+		
 		$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 		
-		if ($is_stateful) {
-			$dbh->do(qq[UPDATE command_queue \
+		if ($is_stateful) {$dbh->do(qq[UPDATE command_queue \
 				SET `sent_count` = `sent_count` + 1 \
 				WHERE `id` = ?], undef, $d->{id}
-			) or warn$DBI::errstr;
+			) or warn $DBI::errstr;
 		} else {
 			$dbh->do(qq[UPDATE command_queue \
 				SET `sent_count` = `sent_count` + 1 \
 				WHERE `serial` = ? \
 					AND `function` = ? \
 					AND `state` = 'sent'], undef, $d->{serial}, $current_function
-			) or warn$DBI::errstr;
+			) or warn $DBI::errstr;
 		}
 		
 		usleep(DELAY_BETWEEN_COMMAND_USEC);
