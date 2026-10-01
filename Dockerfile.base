@@ -62,6 +62,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libjson-xs-perl \
 	libcrypt-jwt-perl \
 	liblocal-lib-perl \
+	libmojolicious-perl \
 	libnet-server-mail-perl \
 	libnet-smtp-server-perl \
 	libnet-smtp-ssl-perl \
