@@ -1,4 +1,4 @@
-# mysql_mqtt_command_queue_send
+# mqtt_listener
 
 FROM perl-base:1.0
 
@@ -8,7 +8,7 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./mysql_mqtt_command_queue_send/mqtt_dispatcher.pl /usr/local/bin/mqtt_dispatcher.pl
+COPY ./mqtt_listener/mqtt_dispatcher.pl /usr/local/bin/mqtt_dispatcher.pl
 
 ENV PERL5LIB=/usr/local/lib/perl
 
