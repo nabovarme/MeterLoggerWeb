@@ -7,16 +7,17 @@ use Net::MQTT::Simple;
 use DBI;
 use Crypt::Mode::CBC;
 use Digest::SHA qw(sha256 hmac_sha256);
+use Time::HiRes qw(time);
 use Mojo::IOLoop;
 
 use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # --- Constants ---
-use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # 10 seconds
-use constant DELAY_BETWEEN_SERIALS      => 1.0;      # 1 second delay when switching functions
-use constant DB_POLL_INTERVAL_SEC       => 0.5;      # Poll DB every 500 ms
-use constant COMMAND_SEND_INTERVAL_SEC  => 0.02;     # 20 ms between individual sends
+use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # Retransmit every 10 seconds
+use constant MIN_METER_COMMAND_INTERVAL => 1.0;      # 1.0s minimum gap between commands to the SAME meter
+use constant DB_POLL_INTERVAL_SEC       => 1.0;      # Poll DB every 1 second
+use constant COMMAND_OFFSET_INTERVAL    => 0.02;     # 20ms offset to pace concurrent dispatches
 
 # --- Config from environment ---
 my $mqtt_host = $ENV{'MQTT_HOST'}
@@ -27,10 +28,10 @@ my $mqtt_port = $ENV{'MQTT_PORT'}
 
 # --- Globals ---
 my ($dbh, $sth);
-my $last_function;
-my $is_processing_batch = 0;
+my %in_flight;               # Tracks command IDs currently scheduled in Mojo timer queue
+my %meter_last_sent_time;    # Tracks last sent timestamp per meter serial: $meter_last_sent_time{$serial}
 
-log_info("starting async dispatcher...", {-no_script_name => 1});
+log_info("starting per-meter throttled async dispatcher...", {-no_script_name => 1});
 
 # --- MQTT publisher ---
 my $publish_mqtt = Net::MQTT::Simple->new($mqtt_host . ':' . $mqtt_port);
@@ -42,7 +43,8 @@ $SIG{INT} = sub {
 };
 
 # --- Connect to DB ---
-if ($dbh = Nabovarme::Db->my_connect) {$dbh->{'mysql_auto_reconnect'} = 1;
+if ($dbh = Nabovarme::Db->my_connect) {
+	$dbh->{'mysql_auto_reconnect'} = 1;
 	$dbh->{'mysql_enable_utf8'} = 0;
 }
 else {
@@ -55,15 +57,11 @@ my $m = Crypt::Mode::CBC->new('AES');
 # Cleanup Routine (Runs every 10 seconds)
 # --------------------------------------------------
 Mojo::IOLoop->recurring(10 => sub {
-	# Clean up old states
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout'])
 		or warn $DBI::errstr;
-
-	# Garbage collect orphaned completed commands
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
-	# Clean up commands that exceeded their timeout limit directly in MySQL
 	$dbh->do(qq[UPDATE command_queue \
 		SET `state` = 'timeout' \
 		WHERE `state` = 'sent' \
@@ -79,7 +77,7 @@ Mojo::IOLoop->recurring(10 => sub {
 			AND UNIX_TIMESTAMP() - `unix_time` > `timeout` \
 	]) or warn $DBI::errstr;
 
-	# Clean up ALL duplicate commands per meter (both stateful and stateless)
+	# Prune duplicate commands per meter
 	$dbh->do(qq[DELETE c1 FROM command_queue c1 \
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
@@ -91,12 +89,10 @@ Mojo::IOLoop->recurring(10 => sub {
 });
 
 # --------------------------------------------------
-# Queue Processing Routine
+# Event-Driven Dispatcher Routine
 # --------------------------------------------------
 sub process_queue {
-	return if $is_processing_batch; # Guard against overlapping DB polls
-	$is_processing_batch = 1;
-
+	# Fetch ALL due commands across all meters
 	$sth = $dbh->prepare(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
@@ -108,61 +104,58 @@ sub process_queue {
 		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
 		AND (command_queue.`unix_time` + (command_queue.`sent_count` * ] . DELAY_BETWEEN_RETRANSMIT . qq[)) <= UNIX_TIMESTAMP() \
-		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`function` ASC, command_queue.`unix_time` ASC \
+		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn $DBI::errstr;
 
-	my @commands;
+	my %sent_this_pass;
+	my $now = time();
+	my $dispatch_offset = 0;
+
 	while (my $d = $sth->fetchrow_hashref) {
-		push @commands, $d;
-	}
-
-	unless (@commands) {
-		$is_processing_batch = 0;
-		return;
-	}
-
-	my %sent_this_batch;
-
-	# Non-blocking recursive batch sender
-	my $send_next;
-	$send_next = sub {
-		unless (@commands) {
-			$is_processing_batch = 0;
-			return;
-		}
-
-		my $d = shift @commands;
+		my $cmd_id           = $d->{id};
+		my $serial           = $d->{serial};
 		my $current_function = $d->{function};
-		my $is_stateful = $d->{is_stateful};
+		my $is_stateful      = $d->{is_stateful};
 
+		# Skip if this command ID is already queued in an active timer
+		next if $in_flight{$cmd_id};
+
+		# Deduplicate stateless commands within the same pass
 		if (!$is_stateful) {
-			my $dedup_key = $d->{serial} . '-' . $current_function;
-			if ($sent_this_batch{$dedup_key}) {
-				# Skip duplicate in this batch and proceed instantly to next item
-				$send_next->();
-				return;
-			}
-			$sent_this_batch{$dedup_key} = 1;
+			my $dedup_key = $serial . '-' . $current_function;
+			next if $sent_this_pass{$dedup_key};
+			$sent_this_pass{$dedup_key} = 1;
 		}
 
-		# Calculate delay before publishing
-		my $delay = COMMAND_SEND_INTERVAL_SEC;
-		if (defined $last_function && $current_function ne $last_function) {$delay += DELAY_BETWEEN_SERIALS;
-		}
-		$last_function = $current_function;
+		# Calculate required delay for THIS specific meter
+		my $last_sent = $meter_last_sent_time{$serial} // 0;
+		my $time_since_last_sent = $now - $last_sent;
 
-		# Schedule asynchronous publish task
+		my $delay = 0;
+		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
+			# Meter received a command recently -> delay to preserve per-meter processing window
+			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
+		} else {
+			# Add a 20ms offset to pace transmissions and avoid socket bursts
+			$delay = $dispatch_offset;
+			$dispatch_offset += COMMAND_OFFSET_INTERVAL;
+		}
+
+		# Mark the projected send time for this meter
+		$meter_last_sent_time{$serial} = $now +$delay;
+		$in_flight{$cmd_id} = 1;
+
+		# Schedule asynchronous dispatch
 		Mojo::IOLoop->timer($delay => sub {
-			# Construct and publish MQTT payload
 			my $key = $d->{key};
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 
-			log_info("send mqtt function " . $current_function . " to " . $d->{serial}, {-no_script_name => 1});
+			log_info("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
 			
-			my $topic = '/config/v2/' . $d->{serial} . '/' . time() . '/' . $current_function;
+			my $topic = '/config/v2/' . $serial . '/' . time() . '/' . $current_function;
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
 			
@@ -173,23 +166,20 @@ sub process_queue {
 			
 			if ($is_stateful) {$dbh->do(qq[UPDATE command_queue \
 					SET `sent_count` = `sent_count` + 1 \
-					WHERE `id` = ?], undef, $d->{id}
+					WHERE `id` = ?], undef, $cmd_id
 				) or warn $DBI::errstr;
 			} else {
 				$dbh->do(qq[UPDATE command_queue \
 					SET `sent_count` = `sent_count` + 1 \
 					WHERE `serial` = ? \
 						AND `function` = ? \
-						AND `state` = 'sent'], undef, $d->{serial}, $current_function
+						AND `state` = 'sent'], undef, $serial, $current_function
 				) or warn $DBI::errstr;
 			}
 
-			# Continue to next command in queue asynchronously
-			$send_next->();
+			delete $in_flight{$cmd_id};
 		});
-	};
-
-	$send_next->();
+	}
 }
 
 # --------------------------------------------------
