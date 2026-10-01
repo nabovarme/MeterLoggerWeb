@@ -895,6 +895,12 @@ sub handle_alarm {
 		# Disabled if repeat interval is very large (>= 1 day)
 		my $use_backoff = ($alarm->{exp_backoff_enabled} && $alarm->{repeat} < 86400) ? 1 : 0;
 
+		# If the alarm fluctuates back to active, clear any pending recovery timer
+		if (defined $alarm->{clear_pending_since}) {
+			$dbh->do(qq[ UPDATE alarms SET clear_pending_since = NULL WHERE id=$id ]);
+			$alarm->{clear_pending_since} = undef;
+		}
+
 		# --------------------------------------------------
 		# FIRST ACTIVATION (alarm transitions from 0 → 1)
 		# --------------------------------------------------
@@ -931,7 +937,7 @@ sub handle_alarm {
 				$interval = $alarm->{repeat} * (2 ** ($count - $cfg->{initial_no_backoff}));
 
 				# Cap interval to 24 hours to avoid excessive silence
-				$interval = 86400 if $interval > 86400;
+				$interval = 86400 if $interval > 86400; # Cap at 24h
 			} else {
 				# Fixed repeat interval (no backoff yet)
 				$interval = $alarm->{repeat};
@@ -940,7 +946,6 @@ sub handle_alarm {
 			# Only proceed with notification logic if we are outside the snooze window
 			# This keeps the DB "frozen" (no count increase, no timestamp update) while snoozed
 			if (($alarm->{last_notification} + $interval + $alarm->{snooze}) < $now) {
-
 				# Send repeated alarm notification
 				sms_send($alarm, $down);
 				push_send($alarm, $down, 1);
@@ -965,7 +970,6 @@ sub handle_alarm {
 	# ALARM CLEARING STATE (condition is FALSE)
 	# ==================================================
 	} else {
-
 		# Check when the system first observed a "normal" condition
 		my $since = $alarm->{clear_pending_since};
 
@@ -982,10 +986,12 @@ sub handle_alarm {
 				SET
 					clear_pending_since = ?,
 					snooze = 0
-				WHERE id = ?
-			], undef, $now, $alarm->{id});
+				WHERE id = $id
+			], undef, $now);
 
-			return;
+			# Update local state for immediate step 2 evaluation if delay is 0
+			$since = $now;
+			$alarm->{clear_pending_since} = $now;
 		}
 
 		# --------------------------------------------------
@@ -993,7 +999,11 @@ sub handle_alarm {
 		# --------------------------------------------------
 		# Only clear alarm if condition has remained normal
 		# continuously for alarm_clear_delay seconds
-		if (defined $since && ($now - $since) < $cfg->{alarm_clear_delay}) {
+		# Bypass the 10-minute delay for $offline alarms so they recover instantly
+		my $is_offline = ($alarm->{condition} =~ /\$offline\b/);
+		my $delay = $is_offline ? 0 : $cfg->{alarm_clear_delay};
+
+		if (defined $since && ($now - $since) < $delay) {
 			return; # still within hysteresis window → do nothing
 		}
 
@@ -1007,12 +1017,14 @@ sub handle_alarm {
 			push_send($alarm, $up, 0);
 
 			# Reset alarm state in DB
+			# including clear_pending_since to NULL so it doesn't leak into the next alarm event months later
 			$dbh->do(qq[
 				UPDATE alarms
 				SET alarm_state=0,
 					alarm_count=0,
 					snooze=0,
-					snooze_auth_key=NULL
+					snooze_auth_key=NULL,
+					clear_pending_since=NULL
 				WHERE id=$id
 			]);
 		}
