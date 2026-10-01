@@ -1,9 +1,9 @@
 /*M!999999\- enable the sandbox mode */ 
--- MariaDB dump 10.19  Distrib 10.5.29-MariaDB, for debian-linux-gnu (x86_64)
+-- MariaDB dump 10.19  Distrib 10.11.18-MariaDB, for debian-linux-gnu (x86_64)
 --
 -- Host: db    Database: nabovarme
 -- ------------------------------------------------------
--- Server version	10.5.28-MariaDB-ubu2004-log
+-- Server version	12.3.3-MariaDB-ubu2404-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -26,7 +26,8 @@ DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `accounts_insert_set_payment_time` BEFORE INSERT ON `accounts` FOR EACH ROW if (new.payment_time is null)
 then 
 	SET new.payment_time = UNIX_TIMESTAMP(NOW());
-end if */;;
+end if 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -37,12 +38,15 @@ DELIMITER ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` FOR EACH ROW   IF (NEW.amount != 0) THEN
-    INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `timeout`) 
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `command_queue_insert_after` AFTER INSERT ON `accounts` 
+FOR EACH ROW 
+BEGIN
+  IF (NEW.amount != 0) THEN
+    INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `timeout`, `is_stateful`) 
     VALUES (
       NEW.`serial`, 
       'open_until', 
@@ -56,9 +60,12 @@ DELIMITER ;;
          WHERE serial = NEW.serial)
       ), 
       UNIX_TIMESTAMP(NOW()), 
-      0
+      0,
+      1
     );
-  END IF */;;
+  END IF;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -73,13 +80,11 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER accounts_log_no_update
-BEFORE UPDATE ON accounts_log
-FOR EACH ROW
-BEGIN
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `accounts_log_no_update` BEFORE UPDATE ON `accounts_log` FOR EACH ROW BEGIN
 	SIGNAL SQLSTATE '45000'
 		SET MESSAGE_TEXT = 'accounts_log is read-only: UPDATE not allowed';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -94,13 +99,11 @@ DELIMITER ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
-/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER accounts_log_no_delete
-BEFORE DELETE ON accounts_log
-FOR EACH ROW
-BEGIN
+/*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `accounts_log_no_delete` BEFORE DELETE ON `accounts_log` FOR EACH ROW BEGIN
 	SIGNAL SQLSTATE '45000'
 		SET MESSAGE_TEXT = 'accounts_log is read-only: DELETE not allowed';
-END */;;
+END 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -116,7 +119,8 @@ DELIMITER ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`root`@`%`*/ /*!50003 TRIGGER `samples_insert_after` AFTER INSERT ON `samples` FOR EACH ROW INSERT INTO samples_cache (`serial`, `heap`, `flow_temp`, `return_flow_temp`, `temp_diff`, `t3`, `flow`, `effect`, `hours`, `volume`, `energy`, `unix_time`) 
-        VALUES (new.`serial`, new.`heap`, new.`flow_temp`, new.`return_flow_temp`, new.`temp_diff`, new.`t3`, new.`flow`, new.`effect`, new.`hours`, new.`volume`, new.`energy`, new.`unix_time`) */;;
+        VALUES (new.`serial`, new.`heap`, new.`flow_temp`, new.`return_flow_temp`, new.`temp_diff`, new.`t3`, new.`flow`, new.`effect`, new.`hours`, new.`volume`, new.`energy`, new.`unix_time`) 
+*/;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
@@ -135,4 +139,4 @@ DELIMITER ;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-12-21 23:58:30
+-- Dump completed on 2026-10-01 18:14:34

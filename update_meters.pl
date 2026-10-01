@@ -53,6 +53,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'version',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -62,6 +63,7 @@ sub get_version_and_status {
 			$nabovarme_mqtt->call({	serial => $d->{serial},
 									function => 'status',
 									param => '1',
+									stateful => 0,
 									callback => undef,
 									timeout => RPC_TIMEOUT
 								});
@@ -71,6 +73,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'uptime',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -79,6 +82,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'ssid',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -87,6 +91,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'rssi',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -95,6 +100,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'wifi_status',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -103,6 +109,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'ap_status',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -111,6 +118,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'reset_reason',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -118,6 +126,7 @@ sub get_version_and_status {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'network_quality',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -135,6 +144,7 @@ sub get_wifi_scan_results_and_daily {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'scan',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -143,6 +153,7 @@ sub get_wifi_scan_results_and_daily {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'chip_id',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -151,6 +162,7 @@ sub get_wifi_scan_results_and_daily {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'flash_id',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});
@@ -159,6 +171,7 @@ sub get_wifi_scan_results_and_daily {
 		$nabovarme_mqtt->call({	serial => $d->{serial},
 								function => 'flash_size',
 								param => '1',
+								stateful => 0,
 								callback => undef,
 								timeout => RPC_TIMEOUT
 							});

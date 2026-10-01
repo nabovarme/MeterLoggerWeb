@@ -48,6 +48,7 @@ sub handler {
 				serial   => $serial,
 				function => 'scan',
 				param    => '1',
+				stateful => 0,
 				timeout  => 0,
 				callback => sub {
 					my $reply = shift;
@@ -90,8 +91,8 @@ sub handler {
 		or return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 
 	my $sth = $dbh->prepare(q{
-		INSERT INTO command_queue (serial, function, param, unix_time)
-		VALUES (?, 'scan', '1', UNIX_TIMESTAMP())
+		INSERT INTO command_queue (serial, function, param, unix_time, is_stateful)
+		VALUES (?, 'scan', '1', UNIX_TIMESTAMP(), 0)
 	});
 
 	if ($sth->execute($serial)) {

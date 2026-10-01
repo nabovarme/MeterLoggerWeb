@@ -410,6 +410,7 @@ sub meter_change_valve_status {
 	$self->{mqtt_rpc}->call({	serial => $serial,
 							function => $status,
 							param => '1',
+							stateful => 1,
 							callback => undef,
 							timeout => undef
 						});
@@ -417,6 +418,7 @@ sub meter_change_valve_status {
 	$self->{mqtt_rpc}->call({	serial => $serial,
 							function => 'status',
 							param => '1',
+							stateful => 0,
 							callback => undef,
 							timeout => undef
 						});

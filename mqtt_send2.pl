@@ -21,6 +21,7 @@ $nabovarme_mqtt->connect() || die $!;
 my $ret = $nabovarme_mqtt->call({	serial => $ARGV[0] || '9999999',
 						function => $ARGV[1] || "version",
 						param => $ARGV[2] || '1',
+						stateful => $ARGV[3] || 0,
 #						callback => undef,
 						callback => \&my_callback,
 						timeout => 10
@@ -34,7 +35,5 @@ else {
 	print Dumper $ret;
 }			
 1;
-
-
 
 __END__
