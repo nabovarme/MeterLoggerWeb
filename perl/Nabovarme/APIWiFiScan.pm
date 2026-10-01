@@ -11,6 +11,22 @@ use JSON ();
 
 use Nabovarme::Db;
 
+# Helper to compute integer median RSSI from scan entries
+sub _calc_median_rssi {
+	my ($entries) = @_;
+	my @rssi_vals = map { $_->{rssi} }
+		grep { defined $_->{rssi} && $_->{rssi} ne '' } @$entries;
+
+	return undef unless @rssi_vals;
+
+	@rssi_vals = sort { $a <=> $b } @rssi_vals;
+	my $mid = int(@rssi_vals / 2);
+
+	return (@rssi_vals % 2)
+		? $rssi_vals[$mid]
+		: int(($rssi_vals[$mid - 1] + $rssi_vals[$mid]) / 2);
+}
+
 sub handler {
 	my $r = shift;
 
@@ -60,7 +76,7 @@ sub handler {
 		}
 	}
 
-	# Step 3: compute upstream weakest RSSI along the mesh chain
+	# Step 3: compute upstream weakest median RSSI along the mesh chain
 	my %mesh_chain_info;
 
 	for my $ssid (keys %aps_by_ssid) {
@@ -68,28 +84,16 @@ sub handler {
 
 		my ($node_serial) = $ssid =~ /^mesh-(.*)$/;
 
-		# Compute median RSSI for this mesh AP over all scans
-		my @rssi_vals = map { $_->{rssi} }
-			grep { defined $_->{rssi} }
-			@{ $aps_by_ssid{$ssid} };
+		# Compute median RSSI for this local mesh AP link
+		my $local_median_rssi = _calc_median_rssi($aps_by_ssid{$ssid});
+		next unless defined $local_median_rssi;
 
-		next unless @rssi_vals;
-
-		@rssi_vals = sort { $a <=> $b } @rssi_vals;
-
-		my $mid = int(@rssi_vals / 2);
-		my $first_rssi = (@rssi_vals % 2)
-			? $rssi_vals[$mid]
-			: int(($rssi_vals[$mid-1] + $rssi_vals[$mid]) / 2);
-
-		my $min_rssi = $first_rssi;
-
+		my $min_rssi = $local_median_rssi;
 		my $hop_count = 1;
 		my $current_serial = $node_serial;
 
 		while (1) {
-
-			# Get the SSID this node is connected to (actual SSID, not forced mesh-)
+			# Get the SSID and RSSI this node is connected to
 			my ($parent_ssid, $child_to_parent_rssi) = $dbh->selectrow_array(
 				"SELECT ssid, rssi FROM meters WHERE serial = ?",
 				undef, $current_serial
@@ -97,7 +101,7 @@ sub handler {
 
 			last unless defined $parent_ssid && $parent_ssid ne '';
 
-			if (defined $child_to_parent_rssi) {
+			if (defined $child_to_parent_rssi && $child_to_parent_rssi ne '') {
 				$min_rssi = $child_to_parent_rssi if $child_to_parent_rssi < $min_rssi;
 			}
 
@@ -106,18 +110,19 @@ sub handler {
 				$current_serial = $1;
 				$hop_count++;
 			} else {
-				# Reached root AP (non-mesh SSID like Gustav)
+				# Reached root AP
 				last;
 			}
 		}
 
 		$mesh_chain_info{$ssid} = {
-			min_rssi => $min_rssi,
-			hop      => $hop_count,
+			min_rssi    => $min_rssi,
+			median_rssi => $local_median_rssi,
+			hop         => $hop_count,
 		};
 	}
 
-	# Step 4: pick AP per SSID, skipping SSID currently connected to
+	# Step 4: pick AP per SSID, applying median RSSI to all APs
 	my ($current_connected_ssid) = $dbh->selectrow_array(
 		"SELECT ssid FROM meters WHERE serial = ?", undef, $serial
 	);
@@ -131,25 +136,28 @@ sub handler {
 		# Skip the SSID the serial is currently connected to
 		next if defined $current_connected_ssid && $ssid eq $current_connected_ssid;
 
+		# Base record taken from the most recent scan entry for metadata (channel, ciphers, etc.)
+		my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
+		my $base_entry = { %$latest_entry };
+
 		if ($ssid =~ /^mesh-/) {
 
 			my $is_excluded = $exclude{$ssid} ? 1 : 0;
 			next if $is_excluded;
 
-			my $base_entry = { %{ $entries->[0] } };
-
 			if (my $info = $mesh_chain_info{$ssid}) {
-				$base_entry->{rssi} = $info->{min_rssi}
-					if defined $info->{min_rssi};
-				$base_entry->{hop} = $info->{hop};
+				$base_entry->{rssi} = $info->{min_rssi};
+				$base_entry->{hop}  = $info->{hop};
+				push @result, $base_entry;
 			}
 
-			push @result, $base_entry;
-
 		} else {
-			# Regular AP: use most recent scan
-			my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
-			push @result, $latest_entry if $latest_entry;
+			# Regular AP: compute median RSSI across all scans for this SSID
+			my $median_rssi = _calc_median_rssi($entries);
+			if (defined $median_rssi) {
+				$base_entry->{rssi} = $median_rssi;
+				push @result, $base_entry;
+			}
 		}
 	}
 
