@@ -42,7 +42,7 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
+	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated' AND `enabled` = 1]);
 	$sth->execute;
 	
 	log_info("send mqtt retain to all meters for version and status");
