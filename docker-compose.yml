@@ -238,12 +238,12 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mqtt_listener
-    hostname: mysql-mqtt-command-queue-receive
+    hostname: mqtt-listener
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     labels:
-      com.docker.compose.service: "mysql-mqtt-command-queue-receive"
+      com.docker.compose.service: "mqtt-listener"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MQTT_HOST: ${MQTT_HOST}
@@ -264,12 +264,12 @@ services:
       mqtt:
         condition: service_healthy
     container_name: mqtt_dispatcher
-    hostname: mysql-mqtt-command-queue-send
+    hostname: mqtt-dispatcher
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     labels:
-      com.docker.compose.service: "mysql-mqtt-command-queue-send"
+      com.docker.compose.service: "mqtt-dispatcher"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MQTT_HOST: ${MQTT_HOST}
