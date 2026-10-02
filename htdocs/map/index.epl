@@ -485,31 +485,32 @@
 							rescanBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Scanning...';
 
 							fetch('/api/wifi_scan_request/' + encodeURIComponent(serial), { method: 'POST' })
-								.then(res => {
-									// Parse JSON regardless of HTTP status code (200, 408, 500, etc.)
-									return res.json().then(data => ({ ok: res.ok, data }))
-										.catch(() => ({ ok: false, data: { error: 'Invalid response' } }));
-								})
-								.then(({ ok, data }) => {
-									if (ok && data.status === 'ok') {
-										// Automatically open table if collapsed
+								.then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data }))
+									.catch(() => ({ ok: false, data: { error: 'Invalid response' } })))
+								.then(({ ok, status, data }) => {
+									if (data.status === 'ok') {
+										// Fast response (Meter was awake)
 										tableDiv.style.display = 'block';
 										triangle.style.transform = 'rotate(90deg)';
-
-										// Reload scan data immediately
 										loadWifiTable(true);
+									} else if (data.status === 'queued') {
+										// Slow response (Meter asleep, command queued)
+										if (statusSpan) statusSpan.textContent = 'Queued (awaiting meter...)';
+										tableDiv.style.display = 'block';
+										triangle.style.transform = 'rotate(90deg)';
+										
+										// Auto-poll after 10 seconds when the meter has hopefully replied
+										setTimeout(() => {
+											loadWifiTable(true);
+											if (statusSpan) statusSpan.textContent = '';
+										}, 10000);
 									} else {
-										// Show inline status error message
-										if (statusSpan) {
-											statusSpan.textContent = data.error || 'Timeout';
-										}
+										if (statusSpan) statusSpan.textContent = data.error || 'Server error';
 									}
 								})
 								.catch(err => {
 									console.error(err);
-									if (statusSpan) {
-										statusSpan.textContent = 'Server error';
-									}
+									if (statusSpan) statusSpan.textContent = 'Network error';
 								})
 								.finally(() => {
 									rescanBtn.disabled = false;
