@@ -225,6 +225,7 @@ $subscribe_mqtt->subscribe(q[/ssid/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ssid/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_pwd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ssid_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/set_ap_mesh_pwd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/scan_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/wifi_status/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ap_status/#], \&mqtt_handler);
