@@ -1,0 +1,131 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="robots" content="noindex" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>MeterLogger WiFi Update</title>
+
+	<!-- Burger menu CSS & JS -->
+	<link rel="stylesheet" href="/css/menu.css" />
+	<script src="/js/menu.js.epl" defer></script>
+	
+	<!-- Page Logic -->
+	<script src="/js/update_wifi.js" defer></script>
+
+	<style>
+		*, *:before, *:after {
+			box-sizing: border-box;
+		}
+		body, input, label, button {
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 90%;
+		}
+		body {
+			margin: 0;
+			background-color: #f9f9f9;
+		}
+		.container {
+			max-width: 500px;
+			margin: 2em auto;
+			padding: 0 16px;
+		}
+		.card {
+			background: #fff;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 20px;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+		}
+		h2 {
+			margin-top: 0;
+			font-size: 120%;
+			color: #222;
+			margin-bottom: 4px;
+		}
+		.subtitle {
+			font-size: 85%;
+			color: #666;
+			margin-bottom: 20px;
+		}
+		.setting-row {
+			padding: 12px 0;
+			border-bottom: 1px solid #eee;
+		}
+		.setting-row:last-of-type {
+			border-bottom: none;
+		}
+		.setting-label {
+			font-weight: bold;
+			margin-bottom: 6px;
+			display: block;
+		}
+		.form-control {
+			width: 100%;
+			padding: 10px;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			font-size: 100%;
+		}
+		.status-msg {
+			padding: 10px 12px;
+			margin-bottom: 16px;
+			border-radius: 4px;
+			font-size: 85%;
+			display: none;
+		}
+		.status-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+		.status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+		.status-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+		.btn-primary {
+			background-color: #007aff;
+			color: white;
+			border: none;
+			padding: 12px 20px;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 100%;
+			width: 100%;
+			margin-top: 10px;
+			font-weight: bold;
+		}
+		.btn-primary:disabled {
+			background-color: #99c8ff;
+			cursor: not-allowed;
+		}
+	</style>
+</head>
+<body>
+
+<div class="menu-wrap"></div>
+
+<div class="container">
+	<div id="statusMsg" class="status-msg status-info" style="display:block;">Loading meter details...</div>
+
+	<div class="card" id="formCard" style="display:none;">
+		<h2 id="display-info">Meter Info</h2>
+		<div id="display-serial" class="subtitle">serial </div>
+
+		<form id="wifi-update-form">
+			<input type="hidden" name="serial" id="input-serial" value="">
+			
+			<div class="setting-row">
+				<label class="setting-label" for="input-ssid">SSID</label>
+				<input type="text" class="form-control" name="ssid" id="input-ssid" value="" autocapitalize="off" autocorrect="off">
+			</div>
+			
+			<div class="setting-row">
+				<label class="setting-label" for="input-password">Password</label>
+				<input type="text" class="form-control" name="password" id="input-password" value="" autocapitalize="off" autocorrect="off">
+			</div>						
+
+			<div style="margin-top: 16px;">
+				<button type="submit" id="update-btn" class="btn-primary">Update</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+</body>
+</html>
