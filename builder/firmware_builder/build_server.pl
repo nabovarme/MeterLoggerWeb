@@ -387,6 +387,22 @@ sub process_build {
 	my ($trigger, $force_full_rebuild) = @_;
 	$force_full_rebuild //= 0;
 
+	# If a trigger arrived or full rebuild was requested, update firmware_sdk image
+	if ($trigger || $force_full_rebuild) {
+		print "Trigger received (" . ($trigger->{reason} // 'scheduled') . "). Updating firmware_sdk image...\n";
+		eval {
+			rebuild_firmware_sdk();
+		};
+		if ($@) {
+			warn "ERROR: Failed to rebuild firmware_sdk: $@\n";
+			return;
+		}
+	}
+
+	# Retrieve the updated git version from the newly built firmware_sdk container image
+	my $git_version = get_git_version_from_docker();
+	print "Processing build batch for version: $git_version\n";
+
 	my $dbh = Nabovarme::Db->my_connect
 		or die "DB connection failed";
 
@@ -398,8 +414,6 @@ sub process_build {
 	");
 
 	$sth->execute;
-
-	my $git_version = get_git_version_from_docker();
 
 	my $fs_version_base = $git_version;
 	$fs_version_base =~ s/[^a-zA-Z0-9._-]/_/g;
@@ -420,7 +434,8 @@ sub process_build {
 		my $config_hash = substr(md5_hex($config_str), 0, 6);
 		$meter_fs_version .= "-$config_hash";
 
-		if (!$force_full_rebuild) {
+		# Always queue jobs if triggered, otherwise check if manifest already exists
+		if (!$force_full_rebuild && !$trigger) {
 			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
 			if (-f $firmware_path) {
 				next;
@@ -432,6 +447,7 @@ sub process_build {
 		$job_count++;
 	}
 
+	# Clean up orphaned meter directories
 	if (opendir(my $dh, RELEASE_DIR)) {
 		while (my $dir_entry = readdir($dh)) {
 			next if ($dir_entry =~ /^\./);
@@ -448,19 +464,11 @@ sub process_build {
 	}
 
 	if ($job_count == 0) {
-		if (!$force_full_rebuild) {
-			generate_firmware_index();
-		}
+		generate_firmware_index();
 		return;
 	}
 
-	if ($force_full_rebuild) {
-		rebuild_firmware_sdk();
-	}
-
-	my $batch_id = time();
-	
-	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
+	my $batch_id = time();$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
 
 	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
 	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
@@ -475,7 +483,6 @@ sub process_build {
 	print "Jobs to enqueue: $job_count\n";
 
 	foreach my $row (@jobs_to_queue) {
-
 		my $job = encode_json({
 			serial       => $row->{serial},
 			info         => $row->{info},
@@ -488,7 +495,7 @@ sub process_build {
 		$redis->rpush($REDIS_QUEUE, $job);
 	}
 
-	print "All jobs enqueued\n";
+	print "All jobs enqueued for batch $batch_id\n";
 }
 
 sub run_docker_build {
