@@ -36,6 +36,7 @@ COPY ./utils/mqtt_log_all.pl mqtt_log_all.pl
 COPY ./utils/smstools_send.pl smstools_send.pl
 COPY ./utils/run_backup.sh run_backup.sh
 COPY ./utils/mqtt_send.pl mqtt_send.pl
+COPY ./utils/mqtt_queue_send.pl mqtt_queue_send.pl
 COPY ./utils/find_alternative_ssid.pl find_alternative_ssid.pl
 COPY ./utils/mesh_topology.pl mesh_topology.pl
 COPY ./utils/generate_vapid_keys.pl generate_vapid_keys.pl
