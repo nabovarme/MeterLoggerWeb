@@ -79,19 +79,29 @@ Mojo::IOLoop->recurring(10 => sub {
 	]) or warn $DBI::errstr;
 
 	# Prune duplicate commands per meter
-	$dbh->do(qq[DELETE c1 FROM command_queue c1 \
+	# Transfer sent_count and last_sent to the newer duplicate before pruning
+	$dbh->do(qq[UPDATE command_queue c1 \
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
+		SET c2.sent_count = GREATEST(c1.sent_count, c2.sent_count), \
+		    c2.last_sent = GREATEST(c1.last_sent, c2.last_sent) \
 		WHERE c1.state = 'sent' \
 			AND c2.state = 'sent' \
 			AND c1.id < c2.id \
 			AND c1.function NOT IN ('set_cron', 'clear_cron') \
 	]) or warn $DBI::errstr;
+
+	# Prune duplicate commands per meter (deletes the older ones)
+	$dbh->do(qq[DELETE c1 FROM command_queue c1 \
+		JOIN command_queue c2 \
+			ON c1.serial = c2.serial AND c1.function = c2.function \
+		WHERE c1.state = 'sent' \
+		AND c2.state = 'sent' \
+		AND c1.id < c2.id \
+		AND c1.function NOT IN ('set_cron', 'clear_cron') \
+	]) or warn$DBI::errstr;
 });
 
-# --------------------------------------------------
-# Event-Driven Dispatcher Routine
-# --------------------------------------------------
 # --------------------------------------------------
 # Event-Driven Dispatcher Routine
 # --------------------------------------------------
