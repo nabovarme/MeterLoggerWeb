@@ -3,6 +3,7 @@ use Time::Format qw( time_format );
 
 use Nabovarme::Db;
 use Nabovarme::Admin;
+use Nabovarme::MQTT_RPC;
 
 $admin = new Nabovarme::Admin;
 $is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
@@ -41,27 +42,35 @@ if ($is_admin) {
 			$ssid   = $fdat{'ssid'} || $d->{ssid};
 		}
 	
-		# Keep the original block intact for non-mesh handling
-		if ($sth->rows) {
-			if ($d = $sth->fetchrow_hashref) {
-				$info   = $d->{info};
-				$serial = $d->{serial};
-				# only prefill database SSID if query string not provided
-				$ssid   = $d->{ssid} unless $fdat{'ssid'};
-			}
-		}
-	
 		# URL encode & and =
 		$ssid =~ s/&/%26/g;
 		$ssid =~ s/=/%3d/g;
 	
 		my $param = 'ssid=' . $ssid . '&' . 'pwd=' . ($fdat{'password'} || $mesh_password);
-		my $quoted_param = $dbh->quote($param);
+		
 		if ($is_admin && ($fdat{state} =~ /update/i)) {
-			$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-				VALUES ($quoted_serial, 'set_ssid_pwd', $quoted_param, UNIX_TIMESTAMP(NOW()), 'sent', 0, 0)]);
-			$dbh->do(qq[INSERT INTO command_queue (`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`) \
-				VALUES ($quoted_serial, 'ssid', 1, UNIX_TIMESTAMP(NOW()) + 1, 'sent', 0, 0)]);
+			my $rpc = Nabovarme::MQTT_RPC->new();
+			if ($rpc->connect()) {
+				# Dispatch setting the SSID and Password
+				$rpc->call({
+					serial   => $fdat{'serial'},
+					function => 'set_ssid_pwd',
+					param    => $param,
+					stateful => 0,
+					timeout  => 0
+				});
+				
+				# Dispatch an SSID read-back trigger
+				$rpc->call({
+					serial   => $fdat{'serial'},
+					function => 'ssid',
+					param    => '1',
+					stateful => 0,
+					timeout  => 0
+				});
+			} else {
+				warn "MQTT_RPC connect failed in update_wifi.epl";
+			}
 		}
 	}
 	
