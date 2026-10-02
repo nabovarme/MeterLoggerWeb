@@ -1,138 +1,20 @@
-﻿[- 
-use Time::Format qw( time_format );
-
-use Nabovarme::Db;
-use Nabovarme::Admin;
-use Nabovarme::MQTT_RPC;
-
-$admin = new Nabovarme::Admin;
-$is_admin = $admin->cookie_is_admin_for_serial($req_rec, $fdat{'serial'});
-
-if ($is_admin) {
-	$mesh_password = '';	# default empty
-	
-	if ($dbh = Nabovarme::Db->my_connect) {
-	
-		# Check if SSID matches mesh-[serial] and look up mesh_pwd
-		if ($fdat{'ssid'} =~ /^mesh-(\S+)$/) {
-			my $mesh_serial = $1;
-			my $quoted_mesh_serial = $dbh->quote($mesh_serial);
-			my $sth_mesh = $dbh->prepare(qq[SELECT `mesh_pwd` FROM meters WHERE `serial` = $quoted_mesh_serial]);
-			$sth_mesh->execute;
-			if ($sth_mesh->rows) {
-				my $d_mesh = $sth_mesh->fetchrow_hashref;
-				if (defined $d_mesh->{mesh_pwd} && length($d_mesh->{mesh_pwd})) {
-					$mesh_password = $d_mesh->{mesh_pwd};
-				}
-			}
-			$sth_mesh->finish;
-		}
-	
-		# Fetch the meter info using the passed serial (canonical serial)
-		my $quoted_serial = $dbh->quote($fdat{'serial'});
-		$sth = $dbh->prepare(qq[SELECT `serial`, `info`, `ssid` FROM meters WHERE `serial` = $quoted_serial]);
-		$sth->execute;
-	
-		# Fetch row once
-		if ($sth->rows) {
-			my $d = $sth->fetchrow_hashref;
-			$info   = $d->{info};
-			$serial = $d->{serial};
-			# only prefill database SSID if query string not provided
-			$ssid   = $fdat{'ssid'} || $d->{ssid};
-		}
-	
-		# URL encode & and =
-		$ssid =~ s/&/%26/g;
-		$ssid =~ s/=/%3d/g;
-	
-		my $param = 'ssid=' . $ssid . '&' . 'pwd=' . ($fdat{'password'} || $mesh_password);
-		
-		if ($is_admin && ($fdat{state} =~ /update/i)) {
-			my $rpc = Nabovarme::MQTT_RPC->new();
-			if ($rpc->connect()) {
-				# Dispatch setting the SSID and Password
-				$rpc->call({
-					serial   => $fdat{'serial'},
-					function => 'set_ssid_pwd',
-					param    => $param,
-					stateful => 0,
-					timeout  => 0
-				});
-				
-				# Dispatch an SSID read-back trigger
-				$rpc->call({
-					serial   => $fdat{'serial'},
-					function => 'ssid',
-					param    => '1',
-					stateful => 0,
-					timeout  => 0
-				});
-			} else {
-				warn "MQTT_RPC connect failed in update_wifi.epl";
-			}
-		}
-	}
-	
-	# Use mesh_password if no password provided in query
-	$prefill_password = $fdat{'password'} || $mesh_password;
-}
-
--] 
-<HEAD>
+﻿<HEAD>
 	<meta name="robots" content="noindex">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<TITLE>[+ $info +] MeterLogger</TITLE>
-	<script type="text/javascript">
-		var meter_serial = "[+ $fdat{'serial'} +]"
-	</script>
+	<TITLE>MeterLogger WiFi Update</TITLE>
 
 	<!-- Dygraph & general styles -->
 	<style type="text/css">
-	.dygraph-legend {
-		font-family: Verdana, Geneva, sans-serif;
-		text-align: left;
-		background: none;
-		position: fixed;
-		top: 500px;
-		right: 20px;
-	}
-	.dygraph-label {
-		font-family: Verdana, Geneva, sans-serif;
-		text-align: left;
-		background: none;
-	}
-	.dygraph-axis-label {
-		font-family: Verdana, Geneva, sans-serif;
-	}
-	.highlight {
-		font-weight: bold;
-	}
-	.default {
-		font-family: Verdana, Geneva, sans-serif;
-	}
-	.default-small {
-		font-family: Verdana, Geneva, sans-serif;
-		font-size: 50%;
-	}
-	.default-bold {
-		font-family: Verdana, Geneva, sans-serif;
-		font-weight: bold;
-	}
-	.default-highlight {
-		font-family: Verdana, Geneva, sans-serif;
-		background-color:#FFFF00;
-	}
+	.dygraph-legend { font-family: Verdana, Geneva, sans-serif; text-align: left; background: none; position: fixed; top: 500px; right: 20px; }
+	.dygraph-label { font-family: Verdana, Geneva, sans-serif; text-align: left; background: none; }
+	.dygraph-axis-label { font-family: Verdana, Geneva, sans-serif; }
+	.highlight { font-weight: bold; }
+	.default { font-family: Verdana, Geneva, sans-serif; }
+	.default-small { font-family: Verdana, Geneva, sans-serif; font-size: 50%; }
+	.default-bold { font-family: Verdana, Geneva, sans-serif; font-weight: bold; }
+	.default-highlight { font-family: Verdana, Geneva, sans-serif; background-color:#FFFF00; }
+	td input { width: 100%; box-sizing: border-box; }
 	</style>
-
-[$ if ($is_admin) $]
-	<style type="text/css">
-	td input {
-	    width: 100%;
-	    box-sizing: border-box;
-	}
-	</style>
-[$ endif $]
 
 	<!-- Burger menu CSS & JS -->
 	<link rel="stylesheet" href="/css/menu.css">
@@ -144,15 +26,20 @@ if ($is_admin) {
 <!-- Burger menu wrapper -->
 <div class="menu-wrap"></div>
 
-[$ if ($is_admin) $]
-<form action="?serial=[+ $serial +]&state=update" method="get" accept-charset="utf-8">
-	<input type="hidden" name="serial" value="[+ $fdat{serial} +]">
-	<input type="hidden" name="state" value="update">
+<div id="loading-msg" class="default" style="padding: 20px;">
+	Loading meter details...
+</div>
+
+<div id="error-msg" class="default-bold" style="display:none; padding: 20px; color: red;">
+</div>
+
+<form id="wifi-update-form" onsubmit="return submitWifiUpdate(event)" style="display:none;">
+	<input type="hidden" name="serial" id="input-serial" value="">
 	<table border="0" align="left" cellpadding="0" cellspacing="6">
 		<tr align="left" valign="bottom">
 			<td align="left">
-				<span class="default-bold">[+ $info +] </span><br>
-				<span class="default">serial [+ $serial +]</span><br>
+				<span class="default-bold" id="display-info"></span><br>
+				<span class="default" id="display-serial"></span><br>
 			</td>
 		</tr>
 		<tr align="left" valign="bottom">
@@ -162,8 +49,7 @@ if ($is_admin) {
 			<td align="left">
 				<span class="default-bold">SSID</span><br>
 				<span class="default">
-					<input type="text" inputmode="text" name="ssid" 
-						value="[+ ($fdat{'ssid'} || ($fdat{state} =~ /update/i) ? $fdat{ssid} : $ssid) +]" size="32">
+					<input type="text" inputmode="text" name="ssid" id="input-ssid" value="" size="32">
 				</span>
 			</td>
 		</tr>
@@ -171,7 +57,7 @@ if ($is_admin) {
 			<td align="left">
 				<span class="default-bold">Password</span><br>
 				<span class="default">
-					<input type="text" inputmode="text" name="password" value="[+ $prefill_password +]" size="32">
+					<input type="text" inputmode="text" name="password" id="input-password" value="" size="32">
 				</span>
 			</td>
 		</tr>						
@@ -179,14 +65,99 @@ if ($is_admin) {
 			<td>&nbsp;</td>
 		</tr>
 		<tr align="left" valign="bottom">
-			<td align="left"><input type="submit" name="update" value=[+ ($fdat{state} =~ /update/i) ? "Updated" : "Update" +]></td>
+			<td align="left"><input type="submit" id="update-btn" name="update" value="Update"></td>
 		</tr>
 		<tr align="left" valign="bottom">
 			<td>&nbsp;</td>
 		</tr>
 	</table>
 </form>
-[$ endif $]
+
+<script>
+	document.addEventListener("DOMContentLoaded", function() {
+		// Read URL parameters native to the browser
+		const params = new URLSearchParams(window.location.search);
+		const serial = params.get('serial');
+		
+		if (!serial) {
+			document.getElementById('loading-msg').style.display = 'none';
+			document.getElementById('error-msg').innerText = 'Error: No serial provided.';
+			document.getElementById('error-msg').style.display = 'block';
+			return;
+		}
+		
+		// Ask the API endpoint for the info required to populate the UI
+		const fetchUrl = '/api/wifi_update?' + params.toString();
+		
+		fetch(fetchUrl)
+			.then(res => res.json())
+			.then(data => {
+				document.getElementById('loading-msg').style.display = 'none';
+				
+				if (data.status === 'ok') {
+					document.title = data.info + ' MeterLogger';
+					
+					document.getElementById('display-info').innerText = data.info;
+					document.getElementById('display-serial').innerText = 'serial ' + data.serial;
+					
+					document.getElementById('input-serial').value = data.serial;
+					document.getElementById('input-ssid').value = data.ssid || '';
+					document.getElementById('input-password').value = data.password || '';
+					
+					document.getElementById('wifi-update-form').style.display = 'block';
+				} else {
+					document.getElementById('error-msg').innerText = 'Access Denied: ' + (data.error || 'Unauthorized');
+					document.getElementById('error-msg').style.display = 'block';
+				}
+			})
+			.catch(err => {
+				console.error(err);
+				document.getElementById('loading-msg').style.display = 'none';
+				document.getElementById('error-msg').innerText = 'Network error communicating with server.';
+				document.getElementById('error-msg').style.display = 'block';
+			});
+	});
+
+	function submitWifiUpdate(e) {
+		e.preventDefault(); 
+		
+		var btn = document.getElementById('update-btn');
+		btn.value = 'Updating...';
+		btn.disabled = true;
+		
+		var payload = {
+			serial: document.getElementById('input-serial').value,
+			ssid: document.getElementById('input-ssid').value,
+			password: document.getElementById('input-password').value
+		};
+		
+		fetch('/api/wifi_update', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		})
+		.then(res => res.json())
+		.then(data => {
+			if (data.status === 'ok') {
+				btn.value = 'Updated';
+				alert('WiFi credentials successfully sent to meter queue.');
+			} else {
+				btn.value = 'Update';
+				alert('Failed: ' + (data.error || 'Unknown error'));
+			}
+		})
+		.catch(err => {
+			console.error(err);
+			btn.value = 'Update';
+			alert('Network error communicating with server.');
+		})
+		.finally(() => {
+			btn.disabled = false;
+		});
+		
+		return false;
+	}
+</script>
 
 <br>
 <br>
