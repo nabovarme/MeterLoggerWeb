@@ -436,7 +436,7 @@
 											const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
 											const encodedSSID = encodeURIComponent(ap.ssid || '');
 											return `<tr>
-												<td><a href="/update_wifi.epl?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
+												<td><a href="/update_wifi.html?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
 												<td style="color:${color}">${ap.rssi} dBm</td>
 												<td>${ap.hop || ''}</td>
 												<td>${ap.channel}</td>
