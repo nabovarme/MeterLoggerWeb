@@ -92,9 +92,12 @@ Mojo::IOLoop->recurring(10 => sub {
 # --------------------------------------------------
 # Event-Driven Dispatcher Routine
 # --------------------------------------------------
+# --------------------------------------------------
+# Event-Driven Dispatcher Routine
+# --------------------------------------------------
 sub process_queue {
-	# Fetch ALL due commands using the new last_sent column
-	$sth = $dbh->prepare(qq[SELECT \
+	# Use prepare_cached so Perl only compiles this SQL query once
+	$sth = $dbh->prepare_cached(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
 			command_queue.`function`, \
@@ -108,6 +111,23 @@ sub process_queue {
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn $DBI::errstr;
+
+	# Prepare UPDATE statements ONCE in memory instead of compiling them on every loop iteration
+	my $sth_update_stateful = $dbh->prepare_cached(qq[
+		UPDATE command_queue \
+			SET `sent_count` = `sent_count` + 1, \
+			    `last_sent` = UNIX_TIMESTAMP() \
+			WHERE `id` = ? \
+	]);
+	
+	my $sth_update_stateless = $dbh->prepare_cached(qq[
+		UPDATE command_queue \
+			SET `sent_count` = `sent_count` + 1, \
+			    `last_sent` = UNIX_TIMESTAMP() \
+			WHERE `serial` = ? \
+				AND `function` = ? \
+				AND `state` = 'sent' \
+	]);
 
 	my %sent_this_pass;
 	my $now = time();
@@ -132,8 +152,8 @@ sub process_queue {
 		# Calculate required delay for THIS specific meter
 		my $last_sent = $meter_last_sent_time{$serial} // 0;
 		my $time_since_last_sent = $now - $last_sent;
-
 		my $delay = 0;
+		
 		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
 			# Meter received a command recently -> delay to preserve per-meter processing window
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
@@ -147,22 +167,12 @@ sub process_queue {
 		$meter_last_sent_time{$serial} = $now +$delay;
 		$in_flight{$cmd_id} = 1;
 
-		# Update database immediately so subsequent 1-second DB polls do NOT re-select this row
+		# Execute the pre-compiled statements (Uses a fraction of the CPU)
 		if ($is_stateful) {
-			$dbh->do(qq[UPDATE command_queue \
-				SET `sent_count` = `sent_count` + 1, \
-				    `last_sent`  = UNIX_TIMESTAMP() \
-				WHERE `id` = ?], undef, $cmd_id
-			) or warn $DBI::errstr;
+			$sth_update_stateful->execute($cmd_id) or warn $DBI::errstr;
 		}
 		else {
-			$dbh->do(qq[UPDATE command_queue \
-				SET `sent_count` = `sent_count` + 1, \
-				    `last_sent`  = UNIX_TIMESTAMP() \
-				WHERE `serial` = ? \
-					AND `function` = ? \
-					AND `state` = 'sent'], undef, $serial, $current_function
-			) or warn $DBI::errstr;
+			$sth_update_stateless->execute($serial, $current_function) or warn $DBI::errstr;
 		}
 
 		# Schedule asynchronous MQTT transmission
