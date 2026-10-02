@@ -6,7 +6,7 @@ use utf8;
 
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_UNAUTHORIZED HTTP_SERVICE_UNAVAILABLE HTTP_REQUEST_TIME_OUT HTTP_INTERNAL_SERVER_ERROR);
+use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_UNAUTHORIZED HTTP_SERVICE_UNAVAILABLE HTTP_REQUEST_TIME_OUT HTTP_INTERNAL_SERVER_ERROR HTTP_ACCEPTED);
 use JSON ();
 
 use Nabovarme::Admin;
@@ -78,33 +78,25 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	if ($timeout_occurred) {
-		# Return structured JSON with HTTP 408 before gateway proxy times out
-		$r->status(Apache2::Const::HTTP_REQUEST_TIME_OUT);
-		$r->print(JSON->new->utf8->encode({ error => 'Timeout waiting for meter response' }));
-		return Apache2::Const::OK;
-	}
-
-	# Fallback: Queue scan command using MQTT_RPC fire-and-forget (timeout = 0, no callback)
+	# If it timed out OR failed, ACTUALLY run the fallback
 	my $mqtt_fallback = Nabovarme::MQTT_RPC->new();
 	if ($mqtt_fallback->connect()) {
-		my $queued = $mqtt_fallback->call({
+		$mqtt_fallback->call({
 			serial   => $serial,
 			function => 'scan',
 			param    => '1',
 			stateful => 0,
 			timeout  => 0
 		});
-
-		if ($queued) {
-			$r->print(JSON->new->utf8->encode({ status => 'ok', message => 'Scan command queued' }));
-			return Apache2::Const::OK;
-		}
+		
+		# Return 202 Accepted to tell the frontend it's working in the background
+		$r->status(Apache2::Const::HTTP_ACCEPTED);
+		$r->print(JSON->new->utf8->encode({ status => 'queued', message => 'Scan queued in background' }));
+		return Apache2::Const::OK;
 	}
 
-	# If connect or queueing failed entirely
 	$r->status(Apache2::Const::HTTP_INTERNAL_SERVER_ERROR);
-	$r->print(JSON->new->utf8->encode({ error => 'Queue failed' }));
+	$r->print(JSON->new->utf8->encode({ error => 'Queue failed entirely' }));
 	return Apache2::Const::OK;
 }
 
