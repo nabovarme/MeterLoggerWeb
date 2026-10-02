@@ -93,7 +93,7 @@ sub mqtt_handler {
 	# scan_result special case
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
-		log_info("Received MQTT reply from $meter_serial: $function");
+		log_info("Received MQTT reply from $meter_serial: $function", {-no_script_name => 1});
 	
 		# Check if the scan command is waiting for a synchronous callback
 		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
