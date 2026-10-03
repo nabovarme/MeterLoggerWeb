@@ -194,7 +194,7 @@ sub process_queue {
 
 			log_debug("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
 			
-			my $topic = '/config/v2/' . $serial . '/' . time() . '/' . $current_function;
+			my $topic = '/config/v2/' . $serial . '/' . int(time()) . '/' . $current_function;
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
 			
