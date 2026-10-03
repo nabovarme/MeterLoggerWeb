@@ -90,7 +90,7 @@ sub mqtt_handler {
 	return unless $key;
 
 	# --------------------
-	# scan_result special case
+	# scan_result special case (Backward compatibility)
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
 		log_info("Received MQTT reply from $meter_serial: $function", {-no_script_name => 1});
@@ -129,6 +129,19 @@ sub mqtt_handler {
 		my $m = Crypt::Mode::CBC->new('AES');
 		my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
 		$cleartext =~ s/[\x00\s]+$//; # remove trailing nulls
+
+		# --------------------
+		# test_ssid_pwd_result special case
+		# --------------------
+		if ($function =~ /^test_ssid_pwd_result$/i) {
+			log_info("Received MQTT reply from $meter_serial: $function ($cleartext)", {-no_script_name => 1});
+			
+			# TODO: Deferred implementation.
+			# Eventually, map this back to the original 'test_ssid_pwd' command in the queue
+			# and process the parameters (e.g. status=ok, rssi=-62, reason=...)
+			
+			return;
+		}
 
 		# Only react to functions we have sent commands for
 		$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
@@ -169,7 +182,7 @@ sub mqtt_handler {
 		}
 
 		# --------------------
-		# General case
+		# General case (Handles /scan and /test_ssid_pwd ACKs flawlessly)
 		# --------------------
 		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
@@ -225,7 +238,10 @@ $subscribe_mqtt->subscribe(q[/ssid/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ssid/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_pwd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ssid_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/test_ssid_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/test_ssid_pwd_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ap_mesh_pwd/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/scan/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/scan_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/wifi_status/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ap_status/#], \&mqtt_handler);
