@@ -434,10 +434,11 @@ sub process_build {
 		my $config_hash = substr(md5_hex($config_str), 0, 6);
 		$meter_fs_version .= "-$config_hash";
 
-		# Always queue jobs if triggered, otherwise check if manifest already exists
+		# Always queue jobs if triggered, otherwise check if manifest or failure flag already exists
 		if (!$force_full_rebuild && !$trigger) {
 			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
-			if (-f $firmware_path) {
+			my $failed_flag   = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/build_failed.flag";
+			if (-f $firmware_path || -f$failed_flag) {
 				next;
 			}
 		}
@@ -518,6 +519,7 @@ sub run_docker_build {
 
 	my $success = 0;
 	my $exit_code = 0;
+	my $target_fs_version = 'unknown';
 
 	eval {
 		my $dbh = Nabovarme::Db->my_connect
@@ -555,10 +557,14 @@ sub run_docker_build {
 		my $config_hash = substr(Digest::MD5::md5_hex($config_str), 0, 6);
 		$fs_version .= "-$config_hash";
 
-		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
+		# Expose the resolved path variable out of the eval block for the failure handler
+		$target_fs_version = $fs_version;
 
-		if (-f $firmware_path) {
-			print "[$serial] Skipping build (already exists with these flags and key)\n";
+		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
+		my $failed_flag   = RELEASE_DIR . "/$serial/$fs_version/build_failed.flag";
+
+		if (-f $firmware_path || -f$failed_flag) {
+			print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
 			$redis->incr($skip_key);
 			return;
 		}
@@ -617,6 +623,17 @@ sub run_docker_build {
 
 	if ($err) {
 		warn "[$serial] ERROR: $err\n";
+
+		# Write a failure flag so the 60-second loop doesn't retry this broken version
+		if ($target_fs_version ne 'unknown') {
+			my $dir = RELEASE_DIR . "/$serial/$target_fs_version";
+			make_path($dir);
+			if (open(my $fh, ">", "$dir/build_failed.flag")) {
+				print $fh "Build failed: $err\n";
+				close($fh);
+			}
+		}
+
 		$redis->incr($fail_key);
 	}
 
@@ -753,7 +770,7 @@ sub generate_firmware_index {
 
 				if ($version =~ /^([a-zA-Z0-9._-]+-\d+-[a-f0-9]+)-CUSTOM(?:-(.+))?$/) {
 					$formatted_version = $1;
-			      
+					
 					my $raw_flags = $meta->{build_flags} // '';
 					$bracket_flags = "CUSTOM $raw_flags";
 				}
