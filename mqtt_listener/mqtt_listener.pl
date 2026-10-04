@@ -242,6 +242,8 @@ $subscribe_mqtt->subscribe(q[/test_ssid_pwd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/test_ssid_pwd_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_ap_mesh_pwd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/start_fallback_ap/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/fallback_status/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/restart/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/scan/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/scan_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/wifi_status/#], \&mqtt_handler);
