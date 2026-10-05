@@ -1,4 +1,22 @@
 /**
+ * Formats raw seconds into human-readable uptime
+ */
+function formatUptime(seconds) {
+	if (seconds < 60) {
+		return seconds + ' second' + (seconds === 1 ? '' : 's');
+	} else if (seconds < 3600) {
+		let mins = Math.floor(seconds / 60);
+		return mins + ' minute' + (mins === 1 ? '' : 's');
+	} else if (seconds < 86400) {
+		let hrs = Math.floor(seconds / 3600);
+		return hrs + ' hour' + (hrs === 1 ? '' : 's');
+	} else {
+		let days = Math.floor(seconds / 86400);
+		return days === 1 ? '1 day' : days + ' days';
+	}
+}
+
+/**
  * Builds the HTML content for a meter's Leaflet popup.
  * @param {Object} d - The meter data object
  * @returns {string} - The HTML string for the popup
@@ -11,7 +29,7 @@ function buildMeterPopupHTML(d) {
 			<b>SSID: </b>${d.ssid}<br>
 			<b>RSSI: </b><span class="chain-rssi" data-serial="${d.serial}">Loading...</span><br>
 			<b>AP status: </b>${d.ap_status}<br>
-			<b>Uptime: </b>${d.uptime_days} days<br>
+			<b>Uptime: </b>${formatUptime(d.uptime)}<br>
 	`;
 
 	if (d.ping_response_time !== null) {
@@ -31,8 +49,13 @@ function buildMeterPopupHTML(d) {
 	}
 
 	html += `
-			<b>Version: </b>${d.sw_version}<br>
+			<b>Version: </b>${d.sw_version}<br>`;
 
+	if (d.reset_reason !== null && d.reset_reason !== "") {
+		html += `<b>Reset reason: </b>${d.reset_reason}<br>`;
+	}
+
+	html += `
 			<!-- Flex container for triangle + label + inline status + Rescan button -->
 			<div class="toggle-wifi-container" data-serial="${d.serial}" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-top:6px;">
 				<div style="display:flex; align-items:center;">
