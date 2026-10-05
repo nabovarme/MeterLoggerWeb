@@ -12,8 +12,7 @@
 		<link rel="stylesheet" href="leaflet/leaflet.css" />
 		<script src="leaflet/leaflet.js"></script>
 		
-		<!-- NEW: Map Popup JS Extracted Logic -->
-		<script src="/js/map_popup.js" defer></script>
+		<script src="/js/map_popup.js"></script>
 
 		<style>
 			#footer {
@@ -182,7 +181,7 @@
 
 [- 
 		# get all meters
-		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `valve_installed`, `ap_status`, `sw_version`, `ping_response_time`, `ping_average_packet_loss`, `disconnect_count`, `flash_id`, `flash_size`,`comment` FROM `meters` WHERE `enabled` AND `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
++		$sth = $dbh->prepare(qq[SELECT `type`, `group`, `location_lat`, `location_long`, `serial`, `info`, `uptime`, `last_updated`, `ssid`, `rssi`, `valve_status`, `valve_installed`, `ap_status`, `sw_version`, `ping_response_time`, `ping_average_packet_loss`, `disconnect_count`, `flash_id`, `flash_size`, `comment`, `reset_reason` FROM `meters` WHERE `enabled` AND `location_lat` IS NOT NULL AND `location_long` IS NOT NULL]);
 		$sth->execute;
 -]
 [$ if ($sth->rows) $]
@@ -217,7 +216,8 @@
 					valve_status: "[+ $d->{valve_status} +]",
 					ssid: "[+ $d->{ssid} +]",
 					ap_status: "[+ $d->{ap_status} +]",
-					uptime_days: [+ int($d->{uptime} / 60 / 60 / 24) +],
+					uptime: [+ $d->{uptime} || 0 +],
+					reset_reason: [$ if defined $d->{reset_reason} $]"[+ $d->{reset_reason} +]"[$ else $]null[$ endif $],
 					ping_response_time: [$ if defined$d->{ping_response_time} $]"[+ $d->{ping_response_time} +]"[$ else $]null[$ endif $],
 					ping_average_packet_loss: [$ if defined$d->{ping_average_packet_loss} $]"[+ $d->{ping_average_packet_loss} +]"[$ else $]null[$ endif $],
 					disconnect_count: [$ if defined$d->{disconnect_count} $][+ $d->{disconnect_count} +][$ else $]null[$ endif $],
