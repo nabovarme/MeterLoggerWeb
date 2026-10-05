@@ -11,6 +11,10 @@
 
 		<link rel="stylesheet" href="leaflet/leaflet.css" />
 		<script src="leaflet/leaflet.js"></script>
+		
+		<!-- NEW: Map Popup JS Extracted Logic -->
+		<script src="/js/map_popup.js" defer></script>
+
 		<style>
 			#footer {
 				position: fixed;
@@ -70,12 +74,9 @@
 		</style>
 
 		<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" crossorigin="anonymous">
-		
 		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-		
 		<link rel="stylesheet" href="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.css">
 		<script src="leaflet/Leaflet.awesome-markers/dist/leaflet.awesome-markers.js"></script>
-		
 		<script src="leaflet/leaflet-search/leaflet-search.min.js"></script>
 		<link rel="stylesheet" href="leaflet/leaflet-search/leaflet-search.css">
 
@@ -101,7 +102,7 @@
 
 		<link rel="stylesheet" href="/css/menu.css">
 		<script src="/js/menu.js.epl" defer></script>
-		
+
 		<link rel="manifest" href="/manifest.json">
 
 		<!-- Web Push Prompt Component (Include on any page) -->
@@ -111,7 +112,7 @@
 	<BODY>
 
 <div class="container">
-		<div id="map"></div>
+	<div id="map"></div>
 	<div id="footer"></div>
 </div>
 	
@@ -190,6 +191,7 @@
 		# ugly hack here to remove padding null characters
 		$d->{valve_status} =~ s/[\x00\s]+$//;
 		$d->{valve_status} .= '';
+
 		$d->{ssid} =~ s/[\x00\s]+$//;
 		$d->{ssid} .= '';
 		$d->{sw_version} =~ s/[\x00\s]+$//;
@@ -207,47 +209,34 @@
 					.setZIndexOffset(900)
 				[$ elsif (($d->{valve_status} =~ /close/i) && $d->{valve_installed}) $]
 					.setZIndexOffset(800)
-				[$ endif $]
-					.bindPopup('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>' +
-						'<div>' +
-							'<b>Valve status: </b>[+ $d->{valve_status} +]<br>' +
-							'<b>SSID: </b>[+ $d->{ssid} +]<br>' +
-							'<b>RSSI: </b><span class="chain-rssi" data-serial="[+ $d->{serial} +]">Loading...</span><br>' +
-							'<b>AP status: </b>[+ $d->{ap_status} +]<br>' +
-							'<b>Uptime: </b>[+ int($d->{uptime} / 60 / 60 / 24) +] days<br>' +
-							'[$ if defined $d->{ping_response_time} $]<b>Ping response time: </b>[+ $d->{ping_response_time} +]<br>[$ endif $]' +
-							'[$ if defined $d->{ping_average_packet_loss} $]<b>Ping average packet loss: </b>[+ $d->{ping_average_packet_loss} +]<br>[$ endif $]' +
-							'[$ if defined $d->{disconnect_count} $]<b>Disconnect count: </b>[+ $d->{disconnect_count} +]<br>[$ endif $]' +
-							'[$ if defined $d->{flash_id} $]<b>Flash ID: </b>[+ $d->{flash_id} +]<br>[$ endif $]' +
-							'[$ if defined $d->{flash_size} $]<b>Flash size: </b>[+ $d->{flash_size} +]<br>[$ endif $]' +
-							'<b>Version: </b>[+ $d->{sw_version} +]<br>' +
+				[$ endif $];
 
-							// Flex container for triangle + label + inline status + Rescan button
-							'<div class="toggle-wifi-container" data-serial="[+ $d->{serial} +]" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; margin-top:6px;">' +
-								'<div style="display:flex; align-items:center;">' +
-									'<span class="toggle-wifi-triangle">' +
-										'<svg viewBox="0 0 12 12" width="10" height="10"><polygon points="0,0 12,6 0,12" fill="black"/></svg>' +
-									'</span>' +
-									'<b>Visible WiFi:</b>' +
-								'</div>' +
-								'<div style="display:flex; align-items:center;">' +
-									'<span class="rescan-wifi-status" data-serial="[+ $d->{serial} +]" style="font-size:11px; color:#d9534f; margin-right:6px;"></span>' +
-									'<button class="btn btn-xs btn-default rescan-wifi-btn" data-serial="[+ $d->{serial} +]" style="padding:1px 6px; font-size:11px;">' +
-										'<i class="fa fa-refresh"></i> Rescan' +
-									'</button>' +
-								'</div>' +
-							'</div>' +
+				var meterData = {
+					serial: "[+ $d->{serial} +]",
+					info: "[+ $d->{info} +]",
+					valve_status: "[+ $d->{valve_status} +]",
+					ssid: "[+ $d->{ssid} +]",
+					ap_status: "[+ $d->{ap_status} +]",
+					uptime_days: [+ int($d->{uptime} / 60 / 60 / 24) +],
+					ping_response_time: [$ if defined$d->{ping_response_time} $]"[+ $d->{ping_response_time} +]"[$ else $]null[$ endif $],
+					ping_average_packet_loss: [$ if defined$d->{ping_average_packet_loss} $]"[+ $d->{ping_average_packet_loss} +]"[$ else $]null[$ endif $],
+					disconnect_count: [$ if defined$d->{disconnect_count} $][+ $d->{disconnect_count} +][$ else $]null[$ endif $],
+					flash_id: [$ if defined$d->{flash_id} $]"[+ $d->{flash_id} +]"[$ else $]null[$ endif $],
+					flash_size: [$ if defined$d->{flash_size} $]"[+ $d->{flash_size} +]"[$ else $]null[$ endif $],
+					sw_version: "[+ $d->{sw_version} +]",
+					comment: "[+ $d->{comment} || '' +]",
+					valve_installed: [+ $d->{valve_installed} || 0 +],
+					type: "[+ $d->{type} +]"
+				};
 
-							'<div class="wifi-table" data-serial="[+ $d->{serial} +]" style="display:none; max-height:200px; overflow-y:auto; margin-top:4px;"><i>Loading...</i></div>' +
+				m.bindPopup(buildMeterPopupHTML(meterData));
 
-							'[$ if (length($d->{comment} || ($d->{valve_installed} == 0))) $]<br><i>[$ if ($d->{valve_installed} == 0) $]No thermo actuator installed. [$ endif $][+ $d->{comment} +]</i><br>[$ endif $]' +
-							'<br><a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume_acc.epl[$ else $]/detail_acc.epl[$ endif $]?serial=[+ $d->{serial} +]">Consumption</a> | <a href="[$ if ($d->{type} =~ /^water$/i) $]/detail_volume.epl[$ else $]/detail.epl[$ endif $]?serial=[+ $d->{serial} +]">Details</a><br>' +
-						'</div>');
 				if (L.Browser.mobile == false) {
 					m.bindTooltip('<div class="default-bold">[+ $d->{serial} +] [+ $d->{info} +]</div>');
 				}
 				
 				g_all.addLayer(m).addTo(map);
+
 			[$ if ($d->{type} =~ /^heat$/i) $]
 				g_heat.addLayer(m).addTo(map);
 			[$ elsif ($d->{type} =~ /^water$/i) $]
@@ -267,259 +256,85 @@
 						g_meter_groups[i].group.addLayer(m).addTo(map);
 					}
 				}
-				
 	[$ endwhile $]
 [$ endif $]
-				map.fitBounds(g_heat.getBounds().extend(g_water.getBounds())
-					.extend(g_electricity.getBounds())
-					.extend(g_aggregated.getBounds())
-					.extend(g_heat_supply.getBounds())
-					.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
-				);
-				
-				//... adding data in searchLayer ...
-				var controlSearch = new L.Control.Search({
-					position:'bottomleft',		
-					layer: g_all,
-					//sourceData,
-					propertyName: 'name',
-					initial: false,
-					zoom: 19,
-					opacity: 1,
-					textErr: 'Not found',
-					hideMarkerOnCollapse: true,
-					marker: {
-						animate: true,
-						icon: false,
-						circle: {
-							stroke: false,
-							fill: true,
-							fillOpacity: 0.6,
-							radius: 30,
-							weight: 0,
-							color: '#d13b2f'
-						}
-					},
-				});
-				map.addControl(controlSearch);
-				
-				// Wait until controlSearch is added and DOM elements created
-				setTimeout(() => {
-					const searchControl = document.querySelector('.leaflet-control-search');
-					if (!searchControl) return;
 
-					// Watch for .search-tip added dynamically
-					const childObserver = new MutationObserver((mutations, obs) => {
-						for (const mutation of mutations) {
-							for (const node of mutation.addedNodes) {
-								if (node.classList && node.classList.contains('search-tip')) {
-									attachDropdownObserver(node, searchControl);
-									obs.disconnect();
-									return;
-								}
-							}
-						}
-					});
-
-					childObserver.observe(searchControl, { childList: true });
-
-					// In case dropdown already exists (e.g. user triggered search early)
-					const existingDropdown = searchControl.querySelector('.search-tooltip');
-					if (existingDropdown) {
-						attachDropdownObserver(existingDropdown, searchControl);
-						childObserver.disconnect();
-					}
-
-					function attachDropdownObserver(dropdown, control) {
-						const observer = new MutationObserver(() => {
-							// Use offsetParent to check visibility (more reliable)
-							const isVisible = dropdown.offsetParent !== null;
-
-							if (isVisible) {
-								const dropdownHeight = dropdown.offsetHeight || 100;
-								control.style.transform = `translateY(-${dropdownHeight + 10}px)`;
-							} else {
-								control.style.transform = 'translateY(0)';
-							}
-						});
-
-						observer.observe(dropdown, { attributes: true, attributeFilter: ['style'] });
-					}
-				}, 500);
+		map.fitBounds(g_heat.getBounds().extend(g_water.getBounds())
+			.extend(g_electricity.getBounds())
+			.extend(g_aggregated.getBounds())
+			.extend(g_heat_supply.getBounds())
+			.extend(g_heat_sub.getBounds()), {padding: [20, 45]}
+		);
 		
-				document.addEventListener('keydown', function (event) {
-					// Check for Alt+F or Ctrl+F
-					if ((event.altKey && event.key.toLowerCase() === 'f') ||
-							(event.ctrlKey && event.key.toLowerCase() === 'f')) {
+		var controlSearch = new L.Control.Search({
+			position:'bottomleft',		
+			layer: g_all,
+			propertyName: 'name',
+			initial: false,
+			zoom: 19,
+			opacity: 1,
+			textErr: 'Not found',
+			hideMarkerOnCollapse: true,
+			marker: {
+				animate: true,
+				icon: false,
+				circle: { stroke: false, fill: true, fillOpacity: 0.6, radius: 30, weight: 0, color: '#d13b2f' }
+			},
+		});
+		map.addControl(controlSearch);
+		
+		setTimeout(() => {
+			const searchControl = document.querySelector('.leaflet-control-search');
+			if (!searchControl) return;
 
-						// Stop the browser's default find-on-page
-						event.preventDefault();
-
-						// Click the search button to reveal the input
-						document.querySelector('.search-button').click();
-
-						// Wait briefly for it to appear, then focus
-						setTimeout(() => {
-							const input = document.querySelector('.search-input');
-							if (input) {
-								input.focus();
-							}
-						}, 150);
-					}
-				});
-
-				// Load WiFi dynamically from backend
-				map.on('popupopen', function(e) {
-					const popup = e.popup;
-					if (!popup) return;
-
-					const container = popup.getElement();
-					const toggleContainer = container.querySelector('.toggle-wifi-container');
-					if (!toggleContainer) return;
-
-					const serial = toggleContainer.dataset.serial;
-					const tableDiv = container.querySelector(`.wifi-table[data-serial="${serial}"]`);
-					const triangle = container.querySelector('.toggle-wifi-triangle svg');
-					const rescanBtn = container.querySelector('.rescan-wifi-btn[data-serial="' + serial + '"]');
-
-					// Fetch weakest RSSI for this serial
-					const rssiSpan = container.querySelector('.chain-rssi[data-serial="' + serial + '"]');
-					if (rssiSpan && !rssiSpan.dataset.loaded) {
-						fetch('/api/wifi_mesh_rssi/' + encodeURIComponent(serial))
-							.then(res => res.json())
-							.then(data => {
-								if (!data || typeof data.weakest_rssi === 'undefined') {
-									rssiSpan.innerHTML = 'N/A';
-									return;
-								}
-
-								const hops = data.hop_count || (data.chain ? data.chain.length : 0);
-								rssiSpan.innerHTML =
-									`<span>${data.weakest_rssi} dBm` +
-										(hops ? ` (${hops} hop${hops > 1 ? 's' : ''})` : '') +
-									`</span>`;
-
-								rssiSpan.dataset.loaded = "1";
-							})
-							.catch(() => {
-								rssiSpan.innerHTML = 'Error';
-							});
-					}
-
-					// Function to load/reload WiFi scan data table
-					function loadWifiTable(forceRefresh = false) {
-						if (forceRefresh) {
-							tableDiv.innerHTML = '<i>Refreshing scan data...</i>';
-							delete container.dataset.loaded;
-						} else if (container.dataset.loaded === "1") {
+			const childObserver = new MutationObserver((mutations, obs) => {
+				for (const mutation of mutations) {
+					for (const node of mutation.addedNodes) {
+						if (node.classList && node.classList.contains('search-tip')) {
+							attachDropdownObserver(node, searchControl);
+							obs.disconnect();
 							return;
 						}
-
-						tableDiv.innerHTML = '<i>Loading...</i>';
-
-						fetch('/api/wifi_scan/' + encodeURIComponent(serial))
-							.then(res => {
-								if (!res.ok) throw new Error('HTTP ' + res.status);
-								return res.json();
-							})
-							.then(data => {
-								if (!data || !data.length) {
-									tableDiv.innerHTML = '<i>No scan data</i>';
-									container.dataset.loaded = "1";
-									return;
-								}
-
-								tableDiv.innerHTML = `
-									<table class="table table-condensed table-striped popup-table" style="font-size:14px; margin:0;">
-										<thead><tr><th>SSID</th><th>RSSI</th><th>Hop</th><th>Ch</th><th>Auth</th></tr></thead>
-										<tbody>${data.map(ap => {
-											const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
-											const encodedSSID = encodeURIComponent(ap.ssid || '');
-											return `<tr>
-												<td><a href="/update_wifi.html?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
-												<td style="color:${color}">${ap.rssi} dBm</td>
-												<td>${ap.hop || ''}</td>
-												<td>${ap.channel}</td>
-												<td>${ap.auth_mode}</td>
-											</tr>`;
-										}).join('')}</tbody>
-									</table>`;
-
-								container.dataset.loaded = "1";
-							})
-							.catch(() => {
-								delete container.dataset.loaded;
-								tableDiv.innerHTML = '<span style="color:red">Error loading WiFi (click Visible WiFi to retry)</span>';
-							});
 					}
+				}
+			});
 
-					// Initial WiFi scan load on popup open
-					loadWifiTable();
+			childObserver.observe(searchControl, { childList: true });
 
-					// Toggle visibility on click of container
-					toggleContainer.addEventListener('click', (evt) => {
-						// Don't toggle collapse if user clicked the rescan button directly
-						if (evt.target.closest('.rescan-wifi-btn')) return;
+			const existingDropdown = searchControl.querySelector('.search-tooltip');
+			if (existingDropdown) {
+				attachDropdownObserver(existingDropdown, searchControl);
+				childObserver.disconnect();
+			}
 
-						if (tableDiv.style.display === 'none') {
-							tableDiv.style.display = 'block';
-							triangle.style.transform = 'rotate(90deg)';
-							// Ensure data is loaded when expanding if it previously failed or hasn't loaded
-							loadWifiTable();
-						} else {
-							tableDiv.style.display = 'none';
-							triangle.style.transform = 'rotate(0deg)';
-						}
-					});
-
-					// Rescan button click handler
-					if (rescanBtn && !rescanBtn.dataset.bound) {
-						rescanBtn.dataset.bound = "1";
-						rescanBtn.addEventListener('click', (evt) => {
-							evt.stopPropagation(); // prevent collapsing toggle
-
-							const statusSpan = container.querySelector('.rescan-wifi-status[data-serial="' + serial + '"]');
-							if (statusSpan) statusSpan.textContent = ''; // clear previous status
-
-							rescanBtn.disabled = true;
-							rescanBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Scanning...';
-
-							fetch('/api/wifi_scan_request/' + encodeURIComponent(serial), { method: 'POST' })
-								.then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data }))
-									.catch(() => ({ ok: false, data: { error: 'Invalid response' } })))
-								.then(({ ok, status, data }) => {
-									if (data.status === 'ok') {
-										// Fast response (Meter was awake)
-										tableDiv.style.display = 'block';
-										triangle.style.transform = 'rotate(90deg)';
-										loadWifiTable(true);
-									} else if (data.status === 'queued') {
-										// Slow response (Meter asleep, command queued)
-										if (statusSpan) statusSpan.textContent = 'Queued (awaiting meter...)';
-										tableDiv.style.display = 'block';
-										triangle.style.transform = 'rotate(90deg)';
-										
-										// Auto-poll after 10 seconds when the meter has hopefully replied
-										setTimeout(() => {
-											loadWifiTable(true);
-											if (statusSpan) statusSpan.textContent = '';
-										}, 10000);
-									} else {
-										if (statusSpan) statusSpan.textContent = data.error || 'Server error';
-									}
-								})
-								.catch(err => {
-									console.error(err);
-									if (statusSpan) statusSpan.textContent = 'Network error';
-								})
-								.finally(() => {
-									rescanBtn.disabled = false;
-									rescanBtn.innerHTML = '<i class="fa fa-refresh"></i> Rescan';
-								});
-						});
+			function attachDropdownObserver(dropdown, control) {
+				const observer = new MutationObserver(() => {
+					const isVisible = dropdown.offsetParent !== null;
+					if (isVisible) {
+						const dropdownHeight = dropdown.offsetHeight || 100;
+						control.style.transform = `translateY(-${dropdownHeight + 10}px)`;
+					} else {
+						control.style.transform = 'translateY(0)';
 					}
-				});
+                });
+				observer.observe(dropdown, { attributes: true, attributeFilter: ['style'] });
+			}
+		}, 500);
+
+		document.addEventListener('keydown', function (event) {
+			if ((event.altKey && event.key.toLowerCase() === 'f') || (event.ctrlKey && event.key.toLowerCase() === 'f')) {
+				event.preventDefault();
+				document.querySelector('.search-button').click();
+				setTimeout(() => {
+					const input = document.querySelector('.search-input');
+					if (input) input.focus();
+				}, 150);
+			}
+		});
+
+		// Initialize the dynamic popup functionality (fetches, toggles, etc.)
+		initMapPopups(map);
+
 	</script>
-
 	</BODY>
 </HTML>
