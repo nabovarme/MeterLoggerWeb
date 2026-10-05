@@ -9,8 +9,6 @@ use Digest::SHA qw( sha256 hmac_sha256 );
 
 use Nabovarme::Db;
 
-use constant COMMAND_PACE_DELAY_USEC => 100_000;	# 100ms delay to prevent ESP8266 TCP buffer overload
-
 my $m = Crypt::Mode::CBC->new('AES');
 
 my $protocol_version;
@@ -54,10 +52,6 @@ if ($sth->rows) {
 					"hmac sha256 key" => unpack('H*', $hmac_sha256_key),
 					"hmac_sha256_hash" => unpack('H*', $hmac_sha256_hash)
 				});
-
-	# Pace transmission to avoid flooding ESP8266 TCP rx buffers
-	usleep(COMMAND_PACE_DELAY_USEC);
-
 	$mqtt->publish($topic => $hmac_sha256_hash . $message);
 }
 
