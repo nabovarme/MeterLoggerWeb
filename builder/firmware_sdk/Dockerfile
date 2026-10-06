@@ -94,20 +94,26 @@ RUN cd /meterlogger && git clone https://github.com/raburton/esptool2.git && \
 RUN cd /meterlogger && git clone https://github.com/raburton/rboot.git && \
 	cd /meterlogger/rboot && make
 
+# Initialize repository and setup remote tracking
+RUN mkdir -p /meterlogger/MeterLogger/rboot && \
+	cd /meterlogger/MeterLogger && \
+	git init && \
+	git remote add -t ota origin https://github.com/nabovarme/MeterLogger
+
+# Populate rboot binaries and headers
+RUN cp /meterlogger/rboot/firmware/rboot.bin /meterlogger/MeterLogger/rboot/rboot.bin && \
+	cp /meterlogger/rboot/rboot.h /meterlogger/MeterLogger/rboot/rboot.h && \
+	cp /meterlogger/rboot/appcode/rboot-api.h /meterlogger/MeterLogger/rboot/rboot-api.h && \
+	cp /meterlogger/rboot/appcode/rboot-api.c /meterlogger/MeterLogger/rboot/rboot-api.c && \
+	sed -i '1i #include <mem.h>' /meterlogger/MeterLogger/rboot/rboot-api.c
+
 # Ensure we always fetch the newest MeterLogger firmware (disable cache for this step)
 ARG CACHEBUST=1
 
-# meterlogger
-RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
-	cd /meterlogger/MeterLogger && git checkout ota && \
-	cd /meterlogger && git clone https://github.com/raburton/rboot-sample && \
-	cd /meterlogger/MeterLogger && \
-	mkdir -p rboot && \
-	cp /meterlogger/rboot/firmware/rboot.bin rboot/rboot.bin && \
-	cp /meterlogger/rboot/rboot.h rboot/rboot.h && \
-	cp /meterlogger/rboot/appcode/rboot-api.h rboot/rboot-api.h && \
-	cp /meterlogger/rboot/appcode/rboot-api.c rboot/rboot-api.c && \
-	sed -i '1i #include <mem.h>' rboot/rboot-api.c
+# 3. Fetch and switch directly using standard checkout (Uncached)
+RUN cd /meterlogger/MeterLogger && \
+	git fetch origin && \
+	git checkout -f ota
 
 WORKDIR /meterlogger/MeterLogger
 
