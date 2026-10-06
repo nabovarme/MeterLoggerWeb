@@ -255,6 +255,7 @@ $subscribe_mqtt->subscribe(q[/flash_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/chip_id/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
 
