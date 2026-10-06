@@ -658,9 +658,11 @@ sub prepare_release_structure {
 
 	my $isolated_src_dir = "$base_dir/$serial";
 
+	# Updated to track rBoot and the dual-slot application binaries
 	my @components = (
-		{ src => "$isolated_src_dir/0x00000.bin", dst => "$version_dir/0x00000.bin" },
-		{ src => "$isolated_src_dir/0x10000.bin", dst => "$version_dir/0x10000.bin" },
+		{ src => "$isolated_src_dir/rboot.bin", dst => "$version_dir/rboot.bin" },
+		{ src => "$isolated_src_dir/user1.bin", dst => "$version_dir/user1.bin" },
+		{ src => "$isolated_src_dir/user2.bin", dst => "$version_dir/user2.bin" },
 		{ src => "$isolated_src_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
 		{ src => "$isolated_src_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
 		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" }
@@ -691,24 +693,26 @@ sub generate_manifest {
 
 	my $dir = RELEASE_DIR . "/$serial/$fs_version";
 
+	# Updated to reflect the new ESP Web Tools flash map for the initial device provision
+	# Note: user2.bin is excluded here because Slot 1 is left blank until the first Wi-Fi OTA
 	my $manifest = {
-		name => "$info $serial ($sw_version) [Multi-Segment]",
+		name => "$info $serial ($sw_version) [rBoot OTA]",
 		version => $sw_version || 'unknown',
 		builds => [
 			{
 				chipFamily => "ESP8266",
 				parts => [
 					{
-						path => "0x00000.bin",
+						path => "rboot.bin",
 						offset => 0x00000
 					},
 					{
-						path => "0x10000.bin",
-						offset => 0x10000
+						path => "user1.bin",
+						offset => 0x02000
 					},
 					{
 						path => "webpages.espfs",
-						offset => 0x60000
+						offset => 0x7E000
 					},
 					{
 						path => "esp_init_data_default_112th_byte_0x03.bin",
