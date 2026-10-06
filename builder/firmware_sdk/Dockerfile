@@ -99,7 +99,9 @@ ARG CACHEBUST=1
 
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
-	cd /meterlogger/MeterLogger && git checkout ota
+	cd /meterlogger/MeterLogger && git checkout ota && \
+	mkdir -p rboot && \
+	cp /meterlogger/rboot/firmware/rboot.bin rboot/rboot.bin
 
 WORKDIR /meterlogger/MeterLogger
 
