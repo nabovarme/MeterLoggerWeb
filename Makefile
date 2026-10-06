@@ -1,25 +1,20 @@
 # Ensure bash_history file exists before build
 BASH_HISTORY_FILE=./utils/bash_history
 
-# All services
-ALL_SERVICES=perl_modules_builder db mqtt web meter_grapher mqtt_listener mqtt_dispatcher smsd meter_alarm meter_notify meter_cron redis postfix
-OTHER_SERVICES=$(filter-out perl_modules_builder,$(ALL_SERVICES))
-
 # Default target
 all: build up
 
-# Build target: build and run perl_modules_builder first, then build other services
+# Build target: build perl_base first (relied on by other images), then build all other services
 build: $(BASH_HISTORY_FILE)
-	@echo "Building and starting perl_modules_builder..."
-	docker compose build perl_modules_builder
-	docker compose up -d perl_modules_builder
+	@echo "Building perl_base..."
+	docker compose build perl_base
 	@echo "Building remaining services..."
-	docker compose build $(OTHER_SERVICES)
+	docker compose build
 
-# Start all other services (after build)
+# Start all services
 up:
-	@echo "Starting all other services..."
-	docker compose up -d $(OTHER_SERVICES)
+	@echo "Starting all services..."
+	docker compose up -d
 
 # Log a specific service
 log:
@@ -36,7 +31,7 @@ down:
 	docker compose down
 
 top:
-	docker stats $(ALL_SERVICES)
+	docker stats
 
 # Enter an interactive firmware build environment for manual compilation and debugging
 build-env:
@@ -58,8 +53,7 @@ redeploy:
 	fi
 	git pull
 	docker compose build $(filter-out $@,$(MAKECMDGOALS))
-	docker compose down $(filter-out $@,$(MAKECMDGOALS))
-	docker compose up -d $(filter-out $@,$(MAKECMDGOALS))
+	docker compose up -d --no-deps $(filter-out $@,$(MAKECMDGOALS))
 
 # Prevent make from treating service names as targets
 %:
