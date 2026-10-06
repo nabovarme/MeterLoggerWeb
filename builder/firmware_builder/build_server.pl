@@ -658,11 +658,12 @@ sub prepare_release_structure {
 
 	my $isolated_src_dir = "$base_dir/$serial";
 
-	# Updated to track rBoot and the dual-slot application binaries
 	my @components = (
 		{ src => "$isolated_src_dir/rboot.bin", dst => "$version_dir/rboot.bin" },
-		{ src => "$isolated_src_dir/user1.bin", dst => "$version_dir/user1.bin" },
-		{ src => "$isolated_src_dir/user2.bin", dst => "$version_dir/user2.bin" },
+		{ src => "$isolated_src_dir/user1.bin", dst => "$version_dir/user1.bin" },                  # Factory Slot 0
+		{ src => "$isolated_src_dir/user2.bin", dst => "$version_dir/user2.bin" },                  # Factory Slot 1
+		{ src => "$isolated_src_dir/user1.ota.bin", dst => "$version_dir/user1.ota.bin" },          # Clean OTA Slot 0
+		{ src => "$isolated_src_dir/user2.ota.bin", dst => "$version_dir/user2.ota.bin" },          # Clean OTA Slot 1
 		{ src => "$isolated_src_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
 		{ src => "$isolated_src_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
 		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" }
