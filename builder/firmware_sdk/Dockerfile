@@ -91,7 +91,7 @@ RUN cd /meterlogger && git clone https://github.com/raburton/esptool2.git && \
 	cp esptool2 /meterlogger/esp-open-sdk/xtensa-lx106-elf/bin/
 
 # Build rboot bootloader
-RUN cd /meterlogger && git clone https://github.com/raburton/rboot.git && \
+RUN cd /meterlogger && git clone https://github.com/nabovarme/rboot && \
 	cd /meterlogger/rboot && make
 
 # Initialize repository and setup remote tracking
@@ -104,8 +104,7 @@ RUN mkdir -p /meterlogger/MeterLogger/rboot && \
 RUN cp /meterlogger/rboot/firmware/rboot.bin /meterlogger/MeterLogger/rboot/rboot.bin && \
 	cp /meterlogger/rboot/rboot.h /meterlogger/MeterLogger/rboot/rboot.h && \
 	cp /meterlogger/rboot/appcode/rboot-api.h /meterlogger/MeterLogger/rboot/rboot-api.h && \
-	cp /meterlogger/rboot/appcode/rboot-api.c /meterlogger/MeterLogger/rboot/rboot-api.c && \
-	sed -i '1i #include <mem.h>' /meterlogger/MeterLogger/rboot/rboot-api.c
+	cp /meterlogger/rboot/appcode/rboot-api.c /meterlogger/MeterLogger/rboot/rboot-api.c
 
 # Ensure we always fetch the newest MeterLogger firmware (disable cache for this step)
 ARG CACHEBUST=1
