@@ -77,20 +77,29 @@ RUN cd /meterlogger/esp-open-sdk && git clone https://github.com/nabovarme/esp-o
 RUN cd /meterlogger/esp-open-sdk && \
 	make STANDALONE=y
 
+# Export ENV early so esptool2 and rboot can utilize the xtensa toolchain
+ENV PATH=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin:$PATH
+ENV XTENSA_TOOLS_ROOT=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin
+ENV SDK_BASE=/meterlogger/esp-open-sdk/sdk
+
 # compatible esptool for ESP8266 toolchain
 RUN pip3 install esptool
+
+# Build esptool2 (Required by rboot for packing OTA roms)
+RUN cd /meterlogger && git clone https://github.com/raburton/esptool2.git && \
+	cd /meterlogger/esptool2 && make && \
+	cp esptool2 /meterlogger/esp-open-sdk/xtensa-lx106-elf/bin/
+
+# Build rboot bootloader
+RUN cd /meterlogger && git clone https://github.com/raburton/rboot.git && \
+	cd /meterlogger/rboot && make
 
 # Ensure we always fetch the newest MeterLogger firmware (disable cache for this step)
 ARG CACHEBUST=1
 
 # meterlogger
 RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
-	cd /meterlogger/MeterLogger && git checkout master
-
-# Export ENV
-ENV PATH=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin:$PATH
-ENV XTENSA_TOOLS_ROOT=/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin
-ENV SDK_BASE=/meterlogger/esp-open-sdk/sdk
+	cd /meterlogger/MeterLogger && git checkout ota
 
 WORKDIR /meterlogger/MeterLogger
 
@@ -106,4 +115,3 @@ RUN mkdir -p /meterlogger/MeterLogger/release && \
 USER meterlogger
 
 CMD ["/docker-entrypoint.sh"]
-
