@@ -106,9 +106,7 @@ RUN cd /meterlogger && git clone https://github.com/nabovarme/MeterLogger && \
 	cp /meterlogger/rboot/firmware/rboot.bin rboot/rboot.bin && \
 	cp /meterlogger/rboot/rboot.h rboot/rboot.h && \
 	cp /meterlogger/rboot/appcode/rboot-api.h rboot/rboot-api.h && \
-	cp /meterlogger/rboot/appcode/rboot-api.c rboot/rboot-api.c && \
-	cp /meterlogger/rboot-sample/rboot-ota.h rboot/rboot-ota.h && \
-	cp /meterlogger/rboot-sample/rboot-ota.c rboot/rboot-ota.c
+	cp /meterlogger/rboot/appcode/rboot-api.c rboot/rboot-api.c
 
 WORKDIR /meterlogger/MeterLogger
 
