@@ -713,7 +713,7 @@ sub generate_manifest {
 					},
 					{
 						path => "webpages.espfs",
-						offset => 0x7E000
+						offset => 0x7C000
 					},
 					{
 						path => "esp_init_data_default_112th_byte_0x03.bin",
