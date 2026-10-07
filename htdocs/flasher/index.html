@@ -359,6 +359,16 @@
 		loadFirmwareList();
 
 		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
+		// Allow pressing Enter in the search input to trigger "Flash Device"
+		searchInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				if (!flashBtn.disabled) {
+					flashBtn.click();
+				}
+			}
+		});
+
 		searchInput.addEventListener('input', () => {
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
 			
