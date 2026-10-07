@@ -24,10 +24,10 @@ sub handler {
 		return Apache2::Const::HTTP_BAD_REQUEST;
 	}
 
-	# Map requested slot (0 or 1) to target binary name
-	# Slot 0 runs user1.bin -> updates to user2.ota.bin
-	# Slot 1 runs user2.bin -> updates to user1.ota.bin
-	my $bin_name = ($slot eq '0') ? 'user2.ota.bin' : 'user1.ota.bin';
+	# Map requested TARGET slot (0 or 1) to target binary name
+	# Target Slot 0 requires user1.ota.bin
+	# Target Slot 1 requires user2.ota.bin
+	my $bin_name = ($slot eq '1') ? 'user2.ota.bin' : 'user1.ota.bin';
 
 	# Verify meter exists in DB before serving firmware
 	my $dbh = Nabovarme::Db->my_connect
