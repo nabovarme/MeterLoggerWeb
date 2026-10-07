@@ -133,9 +133,6 @@ sub handler {
 		my $entries = $aps_by_ssid{$ssid};
 		next unless $entries && @$entries;
 
-		# Skip the SSID the serial is currently connected to
-		next if defined $current_connected_ssid && $ssid eq $current_connected_ssid;
-
 		# Base record taken from the most recent scan entry for metadata (channel, ciphers, etc.)
 		my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
 		my $base_entry = { %$latest_entry };
