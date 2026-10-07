@@ -31,7 +31,12 @@ sub handler {
 	my $snooze_api      = $r->dir_config('SnoozeAPIPath')  || '';
 
 	# Use original request URI to avoid internal_redirect side effects
-	my $orig_uri = $r->unparsed_uri || $r->uri;
+	# Walk up the internal redirect chain to find the true original external request
+	my $orig_r = $r;
+	while ($orig_r->prev) {
+		$orig_r = $orig_r->prev;
+	}
+	my $orig_uri = $orig_r->unparsed_uri || $orig_r->uri;
 
 	# Check single user-facing page path
 	if ($snooze_page && $orig_uri =~ m/^$snooze_page/) {
@@ -47,9 +52,11 @@ sub handler {
 
 	# Check PublicAccess paths
 	if ($public_access) {
+		# Extract the base path from the original URI (strip query parameters like ?serial=...)
+		my ($orig_base) = $orig_uri =~ m/^([^?]+)/;
+
 		foreach (split(/,\s*/, $public_access)) {
-			if ($r->uri eq $_) {
-				$r->warn("we dont handle this: $orig_uri");
+			if ($r->uri eq $_ || (defined $orig_base && $orig_base eq $_)) {
 				return Apache2::Const::OK;
 			}
 		}

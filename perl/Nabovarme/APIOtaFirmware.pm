@@ -5,16 +5,17 @@ use warnings;
 use utf8;
 use Apache2::RequestRec ();
 use Apache2::RequestIO ();
+use Apache2::SubRequest ();
 use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_NOT_FOUND HTTP_SERVICE_UNAVAILABLE);
-use APR::Table ();
-use CGI::Simple ();
+use CGI ();
 
 use Nabovarme::Db;
 
 sub handler {
 	my $r = shift;
 
-	my $cgi = CGI::Simple->new($r);
+	# Use standard CGI module (installed via libcgi-pm-perl) to parse the query string
+	my $cgi = CGI->new($r->args || '');
 	my $serial = $cgi->param('serial');
 	my $slot   = $cgi->param('slot');
 
@@ -41,7 +42,6 @@ sub handler {
 	}
 
 	# Construct filesystem path to target firmware binary
-	# (Serves from DocumentRoot /var/www/nabovarme)
 	my $doc_root = $r->document_root || '/var/www/nabovarme';
 	my $relative_path = "flasher/firmware/$serial/latest/$bin_name";
 	my $file_path     = "$doc_root/$relative_path";
@@ -53,7 +53,6 @@ sub handler {
 
 		if (-f $alt_file_path) {
 			$relative_path = $alt_relative_path;
-			$file_path     = $alt_file_path;
 		} else {
 			return Apache2::Const::HTTP_NOT_FOUND;
 		}
