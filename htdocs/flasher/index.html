@@ -89,7 +89,7 @@
 		.action-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 10px 5px 10px; box-sizing: border-box; }
 		.options-row { display: flex; align-items: center; gap: 25px; width: 100%; padding: 5px 10px 10px 10px; box-sizing: border-box; }
 		
-		.search-container { flex-grow: 1; max-width: 600px; display: flex; flex-direction: column; }
+		.search-container { flex-grow: 1; max-width: 600px; display: flex; flex-direction: column; position: relative; }
 		.search-container input[type="search"] { width: 100%; padding: 8px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; box-sizing: border-box; }
 		
 		.flash-btn-inline { padding: 8px 20px; font-family: Verdana, Geneva, sans-serif; font-size: 100%; cursor: pointer; white-space: nowrap; align-self: flex-end; }
@@ -106,6 +106,45 @@
 		.control-group { display: flex; align-items: center; gap: 8px; }
 		.control-group select { padding: 6px; font-family: Verdana, Geneva, sans-serif; font-size: 90%; }
 		.control-group input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; margin: 0; }
+
+		/* Custom scrollable dropdown replacing native datalist */
+		.custom-dropdown {
+			position: absolute;
+			top: 100%;
+			left: 0;
+			width: 100%;
+			min-width: 550px;
+			max-height: 350px;
+			overflow-y: auto;
+			background: #ffffff;
+			border: 1px solid #ccc;
+			border-radius: 4px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+			z-index: 1000;
+			box-sizing: border-box;
+		}
+
+		.custom-dropdown-item {
+			padding: 10px 12px;
+			font-family: Verdana, Geneva, sans-serif;
+			font-size: 85%;
+			color: #333;
+			cursor: pointer;
+			border-bottom: 1px solid #f0f0f0;
+			white-space: normal;
+			word-break: break-word;
+			line-height: 1.4;
+		}
+
+		.custom-dropdown-item:last-child {
+			border-bottom: none;
+		}
+
+		.custom-dropdown-item:hover,
+		.custom-dropdown-item.selected {
+			background-color: #007bf5;
+			color: #ffffff;
+		}
 	</style>
 </head>
 
@@ -115,8 +154,8 @@
 	<div class="action-row">
 		<div class="search-container">
 			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
-			<input type="search" id="searchField" list="firmwareOptions" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
-			<datalist id="firmwareOptions"></datalist>
+			<input type="search" id="searchField" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
+			<div id="customDropdown" class="custom-dropdown hidden"></div>
 		</div>
 		
 		<button id="flashBtn" class="flash-btn-inline">Flash Device</button>
@@ -252,6 +291,7 @@
 
 	<script>
 		const searchInput = document.getElementById('searchField');
+		const customDropdown = document.getElementById('customDropdown');
 		const flashBtn = document.getElementById('flashBtn');
 		const logDiv = document.getElementById('log');
 		const toggleLogBtn = document.getElementById('toggleLogBtn');
@@ -273,6 +313,7 @@
 		let allFirmwares = [];
 		let selectedFirmware = null;
 		let transport = null;
+		let activeIndex = -1;
 
 		function log(msg) {
 			logDiv.textContent += "\n" + msg;
@@ -312,6 +353,43 @@
 			setWorkspaceVisibility(!isVisible);
 		});
 
+		function renderCustomDropdown(filterText = '') {
+			customDropdown.innerHTML = '';
+			activeIndex = -1;
+
+			const query = filterText.toLowerCase().trim();
+			const filtered = allFirmwares.filter(fw => 
+				!query || fw.name.toLowerCase().includes(query) || (fw.serial && fw.serial.includes(query))
+			);
+
+			if (filtered.length === 0) {
+				customDropdown.classList.add('hidden');
+				return;
+			}
+
+			filtered.forEach(fw => {
+				const item = document.createElement('div');
+				item.className = 'custom-dropdown-item';
+				item.textContent = fw.name;
+				
+				item.addEventListener('mousedown', (e) => {
+					e.preventDefault();
+					selectFirmwareOption(fw);
+				});
+				
+				customDropdown.appendChild(item);
+			});
+
+			customDropdown.classList.remove('hidden');
+		}
+
+		function selectFirmwareOption(fw) {
+			selectedFirmware = fw;
+			searchInput.value = fw.name;
+			customDropdown.classList.add('hidden');
+			searchInput.dispatchEvent(new Event('input'));
+		}
+
 		// Dynamic list processor tracking the serial identity boundary mapping for post-compilation auto-select locks
 		function loadFirmwareList(targetDeviceSerial = null) {
 			return fetch('firmware/firmwares.json')
@@ -319,15 +397,6 @@
 				.then(list => {
 					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
 					searchInput.disabled = false;
-					
-					const optionsContainer = document.getElementById('firmwareOptions');
-					optionsContainer.innerHTML = '';
-
-					allFirmwares.forEach(fw => {
-						const opt = document.createElement('option');
-						opt.value = fw.name;
-						optionsContainer.appendChild(opt);
-					});
 
 					// ROBUST AUTO-SELECT ENGINE: Targets serial identity paired with custom tag boundaries to bypass path translation changes
 					if (targetDeviceSerial) {
@@ -337,18 +406,14 @@
 								(fw.version.includes('CUSTOM') || fw.version.includes('custom') || fw.name.includes('CUSTOM'))
 							);
 							if (matchingFw) {
-								searchInput.value = matchingFw.name;
-								selectedFirmware = matchingFw;
-								searchInput.dispatchEvent(new Event('input'));
+								selectFirmwareOption(matchingFw);
 								log(`[UI Target Selected] Successfully locked option select engine back onto serial target: "${targetDeviceSerial}"`);
 							} else {
 								console.warn(`[UI Warning] Robust serial locator fell back; attempting baseline version literal check loop...`);
 								// Final safety catch: if exact serial + CUSTOM match fails, lock onto the absolute first entry matching that serial context
 								const fallbackFw = allFirmwares.find(fw => fw.serial === targetDeviceSerial);
 								if (fallbackFw) {
-									searchInput.value = fallbackFw.name;
-									selectedFirmware = fallbackFw;
-									searchInput.dispatchEvent(new Event('input'));
+									selectFirmwareOption(fallbackFw);
 								}
 							}
 						}, 50);
@@ -358,18 +423,58 @@
 
 		loadFirmwareList();
 
-		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
-		// Allow pressing Enter in the search input to trigger "Flash Device"
-		searchInput.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') {
-				e.preventDefault();
-				if (!flashBtn.disabled) {
-					flashBtn.click();
-				}
+		// Show custom menu on focus or click
+		searchInput.addEventListener('focus', () => renderCustomDropdown(searchInput.value));
+		searchInput.addEventListener('click', () => renderCustomDropdown(searchInput.value));
+
+		// Close menu when clicking outside container
+		document.addEventListener('click', (e) => {
+			if (!e.target.closest('.search-container')) {
+				customDropdown.classList.add('hidden');
 			}
 		});
 
+		// Keyboard navigation (Up / Down / Enter / Escape)
+		searchInput.addEventListener('keydown', (e) => {
+			const items = customDropdown.querySelectorAll('.custom-dropdown-item');
+			
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				if (customDropdown.classList.contains('hidden')) renderCustomDropdown(searchInput.value);
+				if (items.length === 0) return;
+				activeIndex = (activeIndex + 1) % items.length;
+				updateItemHighlight(items);
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				if (items.length === 0) return;
+				activeIndex = (activeIndex - 1 + items.length) % items.length;
+				updateItemHighlight(items);
+			} else if (e.key === 'Enter') {
+				e.preventDefault();
+				if (!customDropdown.classList.contains('hidden') && activeIndex >= 0 && items[activeIndex]) {
+					items[activeIndex].click();
+				} else if (!flashBtn.disabled) {
+					flashBtn.click();
+				}
+			} else if (e.key === 'Escape') {
+				customDropdown.classList.add('hidden');
+			}
+		});
+
+		function updateItemHighlight(items) {
+			items.forEach((item, idx) => {
+				if (idx === activeIndex) {
+					item.classList.add('selected');
+					item.scrollIntoView({ block: 'nearest' });
+				} else {
+					item.classList.remove('selected');
+				}
+			});
+		}
+
+		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
 		searchInput.addEventListener('input', () => {
+			renderCustomDropdown(searchInput.value);
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
 			
 			if (selectedFirmware) {
