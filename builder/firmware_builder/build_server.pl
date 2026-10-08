@@ -153,14 +153,10 @@ while ($running) {
 
 	if ($current_batch) {
 		# Existing batch is running, check completion status
-		my $total = $redis->get("$REDIS_JOBS_TOTAL:
-		$current_batch") || 0;
-		my $done  = $redis->get("$REDIS_JOBS_DONE:
-		$current_batch") || 0;
-		my $skip  = $redis->get("$REDIS_JOBS_SKIP:
-		$current_batch") || 0;
-		my $fail  = $redis->get("$REDIS_JOBS_FAIL:
-		$current_batch") || 0;
+		my $total = $redis->get("$REDIS_JOBS_TOTAL:$current_batch") || 0;
+		my $done  = $redis->get("$REDIS_JOBS_DONE:$current_batch") || 0;
+		my $skip  = $redis->get("$REDIS_JOBS_SKIP:$current_batch") || 0;
+		my $fail  = $redis->get("$REDIS_JOBS_FAIL:$current_batch") || 0;
 		
 		my $processed = $done + $skip + $fail;
 		print "Batch active: $current_batch. Progress: $processed/$total ($pending_count batches pending)\n" if $processed % 5 == 0 || $processed == $total;
