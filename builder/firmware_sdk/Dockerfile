@@ -102,7 +102,7 @@ ARG CACHEBUST=1
 # 3. Fetch and switch directly using standard checkout (Uncached)
 RUN cd /meterlogger/MeterLogger && \
 	git fetch origin && \
-	git checkout -f ota
+	git checkout -f working_ota
 
 # Build rboot bootloader (Uncached to pull latest fork changes)
 RUN cd /meterlogger && git clone https://github.com/nabovarme/rboot && \
