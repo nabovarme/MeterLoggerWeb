@@ -694,6 +694,7 @@ sub generate_manifest {
 
 	# Updated to reflect the new ESP Web Tools flash map for the initial device provision
 	# Note: user2.bin is excluded here because Slot 1 is left blank until the first Wi-Fi OTA
+	# blank.bin is flashed to 0x01000 to erase the rBoot config sector and force a Slot 0 boot
 	my $manifest = {
 		name => "$info $serial ($sw_version) [rBoot OTA]",
 		version => $sw_version || 'unknown',
@@ -704,6 +705,10 @@ sub generate_manifest {
 					{
 						path => "rboot.bin",
 						offset => 0x00000
+					},
+					{
+						path => "blank.bin",
+						offset => 0x01000
 					},
 					{
 						path => "user1.bin",
