@@ -650,6 +650,8 @@
 		flashBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { alert("Please select a firmware first!"); return; }
 
+			let eraseTimer = null;
+
 			try {
 				flashBtn.disabled = true;
 				progressWrapper.classList.remove('hidden');
@@ -687,7 +689,8 @@
 
 					fileArray.push({
 						data: new Uint8Array(chunkBuffer),
-						address: segmentOffset
+						address: segmentOffset,
+						name: chunk.path
 					});
 				}
 
@@ -720,6 +723,18 @@
 				let currentFileIndex = -1;
 				let completedBytesOffset = 0;
 
+				// Smoothly tick the progress bar up to 5% during the chip erase step
+				if (shouldErase) {
+					log("Erasing flash memory (this may take a few seconds)...");
+					let eraseProgress = 0;
+					eraseTimer = setInterval(() => {
+						if (eraseProgress < 5) {
+							eraseProgress += 0.5;
+							flashProgress.value = eraseProgress;
+						}
+					}, 200);
+				}
+
 				log(`Flashing ${fileArray.length} distinct binary segments into memory spaces...`);
 				await esploader.writeFlash({
 					fileArray: fileArray,
@@ -729,11 +744,18 @@
 					eraseAll: shouldErase,
 					compress: true,
 					reportProgress: (fileIndex, written, total) => {
+						// Stop the erase simulation timer as soon as writing begins
+						if (eraseTimer) {
+							clearInterval(eraseTimer);
+							eraseTimer = null;
+						}
+
 						if (fileIndex !== currentFileIndex) {
 							if (currentFileIndex >= 0) {
 								completedBytesOffset += fileArray[currentFileIndex].data.byteLength;
 							}
 							currentFileIndex = fileIndex;
+							log(`Flashing binary component [${fileArray[fileIndex].name}] at offset 0x${fileArray[fileIndex].address.toString(16)}...`);
 						}
 
 						const currentFileTotal = fileArray[fileIndex].data.byteLength;
@@ -742,10 +764,12 @@
 						const scaledCurrentWritten = currentProgressFraction * currentFileTotal;
 						const totalBytesProcessed = completedBytesOffset + scaledCurrentWritten;
 						
-						const pct = Math.min(100, Math.round((totalBytesProcessed / totalBatchBytes) * 100));
+						// Scale write progress across 5% to 100% if flash was erased, or 0% to 100% if skipped
+						const writeFraction = totalBytesProcessed / totalBatchBytes;
+						const basePct = shouldErase ? 5 : 0;
+						const pct = Math.min(100, Math.round(basePct + (writeFraction * (100 - basePct))));
 						
 						flashProgress.value = pct;
-						log(`Total Progress: ${pct}% (Segment ${fileIndex + 1}/${fileArray.length})`);
 					}
 				});
 				
@@ -757,6 +781,10 @@
 				console.error(e);
 				alert("Flashing error: " + e.message);
 			} finally {
+				if (eraseTimer) {
+					clearInterval(eraseTimer);
+					eraseTimer = null;
+				}
 				flashBtn.disabled = false;
 				progressWrapper.classList.add('hidden');
 				
