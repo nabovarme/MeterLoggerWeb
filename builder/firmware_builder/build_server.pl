@@ -574,7 +574,8 @@ sub run_docker_build {
 			"docker run --rm",
 			"--name firmware_sdk_$serial",
 			"-e SERIAL=$serial",
-			"-e KEY=$key"
+			"-e KEY=$key",
+			"-e BUILD_FLAGS=\"$build_flags\""
 		);
 
 		# Unpack build flags so Make can read them natively as separate environment variables
