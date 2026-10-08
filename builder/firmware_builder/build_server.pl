@@ -343,7 +343,7 @@ sub build_flags_from_sw_version {
 	# ---------------------------------------------------------
 	my $wants_debug = $has_token{'DEBUG'} || ($get_explicit_val->('DEBUG') // '') eq '1';
 	# version.h outputs NO_METER, Makefile expects DEBUG_NO_METER
-	my $wants_debug_no_meter = $has_token{'DEBUG_NO_METER'} || $has_token{'NO_METER'};
+	my $wants_debug_no_meter = $has_token{'DEBUG_NO_METER'} || $has_token{'NO_METER'} || ($get_explicit_val->('DEBUG_NO_METER') // '') eq '1' || ($get_explicit_val->('NO_METER') // '') eq '1';
 
 	if ($wants_debug_no_meter) {
 		push @flags, 'DEBUG=1', 'DEBUG_NO_METER=1';
