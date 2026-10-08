@@ -153,10 +153,14 @@ while ($running) {
 
 	if ($current_batch) {
 		# Existing batch is running, check completion status
-		my $total = $redis->get("$REDIS_JOBS_TOTAL:$current_batch") || 0;
-		my $done  = $redis->get("$REDIS_JOBS_DONE:$current_batch") || 0;
-		my $skip  = $redis->get("$REDIS_JOBS_SKIP:$current_batch") || 0;
-		my $fail  = $redis->get("$REDIS_JOBS_FAIL:$current_batch") || 0;
+		my $total = $redis->get("$REDIS_JOBS_TOTAL:
+		$current_batch") || 0;
+		my $done  = $redis->get("$REDIS_JOBS_DONE:
+		$current_batch") || 0;
+		my $skip  = $redis->get("$REDIS_JOBS_SKIP:
+		$current_batch") || 0;
+		my $fail  = $redis->get("$REDIS_JOBS_FAIL:
+		$current_batch") || 0;
 		
 		my $processed = $done + $skip + $fail;
 		print "Batch active: $current_batch. Progress: $processed/$total ($pending_count batches pending)\n" if $processed % 5 == 0 || $processed == $total;
@@ -438,7 +442,7 @@ sub process_build {
 		if (!$force_full_rebuild && !$trigger) {
 			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
 			my $failed_flag   = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/build_failed.flag";
-			if (-f $firmware_path || -f$failed_flag) {
+			if (-f $firmware_path || -f $failed_flag) {
 				next;
 			}
 		}
@@ -469,7 +473,8 @@ sub process_build {
 		return;
 	}
 
-	my $batch_id = time();$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
+	my $batch_id = time();
+	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
 
 	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
 	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
@@ -563,22 +568,31 @@ sub run_docker_build {
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 		my $failed_flag   = RELEASE_DIR . "/$serial/$fs_version/build_failed.flag";
 
-		if (-f $firmware_path || -f$failed_flag) {
+		if (-f $firmware_path || -f $failed_flag) {
 			print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
 			$redis->incr($skip_key);
 			return;
 		}
 
-		my $docker_cmd = join(" ",
+		my @docker_args = (
 			"docker run --rm",
 			"--name firmware_sdk_$serial",
 			"-e SERIAL=$serial",
-			"-e KEY=$key",
-			"-e BUILD_FLAGS=\"$build_flags\"",
+			"-e KEY=$key"
+		);
+
+		# Unpack build flags so Make can read them natively as separate environment variables
+		foreach my $flag (split(/[\s]+/, $build_flags)) {
+			push @docker_args, "-e $flag" if $flag;
+		}
+
+		push @docker_args, (
 			"-v firmware_release:" . RELEASE_DIR,
 			DOCKER_IMAGE,
 			"2>&1"
 		);
+
+		my $docker_cmd = join(" ", @docker_args);
 
 		print "[$serial] Running: $docker_cmd\n";
 
