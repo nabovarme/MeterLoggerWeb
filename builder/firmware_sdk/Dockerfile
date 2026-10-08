@@ -94,7 +94,7 @@ RUN cd /meterlogger && git clone https://github.com/raburton/esptool2.git && \
 RUN mkdir -p /meterlogger/MeterLogger/rboot && \
 	cd /meterlogger/MeterLogger && \
 	git init && \
-	git remote add -t ota origin https://github.com/nabovarme/MeterLogger
+	git remote add -t working_ota origin https://github.com/nabovarme/MeterLogger
 
 # Ensure we always fetch the newest MeterLogger and rboot firmware (disable cache for this step)
 ARG CACHEBUST=1
