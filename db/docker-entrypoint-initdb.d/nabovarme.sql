@@ -244,7 +244,7 @@ CREATE TABLE `command_queue` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `serial` varchar(16) DEFAULT NULL,
   `function` varchar(256) DEFAULT NULL,
-  `param` varchar(256) DEFAULT NULL,
+  `param` varbinary(255) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
   `state` enum('sent','received','timeout') NOT NULL DEFAULT 'sent',
   `has_callback` tinyint(1) NOT NULL DEFAULT 0,
