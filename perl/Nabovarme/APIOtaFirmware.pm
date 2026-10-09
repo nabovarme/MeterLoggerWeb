@@ -25,9 +25,9 @@ sub handler {
 	}
 
 	# Map requested TARGET slot (0 or 1) to target binary name
-	# Target Slot 0 requires user1.bin
-	# Target Slot 1 requires user2.bin
-	my $bin_name = ($slot eq '1') ? 'user2.bin' : 'user1.bin';
+	# Target Slot 0 requires user1.ota.bin
+	# Target Slot 1 requires user2.ota.bin
+	my $bin_name = ($slot eq '1') ? 'user2.ota.bin' : 'user1.ota.bin';
 
 	# Verify meter exists in DB before serving firmware
 	my $dbh = Nabovarme::Db->my_connect
