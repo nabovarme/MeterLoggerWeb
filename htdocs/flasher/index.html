@@ -436,7 +436,7 @@
 			}
 		});
 
-		// Search input specific keyboard navigation (Up / Down / Escape)
+		// Search input specific keyboard navigation (Up / Down / Enter / Escape)
 		searchInput.addEventListener('keydown', (e) => {
 			const items = customDropdown.querySelectorAll('.custom-dropdown-item');
 			
@@ -451,25 +451,15 @@
 				if (items.length === 0) return;
 				activeIndex = (activeIndex - 1 + items.length) % items.length;
 				updateItemHighlight(items);
-			} else if (e.key === 'Escape') {
-				customDropdown.classList.add('hidden');
-			}
-		});
-
-		// Global keyboard handler for "Enter"
-		document.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') {
+			} else if (e.key === 'Enter') {
 				e.preventDefault();
-				const items = customDropdown.querySelectorAll('.custom-dropdown-item');
-				
-				// 1. If dropdown is open and an item is highlighted, select the item
 				if (!customDropdown.classList.contains('hidden') && activeIndex >= 0 && items[activeIndex]) {
 					items[activeIndex].click();
-				} 
-				// 2. Otherwise, trigger the flash button no matter what state the UI is in
-				else if (!flashBtn.disabled) {
+				} else if (!flashBtn.disabled) {
 					flashBtn.click();
 				}
+			} else if (e.key === 'Escape') {
+				customDropdown.classList.add('hidden');
 			}
 		});
 
