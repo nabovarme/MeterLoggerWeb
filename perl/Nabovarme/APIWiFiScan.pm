@@ -140,6 +140,9 @@ sub handler {
 		my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
 		my $base_entry = { %$latest_entry };
 
+		# Flag the currently connected network for the UI
+		$base_entry->{connected} = (defined $current_connected_ssid && $ssid eq $current_connected_ssid) ? 1 : 0;
+
 		if ($ssid =~ /^mesh-/) {
 
 			my $is_excluded = $exclude{$ssid} ? 1 : 0;
@@ -148,6 +151,14 @@ sub handler {
 			if (my $info = $mesh_chain_info{$ssid}) {
 				$base_entry->{rssi} = $info->{min_rssi};
 				$base_entry->{hop}  = $info->{hop};
+				
+				my ($mesh_serial) = $ssid =~ /^mesh-(.*)$/;
+				my ($meter_info)  = $dbh->selectrow_array("SELECT info FROM meters WHERE serial = ?", undef, $mesh_serial);
+				
+				if (defined $meter_info && $meter_info ne '') {
+					$base_entry->{info} = $meter_info;
+				}
+
 				push @result, $base_entry;
 			}
 

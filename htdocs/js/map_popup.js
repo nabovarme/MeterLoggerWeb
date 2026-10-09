@@ -170,8 +170,16 @@ function initMapPopups(map) {
 							<tbody>${data.map(ap => {
 								const color = ap.rssi > -65 ? '#5cb85c' : ap.rssi > -75 ? '#f0ad4e' : '#d9534f';
 								const encodedSSID = encodeURIComponent(ap.ssid || '');
+								
+								let displaySSID = ap.ssid || '(hidden)';
+								if (ap.info) {
+									displaySSID += ` (${ap.info})`;
+								}
+								
+								const activeBadge = ap.connected ? ' <i class="fa fa-check" style="color:green;" title="Currently Connected"></i>' : '';
+								
 								return `<tr>
-									<td><a href="/update_wifi.html?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${ap.ssid || '(hidden)'}</a></td>
+									<td><a href="/update_wifi.html?serial=${encodeURIComponent(serial)}&ssid=${encodedSSID}">${displaySSID}</a>${activeBadge}</td>
 									<td style="color:${color}">${ap.rssi} dBm</td>
 									<td>${ap.hop || ''}</td>
 									<td>${ap.channel}</td>
