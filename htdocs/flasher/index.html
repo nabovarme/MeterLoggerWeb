@@ -359,7 +359,9 @@
 
 			const query = filterText.toLowerCase().trim();
 			const filtered = allFirmwares.filter(fw => 
-				!query || fw.name.toLowerCase().includes(query) || (fw.serial && fw.serial.includes(query))
+				!fw.name.startsWith('KAM_') &&
+				!fw.name.startsWith('stofferFon') &&
+				(!query || fw.name.toLowerCase().includes(query) || (fw.serial && fw.serial.includes(query)))
 			);
 
 			if (filtered.length === 0) {
