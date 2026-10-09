@@ -183,22 +183,22 @@ sub v2_mqtt_handler {
 
 	if ($ARGV[0] && $meter_serial ne $ARGV[0]) { return; }
 
-	if ($topic_only) {
-		$message = '';
+	if ($topic_only) {$message = '';
 	} else {
 		$message =~ /(.{32})(.{16})(.+)/s;
-		my ($mac,$iv,$ciphertext) = ($1,$2,$3);
+		my ($mac, $iv, $ciphertext) = ($1, $2, $3);
 
-		my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ".$dbh->quote($meter_serial)." LIMIT 1");
+		my $sth =$dbh->prepare("SELECT `key` FROM meters WHERE serial = ".$dbh->quote($meter_serial)." LIMIT 1");
 		$sth->execute;
 		if ($sth->rows) {
-			my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
+			my $key =$sth->fetchrow_hashref->{key} || warn "no aes key found";
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256,0,16);
 			my $hmac_sha256_key = substr($sha256,16,16);
-			if ($mac eq hmac_sha256($topic.$iv.$ciphertext,$hmac_sha256_key)) {
+			if ($mac eq hmac_sha256($topic.$iv.$ciphertext, $hmac_sha256_key)) {
 				my $cbc = Crypt::Mode::CBC->new('AES');
-				$message = $cbc->decrypt($ciphertext,$aes_key,$iv);
+				$message = $cbc->decrypt($ciphertext, $aes_key, $iv);
+				$message =~ s/\0+$//; # Strip trailing C null-terminator bytes
 			} else {
 				$message = "[HMAC verification failed]";
 			}
