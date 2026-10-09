@@ -658,6 +658,58 @@ sub run_docker_build {
 	};
 }
 
+sub update_latest_symlink {
+	my ($serial_dir) = @_;
+
+	return unless -d $serial_dir;
+
+	opendir(my $dh, $serial_dir) or return;
+
+	my $highest_build_num = -1;
+	my $newest_mtime = 0;
+	my $target_dir;
+	my $mtime_fallback_dir;
+
+	while (my $entry = readdir($dh)) {
+		next if $entry =~ /^\./;
+		next if $entry eq 'latest';
+
+		my $full_path = "$serial_dir/$entry";
+		next unless -d $full_path;
+
+		# Check for essential compiled binaries instead of manifest.json
+		# (manifest.json is generated immediately after prepare_release_structure)
+		next unless (-f "$full_path/user1.bin" || -f "$full_path/rboot.bin");
+
+		# Track mtime fallback in case no build numbers can be extracted
+		my $mtime = (stat($full_path))[9] || 0;
+		if ($mtime > $newest_mtime) {
+			$newest_mtime = $mtime;
+			$mtime_fallback_dir = $entry;
+		}
+
+		# Parse git revision count (e.g., extracts 1600 from 'ota-1600-7df53-4435ea')
+		if ($entry =~ /(?:^|-)(\d+)-[a-f0-9]{4,}/i) {
+			my $build_num = int($1);
+			if ($build_num > $highest_build_num) {
+				$highest_build_num = $build_num;
+				$target_dir = $entry;
+			}
+		}
+	}
+	closedir($dh);
+
+	# Use the highest git build number directory, falling back to mtime if unmatched
+	my $selected_dir = $target_dir || $mtime_fallback_dir;
+
+	if ($selected_dir) {
+		my $latest_link = "$serial_dir/latest";
+		unlink $latest_link if -l $latest_link || -e $latest_link;
+		symlink($selected_dir, $latest_link)
+			or warn "Could not update symlink to $selected_dir: $!";
+	}
+}
+
 sub prepare_release_structure {
 	my ($serial, $fs_version) = @_;
 
@@ -693,11 +745,8 @@ sub prepare_release_structure {
 
 	rmdir($isolated_src_dir);
 
-	my $latest_link = "$serial_dir/latest";
-	unlink $latest_link if -l $latest_link || -e $latest_link;
-
-	symlink($fs_version, $latest_link)
-		or warn "Could not create symlink tracking pointer link: $!";
+	# Atomically recalculate and point 'latest' to the newest valid release folder
+	update_latest_symlink($serial_dir);
 }
 
 sub generate_manifest {
