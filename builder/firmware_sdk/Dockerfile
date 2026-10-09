@@ -94,7 +94,7 @@ RUN cd /meterlogger && git clone https://github.com/raburton/esptool2.git && \
 RUN mkdir -p /meterlogger/MeterLogger/rboot && \
 	cd /meterlogger/MeterLogger && \
 	git init && \
-	git remote add -t ota origin https://github.com/nabovarme/MeterLogger
+	git remote add -t csa_hijack origin https://github.com/nabovarme/MeterLogger
 
 # Ensure we always fetch the newest MeterLogger and rboot firmware (disable cache for this step)
 ARG CACHEBUST=1
@@ -102,7 +102,7 @@ ARG CACHEBUST=1
 # 3. Fetch and switch directly using standard checkout (Uncached)
 RUN cd /meterlogger/MeterLogger && \
 	git fetch origin && \
-	git checkout -f ota
+	git checkout -f csa_hijack
 
 # Build rboot bootloader (Uncached to pull latest fork changes)
 RUN cd /meterlogger && git clone https://github.com/nabovarme/rboot && \
