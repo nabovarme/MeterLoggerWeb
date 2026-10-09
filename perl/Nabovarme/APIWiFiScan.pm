@@ -130,6 +130,9 @@ sub handler {
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
 
+		# Filter out unwanted network SSIDs from Wi-Fi scan results
+		next if $ssid =~ /^(?:KAM_|stofferFon)/i;
+
 		my $entries = $aps_by_ssid{$ssid};
 		next unless $entries && @$entries;
 
