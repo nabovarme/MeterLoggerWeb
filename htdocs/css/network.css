@@ -113,3 +113,77 @@ html, body {
 #trees .node {
 	cursor: auto;
 }
+
+/* ==========================================
+   LEAFLET POPUP MATCHING STYLES FOR NETWORK POPUP
+   ========================================== */
+
+#networkPopupModal {
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.4);
+	z-index: 9999;
+	justify-content: center;
+	align-items: center;
+}
+
+#networkPopupModal .modal-content-container {
+	background: #fff;
+	padding: 16px 20px;
+	border-radius: 12px;
+	max-width: 320px;
+	width: 90%;
+	max-height: 80vh;
+	overflow-y: auto;
+	position: relative;
+	box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+	font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+	font-size: 13px;
+	line-height: 1.5;
+	color: #333;
+}
+
+#closeNetworkPopupModal {
+	position: absolute;
+	top: 8px;
+	right: 10px;
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	font-weight: bold;
+	color: #999;
+}
+
+#closeNetworkPopupModal:hover {
+	color: #333;
+}
+
+#networkPopupModal .default-bold {
+	font-weight: bold;
+	font-size: 14px;
+	margin-bottom: 6px;
+	color: #222;
+}
+
+#networkPopupModal .popup-table {
+	width: 100%;
+	margin-top: 6px;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+#networkPopupModal .popup-table th,
+#networkPopupModal .popup-table td {
+	padding: 4px 6px;
+	text-align: left;
+	border-bottom: 1px solid #ddd;
+}
+
+#networkPopupModal .popup-table th {
+	background-color: #f7f7f7;
+	font-weight: bold;
+}
