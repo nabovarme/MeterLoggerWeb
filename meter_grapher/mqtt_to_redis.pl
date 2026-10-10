@@ -61,7 +61,8 @@ my @topics = (
 	q[/flash_id/v2/#],
 	q[/flash_size/v2/#],
 	q[/flash_error/v2/#],
-	q[/network_quality/v2/#]
+	q[/network_quality/v2/#],
+	q[/cnx_csa_fn_called/v2/#]
 );
 
 # Register subscriptions inside the asynchronous event loop

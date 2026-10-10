@@ -118,6 +118,9 @@ while (1) {
 		elsif ($data{topic} =~ /network_quality\/v2/) {
 			mqtt_network_quality_handler($data{topic}, $data{message});
 		}
+		elsif ($data{topic} =~ /cnx_csa_fn_called\/v2/) {
+			mqtt_cnx_csa_fn_called_handler($data{topic}, $data{message});
+		}
 		
 		# Remove data for job after processing
 		$redis->del($job_id);
@@ -762,7 +765,34 @@ sub mqtt_network_quality_handler {
 	}
 }
 
-use Encode qw(decode);
+# --------------------------------------------------
+# Logs unsolicited cnx_csa_fn_called events directly to the log table.
+# --------------------------------------------------
+sub mqtt_cnx_csa_fn_called_handler {
+	my ($topic, $message) = @_;
+	my ($meter_serial, $unix_time);
+
+	unless ($topic =~ m!/cnx_csa_fn_called/v\d+/([^/]+)/(\d+)!) { 		return; 	}$meter_serial = $1;
+	$unix_time = $2;
+
+	my $cleartext = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	if (defined $cleartext) {	
+		# Remove trailing nulls
+		$cleartext =~ s/[\x00\s]+$//;
+		$cleartext .= '';
+
+		my $quoted_param = $dbh->quote($cleartext);
+		my $quoted_meter_serial = $dbh->quote($meter_serial);
+		my $quoted_unix_time = $dbh->quote($unix_time);
+		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES ($quoted_meter_serial, 'cnx_csa_fn_called', $quoted_param, $quoted_unix_time)]) 
+			or log_warn($! . ". " . $DBI::errstr, {-no_script_name => 1});
+			
+		log_info($topic . "\t" . $cleartext, {-no_script_name => 1});
+	}
+	else {
+		log_warn($topic . " hmac error, " . (defined $message ? unpack('H*', $message) : 'undef'), {-no_script_name => 1});
+	}
+}
 
 # --------------------------------------------------
 # Safe translation wrapper formatting SSID byte strings to clean internal UTF-8.
