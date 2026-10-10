@@ -51,26 +51,15 @@ sub handler {
 		return Apache2::Const::HTTP_NOT_FOUND;
 	}
 
-	# Construct filesystem path to target firmware binary
-	my $doc_root = $r->document_root || '/var/www/nabovarme';
-	my $relative_path;
+	# Construct filesystem path to target firmware binary:
+	# Use exact version directory if passed, otherwise default to "latest"
+	my $doc_root      = $r->document_root || '/var/www/nabovarme';
+	my $target_dir    = defined $version ? $version : 'latest';
+	my $relative_path = "flasher/firmware/$serial/$target_dir/$bin_name";
+	my $file_path     = "$doc_root/$relative_path";
 
-	# 1. If version parameter is set, try flasher/firmware/$serial/$version/$bin_name
-	if (defined $version) {
-		my $v_rel_path = "flasher/firmware/$serial/$version/$bin_name";
-		if (-f "$doc_root/$v_rel_path") {
-			$relative_path = $v_rel_path;
-		}
-	}
-
-	# 2. Fallback: try flasher/firmware/$serial/latest/$bin_name
-	unless (defined $relative_path) {
-		my $latest_rel_path = "flasher/firmware/$serial/latest/$bin_name";
-		if (-f "$doc_root/$latest_rel_path") {
-			$relative_path = $latest_rel_path;
-		} else {
-			return Apache2::Const::HTTP_NOT_FOUND;
-		}
+	unless (-f $file_path) {
+		return Apache2::Const::HTTP_NOT_FOUND;
 	}
 
 	# Internal redirect via mod_perl to stream binary with zero memory overhead
