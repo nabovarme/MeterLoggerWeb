@@ -154,7 +154,7 @@
 	<div class="action-row">
 		<div class="search-container">
 			<label for="searchField" class="default-bold" style="margin-bottom: 5px;">Select firmware profile:</label>
-			<input type="search" id="searchField" placeholder="Click or type to search firmware..." autocomplete="off" disabled>
+			<input type="search" id="searchField" placeholder="Click or type to search firmware..." autocomplete="off" disabled autofocus>
 			<div id="customDropdown" class="custom-dropdown hidden"></div>
 		</div>
 		
@@ -399,6 +399,7 @@
 				.then(list => {
 					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
 					searchInput.disabled = false;
+					searchInput.focus();
 
 					// ROBUST AUTO-SELECT ENGINE: Targets serial identity paired with custom tag boundaries to bypass path translation changes
 					if (targetDeviceSerial) {
@@ -425,8 +426,7 @@
 
 		loadFirmwareList();
 
-		// Show custom menu on focus or click
-		searchInput.addEventListener('focus', () => renderCustomDropdown(searchInput.value));
+		// Open custom menu on click
 		searchInput.addEventListener('click', () => renderCustomDropdown(searchInput.value));
 
 		// Close menu when clicking outside container
