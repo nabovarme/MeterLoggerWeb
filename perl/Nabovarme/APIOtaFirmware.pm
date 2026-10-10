@@ -16,12 +16,22 @@ sub handler {
 
 	# Use standard CGI module (installed via libcgi-pm-perl) to parse the query string
 	my $cgi = CGI->new($r->args || '');
-	my $serial = $cgi->param('serial');
-	my $slot   = $cgi->param('slot');
+	my $serial  = $cgi->param('serial');
+	my $slot    = $cgi->param('slot');
+	my $version = $cgi->param('version');
 
 	# Validate mandatory query params
 	unless (defined $serial && $serial =~ /^\d{1,16}$/ && defined $slot && $slot =~ /^[01]$/) {
 		return Apache2::Const::HTTP_BAD_REQUEST;
+	}
+
+	# Validate version parameter if provided
+	if (defined $version && length($version) > 0) {
+		unless ($version =~ /^[a-zA-Z0-9\.\_\-\+]{1,64}$/) {
+			return Apache2::Const::HTTP_BAD_REQUEST;
+		}
+	} else {
+		$version = undef;
 	}
 
 	# Map requested TARGET slot (0 or 1) to target binary name
@@ -43,16 +53,21 @@ sub handler {
 
 	# Construct filesystem path to target firmware binary
 	my $doc_root = $r->document_root || '/var/www/nabovarme';
-	my $relative_path = "flasher/firmware/$serial/latest/$bin_name";
-	my $file_path     = "$doc_root/$relative_path";
+	my $relative_path;
 
-	unless (-f $file_path) {
-		# Fallback: check if firmware is available at root serial directory if latest/ doesn't exist
-		my $alt_relative_path = "flasher/firmware/$serial/$bin_name";
-		my $alt_file_path     = "$doc_root/$alt_relative_path";
+	# 1. If version parameter is set, try flasher/firmware/$serial/$version/$bin_name
+	if (defined $version) {
+		my $v_rel_path = "flasher/firmware/$serial/$version/$bin_name";
+		if (-f "$doc_root/$v_rel_path") {
+			$relative_path = $v_rel_path;
+		}
+	}
 
-		if (-f $alt_file_path) {
-			$relative_path = $alt_relative_path;
+	# 2. Fallback: try flasher/firmware/$serial/latest/$bin_name
+	unless (defined $relative_path) {
+		my $latest_rel_path = "flasher/firmware/$serial/latest/$bin_name";
+		if (-f "$doc_root/$latest_rel_path") {
+			$relative_path = $latest_rel_path;
 		} else {
 			return Apache2::Const::HTTP_NOT_FOUND;
 		}
