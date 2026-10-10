@@ -36,11 +36,13 @@ function createClientNode(client) {
 	}
 
 	const htmlContent = `
-		<div class="node-title"><a href="/detail_acc.epl?serial=${serial}">${nameText}</a></div>
-		<div class="node-serial"><b>serial:</b> ${serial}</div>
-		<div class="node-ssid"><b>ssid:</b> <a href="javascript:void(0)" onclick="openNetworkPopup('${ssid}', '${serial}')">${ssid}</a></div>
-		<div class="node-rssi"><b>rssi:</b> ${rssi}</div>
-		<div class="node-version"><b>version:</b> ${swVersion}</div>
+		<div onclick="openNetworkPopup('${ssid}', '${serial}')" style="cursor:pointer;">
+			<div class="node-title">${nameText}</div>
+			<div class="node-serial"><b>serial:</b> ${serial}</div>
+			<div class="node-ssid"><b>ssid:</b> ${ssid}</div>
+			<div class="node-rssi"><b>rssi:</b> ${rssi}</div>
+			<div class="node-version"><b>version:</b> ${swVersion}</div>
+		</div>
 	`;
 
 	let children = [];
