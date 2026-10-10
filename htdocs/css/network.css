@@ -111,7 +111,7 @@ html, body {
 
 /* Force standard text cursor when hovering over nodes */
 #trees .node {
-	cursor: auto;
+	cursor: pointer;
 }
 
 /* ==========================================
