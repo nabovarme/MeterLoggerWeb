@@ -772,7 +772,11 @@ sub mqtt_cnx_csa_fn_called_handler {
 	my ($topic, $message) = @_;
 	my ($meter_serial, $unix_time);
 
-	unless ($topic =~ m!/cnx_csa_fn_called/v\d+/([^/]+)/(\d+)!) { 		return; 	}$meter_serial = $1;
+	unless ($topic =~ m!/cnx_csa_fn_called/v\d+/([^/]+)/(\d+)!) {
+		return;
+	}
+
+	$meter_serial = $1;
 	$unix_time = $2;
 
 	my $cleartext = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
