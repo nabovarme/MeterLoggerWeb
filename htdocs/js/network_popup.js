@@ -1,6 +1,7 @@
 /* Network tree popup modal logic */
 
 function formatUptime(seconds) {
+	if (seconds === null || seconds === undefined || isNaN(seconds)) return 'N/A';
 	if (seconds < 60) {
 		return seconds + ' second' + (seconds === 1 ? '' : 's');
 	} else if (seconds < 3600) {
@@ -19,10 +20,10 @@ function buildNetworkPopupHTML(d) {
 	let html = `
 		<div class="default-bold" style="font-weight:bold; font-size:1.1em; margin-bottom:4px;">${d.serial} ${d.info || ''}</div>
 		<div>
-			<b>Valve status: </b>${d.valve_status}<br>
-			<b>SSID: </b>${d.ssid}<br>
+			<b>Valve status: </b>${d.valve_status ?? 'N/A'}<br>
+			<b>SSID: </b>${d.ssid ?? 'N/A'}<br>
 			<b>RSSI: </b><span class="chain-rssi" data-serial="${d.serial}">Loading...</span><br>
-			<b>AP status: </b>${d.ap_status}<br>
+			<b>AP status: </b>${d.ap_status ?? 'N/A'}<br>
 			<b>Uptime: </b>${formatUptime(d.uptime)}<br>
 	`;
 
@@ -42,7 +43,7 @@ function buildNetworkPopupHTML(d) {
 		html += `<b>Flash size: </b>${d.flash_size}<br>`;
 	}
 
-	html += `<b>Version: </b>${d.sw_version}<br>`;
+	html += `<b>Version: </b>${d.sw_version ?? 'N/A'}<br>`;
 
 	if (d.reset_reason !== null && d.reset_reason !== "" && d.reset_reason !== undefined) {
 		html += `<b>Reset reason: </b>${d.reset_reason}<br>`;
@@ -266,11 +267,36 @@ function openNetworkPopup(ssid, serial) {
 			if (!res.ok) throw new Error('HTTP ' + res.status);
 			return res.json();
 		})
-		.then(meterData => {
-			const d = Array.isArray(meterData) ? meterData[0] : meterData;
-			if (!d) throw new Error('No meter found for serial ' + serial);
+		.then(data => {
+			let targetMeter = null;
 
-			contentDiv.innerHTML = buildNetworkPopupHTML(d);
+			// Iterate over array of groups and search their nested meters arrays
+			if (Array.isArray(data)) {
+				for (const group of data) {
+					if (group.meters && Array.isArray(group.meters)) {
+						const found = group.meters.find(m => String(m.serial) === String(serial));
+						if (found) {
+							targetMeter = found;
+							break;
+						}
+					} else if (group.serial && String(group.serial) === String(serial)) {
+						targetMeter = group;
+						break;
+					}
+				}
+			} else if (data && typeof data === 'object') {
+				if (data.serial && String(data.serial) === String(serial)) {
+					targetMeter = data;
+				} else if (data.meters && Array.isArray(data.meters)) {
+					targetMeter = data.meters.find(m => String(m.serial) === String(serial));
+				}
+			}
+
+			if (!targetMeter) {
+				throw new Error('Meter with serial ' + serial + ' not found');
+			}
+
+			contentDiv.innerHTML = buildNetworkPopupHTML(targetMeter);
 			bindNetworkPopupEvents(contentDiv);
 		})
 		.catch(err => {
