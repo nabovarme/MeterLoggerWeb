@@ -397,7 +397,7 @@
 			return fetch('firmware/firmwares.json')
 				.then(res => res.json())
 				.then(list => {
-					allFirmwares = list.sort((a, b) => a.name.localeCompare(b.name));
+					allFirmwares = list.sort((a, b) => b.name.localeCompare(a.name));
 					searchInput.disabled = false;
 					searchInput.focus();
 
