@@ -232,6 +232,7 @@ $subscribe_mqtt->subscribe(q[/open_until/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/open_until_delta/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/uptime/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/stack_trace/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/stack_trace_result/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/vdd/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/rssi/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ssid/#], \&mqtt_handler);
