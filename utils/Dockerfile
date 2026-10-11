@@ -24,6 +24,9 @@ RUN echo "meterlogger ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/meterlogger && \
 USER meterlogger
 WORKDIR /home/meterlogger
 
+# Add /home/meterlogger to system PATH
+ENV PATH="/home/meterlogger:${PATH}"
+
 RUN echo 'shopt -s histappend' >> /home/meterlogger/.bashrc && \
 	echo 'PROMPT_COMMAND="history -a; history -n; $PROMPT_COMMAND"' >> /home/meterlogger/.bashrc && \
 	echo 'export HISTFILE=/home/meterlogger/.bash_history' >> /home/meterlogger/.bashrc && \
