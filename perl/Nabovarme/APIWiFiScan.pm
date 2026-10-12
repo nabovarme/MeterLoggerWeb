@@ -37,9 +37,9 @@ sub handler {
 	my $dbh = Nabovarme::Db->my_connect
 		or return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 
-	$r->content_type("application/json; charset=utf-8");
-	$r->headers_out->set('Cache-Control' => 'max-age=60, public');
-	$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+	# Disable caching for real-time Wi-Fi scan results
+	$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0');
+	$r->headers_out->set('Pragma' => 'no-cache');
 	$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 	my $week_ago = time - 7*24*60*60;
