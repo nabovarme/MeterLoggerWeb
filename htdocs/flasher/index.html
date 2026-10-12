@@ -439,10 +439,11 @@
 		// Search input specific keyboard navigation (Up / Down / Enter / Escape)
 		searchInput.addEventListener('keydown', (e) => {
 			const items = customDropdown.querySelectorAll('.custom-dropdown-item');
-			
+			const isDropdownOpen = !customDropdown.classList.contains('hidden');
+
 			if (e.key === 'ArrowDown') {
 				e.preventDefault();
-				if (customDropdown.classList.contains('hidden')) renderCustomDropdown(searchInput.value);
+				if (!isDropdownOpen) renderCustomDropdown(searchInput.value);
 				if (items.length === 0) return;
 				activeIndex = (activeIndex + 1) % items.length;
 				updateItemHighlight(items);
@@ -453,8 +454,13 @@
 				updateItemHighlight(items);
 			} else if (e.key === 'Enter') {
 				e.preventDefault();
-				if (!customDropdown.classList.contains('hidden') && activeIndex >= 0 && items[activeIndex]) {
-					items[activeIndex].click();
+				if (isDropdownOpen && items.length > 0) {
+					// Select either the keyboard-highlighted item or default to the first matching item
+					const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+					if (items[targetIndex]) {
+						items[targetIndex].click();
+					}
+					customDropdown.classList.add('hidden');
 				} else if (!flashBtn.disabled) {
 					flashBtn.click();
 				}
