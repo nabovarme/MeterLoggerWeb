@@ -313,7 +313,7 @@
 		let allFirmwares = [];
 		let selectedFirmware = null;
 		let transport = null;
-		let activeIndex = -1;
+		let activeIndex = 0;
 
 		function log(msg) {
 			logDiv.textContent += "\n" + msg;
@@ -355,7 +355,6 @@
 
 		function renderCustomDropdown(filterText = '') {
 			customDropdown.innerHTML = '';
-			activeIndex = -1;
 
 			const query = filterText.toLowerCase().trim();
 			const filtered = allFirmwares.filter(fw => 
@@ -364,12 +363,21 @@
 
 			if (filtered.length === 0) {
 				customDropdown.classList.add('hidden');
+				activeIndex = -1;
 				return;
 			}
 
-			filtered.forEach(fw => {
+			// Ensure active index is anchored within bounds of current filtered list
+			if (activeIndex < 0 || activeIndex >= filtered.length) {
+				activeIndex = 0;
+			}
+
+			filtered.forEach((fw, idx) => {
 				const item = document.createElement('div');
 				item.className = 'custom-dropdown-item';
+				if (idx === activeIndex) {
+					item.classList.add('selected');
+				}
 				item.textContent = fw.name;
 				
 				item.addEventListener('mousedown', (e) => {
@@ -427,7 +435,10 @@
 		loadFirmwareList();
 
 		// Open custom menu on click
-		searchInput.addEventListener('click', () => renderCustomDropdown(searchInput.value));
+		searchInput.addEventListener('click', () => {
+			activeIndex = 0;
+			renderCustomDropdown(searchInput.value);
+		});
 
 		// Close menu when clicking outside container
 		document.addEventListener('click', (e) => {
@@ -443,24 +454,32 @@
 
 			if (e.key === 'ArrowDown') {
 				e.preventDefault();
-				if (!isDropdownOpen) renderCustomDropdown(searchInput.value);
+				if (!isDropdownOpen) {
+					activeIndex = 0;
+					renderCustomDropdown(searchInput.value);
+					return;
+				}
 				if (items.length === 0) return;
 				activeIndex = (activeIndex + 1) % items.length;
 				updateItemHighlight(items);
 			} else if (e.key === 'ArrowUp') {
 				e.preventDefault();
+				if (!isDropdownOpen) {
+					activeIndex = 0;
+					renderCustomDropdown(searchInput.value);
+					return;
+				}
 				if (items.length === 0) return;
 				activeIndex = (activeIndex - 1 + items.length) % items.length;
 				updateItemHighlight(items);
 			} else if (e.key === 'Enter') {
 				e.preventDefault();
 				if (isDropdownOpen && items.length > 0) {
-					// Select either the keyboard-highlighted item or default to the first matching item
-					const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+					const targetIndex = (activeIndex >= 0 && activeIndex < items.length) ? activeIndex : 0;
 					if (items[targetIndex]) {
-						items[targetIndex].click();
+						// Trigger the exact mouse selection logic
+						items[targetIndex].dispatchEvent(new MouseEvent('mousedown', { cancelable: true, bubbles: true }));
 					}
-					customDropdown.classList.add('hidden');
 				} else if (!flashBtn.disabled) {
 					flashBtn.click();
 				}
@@ -482,6 +501,7 @@
 
 		// --- PROFILE SELECTION & FLAGS AUTO-POPULATE DETECTOR ---
 		searchInput.addEventListener('input', () => {
+			activeIndex = 0;
 			renderCustomDropdown(searchInput.value);
 			selectedFirmware = allFirmwares.find(fw => fw.name === searchInput.value) || null;
 			
