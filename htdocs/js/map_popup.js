@@ -145,8 +145,8 @@ function initMapPopups(map) {
 		function loadWifiTable(forceRefresh = false) {
 			if (forceRefresh) {
 				tableDiv.innerHTML = '<i>Refreshing scan data...</i>';
-				delete container.dataset.loaded;
-			} else if (container.dataset.loaded === "1") {
+				delete tableDiv.dataset.loaded;
+			} else if (tableDiv.dataset.loaded === "1") {
 				return;
 			}
 
@@ -158,9 +158,9 @@ function initMapPopups(map) {
 					return res.json();
 				})
 				.then(data => {
-					if (!data || !data.length) {
-						tableDiv.innerHTML = '<i>No scan data</i>';
-						container.dataset.loaded = "1";
+					if (!data || !Array.isArray(data) || !data.length) {
+						tableDiv.innerHTML = '<i>No scan data available</i>';
+						tableDiv.dataset.loaded = "1";
 						return;
 					}
 
@@ -188,11 +188,12 @@ function initMapPopups(map) {
 							}).join('')}</tbody>
 						</table>`;
 
-					container.dataset.loaded = "1";
+					tableDiv.dataset.loaded = "1";
 				})
-				.catch(() => {
-					delete container.dataset.loaded;
-					tableDiv.innerHTML = '<span style="color:red">Error loading WiFi (click Visible WiFi to retry)</span>';
+				.catch(err => {
+					console.error('WiFi scan error:', err);
+					delete tableDiv.dataset.loaded;
+					tableDiv.innerHTML = '<span style="color:#d9534f; cursor:pointer;">Error loading WiFi data. Click Visible WiFi to retry.</span>';
 				});
 		}
 
@@ -206,12 +207,15 @@ function initMapPopups(map) {
 
 			if (tableDiv.style.display === 'none') {
 				tableDiv.style.display = 'block';
-				triangle.style.transform = 'rotate(90deg)';
-				// Ensure data is loaded when expanding if it previously failed or hasn't loaded
+				if (triangle) triangle.style.transform = 'rotate(90deg)';
 				loadWifiTable();
 			} else {
-				tableDiv.style.display = 'none';
-				triangle.style.transform = 'rotate(0deg)';
+				if (!tableDiv.dataset.loaded) {
+					loadWifiTable(true);
+				} else {
+					tableDiv.style.display = 'none';
+					if (triangle) triangle.style.transform = 'rotate(0deg)';
+				}
 			}
 		});
 
@@ -234,13 +238,13 @@ function initMapPopups(map) {
 						if (data.status === 'ok') {
 							// Fast response (Meter was awake)
 							tableDiv.style.display = 'block';
-							triangle.style.transform = 'rotate(90deg)';
+							if (triangle) triangle.style.transform = 'rotate(90deg)';
 							loadWifiTable(true);
 						} else if (data.status === 'queued') {
 							// Slow response (Meter asleep, command queued)
 							if (statusSpan) statusSpan.textContent = 'Queued (awaiting meter...)';
 							tableDiv.style.display = 'block';
-							triangle.style.transform = 'rotate(90deg)';
+							if (triangle) triangle.style.transform = 'rotate(90deg)';
 							
 							// Auto-poll after 10 seconds when the meter has hopefully replied
 							setTimeout(() => {

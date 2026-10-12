@@ -128,8 +128,8 @@ function bindNetworkPopupEvents(container) {
 	function loadWifiTable(forceRefresh = false) {
 		if (forceRefresh) {
 			tableDiv.innerHTML = '<i>Refreshing scan data...</i>';
-			delete container.dataset.loaded;
-		} else if (container.dataset.loaded === "1") {
+			delete tableDiv.dataset.loaded;
+		} else if (tableDiv.dataset.loaded === "1") {
 			return;
 		}
 
@@ -141,9 +141,9 @@ function bindNetworkPopupEvents(container) {
 				return res.json();
 			})
 			.then(data => {
-				if (!data || !data.length) {
-					tableDiv.innerHTML = '<i>No scan data</i>';
-					container.dataset.loaded = "1";
+				if (!data || !Array.isArray(data) || !data.length) {
+					tableDiv.innerHTML = '<i>No scan data available</i>';
+					tableDiv.dataset.loaded = "1";
 					return;
 				}
 
@@ -171,15 +171,14 @@ function bindNetworkPopupEvents(container) {
 						}).join('')}</tbody>
 					</table>`;
 
-				container.dataset.loaded = "1";
+				tableDiv.dataset.loaded = "1";
 			})
-			.catch(() => {
-				delete container.dataset.loaded;
-				tableDiv.innerHTML = '<span style="color:red">Error loading WiFi (click Visible WiFi to retry)</span>';
+			.catch(err => {
+				console.error('WiFi scan error:', err);
+				delete tableDiv.dataset.loaded;
+				tableDiv.innerHTML = '<span style="color:#d9534f; cursor:pointer;">Error loading WiFi data. Click Visible WiFi to retry.</span>';
 			});
 	}
-
-	loadWifiTable();
 
 	toggleContainer.addEventListener('click', (evt) => {
 		if (evt.target.closest('.rescan-wifi-btn')) return;
@@ -189,8 +188,12 @@ function bindNetworkPopupEvents(container) {
 			if (triangle) triangle.style.transform = 'rotate(90deg)';
 			loadWifiTable();
 		} else {
-			tableDiv.style.display = 'none';
-			if (triangle) triangle.style.transform = 'rotate(0deg)';
+			if (!tableDiv.dataset.loaded) {
+				loadWifiTable(true);
+			} else {
+				tableDiv.style.display = 'none';
+				if (triangle) triangle.style.transform = 'rotate(0deg)';
+			}
 		}
 	});
 
