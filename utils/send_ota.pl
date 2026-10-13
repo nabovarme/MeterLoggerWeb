@@ -12,33 +12,88 @@ $| = 1;
 # Define usage subroutine
 sub print_usage {
 	print << "EOF";
-Usage: $0 [options] <serial> [version_dir]
+Usage: $0 [options] <serial> [serial ...]
 
 Options:
-  -c, --confirm    Query current running ROM version and confirm it
-  -h, --help       Show this help message
+  -v, --version VERSION   Firmware version to install (default: latest)
+  -c, --confirm           Query current running ROM version and confirm it
+  -h, --help              Show this help message
 
 Examples:
   $0 9999995
-  $0 9999995 20261013_152158
-  $0 --confirm 9999995
+  $0 9999995 9999996 9999997
+  $0 --version 20261013_152158 9999995 9999996
+  $0 --confirm 9999995 9999996
 EOF
 	exit 0;
 }
 
 my $help = 0;
 my $confirm_only = 0;
+my $version = "latest";
 
 GetOptions(
-	'help|h'    => \$help,
-	'confirm|c' => \$confirm_only,
+	'help|h'      => \$help,
+	'confirm|c'   => \$confirm_only,
+	'version|v=s' => \$version,
 ) or die "Error in command line arguments\n";
 
 print_usage() if $help;
 
 # Parse positional arguments
-my $serial  = $ARGV[0] or print_usage();
-my $version = $ARGV[1] // "latest"; # Default to the automated 'latest' symlink
+my @serials = @ARGV;
+print_usage() if !@serials;
+
+# Process multiple meters sequentially by invoking this script once per meter.
+if (@serials > 1) {
+	my @failed;
+
+	print "Processing " . scalar(@serials) . " meters sequentially.\n\n";
+
+	for my $i (0 .. $#serials) {
+		my $serial = $serials[$i];
+
+		print "\n", "=" x 60, "\n";
+		print "Meter $serial (" . ($i + 1) . "/" . scalar(@serials) . ")\n";
+		print "=" x 60, "\n";
+
+		my @cmd = ($^X, $0);
+
+		push @cmd, '--confirm' if $confirm_only;
+		push @cmd, ('--version', $version) if !$confirm_only;
+		push @cmd, $serial;
+
+		my $status = system(@cmd);
+
+		if ($status == -1) {
+			print "ERROR: Could not execute script for meter $serial: $!\n";
+			push @failed, $serial;
+		}
+		elsif ($status & 127) {
+			print "ERROR: Meter $serial terminated by signal " . ($status & 127) . ".\n";
+			push @failed, $serial;
+		}
+		elsif (($status >> 8) != 0) {
+			my $exit_code = $status >> 8;
+			print "ERROR: Meter $serial failed (exit code $exit_code).\n";
+			push @failed, $serial;
+		}
+	}
+
+	print "\n", "=" x 60, "\n";
+	print "Batch processing completed.\n";
+
+	if (@failed) {
+		print "Failed meters: " . join(", ", @failed) . "\n";
+		exit 1;
+	}
+
+	print "All meters processed successfully.\n";
+	exit 0;
+}
+
+# Existing single-meter workflow
+my $serial = $serials[0];
 
 print "Connecting to database...\n";
 my $rpc = Nabovarme::MQTT_RPC->new();
@@ -49,7 +104,11 @@ if (!$rpc->connect()) {
 # Handle stand-alone ROM confirmation mode
 if ($confirm_only) {
 	print "Querying meter $serial for current running firmware version...\n";
-	$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'version'", undef, $serial);
+	$rpc->{dbh}->do(
+		"DELETE FROM command_queue WHERE serial = ? AND function = 'version'",
+		undef,
+		$serial
+	);
 
 	my $version_res = '';
 	$rpc->call({
@@ -64,7 +123,7 @@ if ($confirm_only) {
 		}
 	});
 
-	if (defined $version_res &&$version_res ne '') {
+	if (defined $version_res && $version_res ne '') {
 		print "Current Running Version: $version_res\n\n";
 	} else {
 		die "Failed: Meter did not respond to version request.\n";
@@ -77,7 +136,11 @@ if ($confirm_only) {
 
 	if ($ans =~ /^y/i) {
 		print "Sending 'action=confirm' to meter via ota_upgrade...\n";
-		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
+		$rpc->{dbh}->do(
+			"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+			undef,
+			$serial
+		);
 
 		my $confirm_res = '';
 		$rpc->call({
@@ -92,7 +155,7 @@ if ($confirm_only) {
 			}
 		});
 
-		if (defined $confirm_res &&$confirm_res ne '') {
+		if (defined $confirm_res && $confirm_res ne '') {
 			print "Meter Response: $confirm_res\n";
 			print "ROM confirmed successfully.\n";
 		} else {
@@ -107,7 +170,11 @@ if ($confirm_only) {
 my $fw_dir = "/home/meterlogger/firmware/$serial/$version";
 
 # Fallback to root serial dir if 'latest' doesn't exist but root does
-if (!-d $fw_dir &&$version eq "latest" && -d "/home/meterlogger/firmware/$serial") {
+if (
+	!-d $fw_dir
+	&& $version eq "latest"
+	&& -d "/home/meterlogger/firmware/$serial"
+) {
 	$fw_dir = "/home/meterlogger/firmware/$serial";
 	$version = "";
 }
@@ -119,9 +186,12 @@ sub get_hash {
 	die "Error: Firmware binary not found: $bin_file\n" if (!-f $bin_file);
 
 	if (-f "$bin_file.sha256") {
-		open(my $fh, '<', "$bin_file.sha256") or die "Error: Cannot open $bin_file.sha256: $!\n";
+		open(my $fh, '<', "$bin_file.sha256")
+			or die "Error: Cannot open $bin_file.sha256: $!\n";
+
 		my $line = <$fh>;
 		close($fh);
+
 		my ($hash) = split(/\s+/, $line);
 		return $hash;
 	} else {
@@ -141,17 +211,23 @@ my $payload = "version=$version&sha1=$sha1&sha2=$sha2";
 # Subroutine to wait for meter to reboot and come online
 sub wait_for_meter {
 	my $delay = shift || 15;
+
 	print "\nWaiting for meter to download firmware, flash, and reboot ($delay seconds)...\n";
 	sleep $delay;
 
 	print "Pinging meter to verify it comes back online (Retrying for ~2 mins)...\n";
-	
+
 	# Loop 10 times, giving the backend dispatcher 15 seconds (1-2 retries) per attempt
 	for (my $i = 1; $i <= 10; $i++) {
 		my $res_param = '';
-		
+
 		# Clear queue before pinging to prevent buildup
-		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'version'", undef, $serial);
+		$rpc->{dbh}->do(
+			"DELETE FROM command_queue WHERE serial = ? AND function = 'version'",
+			undef,
+			$serial
+		);
+
 		$rpc->call({
 			serial   => $serial,
 			function => 'version',
@@ -163,14 +239,16 @@ sub wait_for_meter {
 				$res_param = $res->{param};
 			}
 		});
-		
-		if (defined $res_param &&$res_param ne '') {
+
+		if (defined $res_param && $res_param ne '') {
 			print "\n>>> METER IS BACK ONLINE <<<\n";
 			print "Firmware Version Running: $res_param\n";
 			return 1;
 		}
+
 		print "  No response. Retrying ($i/10)...\n" if $i < 10;
 	}
+
 	return 0;
 }
 
@@ -184,7 +262,11 @@ sub execute_ota {
 	my $is_retryable_error = 0;
 
 	# Clear any old OTA commands before starting
-	$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
+	$rpc->{dbh}->do(
+		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+		undef,
+		$serial
+	);
 
 	my $success = $rpc->call({
 		serial     => $serial,
@@ -196,9 +278,9 @@ sub execute_ota {
 		callback   => sub {
 			my $res = shift;
 			my $msg = $res->{param};
-			
+
 			print "Meter: $msg\n" if $msg ne $payload;
-			
+
 			if ($msg =~ /error_unconfirmed_temp_rom/i) {
 				$unconfirmed_rom = 1;
 				$ota_error = 1;
@@ -214,13 +296,21 @@ sub execute_ota {
 				$ota_error = 1;
 				return 0; # Exit continuous mode
 			}
-			
+
 			# Exit ONLY when flashing is finished or reboot countdown starts
-			if ($msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i || $msg =~ /pending_confirmation/i || $msg =~ /restarting/i) {
+			if (
+				$msg =~ /success/i
+				|| $msg =~ /staging/i
+				|| $msg =~ /complete/i
+				|| $msg =~ /100\%/
+				|| $msg =~ /permanently/i
+				|| $msg =~ /pending_confirmation/i
+				|| $msg =~ /restarting/i
+			) {
 				print "\n[+] Meter OTA flashing complete. Preparing to reboot...\n";
 				return 0; # Exit continuous mode
 			}
-			
+
 			return 1; # Continue listening
 		}
 	});
@@ -237,31 +327,36 @@ my ($success, $ota_error, $unconfirmed_rom, $is_retryable_error);
 for (my $attempt = 1; $attempt <= $max_ota_attempts; $attempt++) {
 	($success, $ota_error, $unconfirmed_rom, $is_retryable_error) = execute_ota();
 
-	if ($ota_error &&$is_retryable_error && $attempt <$max_ota_attempts) {
+	if ($ota_error && $is_retryable_error && $attempt < $max_ota_attempts) {
 		print "\n[!] Network error encountered during OTA download. Retrying attempt ($attempt/$max_ota_attempts) in 5 seconds...\n\n";
 		sleep 5;
 		next;
 	}
+
 	last;
 }
 
 # Check if we tripped the unconfirmed temp ROM condition
-if ($ota_error &&$unconfirmed_rom) {
+if ($ota_error && $unconfirmed_rom) {
 	print "\n[!] Meter is running an unconfirmed temporary ROM.\n";
 	print "Options:\n";
 	print "  [C] Confirm the running ROM and retry OTA (Default)\n";
 	print "  [R] Restart meter (reverts to previous ROM) and retry OTA\n";
 	print "  [A] Abort\n";
 	print "Choose an action [C/r/a]: ";
-	
+
 	my $ans = <STDIN>;
 	chomp($ans) if defined $ans;
 	$ans //= 'c';
 
 	if ($ans =~ /^r/i) {
 		print "\nSending 'restart' command to revert to previous ROM...\n";
-		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'restart'", undef, $serial);
-		
+		$rpc->{dbh}->do(
+			"DELETE FROM command_queue WHERE serial = ? AND function = 'restart'",
+			undef,
+			$serial
+		);
+
 		my $res_param = '';
 		$rpc->call({
 			serial   => $serial,
@@ -269,9 +364,11 @@ if ($ota_error &&$unconfirmed_rom) {
 			param    => '',
 			stateful => 1,
 			timeout  => 15,
-			callback => sub { $res_param = shift->{param}; }
+			callback => sub {
+				$res_param = shift->{param};
+			}
 		});
-		
+
 		if ($res_param) {
 			print "Meter acknowledged restart: $res_param\n";
 		}
@@ -285,8 +382,12 @@ if ($ota_error &&$unconfirmed_rom) {
 	}
 	elsif ($ans =~ /^c/i || $ans eq '') {
 		print "\nSending 'action=confirm' to meter via ota_upgrade...\n";
-		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
-		
+		$rpc->{dbh}->do(
+			"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+			undef,
+			$serial
+		);
+
 		my $res_param = '';
 		$rpc->call({
 			serial   => $serial,
@@ -294,10 +395,13 @@ if ($ota_error &&$unconfirmed_rom) {
 			param    => 'action=confirm',
 			stateful => 1,
 			timeout  => 15,
-			callback => sub { $res_param = shift->{param}; }
+			callback => sub {
+				my $res = shift;
+				$res_param = $res->{param};
+			}
 		});
 
-		if (defined $res_param &&$res_param ne '') {
+		if (defined $res_param && $res_param ne '') {
 			print "Meter response: $res_param\n";
 			print "ROM confirmed successfully! Allowing meter to settle...\n";
 			sleep 5;
@@ -306,7 +410,7 @@ if ($ota_error &&$unconfirmed_rom) {
 		} else {
 			die "\nFailed: Could not confirm ROM (no response).\n";
 		}
-	} 
+	}
 	else {
 		die "\nAborted by user.\n";
 	}
@@ -315,6 +419,7 @@ if ($ota_error &&$unconfirmed_rom) {
 if (!$success) {
 	die "\nFailed: Command timed out or queue error occurred.\n";
 }
+
 if ($ota_error) {
 	die "\nFailed: Meter aborted the OTA upgrade. See output above.\n";
 }
