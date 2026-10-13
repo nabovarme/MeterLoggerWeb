@@ -106,12 +106,22 @@ sub call {
 					}
 					
 					# --- SPECIAL CASE: Async OTA Flashing ---
-					# When mqtt_listener marks the row 'received', we push it back to 'sent' 
-					# so it continues catching asynchronous progress messages.
-					# We set 'last_sent' 1 day into the future to trick mqtt_dispatcher.pl 
-					# into skipping retransmission of the heavy payload.
+					# Return the command to 'sent' so asynchronous progress messages can
+					# continue to be received without retransmitting the heavy OTA payload.
+					#
+					# Only update the row if the response is still the one we just processed.
+					# mqtt_listener may have stored a newer response since our SELECT.
 					if ($d->{state} eq 'received' && $d->{function} eq 'ota_upgrade') {
-						$self->{dbh}->do(qq[UPDATE command_queue SET `state` = 'sent', `last_sent` = UNIX_TIMESTAMP() + 86400 WHERE `id` = $d->{id}]);
+						my $quoted_param = $self->{dbh}->quote(
+							defined($d->{param}) ? $d->{param} : ''
+						);
+
+						$self->{dbh}->do(qq[UPDATE command_queue \
+							SET `state` = 'sent', \
+								`last_sent` = UNIX_TIMESTAMP() + 86400 \
+							WHERE `id` = $d->{id} \
+								AND `state` = 'received' \
+								AND `param` = $quoted_param]);
 					}
 				}
 				else {
