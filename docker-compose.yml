@@ -465,6 +465,7 @@ services:
     hostname: utils
     volumes:
       - ./backup:/home/meterlogger/backup
+      - firmware_release:/home/meterlogger/firmware
       - ./utils/bash_history:/home/meterlogger/.bash_history
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
