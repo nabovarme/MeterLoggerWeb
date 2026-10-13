@@ -69,12 +69,12 @@ sub send_command_with_retry {
 	$stateful //= 1;
 	
 	for (my $try = 1; $try <= $max_retries; $try++) {
-		my $responded = 0;
 		my $res_param = '';
 		
 		# Clear old queued commands of this type to ensure a clean slate
 		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = ?", undef, $serial, $function);
-		$rpc->call({
+		
+		my $call_ok = $rpc->call({
 			serial   => $serial,
 			function => $function,
 			param    => $param,
@@ -83,12 +83,16 @@ sub send_command_with_retry {
 			callback => sub {
 				my $res = shift;
 				$res_param = $res->{param};
-				$responded = 1;
 			}
 		});
 		
-		return (1, $res_param) if $responded;
-		print "  No response. Retrying '$function' ($try/$max_retries)...\n" if $try <$max_retries;
+		# call() returns 1 on success, 0 on timeout. 
+		# We also ensure the meter didn't just bounce back an empty string.
+		if ($call_ok && defined $res_param && $res_param ne '') {
+			return (1, $res_param);
+		}
+		
+		print "  No response. Retrying '$function' ($try/$max_retries)...\n" if $try < $max_retries;
 	}
 	return (0, '');
 }
