@@ -112,21 +112,23 @@ sub execute_ota {
 			
 			print "Meter: $msg\n" if $msg ne $payload;
 			
-			if ($msg =~ /error_unconfirmed_temp_rom/i) {$unconfirmed_rom = 1;
+			if ($msg =~ /error_unconfirmed_temp_rom/i) {
+				$unconfirmed_rom = 1;
 				$ota_error = 1;
 				return 0; # Exit continuous mode
 			}
-			elsif ($msg =~ /error/i || $msg =~ /fail/i) {$ota_error = 1;
+			elsif ($msg =~ /error/i || $msg =~ /fail/i) {
+				$ota_error = 1;
 				return 0; # Exit continuous mode
 			}
 			
-			# Exit on 'started' because the async MQTT flashing updates do NOT update the database queue
-			if ($msg =~ /started/i || $msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i || $msg =~ /pending_confirmation/i || $msg =~ /restarting/i) {
-				print "\n[+] Meter accepted OTA payload and is flashing in the background.\n";
+			# Exit ONLY when flashing is finished or reboot countdown starts
+			if ($msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i || $msg =~ /pending_confirmation/i || $msg =~ /restarting/i) {
+				print "\n[+] Meter OTA flashing complete. Preparing to reboot...\n";
 				return 0; # Exit continuous mode
 			}
 			
-			return 1;
+			return 1; # Continue listening
 		}
 	});
 
@@ -212,8 +214,8 @@ if ($ota_error) {
 	die "\nFailed: Meter aborted the OTA upgrade. See output above.\n";
 }
 
-# Final check after a successful flash - 60 seconds to cover the 22s reboot timer + flash time
-if (!wait_for_meter(60)) {
+# Final check after a successful flash - 35 seconds to cover the 22s reboot timer + flash time
+if (!wait_for_meter(35)) {
 	die "\nWarning: Meter did not come back online within the expected time. It may have failed to boot the new ROM and safely reverted to the old one.\n";
 }
 
