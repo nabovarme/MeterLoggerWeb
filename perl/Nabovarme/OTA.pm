@@ -47,7 +47,7 @@ sub _read_input {
 	$self->_log($prompt);
 
 	if (ref($self->{input}) eq 'CODE') {
-		return $self->{input}->();
+		return $self->{input}->($prompt);
 	}
 
 	return scalar <STDIN>;
@@ -107,12 +107,8 @@ sub confirm {
 
 	$self->_log("Sending 'action=confirm' to meter via ota_upgrade...\n");
 
-	$rpc->{dbh}->do(
-		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
-		undef,
-		$serial
-	);
-
+	# Do not delete an existing OTA command here. MQTT_RPC holds a per-meter
+	# advisory lock and refuses to overlap OTA calls.
 	my $confirm_res = '';
 
 	$rpc->call({
@@ -197,7 +193,7 @@ sub _wait_for_meter {
 	for (my $i = 1; $i <= 10; $i++) {
 		my $res_param = '';
 
-		# Clear the queue before pinging to prevent buildup.
+		# Clear stale version requests before pinging to prevent queue buildup.
 		$rpc->{dbh}->do(
 			"DELETE FROM command_queue WHERE serial = ? AND function = 'version'",
 			undef,
@@ -245,13 +241,8 @@ sub _execute_ota {
 	my $unconfirmed_rom = 0;
 	my $is_retryable_error = 0;
 
-	# Clear any old OTA commands before starting.
-	$rpc->{dbh}->do(
-		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
-		undef,
-		$serial
-	);
-
+	# MQTT_RPC owns OTA command lifecycle and rejects overlapping operations.
+	# Do not delete command_queue rows here: that could remove another caller's command.
 	my $success = $rpc->call({
 		serial     => $serial,
 		function   => 'ota_upgrade',
@@ -303,12 +294,7 @@ sub _execute_ota {
 
 	$self->_log('-' x 50 . "\n");
 
-	return (
-		$success,
-		$ota_error,
-		$unconfirmed_rom,
-		$is_retryable_error
-	);
+	return ($success, $ota_error, $unconfirmed_rom, $is_retryable_error);
 }
 
 # Upgrade a meter to the selected firmware version.
@@ -400,7 +386,6 @@ sub upgrade {
 			);
 
 			my $res_param = '';
-
 			$rpc->call({
 				serial   => $serial,
 				function => 'restart',
@@ -436,14 +421,7 @@ sub upgrade {
 				"\nSending 'action=confirm' to meter via ota_upgrade...\n"
 			);
 
-			$rpc->{dbh}->do(
-				"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
-				undef,
-				$serial
-			);
-
 			my $res_param = '';
-
 			$rpc->call({
 				serial   => $serial,
 				function => 'ota_upgrade',

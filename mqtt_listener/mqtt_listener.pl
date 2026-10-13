@@ -89,38 +89,6 @@ sub mqtt_handler {
 
 	return unless $key;
 
-	# --------------------
-	# scan_result special case (Backward compatibility)
-	# --------------------
-	if ($function =~ /^scan_result$/i) {
-		log_info("Received MQTT reply from $meter_serial: $function", {-no_script_name => 1});
-
-		# Check if the scan command is waiting for a synchronous callback
-		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = 'scan' \
-			AND state = 'sent' \
-			LIMIT 1 \
-		]);
-		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
-
-		if (my $row = $sth->fetchrow_hashref) {
-			if ($row->{has_callback}) {
-				# Update state so MQTT_RPC unblocks immediately
-				$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
-				log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
-			}
-			else {
-				# Standard async cleanup
-				$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
-				log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
-			}
-		}
-		return;
-	}
-
 	# Decrypt message
 	my $sha256 = sha256(pack('H*', $key));
 	my $aes_key = substr($sha256, 0, 16);
@@ -130,6 +98,38 @@ sub mqtt_handler {
 		my $m = Crypt::Mode::CBC->new('AES');
 		my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
 		$cleartext =~ s/[\x00\s]+$//;	# remove trailing nulls
+
+		# --------------------
+		# scan_result special case (Backward compatibility)
+		# --------------------
+		if ($function =~ /^scan_result$/i) {
+			log_info("Received authenticated MQTT reply from $meter_serial: $function", {-no_script_name => 1});
+
+			# Check if the scan command is waiting for a synchronous callback.
+			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
+				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				AND function = 'scan' \
+				AND state = 'sent' \
+				LIMIT 1 \
+			]);
+			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+
+			if (my $row = $sth->fetchrow_hashref) {
+				if ($row->{has_callback}) {
+					# Update state so MQTT_RPC unblocks immediately.
+					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
+					log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
+				}
+				else {
+					# Standard async cleanup.
+					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
+					log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
+				}
+			}
+			return;
+		}
 
 		# --------------------
 		# test_ssid_pwd_result special case
@@ -222,30 +222,41 @@ sub mqtt_handler {
 		# ota_upgrade special case (Asynchronous OTA flashing)
 		# --------------------
 		if ($function =~ /^ota_upgrade$/i) {
+			# MQTT OTA responses do not include the command_queue ID. Keep only
+			# the oldest active OTA command eligible to receive a response.
 			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				WHERE serial = ? \
 				AND function = 'ota_upgrade' \
 				AND state IN ('sent', 'received') \
-			]);
-			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+				ORDER BY id ASC \
+				LIMIT 1]);
+			$sth->execute($meter_serial) or log_warn($DBI::errstr, {-no_script_name => 1});
 
-			while ($d = $sth->fetchrow_hashref) {
+			if ($d = $sth->fetchrow_hashref) {
 				if ($d->{has_callback}) {
-					# Store the latest OTA response even if the previous response
-					# has not yet been consumed by MQTT_RPC::call().
-					$dbh->do(qq[UPDATE command_queue SET \
+					# Keep terminal OTA responses until MQTT_RPC consumes them. In
+					# particular, a later restarting message must not overwrite success.
+					my $updated = $dbh->do(qq[UPDATE command_queue SET \
 						state = 'received', \
-						param = ] . $dbh->quote($cleartext) . qq[ \
-						WHERE id = ] . $d->{id} . qq[ \
+						param = ? \
+						WHERE id = ? \
 							AND state IN ('sent', 'received') \
-					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+							AND param NOT REGEXP '(^|&)status=(success|restarting[^&]*|error[^&]*|fail[^&]*)($|&)'],
+						undef,
+						$cleartext,
+						$d->{id}
+					);
 
-					log_info("Stored OTA response for $meter_serial: $cleartext", {-no_script_name => 1});
+					if (defined($updated) && $updated ne '0E0' && $updated > 0) {
+						log_info("Stored OTA response for $meter_serial: $cleartext", {-no_script_name => 1});
+					}
+					else {
+						log_debug("Ignored OTA response after terminal response for $meter_serial: $cleartext", {-no_script_name => 1});
+					}
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue \
-						WHERE id = ] . $d->{id} . qq[ \
-					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
 
 					log_info("Deleted OTA command for $meter_serial", {-no_script_name => 1});
 				}

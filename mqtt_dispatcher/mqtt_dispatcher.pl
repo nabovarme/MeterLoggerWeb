@@ -62,7 +62,7 @@ Mojo::IOLoop->recurring(10 => sub {
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
-	# Timeouts are still correctly calculated based on original unix_time
+	# Timeouts are still correctly calculated based on original unix_time.
 	$dbh->do(qq[UPDATE command_queue \
 		SET `state` = 'timeout' \
 		WHERE `state` = 'sent' \
@@ -78,8 +78,9 @@ Mojo::IOLoop->recurring(10 => sub {
 			AND UNIX_TIMESTAMP() - `unix_time` > `timeout` \
 	]) or warn $DBI::errstr;
 
-	# Prune duplicate commands per meter
-	# Transfer sent_count and last_sent to the newer duplicate before pruning
+	# Prune duplicate stateless commands per meter only.
+	# Transfer sent_count and last_sent to the newer duplicate before pruning.
+	# Stateful commands must not be pruned by this generic deduplication.
 	$dbh->do(qq[UPDATE command_queue c1 \
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
@@ -87,26 +88,30 @@ Mojo::IOLoop->recurring(10 => sub {
 		    c2.last_sent = GREATEST(c1.last_sent, c2.last_sent) \
 		WHERE c1.state = 'sent' \
 			AND c2.state = 'sent' \
+			AND c1.is_stateful = 0 \
+			AND c2.is_stateful = 0 \
 			AND c1.id < c2.id \
 			AND c1.function NOT IN ('set_cron', 'clear_cron') \
 	]) or warn $DBI::errstr;
 
-	# Prune duplicate commands per meter (deletes the older ones)
+	# Prune duplicate stateless commands per meter (deletes the older ones).
 	$dbh->do(qq[DELETE c1 FROM command_queue c1 \
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
 		WHERE c1.state = 'sent' \
-		AND c2.state = 'sent' \
-		AND c1.id < c2.id \
-		AND c1.function NOT IN ('set_cron', 'clear_cron') \
-	]) or warn$DBI::errstr;
+			AND c2.state = 'sent' \
+			AND c1.is_stateful = 0 \
+			AND c2.is_stateful = 0 \
+			AND c1.id < c2.id \
+			AND c1.function NOT IN ('set_cron', 'clear_cron') \
+	]) or warn $DBI::errstr;
 });
 
 # --------------------------------------------------
 # Event-Driven Dispatcher Routine
 # --------------------------------------------------
 sub process_queue {
-	# Use prepare_cached so Perl only compiles this SQL query once
+	# Use prepare_cached so Perl only compiles this SQL query once.
 	$sth = $dbh->prepare_cached(qq[SELECT \
 			command_queue.`id`, \
 			command_queue.`serial`, \
@@ -122,14 +127,14 @@ sub process_queue {
 	]);
 	$sth->execute or warn $DBI::errstr;
 
-	# Prepare UPDATE statements ONCE in memory instead of compiling them on every loop iteration
+	# Prepare UPDATE statements once instead of compiling them on each iteration.
 	my $sth_update_stateful = $dbh->prepare_cached(qq[
 		UPDATE command_queue \
 			SET `sent_count` = `sent_count` + 1, \
 			    `last_sent` = UNIX_TIMESTAMP() \
 			WHERE `id` = ? \
 	]);
-	
+
 	my $sth_update_stateless = $dbh->prepare_cached(qq[
 		UPDATE command_queue \
 			SET `sent_count` = `sent_count` + 1, \
@@ -149,35 +154,41 @@ sub process_queue {
 		my $current_function = $d->{function};
 		my $is_stateful      = $d->{is_stateful};
 
-		# Skip if this command ID is already queued in an active timer
+		# Capture values for this scheduled timer. Do not close over the fetch
+		# hashref, which is reused by the database fetch loop.
+		my $command_key = $d->{key};
+		my $command_param = $d->{param};
+
+		# Skip if this command ID is already queued in an active timer.
 		next if $in_flight{$cmd_id};
 
-		# Deduplicate stateless commands within the same pass
+		# Deduplicate stateless commands within the same pass.
 		if (!$is_stateful) {
 			my $dedup_key = $serial . '-' . $current_function;
 			next if $sent_this_pass{$dedup_key};
 			$sent_this_pass{$dedup_key} = 1;
 		}
 
-		# Calculate required delay for THIS specific meter
+		# Calculate required delay for this specific meter.
 		my $last_sent = $meter_last_sent_time{$serial} // 0;
 		my $time_since_last_sent = $now - $last_sent;
 		my $delay = 0;
-		
+
 		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
-			# Meter received a command recently -> delay to preserve per-meter processing window
+			# Meter received a command recently -> delay to preserve per-meter processing window.
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
-		} else {
-			# Add offset to pace transmissions and avoid socket bursts
+		}
+		else {
+			# Add offset to pace transmissions and avoid socket bursts.
 			$delay = $dispatch_offset;
 			$dispatch_offset += COMMAND_OFFSET_INTERVAL;
 		}
 
-		# Mark projected send time and in-flight status IMMEDIATELY
-		$meter_last_sent_time{$serial} = $now +$delay;
+		# Mark projected send time and in-flight status immediately.
+		$meter_last_sent_time{$serial} = $now + $delay;
 		$in_flight{$cmd_id} = 1;
 
-		# Execute the pre-compiled statements (Uses a fraction of the CPU)
+		# Execute the pre-compiled statements.
 		if ($is_stateful) {
 			$sth_update_stateful->execute($cmd_id) or warn $DBI::errstr;
 		}
@@ -185,26 +196,26 @@ sub process_queue {
 			$sth_update_stateless->execute($serial, $current_function) or warn $DBI::errstr;
 		}
 
-		# Schedule asynchronous MQTT transmission
+		# Schedule asynchronous MQTT transmission.
 		Mojo::IOLoop->timer($delay => sub {
-			my $key = $d->{key};
+			my $key = $command_key;
 			my $sha256 = sha256(pack('H*', $key));
 			my $aes_key = substr($sha256, 0, 16);
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 
 			log_debug("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
-			
+
 			my $topic = '/config/v2/' . $serial . '/' . int(time()) . '/' . $current_function;
-			my $message = $d->{param} . "\0";
+			my $message = $command_param . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
-			
+
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-			
+
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 
-			# Release in-flight flag after transmission finishes
+			# Release in-flight flag after transmission finishes.
 			delete $in_flight{$cmd_id};
 		});
 	}
