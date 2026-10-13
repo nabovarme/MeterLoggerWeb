@@ -79,80 +79,56 @@ sub call {
 	}
 
 	if ($callback) {
-		# wait for reply
-		my $last_param = '';
 		my $start_time = time();
 
 		do {
-			$sth = $self->{dbh}->prepare(qq[SELECT `id`, `serial`, `function`, `param`, `unix_time`, `state` FROM command_queue \
-				WHERE `serial` LIKE $quoted_serial AND `function` LIKE $quoted_mqtt_function AND (`state` = 'received' OR `state` = 'timeout')]);
-			$sth->execute;
+			# Fetch responses iteratively from the dedicated stream table, resolving dropped messages
+			$sth = $self->{dbh}->prepare(qq[
+				SELECT cr.id AS resp_id, cr.param AS cr_param, cr.unix_time AS cr_unix_time, cq.state AS cq_state, cq.id AS command_id
+				FROM command_queue cq
+				LEFT JOIN command_responses cr ON cq.id = cr.command_id
+				WHERE cq.serial = ? AND cq.function = ?
+				AND (cr.id IS NOT NULL OR cq.state = 'timeout')
+				ORDER BY cr.id ASC LIMIT 1
+			]);
+			$sth->execute($serial, $mqtt_function);
+
 			if ($d = $sth->fetchrow_hashref) {
-				if ($continuous) {
-					# Continuous mode: Fire callback on every param change
-					if ($d->{param} ne $last_param) {
-						$last_param = $d->{param};
-						my $ret = $callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
+				if (defined $d->{resp_id}) {
+					# Pop the processed message off the queue immediately
+					$self->{dbh}->do(qq[DELETE FROM command_responses WHERE id = ?], undef, $d->{resp_id});
 
-						# If the callback explicitly returns 0, abort the continuous loop and cleanup
-						if (defined $ret && $ret == 0) {
-							$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-							return 1;
-						}
-					}
-					if ($d->{state} =~ /^timeout$/i) {
-						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-						return 0;
+					my $ret = 1;
+					if ($continuous) {
+						$ret = $callback->({serial => $serial, function => $mqtt_function, param => $d->{cr_param}, unix_time => $d->{cr_unix_time}});
+					} else {
+						$callback->({serial => $serial, function => $mqtt_function, param => $d->{cr_param}, unix_time => $d->{cr_unix_time}});
+						$ret = 0;
 					}
 
-					# --- SPECIAL CASE: Async OTA Flashing ---
-					# When mqtt_listener marks the row 'received', return it to
-					# 'sent' so it continues catching asynchronous progress messages.
-					# Avoid retransmitting the heavy OTA payload by setting last_sent
-					# 1 day into the future.
-					#
-					# Only reset the row if it still contains the response we
-					# just processed. mqtt_listener may already have stored a
-					# newer response since our SELECT.
-					if ($d->{state} eq 'received' && $d->{function} eq 'ota_upgrade') {
-						my $quoted_param = $self->{dbh}->quote(
-							defined($d->{param}) ? $d->{param} : ''
-						);
-
-						$self->{dbh}->do(qq[UPDATE command_queue \
-							SET `state` = 'sent', \
-								`last_sent` = UNIX_TIMESTAMP() + 86400 \
-							WHERE `id` = $d->{id} \
-								AND `state` = 'received' \
-								AND `param` = $quoted_param]);
-					}
-				}
-				else {
-					# Standard mode (Legacy): Fire once, delete immediately, and return
-					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-					$callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
-					if ($d->{state} =~ /^timeout$/i) {
-						return 0;
-					}
-					else {
+					if (!$continuous || (defined $ret && $ret == 0)) {
+						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{command_id});
 						return 1;
 					}
+
+					# Immediately cycle to process the next response if there's a backlog (no sleep needed)
+					next;
+				}
+				elsif ($d->{cq_state} =~ /^timeout$/i) {
+					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{command_id});
+					return 0;
 				}
 			}
-			sleep 1;
+
+			usleep(100_000); # 100ms ultra-fast poll for highly responsive continuous streams
 
 			# Local hard timeout for continuous mode to prevent infinite hangs
 			if ($continuous && $timeout > 0 && (time() - $start_time > $timeout)) {
-				if ($d && $d->{id}) {
-					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-				}
-				else {
-					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `serial` = $quoted_serial AND `function` = $quoted_mqtt_function]);
-				}
+				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = ?], undef, $serial, $mqtt_function);
 				return 0;
 			}
 
-		} while ($continuous ? 1 : !$d)
+		} while ($continuous ? 1 : !$d);
 	}
 	return 1;
 }

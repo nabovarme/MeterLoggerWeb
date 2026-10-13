@@ -62,6 +62,10 @@ Mojo::IOLoop->recurring(10 => sub {
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
+	# Safely cleanup any orphaned responses just in case standard foreign key CASCADE skips
+	$dbh->do(qq[DELETE cr FROM command_responses cr LEFT JOIN command_queue cq ON cr.command_id = cq.id WHERE cq.id IS NULL])
+		or warn $DBI::errstr;
+
 	# Timeouts are still correctly calculated based on original unix_time
 	$dbh->do(qq[UPDATE command_queue \
 		SET `state` = 'timeout' \
@@ -99,7 +103,7 @@ Mojo::IOLoop->recurring(10 => sub {
 		AND c2.state = 'sent' \
 		AND c1.id < c2.id \
 		AND c1.function NOT IN ('set_cron', 'clear_cron') \
-	]) or warn$DBI::errstr;
+	]) or warn $DBI::errstr;
 });
 
 # --------------------------------------------------
@@ -129,7 +133,7 @@ sub process_queue {
 			    `last_sent` = UNIX_TIMESTAMP() \
 			WHERE `id` = ? \
 	]);
-	
+
 	my $sth_update_stateless = $dbh->prepare_cached(qq[
 		UPDATE command_queue \
 			SET `sent_count` = `sent_count` + 1, \
@@ -163,7 +167,7 @@ sub process_queue {
 		my $last_sent = $meter_last_sent_time{$serial} // 0;
 		my $time_since_last_sent = $now - $last_sent;
 		my $delay = 0;
-		
+
 		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
 			# Meter received a command recently -> delay to preserve per-meter processing window
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
@@ -174,7 +178,7 @@ sub process_queue {
 		}
 
 		# Mark projected send time and in-flight status IMMEDIATELY
-		$meter_last_sent_time{$serial} = $now +$delay;
+		$meter_last_sent_time{$serial} = $now + $delay;
 		$in_flight{$cmd_id} = 1;
 
 		# Execute the pre-compiled statements (Uses a fraction of the CPU)
@@ -193,15 +197,15 @@ sub process_queue {
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 
 			log_debug("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
-			
+
 			my $topic = '/config/v2/' . $serial . '/' . int(time()) . '/' . $current_function;
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
-			
+
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-			
+
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 
 			# Release in-flight flag after transmission finishes
