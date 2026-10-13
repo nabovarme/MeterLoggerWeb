@@ -35,6 +35,7 @@ sub call {
 	my $callback = $args->{callback};
 	my $timeout = $args->{timeout} || 0;
 	my $is_stateful = $args->{stateful} ? 1 : 0;
+	my $continuous = $args->{continuous} ? 1 : 0;
 	
 	my $quoted_serial = $self->{dbh}->quote($serial);
 	my $quoted_mqtt_function = $self->{dbh}->quote($mqtt_function);
@@ -79,26 +80,56 @@ sub call {
 	
 	if ($callback) {
 		# wait for reply
+		my $last_param = '';
+		my $start_time = time();
+
 		do {
 			$sth = $self->{dbh}->prepare(qq[SELECT `id`, `serial`, `function`, `param`, `unix_time`, `state` FROM command_queue \
 				WHERE `serial` LIKE $quoted_serial AND `function` LIKE $quoted_mqtt_function AND (`state` = 'received' OR `state` = 'timeout')]);
 			$sth->execute;
 			if ($d = $sth->fetchrow_hashref) {
-				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-				$callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
-				if ($d->{state} =~ /^timeout$/i) {
-					return 0;
+				if ($continuous) {
+					# Continuous mode: Fire callback on every param change
+					if ($d->{param} ne $last_param) {
+						$last_param = $d->{param};
+						my $ret = $callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
+						
+						# If the callback explicitly returns 0, abort the continuous loop and cleanup
+						if (defined $ret && $ret == 0) {$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+							return 1;
+						}
+					}
+					if ($d->{state} =~ /^timeout$/i) {
+						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+						return 0;
+					}
 				}
 				else {
-					return 1;
+					# Standard mode (Legacy): Fire once, delete immediately, and return
+					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+					$callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
+					if ($d->{state} =~ /^timeout$/i) {
+						return 0;
+					}
+					else {
+						return 1;
+					}
 				}
 			}
 			sleep 1;
-		} while (!$d)
+
+			# Local hard timeout for continuous mode to prevent infinite hangs
+			if ($continuous &&$timeout > 0 && (time() - $start_time > $timeout)) {
+				if ($d && $d->{id}) {$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+				} else {
+					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `serial` = $quoted_serial AND `function` = $quoted_mqtt_function]);
+				}
+				return 0;
+			}
+
+		} while ($continuous ? 1 : !$d)
 	}
 	return 1;
 }
 
 1;
-
-__END__

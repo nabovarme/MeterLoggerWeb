@@ -33,7 +33,7 @@ sub get_hash {
 	}
 
 	if (-f $sha_file) {
-		open(my $fh, '<', $sha_file) or die "Error: Cannot open $sha_file:$!\n";
+		open(my $fh, '<', $sha_file) or die "Error: Cannot open $sha_file: $!\n";
 		my $line = <$fh>;
 		close($fh);
 		($hash) = split(/\s+/, $line);
@@ -59,26 +59,76 @@ if (!$rpc->connect()) {
 }
 
 print "Dispatching OTA Upgrade command for serial $serial...\n";
-print "Payload: $payload\n";
+print '-' x 50 . "\n";
 
-# Queue the command with a 30-second timeout to await the meter's initial acknowledgment
+# 1. Queue command and stream progress
+my $ota_error = 0;
 my $success = $rpc->call({
-	serial   => $serial,
-	function => 'ota_upgrade',
-	param	=> $payload,
-	stateful => 1,         # Stateful to prevent overwriting other pending non-OTA commands
-	timeout  => 30,
-	callback => sub {
+	serial     => $serial,
+	function   => 'ota_upgrade',
+	param      => $payload,
+	stateful   => 1,
+	continuous => 1,          # Enable the new streaming feature!
+	timeout    => 300,        # 5 minutes maximum for OTA flash
+	callback   => sub {
 		my $res = shift;
-		print "\nMeter Acknowledged OTA Command:\n";
-		print "Response: " . $res->{param} . "\n";
+		my $msg = $res->{param};
+		
+		# Skip printing if the param is just our own payload bouncing back
+		print "Meter: $msg\n" if $msg ne $payload;
+		
+		# Terminal Error states
+		if ($msg =~ /error/i || $msg =~ /fail/i) {$ota_error = 1;
+			return 0; # Return 0 to exit continuous mode and cleanup DB
+		}
+		
+		# Terminal Success states
+		if ($msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i) {
+			return 0; # Return 0 to exit continuous mode and cleanup DB
+		}
+		
+		return 1; # Continue listening
 	}
 });
 
-if ($success) {
-	print "\nSuccess: OTA upgrade initiated.\n";
-} else {
-	warn "\nTimeout: Command queued, but no immediate acknowledgment from meter within 30 seconds.\n";
+print '-' x 50 . "\n";
+
+if (!$success) {
+	die "\nFailed: Command timed out or queue error occurred.\n";
+}
+if ($ota_error) {
+	die "\nFailed: Meter aborted the OTA upgrade. See error above.\n";
 }
 
+print "\nFlashing complete. Waiting for meter to reboot into new ROM...\n";
+sleep 15; # Give the ESP8266 time to reboot, init Wi-Fi, and connect to MQTT
+
+# 2. Wait for the meter to come back online
+my $online = 0;
+for (my $i = 1; $i <= 15; $i++) {
+	print "Pinging meter (Attempt $i / 15)...\n";
+	
+	my $ping_success = $rpc->call({
+		serial   => $serial,
+		function => 'version',
+		param    => '',
+		stateful => 0,
+		timeout  => 10,
+		callback => sub {
+			my $res = shift;
+			print "\n>>> METER IS BACK ONLINE <<<\n";
+			print "Firmware Version Running: " . $res->{param} . "\n";
+			$online = 1;
+		}
+	});
+	
+	last if $online;
+	sleep 3;
+}
+
+if (!$online) {
+	die "\nWarning: Meter did not come back online within the expected time. It may have failed to boot the new ROM and safely reverted to the old one.\n";
+}
+
+print "\nOTA Upgrade Pipeline Completed Successfully.\n";
 1;
