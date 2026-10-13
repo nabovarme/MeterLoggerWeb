@@ -3,14 +3,106 @@
 use strict;
 use warnings;
 use Data::Dumper;
+use Getopt::Long qw(GetOptions);
 use Nabovarme::MQTT_RPC;
 
 # Ensure stdout flushes immediately
 $| = 1;
 
-# Parse arguments
-my $serial  = $ARGV[0] or die "Usage: $0 <serial> [version_dir]\nExample: $0 9999995\n         $0 9999995 20261013_152158\n";
+# Define usage subroutine
+sub print_usage {
+	print << "EOF";
+Usage: $0 [options] <serial> [version_dir]
+
+Options:
+  -c, --confirm    Query current running ROM version and confirm it
+  -h, --help       Show this help message
+
+Examples:
+  $0 9999995
+  $0 9999995 20261013_152158
+  $0 --confirm 9999995
+EOF
+	exit 0;
+}
+
+my $help = 0;
+my $confirm_only = 0;
+
+GetOptions(
+	'help|h'    => \$help,
+	'confirm|c' => \$confirm_only,
+) or die "Error in command line arguments\n";
+
+print_usage() if $help;
+
+# Parse positional arguments
+my $serial  = $ARGV[0] or print_usage();
 my $version = $ARGV[1] // "latest"; # Default to the automated 'latest' symlink
+
+print "Connecting to database...\n";
+my $rpc = Nabovarme::MQTT_RPC->new();
+if (!$rpc->connect()) {
+	die "Failed to connect to database.\n";
+}
+
+# Handle stand-alone ROM confirmation mode
+if ($confirm_only) {
+	print "Querying meter $serial for current running firmware version...\n";
+	$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'version'", undef, $serial);
+
+	my $version_res = '';
+	$rpc->call({
+		serial   => $serial,
+		function => 'version',
+		param    => '',
+		stateful => 0,
+		timeout  => 15,
+		callback => sub {
+			my $res = shift;
+			$version_res = $res->{param};
+		}
+	});
+
+	if (defined $version_res &&$version_res ne '') {
+		print "Current Running Version: $version_res\n\n";
+	} else {
+		die "Failed: Meter did not respond to version request.\n";
+	}
+
+	print "Are you sure you want to confirm this running ROM permanently? [y/N]: ";
+	my $ans = <STDIN>;
+	chomp($ans) if defined $ans;
+	$ans //= 'n';
+
+	if ($ans =~ /^y/i) {
+		print "Sending 'action=confirm' to meter via ota_upgrade...\n";
+		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
+
+		my $confirm_res = '';
+		$rpc->call({
+			serial   => $serial,
+			function => 'ota_upgrade',
+			param    => 'action=confirm',
+			stateful => 1,
+			timeout  => 15,
+			callback => sub {
+				my $res = shift;
+				$confirm_res = $res->{param};
+			}
+		});
+
+		if (defined $confirm_res &&$confirm_res ne '') {
+			print "Meter Response: $confirm_res\n";
+			print "ROM confirmed successfully.\n";
+		} else {
+			die "Failed: Could not confirm ROM (no response).\n";
+		}
+	} else {
+		print "Aborted by user.\n";
+	}
+	exit 0;
+}
 
 my $fw_dir = "/home/meterlogger/firmware/$serial/$version";
 
@@ -45,12 +137,6 @@ my $sha2 = get_hash("$fw_dir/user2.ota.bin");
 
 # Construct the exact OTA payload expected by the meter
 my $payload = "version=$version&sha1=$sha1&sha2=$sha2";
-
-print "Connecting to database...\n";
-my $rpc = Nabovarme::MQTT_RPC->new();
-if (!$rpc->connect()) {
-	die "Failed to connect to database.\n";
-}
 
 # Subroutine to wait for meter to reboot and come online
 sub wait_for_meter {
