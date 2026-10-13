@@ -20,32 +20,23 @@ if (!-d $fw_dir &&$version eq "latest" && -d "/home/meterlogger/firmware/$serial
 	$version = "";
 }
 
-# Verify the release exists
-if (!-d $fw_dir) {
-	die "Error: Firmware directory not found: $fw_dir\n";
-}
+die "Error: Firmware directory not found: $fw_dir\n" if (!-d $fw_dir);
 
-# Helper function to get the hash - calculates it dynamically if the .sha256 file is missing
 sub get_hash {
 	my $bin_file = shift;
-	my $sha_file = "$bin_file.sha256";
-	my $hash;
+	die "Error: Firmware binary not found: $bin_file\n" if (!-f $bin_file);
 
-	if (!-f $bin_file) {
-		die "Error: Firmware binary not found: $bin_file\n";
-	}
-
-	if (-f $sha_file) {
-		open(my $fh, '<', $sha_file) or die "Error: Cannot open $sha_file: $!\n";
+	if (-f "$bin_file.sha256") {
+		open(my $fh, '<', "$bin_file.sha256") or die "Error: Cannot open $bin_file.sha256: $!\n";
 		my $line = <$fh>;
 		close($fh);
-		($hash) = split(/\s+/, $line);
+		my ($hash) = split(/\s+/, $line);
+		return $hash;
 	} else {
-		# Calculate on the fly (perfect for automated builder pipelines)
 		my $output = `sha256sum $bin_file`;
-		($hash) = split(/\s+/, $output);
+		my ($hash) = split(/\s+/, $output);
+		return $hash;
 	}
-	return $hash;
 }
 
 print "Reading/calculating checksums from $fw_dir...\n";
@@ -61,56 +52,38 @@ if (!$rpc->connect()) {
 	die "Failed to connect to database.\n";
 }
 
-# --- New Helper: Robust Retry Wrapper ---
-sub send_command_with_retry {
-	my ($function, $param, $timeout, $max_retries, $stateful) = @_;
-	$timeout //= 5;
-	$max_retries //= 3;
-	$stateful //= 1;
-	
-	for (my $try = 1; $try <= $max_retries; $try++) {
-		my $res_param = '';
-		
-		# Clear old queued commands of this type to ensure a clean slate
-		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = ?", undef, $serial, $function);
-		
-		my $call_ok = $rpc->call({
-			serial   => $serial,
-			function => $function,
-			param    => $param,
-			stateful => $stateful,
-			timeout  => $timeout,
-			callback => sub {
-				my $res = shift;
-				$res_param = $res->{param};
-			}
-		});
-		
-		# call() returns 1 on success, 0 on timeout. 
-		# We also ensure the meter didn't just bounce back an empty string.
-		if ($call_ok && defined $res_param && $res_param ne '') {
-			return (1, $res_param);
-		}
-		
-		print "  No response. Retrying '$function' ($try/$max_retries)...\n" if $try < $max_retries;
-	}
-	return (0, '');
-}
-
 # Subroutine to wait for meter to reboot and come online
 sub wait_for_meter {
 	my $delay = shift || 15;
 	print "\nWaiting for meter to download firmware, flash, and reboot ($delay seconds)...\n";
 	sleep $delay;
 
-	print "Pinging meter to verify it comes back online (Retrying up to 30 times)...\n";
-	# Use the robust retry helper to ping the meter (30 retries, 4s timeout each = ~2 mins of waiting)
-	my ($ok, $res) = send_command_with_retry('version', '', 4, 30, 0);
+	print "Pinging meter to verify it comes back online (Retrying for ~2 mins)...\n";
 	
-	if ($ok) {
-		print "\n>>> METER IS BACK ONLINE <<<\n";
-		print "Firmware Version Running: $res\n";
-		return 1;
+	# Loop 10 times, giving the backend dispatcher 15 seconds (1-2 retries) per attempt
+	for (my $i = 1; $i <= 10; $i++) {
+		my $res_param = '';
+		
+		# Clear queue before pinging to prevent buildup
+		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'version'", undef, $serial);
+		$rpc->call({
+			serial   => $serial,
+			function => 'version',
+			param    => '',
+			stateful => 0,
+			timeout  => 15, # Allows background dispatcher time to retransmit
+			callback => sub {
+				my $res = shift;
+				$res_param = $res->{param};
+			}
+		});
+		
+		if (defined $res_param &&$res_param ne '') {
+			print "\n>>> METER IS BACK ONLINE <<<\n";
+			print "Firmware Version Running: $res_param\n";
+			return 1;
+		}
+		print "  No response. Retrying ($i/10)...\n" if $i < 10;
 	}
 	return 0;
 }
@@ -180,14 +153,20 @@ if ($ota_error &&$unconfirmed_rom) {
 
 	if ($ans =~ /^r/i) {
 		print "\nSending 'restart' command to revert to previous ROM...\n";
+		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'restart'", undef, $serial);
 		
-		# Send restart with retries (3 tries, 5s timeout each)
-		my ($ok, $res) = send_command_with_retry('restart', '', 5, 3, 1);
+		my $res_param = '';
+		$rpc->call({
+			serial   => $serial,
+			function => 'restart',
+			param    => '',
+			stateful => 1,
+			timeout  => 15,
+			callback => sub { $res_param = shift->{param}; }
+		});
 		
-		if ($ok) {
-			print "Meter acknowledged restart: $res\n";
-		} else {
-			print "Warning: Meter did not acknowledge restart, but it may have rebooted immediately.\n";
+		if ($res_param) {
+			print "Meter acknowledged restart: $res_param\n";
 		}
 
 		if (wait_for_meter(15)) {
@@ -199,21 +178,26 @@ if ($ota_error &&$unconfirmed_rom) {
 	}
 	elsif ($ans =~ /^c/i || $ans eq '') {
 		print "\nSending 'action=confirm' to meter via ota_upgrade...\n";
+		$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
 		
-		# Send confirm with retries (3 tries, 5s timeout each)
-		my ($confirm_ok, $res) = send_command_with_retry('ota_upgrade', 'action=confirm', 5, 3, 1);
+		my $res_param = '';
+		$rpc->call({
+			serial   => $serial,
+			function => 'ota_upgrade',
+			param    => 'action=confirm',
+			stateful => 1,
+			timeout  => 15,
+			callback => sub { $res_param = shift->{param}; }
+		});
 
-		if ($confirm_ok) {
-			print "Meter response: $res\n";
+		if (defined $res_param &&$res_param ne '') {
+			print "Meter response: $res_param\n";
 			print "ROM confirmed successfully! Allowing meter to settle...\n";
-			
-			# IMPORTANT: Give the ESP8266 time to run garbage collection after the flash write
 			sleep 5;
-			
 			print "Retrying OTA upgrade...\n\n";
 			($success, $ota_error, $unconfirmed_rom) = execute_ota();
 		} else {
-			die "\nFailed: Could not confirm ROM (no response after 3 retries).\n";
+			die "\nFailed: Could not confirm ROM (no response).\n";
 		}
 	} 
 	else {
