@@ -143,9 +143,9 @@ sub execute_ota {
 				return 0; # Exit continuous mode
 			}
 			
-			# Include "started" and "pending_confirmation" as success criteria since actual flashing is async
-			if ($msg =~ /started/i || $msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i || $msg =~ /pending_confirmation/i) {
-				print "\n[+] Meter accepted OTA payload and started asynchronous background flash.\n";
+			# Exit on 'started' because the async MQTT flashing updates do NOT update the database queue
+			if ($msg =~ /started/i || $msg =~ /success/i || $msg =~ /staging/i || $msg =~ /complete/i || $msg =~ /100\%/ || $msg =~ /permanently/i || $msg =~ /pending_confirmation/i || $msg =~ /restarting/i) {
+				print "\n[+] Meter accepted OTA payload and is flashing in the background.\n";
 				return 0; # Exit continuous mode
 			}
 			
@@ -201,7 +201,12 @@ if ($ota_error &&$unconfirmed_rom) {
 
 		if ($confirm_ok) {
 			print "Meter response: $res\n";
-			print "ROM confirmed successfully! Retrying OTA upgrade...\n\n";
+			print "ROM confirmed successfully! Allowing meter to settle...\n";
+			
+			# IMPORTANT: Give the ESP8266 time to run garbage collection after the flash write
+			sleep 5;
+			
+			print "Retrying OTA upgrade...\n\n";
 			($success, $ota_error, $unconfirmed_rom) = execute_ota();
 		} else {
 			die "\nFailed: Could not confirm ROM (no response after 3 retries).\n";
@@ -219,8 +224,8 @@ if ($ota_error) {
 	die "\nFailed: Meter aborted the OTA upgrade. See output above.\n";
 }
 
-# Final check after a successful flash
-if (!wait_for_meter(15)) {
+# Final check after a successful flash - 60 seconds to cover the 22s reboot timer + flash time
+if (!wait_for_meter(60)) {
 	die "\nWarning: Meter did not come back online within the expected time. It may have failed to boot the new ROM and safely reverted to the old one.\n";
 }
 
