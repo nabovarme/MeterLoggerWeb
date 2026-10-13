@@ -81,7 +81,7 @@ sub call {
 	if ($callback) {
 		my $start_time = time();
 
-		do {
+		while (1) {
 			# Fetch responses iteratively from the dedicated stream table, resolving dropped messages
 			$sth = $self->{dbh}->prepare(qq[
 				SELECT cr.id AS resp_id, cr.param AS cr_param, cr.unix_time AS cr_unix_time, cq.state AS cq_state, cq.id AS command_id
@@ -128,7 +128,7 @@ sub call {
 				return 0;
 			}
 
-		} while ($continuous ? 1 : !$d);
+		}
 	}
 	return 1;
 }
