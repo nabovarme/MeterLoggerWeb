@@ -95,13 +95,23 @@ sub call {
 						my $ret = $callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
 						
 						# If the callback explicitly returns 0, abort the continuous loop and cleanup
-						if (defined $ret && $ret == 0) {$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+						if (defined $ret && $ret == 0) {
+							$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
 							return 1;
 						}
 					}
 					if ($d->{state} =~ /^timeout$/i) {
 						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
 						return 0;
+					}
+					
+					# --- SPECIAL CASE: Async OTA Flashing ---
+					# When mqtt_listener marks the row 'received', we push it back to 'sent' 
+					# so it continues catching asynchronous progress messages.
+					# We set 'last_sent' 1 day into the future to trick mqtt_dispatcher.pl 
+					# into skipping retransmission of the heavy payload.
+					if ($d->{state} eq 'received' && $d->{function} eq 'ota_upgrade') {
+						$self->{dbh}->do(qq[UPDATE command_queue SET `state` = 'sent', `last_sent` = UNIX_TIMESTAMP() + 86400 WHERE `id` = $d->{id}]);
 					}
 				}
 				else {
@@ -120,7 +130,8 @@ sub call {
 
 			# Local hard timeout for continuous mode to prevent infinite hangs
 			if ($continuous &&$timeout > 0 && (time() - $start_time > $timeout)) {
-				if ($d && $d->{id}) {$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
+				if ($d && $d->{id}) {
+					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
 				} else {
 					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `serial` = $quoted_serial AND `function` = $quoted_mqtt_function]);
 				}
