@@ -6,8 +6,8 @@ use Data::Dumper;
 use Nabovarme::MQTT_RPC;
 
 # Parse arguments
-my $serial  =$ARGV[0] or die "Usage: $0 <serial> [version_dir]\nExample: $0 9999995\n         $0 9999995 20261013_152158\n";
-my $version =$ARGV[1] // "latest"; # Default to the automated 'latest' symlink
+my $serial  = $ARGV[0] or die "Usage: $0 <serial> [version_dir]\nExample: $0 9999995\n         $0 9999995 20261013_152158\n";
+my $version = $ARGV[1] // "latest"; # Default to the automated 'latest' symlink
 
 my $fw_dir = "/home/meterlogger/firmware/$serial/$version";
 
@@ -33,14 +33,14 @@ sub get_hash {
 	}
 
 	if (-f $sha_file) {
-		open(my $fh, '<',$sha_file) or die "Error: Cannot open $sha_file:$!\n";
+		open(my $fh, '<', $sha_file) or die "Error: Cannot open $sha_file:$!\n";
 		my $line = <$fh>;
 		close($fh);
-		($hash) = split(/\s+/,$line);
+		($hash) = split(/\s+/, $line);
 	} else {
 		# Calculate on the fly (perfect for automated builder pipelines)
 		my $output = `sha256sum $bin_file`;
-		($hash) = split(/\s+/,$output);
+		($hash) = split(/\s+/, $output);
 	}
 	return $hash;
 }
@@ -62,7 +62,7 @@ print "Dispatching OTA Upgrade command for serial $serial...\n";
 print "Payload: $payload\n";
 
 # Queue the command with a 30-second timeout to await the meter's initial acknowledgment
-my $success =$rpc->call({
+my $success = $rpc->call({
 	serial   => $serial,
 	function => 'ota_upgrade',
 	param	=> $payload,
