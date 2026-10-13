@@ -459,10 +459,8 @@ sub update {
 			if (defined($res_param) && $res_param ne '') {
 				$self->_log("Meter response: $res_param\n");
 				$self->_log(
-					"ROM confirmed successfully! Allowing meter to settle...\n"
+					"ROM confirmed successfully!\n"
 				);
-
-				sleep 5;
 
 				$self->_log("Retrying OTA update..\n\n");
 
