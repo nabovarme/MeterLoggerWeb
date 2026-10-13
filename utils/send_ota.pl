@@ -95,6 +95,7 @@ sub execute_ota {
 
 	my $ota_error = 0;
 	my $unconfirmed_rom = 0;
+	my $is_retryable_error = 0;
 
 	# Clear any old OTA commands before starting
 	$rpc->{dbh}->do("DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'", undef, $serial);
@@ -117,6 +118,12 @@ sub execute_ota {
 				$ota_error = 1;
 				return 0; # Exit continuous mode
 			}
+			# Classify retryable transient network errors from C module error definitions
+			elsif ($msg =~ /error_(tcp_drop|timeout|disconnected|dns)/i) {
+				$ota_error = 1;
+				$is_retryable_error = 1;
+				return 0; # Exit continuous mode
+			}
 			elsif ($msg =~ /error/i || $msg =~ /fail/i) {
 				$ota_error = 1;
 				return 0; # Exit continuous mode
@@ -134,11 +141,23 @@ sub execute_ota {
 
 	print '-' x 50 . "\n";
 
-	return ($success, $ota_error, $unconfirmed_rom);
+	return ($success, $ota_error, $unconfirmed_rom, $is_retryable_error);
 }
 
-# Initial execution
-my ($success, $ota_error, $unconfirmed_rom) = execute_ota();
+# Initial execution with automatic retries for transient network drops
+my $max_ota_attempts = 3;
+my ($success, $ota_error, $unconfirmed_rom, $is_retryable_error);
+
+for (my $attempt = 1; $attempt <= $max_ota_attempts; $attempt++) {
+	($success, $ota_error, $unconfirmed_rom, $is_retryable_error) = execute_ota();
+
+	if ($ota_error &&$is_retryable_error && $attempt <$max_ota_attempts) {
+		print "\n[!] Network error encountered during OTA download. Retrying attempt ($attempt/$max_ota_attempts) in 5 seconds...\n\n";
+		sleep 5;
+		next;
+	}
+	last;
+}
 
 # Check if we tripped the unconfirmed temp ROM condition
 if ($ota_error &&$unconfirmed_rom) {
@@ -173,7 +192,7 @@ if ($ota_error &&$unconfirmed_rom) {
 
 		if (wait_for_meter(15)) {
 			print "\nMeter reverted successfully! Retrying OTA upgrade...\n\n";
-			($success, $ota_error, $unconfirmed_rom) = execute_ota();
+			($success, $ota_error, $unconfirmed_rom, $is_retryable_error) = execute_ota();
 		} else {
 			die "\nFailed: Meter did not come back online after restart.\n";
 		}
@@ -197,7 +216,7 @@ if ($ota_error &&$unconfirmed_rom) {
 			print "ROM confirmed successfully! Allowing meter to settle...\n";
 			sleep 5;
 			print "Retrying OTA upgrade...\n\n";
-			($success, $ota_error, $unconfirmed_rom) = execute_ota();
+			($success, $ota_error, $unconfirmed_rom, $is_retryable_error) = execute_ota();
 		} else {
 			die "\nFailed: Could not confirm ROM (no response).\n";
 		}
