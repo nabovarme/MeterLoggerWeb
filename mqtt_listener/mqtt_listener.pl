@@ -60,8 +60,8 @@ sub mqtt_handler {
 	return unless $sth->rows;
 
 	# Extract mac, iv, ciphertext
-	my $mac        = substr($message, 0, 32);
-	my $iv         = substr($message, 32, 16);
+	my $mac = substr($message, 0, 32);
+	my $iv = substr($message, 32, 16);
 	my $ciphertext = substr($message, 48);
 
 	# Extract function from topic
@@ -116,8 +116,8 @@ sub mqtt_handler {
 
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
-					# Update state so MQTT_RPC unblocks immediately.
-					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id})
+					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
+					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $row->{id})
 						or log_warn($DBI::errstr, {-no_script_name => 1});
 					log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
 				}
@@ -201,10 +201,9 @@ sub mqtt_handler {
 
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
-					$dbh->do(qq[UPDATE command_queue SET \
-						state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
-						WHERE id = ] . $row->{id} . qq[ \
-					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
+					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $row->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
 
 					log_info("Marked serial $meter_serial, command read_stack_trace for callback resolution", {-no_script_name => 1});
 				}
@@ -222,8 +221,7 @@ sub mqtt_handler {
 		# ota_upgrade special case (Asynchronous OTA flashing)
 		# --------------------
 		if ($function =~ /^ota_upgrade$/i) {
-			# MQTT OTA responses do not include the command_queue ID. Keep only
-			# the oldest active OTA command eligible to receive a response.
+			# Keep only the oldest active OTA command eligible to receive a response.
 			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 				WHERE serial = ? \
 				AND function = 'ota_upgrade' \
@@ -234,25 +232,12 @@ sub mqtt_handler {
 
 			if ($d = $sth->fetchrow_hashref) {
 				if ($d->{has_callback}) {
-					# Keep terminal OTA responses until MQTT_RPC consumes them. In
-					# particular, a later restarting message must not overwrite success.
-					my $updated = $dbh->do(qq[UPDATE command_queue SET \
-						state = 'received', \
-						param = ? \
-						WHERE id = ? \
-							AND state IN ('sent', 'received') \
-							AND param NOT REGEXP '(^|&)status=(success|restarting[^&]*|error[^&]*|fail[^&]*)($|&)'],
-						undef,
-						$cleartext,
-						$d->{id}
-					);
+					# Append the message to the dedicated response table and flag the command received
+					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $d->{id}, $cleartext);
+					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $d->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
 
-					if (defined($updated) && $updated ne '0E0' && $updated > 0) {
-						log_info("Stored OTA response for $meter_serial: $cleartext", {-no_script_name => 1});
-					}
-					else {
-						log_debug("Ignored OTA response after terminal response for $meter_serial: $cleartext", {-no_script_name => 1});
-					}
+					log_info("Stored OTA response for $meter_serial: $cleartext", {-no_script_name => 1});
 				}
 				else {
 					$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id})
@@ -277,10 +262,9 @@ sub mqtt_handler {
 
 		while ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
-				$dbh->do(qq[UPDATE command_queue SET \
-					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
-					WHERE id = ] . $d->{id} . qq[ \
-				]) or log_warn($DBI::errstr, {-no_script_name => 1});
+				$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $d->{id}, $cleartext);
+				$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $d->{id})
+					or log_warn($DBI::errstr, {-no_script_name => 1});
 
 				log_info("Marked serial $meter_serial, command $function for deletion", {-no_script_name => 1});
 			}

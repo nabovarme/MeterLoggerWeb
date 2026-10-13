@@ -104,8 +104,7 @@ sub _call_unlocked {
 				ORDER BY `id` ASC \
 				LIMIT 1],
 			undef,
-			$serial,
-			$mqtt_function
+			$serial, $mqtt_function
 		);
 
 		if (defined($active_id)) {
@@ -141,10 +140,8 @@ sub _call_unlocked {
 				`timeout` = ? \
 			WHERE `id` = ?],
 			undef,
-			$message,
-			$has_callback,
-			$timeout,
-			$d->{id}
+			$message, $has_callback,
+			$timeout, $d->{id}
 		);
 
 		$command_id = $d->{id};
@@ -155,12 +152,9 @@ sub _call_unlocked {
 			(`serial`, `function`, `param`, `unix_time`, `state`, `has_callback`, `timeout`, `is_stateful`) \
 			VALUES (?, ?, ?, UNIX_TIMESTAMP(NOW()), 'sent', ?, ?, ?)],
 			undef,
-			$serial,
-			$mqtt_function,
-			$message,
-			$has_callback,
-			$timeout,
-			$is_stateful
+			$serial, $mqtt_function,
+			$message, $has_callback,
+			$timeout, $is_stateful
 		) or return 0;
 
 		$command_id = $dbh->{mysql_insertid};
@@ -172,77 +166,61 @@ sub _call_unlocked {
 	return 0 if !$command_id;
 	return 1 if !$callback;
 
-	# Wait for a response belonging to this exact command row.
-	my $last_param;
+	# Wait for responses belonging to this exact command row using the new dedicated response table.
 	my $start_time = time();
 
 	while (1) {
-		$sth = $dbh->prepare(qq[SELECT `id`, `serial`, `function`, `param`, `unix_time`, `state` \
-			FROM command_queue \
-			WHERE `id` = ? \
-				AND `serial` = ? \
-				AND `function` = ? \
-				AND (`state` = 'received' OR `state` = 'timeout')]);
-		$sth->execute($command_id, $serial, $mqtt_function);
+		$sth = $dbh->prepare(qq[
+			SELECT cr.`id` AS resp_id, cr.`param`, cr.`unix_time`, cq.`state`
+			FROM command_queue cq
+			LEFT JOIN command_responses cr ON cq.`id` = cr.`command_id`
+			WHERE cq.`id` = ?
+				AND (cr.`id` IS NOT NULL OR cq.`state` = 'timeout')
+			ORDER BY cr.`id` ASC
+			LIMIT 1
+		]);
+		$sth->execute($command_id);
 		$d = $sth->fetchrow_hashref;
 
 		if ($d) {
-			if ($continuous) {
-				# Continuous mode: fire the callback when the response changes.
-				my $current_param = defined($d->{param}) ? $d->{param} : '';
-				if (!defined($last_param) || $current_param ne $last_param) {
-					$last_param = $current_param;
-					my $ret = $callback->({
-						serial    => $d->{serial},
-						function  => $d->{function},
+			if (defined $d->{resp_id}) {
+				# Pop the oldest response sequentially from the inbound queue buffer
+				$dbh->do(qq[DELETE FROM command_responses WHERE `id` = ?], undef, $d->{resp_id});
+
+				my $ret = 1;
+				if ($continuous) {
+					$ret = $callback->({
+						serial    => $serial,
+						function  => $mqtt_function,
 						param     => $d->{param},
 						unix_time => $d->{unix_time}
 					});
-
-					# If the callback explicitly returns 0, abort continuous mode.
-					if (defined($ret) && $ret == 0) {
-						$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $command_id);
-						return 1;
-					}
+				}
+				else {
+					$callback->({
+						serial    => $serial,
+						function  => $mqtt_function,
+						param     => $d->{param},
+						unix_time => $d->{unix_time}
+					});
+					$ret = 0; # Force exit for single-shot commands
 				}
 
-				if ($d->{state} =~ /^timeout$/i) {
+				if (!$continuous || (defined($ret) && $ret == 0)) {
 					$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $command_id);
-					return 0;
+					# The CASCADE foreign key will clean this up, but explicit cleanup is safer
+					$dbh->do(qq[DELETE FROM command_responses WHERE `command_id` = ?], undef, $command_id);
+					return 1;
 				}
 
-				# --- SPECIAL CASE: Async OTA Flashing ---
-				# Return the response row to 'sent' so the listener can store subsequent
-				# progress responses. Avoid retransmitting the OTA payload by moving
-				# last_sent one day into the future.
-				# The conditional update prevents an older poll result from resetting
-				# a newer response that the listener has already stored.
-				if ($d->{state} eq 'received' && $d->{function} eq 'ota_upgrade') {
-					$dbh->do(qq[UPDATE command_queue \
-						SET `state` = 'sent', \
-							`last_sent` = UNIX_TIMESTAMP() + 86400 \
-						WHERE `id` = ? \
-							AND `state` = 'received' \
-							AND `param` = ? \
-							AND COALESCE(`param`, '') NOT REGEXP '(^|&)status=(success|restarting[^&]*|error[^&]*|fail[^&]*)($|&)'],
-						undef,
-						$command_id,
-						$last_param
-					);
-				}
+				# If continuous mode and the callback returned true (keep listening),
+				# immediately fetch the next queued event instead of sleeping.
+				next;
 			}
-			else {
-				# Standard mode: fire once, delete only this command, then return.
+			elsif ($d->{state} =~ /^timeout$/i) {
 				$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $command_id);
-				$callback->({
-					serial    => $d->{serial},
-					function  => $d->{function},
-					param     => $d->{param},
-					unix_time => $d->{unix_time}
-				});
-
-				return 0 if $d->{state} =~ /^timeout$/i;
-				return 1;
+				$dbh->do(qq[DELETE FROM command_responses WHERE `command_id` = ?], undef, $command_id);
+				return 0;
 			}
 		}
 
@@ -251,6 +229,7 @@ sub _call_unlocked {
 		# Local hard timeout for continuous mode to prevent infinite hangs.
 		if ($continuous && $timeout > 0 && (time() - $start_time > $timeout)) {
 			$dbh->do(qq[DELETE FROM command_queue WHERE `id` = ?], undef, $command_id);
+			$dbh->do(qq[DELETE FROM command_responses WHERE `command_id` = ?], undef, $command_id);
 			return 0;
 		}
 	}

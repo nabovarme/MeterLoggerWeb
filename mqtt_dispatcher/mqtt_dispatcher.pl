@@ -62,6 +62,10 @@ Mojo::IOLoop->recurring(10 => sub {
 	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
 		or warn $DBI::errstr;
 
+	# Cleanup orphaned command_responses safely in case the CASCADE foreign key is not strictly enforced
+	$dbh->do(qq[DELETE cr FROM command_responses cr LEFT JOIN command_queue cq ON cr.command_id = cq.id WHERE cq.id IS NULL])
+		or warn $DBI::errstr;
+
 	# Timeouts are still correctly calculated based on original unix_time.
 	$dbh->do(qq[UPDATE command_queue \
 		SET `state` = 'timeout' \
