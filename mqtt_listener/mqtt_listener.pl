@@ -16,14 +16,13 @@ $| = 1;  # Autoflush STDOUT
 
 # --- Config from environment ---
 my $mqtt_host = $ENV{'MQTT_HOST'}
-    or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
+	or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
 
 my $mqtt_port = $ENV{'MQTT_PORT'}
-    or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
+	or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
 
 # Optional cache override (falls back to default)
-my $config_cached_time = $ENV{'CRYPTO_KEY_CACHE_TIME'} // 3600;   # default 1 hour
-
+my $config_cached_time = $ENV{'CRYPTO_KEY_CACHE_TIME'} // 3600;	# default 1 hour
 
 $SIG{INT} = \&sig_int_handler;
 
@@ -57,7 +56,7 @@ sub mqtt_handler {
 		LIMIT 1 \
 	]);
 	$sth->execute;
-	
+
 	return unless $sth->rows;
 
 	# Extract mac, iv, ciphertext
@@ -73,7 +72,8 @@ sub mqtt_handler {
 	my $key = '';
 	if (exists($key_cache->{$meter_serial}) && ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
 		$key = $key_cache->{$meter_serial}->{key};
-	} else {
+	}
+	else {
 		$sth = $dbh->prepare(qq[SELECT `key` FROM meters \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 			LIMIT 1 \
@@ -94,7 +94,7 @@ sub mqtt_handler {
 	# --------------------
 	if ($function =~ /^scan_result$/i) {
 		log_info("Received MQTT reply from $meter_serial: $function", {-no_script_name => 1});
-	
+
 		# Check if the scan command is waiting for a synchronous callback
 		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
@@ -107,12 +107,13 @@ sub mqtt_handler {
 		if (my $row = $sth->fetchrow_hashref) {
 			if ($row->{has_callback}) {
 				# Update state so MQTT_RPC unblocks immediately
-				$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id}) 
+				$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ] . $row->{id})
 					or log_warn($DBI::errstr, {-no_script_name => 1});
 				log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
-			} else {
+			}
+			else {
 				# Standard async cleanup
-				$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id}) 
+				$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
 					or log_warn($DBI::errstr, {-no_script_name => 1});
 				log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
 			}
@@ -128,18 +129,18 @@ sub mqtt_handler {
 	if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 		my $m = Crypt::Mode::CBC->new('AES');
 		my $cleartext = $m->decrypt($ciphertext, $aes_key, $iv);
-		$cleartext =~ s/[\x00\s]+$//; # remove trailing nulls
+		$cleartext =~ s/[\x00\s]+$//;	# remove trailing nulls
 
 		# --------------------
 		# test_ssid_pwd_result special case
 		# --------------------
 		if ($function =~ /^test_ssid_pwd_result$/i) {
 			log_info("Received MQTT reply from $meter_serial: $function ($cleartext)", {-no_script_name => 1});
-			
+
 			# TODO: Deferred implementation.
 			# Eventually, map this back to the original 'test_ssid_pwd' command in the queue
 			# and process the parameters (e.g. status=ok, rssi=-62, reason=...)
-			
+
 			return;
 		}
 
@@ -150,7 +151,7 @@ sub mqtt_handler {
 			LIMIT 1 \
 		]);
 		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
-		
+
 		return unless $sth->rows;
 
 		# --------------------
@@ -158,13 +159,14 @@ sub mqtt_handler {
 		# --------------------
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
+
 			# Delete the confirmed command AND any superseded older commands (smaller param)
 			$dbh->do(qq[DELETE FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = ] . $dbh->quote($function) . qq[ \
 				AND param <= ] . ($cleartext + $tolerance) . qq[ \
 			]) or log_warn($DBI::errstr, {-no_script_name => 1});
-		
+
 			log_info("Cleared open_until commands <= $cleartext for $meter_serial", {-no_script_name => 1});
 			return;
 		}
@@ -177,10 +179,11 @@ sub mqtt_handler {
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = ] . $dbh->quote($function) . qq[ \
 			]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 			log_info("Deleted status command for $meter_serial", {-no_script_name => 1});
 			return;
 		}
-		
+
 		# --------------------
 		# stack_trace_result special case
 		# --------------------
@@ -188,7 +191,7 @@ sub mqtt_handler {
 			log_info("Received stack_trace_result reply from $meter_serial ($cleartext)", {-no_script_name => 1});
 
 			# Match against 'read_stack_trace' in command queue
-			$sth =c$dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
+			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = 'read_stack_trace' \
 				AND state = 'sent' \
@@ -198,17 +201,56 @@ sub mqtt_handler {
 
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
-					$dbh->do(qq[UPDATE command_queue SET \ 
+					$dbh->do(qq[UPDATE command_queue SET \
 						state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
 						WHERE id = ] . $row->{id} . qq[ \
 					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 					log_info("Marked serial $meter_serial, command read_stack_trace for callback resolution", {-no_script_name => 1});
-				} else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id}) 
+				}
+				else {
+					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
 						or log_warn($DBI::errstr, {-no_script_name => 1});
+
 					log_info("Deleted serial $meter_serial, command read_stack_trace", {-no_script_name => 1});
 				}
 			}
+			return;
+		}
+
+		# --------------------
+		# ota_upgrade special case (Asynchronous OTA flashing)
+		# --------------------
+		if ($function =~ /^ota_upgrade$/i) {
+			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
+				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				AND function = 'ota_upgrade' \
+				AND state IN ('sent', 'received') \
+			]);
+			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+
+			while ($d = $sth->fetchrow_hashref) {
+				if ($d->{has_callback}) {
+					# Store the latest OTA response even if the previous response
+					# has not yet been consumed by MQTT_RPC::call().
+					$dbh->do(qq[UPDATE command_queue SET \
+						state = 'received', \
+						param = ] . $dbh->quote($cleartext) . qq[ \
+						WHERE id = ] . $d->{id} . qq[ \
+							AND state IN ('sent', 'received') \
+					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Stored OTA response for $meter_serial: $cleartext", {-no_script_name => 1});
+				}
+				else {
+					$dbh->do(qq[DELETE FROM command_queue \
+						WHERE id = ] . $d->{id} . qq[ \
+					]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Deleted OTA command for $meter_serial", {-no_script_name => 1});
+				}
+			}
+
 			return;
 		}
 
@@ -228,16 +270,19 @@ sub mqtt_handler {
 					state = 'received', param = ] . $dbh->quote($cleartext) . qq[ \
 					WHERE id = ] . $d->{id} . qq[ \
 				]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 				log_info("Marked serial $meter_serial, command $function for deletion", {-no_script_name => 1});
-			} else {
+			}
+			else {
 				$dbh->do(qq[DELETE FROM command_queue \
 					WHERE id = ] . $d->{id} . qq[ \
 				]) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 				log_info("Deleted serial $meter_serial, command $function", {-no_script_name => 1});
 			}
 		}
-
-	} else {
+	}
+	else {
 		log_warn("Serial $meter_serial checksum error", {-no_script_name => 1});
 	}
 }
@@ -248,7 +293,8 @@ sub mqtt_handler {
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 	log_info("Connected to DB", {-no_script_name => 1});
-} else {
+}
+else {
 	log_die("Can't connect to DB: $!", {-no_script_name => 1});
 }
 
@@ -291,7 +337,6 @@ $subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_key/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
-
 
 1;
 

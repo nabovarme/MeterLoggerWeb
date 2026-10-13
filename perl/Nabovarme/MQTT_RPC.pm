@@ -11,13 +11,13 @@ use Nabovarme::Db;
 sub new {
 	my $type = shift;
 	my $self = {};
-	
+
 	return bless $self, $type;
 }
 
 sub connect {
 	my $self = shift;
-	
+
 	if ($self->{dbh} = Nabovarme::Db->my_connect) {
 		return 1;
 	}
@@ -36,14 +36,14 @@ sub call {
 	my $timeout = $args->{timeout} || 0;
 	my $is_stateful = $args->{stateful} ? 1 : 0;
 	my $continuous = $args->{continuous} ? 1 : 0;
-	
+
 	my $quoted_serial = $self->{dbh}->quote($serial);
 	my $quoted_mqtt_function = $self->{dbh}->quote($mqtt_function);
 	my $quoted_message = $self->{dbh}->quote($message);
 	my $quoted_timeout = $self->{dbh}->quote($timeout);
 	my $quoted_stateful = $self->{dbh}->quote($is_stateful);
 	my $has_callback = $callback ? 1 : 0;
-	
+
 	my $d = undef;
 
 	my $sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
@@ -77,7 +77,7 @@ sub call {
 				VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', $has_callback, $quoted_timeout, $quoted_stateful)]);
 		}
 	}
-	
+
 	if ($callback) {
 		# wait for reply
 		my $last_param = '';
@@ -93,7 +93,7 @@ sub call {
 					if ($d->{param} ne $last_param) {
 						$last_param = $d->{param};
 						my $ret = $callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
-						
+
 						# If the callback explicitly returns 0, abort the continuous loop and cleanup
 						if (defined $ret && $ret == 0) {
 							$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
@@ -104,13 +104,16 @@ sub call {
 						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
 						return 0;
 					}
-					
+
 					# --- SPECIAL CASE: Async OTA Flashing ---
-					# Return the command to 'sent' so asynchronous progress messages can
-					# continue to be received without retransmitting the heavy OTA payload.
+					# When mqtt_listener marks the row 'received', return it to
+					# 'sent' so it continues catching asynchronous progress messages.
+					# Avoid retransmitting the heavy OTA payload by setting last_sent
+					# 1 day into the future.
 					#
-					# Only update the row if the response is still the one we just processed.
-					# mqtt_listener may have stored a newer response since our SELECT.
+					# Only reset the row if it still contains the response we
+					# just processed. mqtt_listener may already have stored a
+					# newer response since our SELECT.
 					if ($d->{state} eq 'received' && $d->{function} eq 'ota_upgrade') {
 						my $quoted_param = $self->{dbh}->quote(
 							defined($d->{param}) ? $d->{param} : ''
@@ -139,10 +142,11 @@ sub call {
 			sleep 1;
 
 			# Local hard timeout for continuous mode to prevent infinite hangs
-			if ($continuous &&$timeout > 0 && (time() - $start_time > $timeout)) {
+			if ($continuous && $timeout > 0 && (time() - $start_time > $timeout)) {
 				if ($d && $d->{id}) {
 					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-				} else {
+				}
+				else {
 					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `serial` = $quoted_serial AND `function` = $quoted_mqtt_function]);
 				}
 				return 0;
