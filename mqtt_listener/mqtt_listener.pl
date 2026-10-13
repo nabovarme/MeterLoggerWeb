@@ -208,12 +208,12 @@ sub mqtt_handler {
 		}
 
 		# --------------------
-		# ota_upgrade special case (Asynchronous OTA flashing)
+		# ota_update special case (Asynchronous OTA flashing)
 		# --------------------
-		if ($function =~ /^ota_upgrade$/i) {
+		if ($function =~ /^ota_update$/i) {
 			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = 'ota_upgrade' \
+				AND function = 'ota_update' \
 				AND state IN ('sent', 'received') \
 			]);
 			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
@@ -312,7 +312,7 @@ $subscribe_mqtt->subscribe(q[/flash_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/chip_id/#], \&mqtt_handler);
-$subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ota_update/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_key/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
