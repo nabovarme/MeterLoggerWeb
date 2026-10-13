@@ -105,10 +105,10 @@ sub confirm {
 		return 0;
 	}
 
-	$self->_log("Sending 'action=confirm' to meter via ota_upgrade...\n");
+	$self->_log("Sending 'action=confirm' to meter via ota_update...\n");
 
 	$rpc->{dbh}->do(
-		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_update'",
 		undef,
 		$serial
 	);
@@ -117,7 +117,7 @@ sub confirm {
 
 	$rpc->call({
 		serial   => $serial,
-		function => 'ota_upgrade',
+		function => 'ota_update',
 		param    => 'action=confirm',
 		stateful => 1,
 		timeout  => 15,
@@ -229,7 +229,7 @@ sub _wait_for_meter {
 	return 0;
 }
 
-# Execute a single OTA upgrade attempt.
+# Execute a single OTA update attempt.
 # Returns ($success, $ota_error, $unconfirmed_rom, $is_retryable_error).
 sub _execute_ota {
 	my $self = shift;
@@ -238,7 +238,7 @@ sub _execute_ota {
 
 	my $rpc = $self->{rpc};
 
-	$self->_log("Dispatching OTA Upgrade command for serial $serial...\n");
+	$self->_log("Dispatching OTA Update command for serial $serial...\n");
 	$self->_log('-' x 50 . "\n");
 
 	my $ota_error = 0;
@@ -247,14 +247,14 @@ sub _execute_ota {
 
 	# Clear any old OTA commands before starting.
 	$rpc->{dbh}->do(
-		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+		"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_update'",
 		undef,
 		$serial
 	);
 
 	my $success = $rpc->call({
 		serial     => $serial,
-		function   => 'ota_upgrade',
+		function   => 'ota_update',
 		param      => $payload,
 		stateful   => 1,
 		continuous => 1,
@@ -311,9 +311,9 @@ sub _execute_ota {
 	);
 }
 
-# Upgrade a meter to the selected firmware version.
-# Returns 1 on success. Dies if the upgrade fails or is aborted.
-sub upgrade {
+# Update a meter to the selected firmware version.
+# Returns 1 on success. Dies if the update fails or is aborted.
+sub update {
 	my $self = shift;
 	my $serial = shift;
 	my %args = @_;
@@ -417,7 +417,7 @@ sub upgrade {
 
 			if ($self->_wait_for_meter($serial, 15)) {
 				$self->_log(
-					"\nMeter reverted successfully! Retrying OTA upgrade...\n\n"
+					"\nMeter reverted successfully! Retrying OTA update...\n\n"
 				);
 
 				(
@@ -433,11 +433,11 @@ sub upgrade {
 		}
 		elsif ($ans =~ /^c/i || $ans eq '') {
 			$self->_log(
-				"\nSending 'action=confirm' to meter via ota_upgrade...\n"
+				"\nSending 'action=confirm' to meter via ota_update...\n"
 			);
 
 			$rpc->{dbh}->do(
-				"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_upgrade'",
+				"DELETE FROM command_queue WHERE serial = ? AND function = 'ota_update'",
 				undef,
 				$serial
 			);
@@ -446,7 +446,7 @@ sub upgrade {
 
 			$rpc->call({
 				serial   => $serial,
-				function => 'ota_upgrade',
+				function => 'ota_update',
 				param    => 'action=confirm',
 				stateful => 1,
 				timeout  => 15,
@@ -464,7 +464,7 @@ sub upgrade {
 
 				sleep 5;
 
-				$self->_log("Retrying OTA upgrade...\n\n");
+				$self->_log("Retrying OTA update..\n\n");
 
 				(
 					$success,
@@ -487,7 +487,7 @@ sub upgrade {
 	}
 
 	if ($ota_error) {
-		die "\nFailed: Meter aborted the OTA upgrade. See output above.\n";
+		die "\nFailed: Meter aborted the OTA update. See output above.\n";
 	}
 
 	# Allow for the reboot countdown and firmware boot time.
@@ -496,7 +496,7 @@ sub upgrade {
 			. "It may have failed to boot the new ROM and safely reverted to the old one.\n";
 	}
 
-	$self->_log("\nOTA Upgrade Pipeline Completed Successfully.\n");
+	$self->_log("\nOTA Update Pipeline Completed Successfully.\n");
 
 	return 1;
 }

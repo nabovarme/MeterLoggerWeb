@@ -68,7 +68,7 @@ for my $i (0 .. $#serials) {
 			$ok = $ota->confirm($serial);
 		}
 		else {
-			$ok = $ota->upgrade(
+			$ok = $ota->update(
 				$serial,
 				version => $version
 			);
