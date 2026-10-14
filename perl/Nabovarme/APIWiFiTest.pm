@@ -91,7 +91,7 @@ sub handler {
 		continuous => 1,
 		callback   => sub {
 			my $res = shift;
-			$test_result = $res->{param};
+			$test_result = ref($res) eq 'HASH' ? $res->{param} : $res;
 			return 0; # Return 0 immediately to unblock RPC loop on first response
 		}
 	});
