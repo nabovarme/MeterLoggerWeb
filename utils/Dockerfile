@@ -5,7 +5,9 @@ FROM perl-base:1.0
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	pbzip2
+	pbzip2 \
+	docker.io \
+	&& rm -rf /var/lib/apt/lists/*
 
 USER root
 
@@ -45,6 +47,7 @@ COPY ./utils/mesh_topology.pl mesh_topology.pl
 COPY ./utils/generate_vapid_keys.pl generate_vapid_keys.pl
 COPY ./utils/push_send.pl push_send.pl
 COPY ./utils/ota_update.pl ota_update.pl
+COPY ./utils/build_firmware.pl build_firmware.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
 
@@ -57,7 +60,8 @@ RUN echo 'alias mqtt_log_all="perl /home/meterlogger/mqtt_log_all.pl"' >> /home/
 	echo 'alias mesh_topology="perl /home/meterlogger/mesh_topology.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias generate_vapid_keys="perl /home/meterlogger/generate_vapid_keys.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias push_send="perl /home/meterlogger/push_send.pl"' >> /home/meterlogger/.bashrc && \
-	echo 'alias ota_update="perl /home/meterlogger/ota_update.pl"' >> /home/meterlogger/.bashrc
+	echo 'alias ota_update="perl /home/meterlogger/ota_update.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias build_firmware="perl /home/meterlogger/build_firmware.pl"' >> /home/meterlogger/.bashrc
 
 # Copy entrypoint script
 COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh

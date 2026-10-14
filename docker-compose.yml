@@ -468,6 +468,7 @@ services:
       - firmware_release:/home/meterlogger/firmware
       - ./utils/bash_history:/home/meterlogger/.bash_history
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: always
     labels:
       com.docker.compose.service: "utils"
