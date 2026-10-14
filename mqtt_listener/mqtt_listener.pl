@@ -419,6 +419,8 @@ $subscribe_mqtt->subscribe(q[/chip_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ota_update/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_key/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/set_cron/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/cron/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
 
