@@ -56,6 +56,7 @@ sub handler {
 		my $mesh_serial = $1;
 		my $sth_mesh = $dbh->prepare(q[SELECT `mesh_pwd` FROM meters WHERE `serial` = ?]);
 		$sth_mesh->execute($mesh_serial);
+
 		if (my $d_mesh = $sth_mesh->fetchrow_hashref) {
 			if (defined $d_mesh->{mesh_pwd} && length($d_mesh->{mesh_pwd})) {
 				$mesh_password = $d_mesh->{mesh_pwd};
@@ -81,8 +82,6 @@ sub handler {
 
 	my $test_result = undef;
 
-	warn "[DEBUG APIWiFiTest] Calling test_ssid_pwd for serial $serial with param: $param\n";
-
 	# Fire synchronous MQTT RPC request with a 60-second timeout in continuous mode
 	my $rpc_status = $rpc->call({
 		serial     => $serial,
@@ -93,16 +92,19 @@ sub handler {
 		continuous => 1,
 		callback   => sub {
 			my $res = shift;
-			warn "[DEBUG APIWiFiTest] Callback invoked! Raw res: " . Data::Dumper::Dumper($res) . "\n";
-			$test_result = (ref($res) eq 'HASH') ? $res->{param} : $res;
-			return 0; # Unblock RPC loop immediately
+			my $payload = (ref($res) eq 'HASH') ? $res->{param} : $res;
+
+			# Ignore echo/request payload containing the sent parameters
+			if (defined $payload && $payload =~ /status=/i) {
+				$test_result = $payload;
+				return 0; # Stop listening when the real test result arrives
+			}
+
+			return 1; # Keep waiting for test_ssid_pwd_result
 		}
 	});
 
-	warn "[DEBUG APIWiFiTest] rpc_status: $rpc_status, test_result: " . ($test_result // 'UNDEF') . "\n";
-
 	if (!defined $test_result || $test_result eq '') {
-		warn "[DEBUG APIWiFiTest] test_result was empty/undef, returning timeout error\n";
 		$r->print(JSON->new->utf8->encode({
 			status  => 'error',
 			message => 'Meter timed out or did not respond within 60 seconds'
@@ -110,10 +112,11 @@ sub handler {
 		return Apache2::Const::OK;
 	}
 
-	# Safe robust query string parser
+	# Parse the returned query string
 	my %parsed_res;
 	foreach my $pair (split(/&/, $test_result)) {
 		my ($k, $v) = split(/=/, $pair, 2);
+
 		if (defined $k && $k ne '') {
 			$v //= '';
 			$v =~ tr/+/ /;
@@ -121,8 +124,6 @@ sub handler {
 			$parsed_res{$k} = $v;
 		}
 	}
-
-	warn "[DEBUG APIWiFiTest] Parsed results: " . Data::Dumper::Dumper(\%parsed_res) . "\n";
 
 	my $conn_status = $parsed_res{status} // '';
 	my $rssi = $parsed_res{rssi} // undef;
