@@ -622,7 +622,11 @@ sub prepare_release_structure {
 		{ src => "$isolated_src_dir/user2.ota.bin", dst => "$version_dir/user2.ota.bin" },
 		{ src => "$isolated_src_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
 		{ src => "$isolated_src_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
-		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" }
+		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" },
+		{ src => "$isolated_src_dir/user1.bin.sha256", dst => "$version_dir/user1.bin.sha256" },
+		{ src => "$isolated_src_dir/user2.bin.sha256", dst => "$version_dir/user2.bin.sha256" },
+		{ src => "$isolated_src_dir/user1.ota.bin.sha256", dst => "$version_dir/user1.ota.bin.sha256" },
+		{ src => "$isolated_src_dir/user2.ota.bin.sha256", dst => "$version_dir/user2.ota.bin.sha256" }
 	);
 
 	foreach my $cmp (@components) {
