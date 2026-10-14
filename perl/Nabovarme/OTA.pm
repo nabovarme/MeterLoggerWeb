@@ -11,8 +11,7 @@ sub new {
 
 	if ($args{rpc}) {
 		$self->{rpc} = $args{rpc};
-	}
-	else {
+	} else {
 		my $rpc = Nabovarme::MQTT_RPC->new();
 
 		if (!$rpc->connect()) {
@@ -23,7 +22,7 @@ sub new {
 	}
 
 	$self->{logger} = $args{logger};
-	$self->{input} = $args{input};
+	$self->{input}  = $args{input};
 
 	return bless $self, $type;
 }
@@ -34,8 +33,7 @@ sub _log {
 
 	if (ref($self->{logger}) eq 'CODE') {
 		$self->{logger}->($message);
-	}
-	else {
+	} else {
 		print $message;
 	}
 }
@@ -56,13 +54,15 @@ sub _read_input {
 # Query the running firmware and interactively confirm the current ROM.
 # Returns 1 on confirmation and 0 if the user declines.
 sub confirm {
-	my $self = shift;
+	my $self   = shift;
 	my $serial = shift;
+	my %args   = @_;
 
 	die "Serial number is required.\n"
 		if !defined($serial) || $serial eq '';
 
-	my $rpc = $self->{rpc};
+	my $unattended = $args{unattended} // 0;
+	my $rpc        = $self->{rpc};
 
 	$self->_log("Querying meter $serial for current running firmware version...\n");
 
@@ -88,17 +88,22 @@ sub confirm {
 
 	if (defined($version_res) && $version_res ne '') {
 		$self->_log("Current Running Version: $version_res\n\n");
-	}
-	else {
+	} else {
 		die "Failed: Meter did not respond to version request.\n";
 	}
 
-	my $ans = $self->_read_input(
-		"Are you sure you want to confirm this running ROM permanently? [y/N]: "
-	);
+	my $ans;
 
-	chomp($ans) if defined $ans;
-	$ans //= 'n';
+	if ($unattended) {
+		$self->_log("Unattended mode enabled: Automatically confirming running ROM.\n");
+		$ans = 'y';
+	} else {
+		$ans = $self->_read_input(
+			"Are you sure you want to confirm this running ROM permanently? [y/N]: "
+		);
+		chomp($ans) if defined $ans;
+		$ans //= 'n';
+	}
 
 	if ($ans !~ /^y/i) {
 		$self->_log("Aborted by user.\n");
@@ -130,8 +135,7 @@ sub confirm {
 	if (defined($confirm_res) && $confirm_res ne '') {
 		$self->_log("Meter Response: $confirm_res\n");
 		$self->_log("ROM confirmed successfully.\n");
-	}
-	else {
+	} else {
 		die "Failed: Could not confirm ROM (no response).\n";
 	}
 
@@ -159,8 +163,7 @@ sub _get_hash {
 			if !defined($hash) || $hash !~ /^[0-9a-fA-F]{64}$/;
 
 		return $hash;
-	}
-	else {
+	} else {
 		my $sha = Digest::SHA->new(256);
 
 		open(my $fh, '<:raw', $bin_file)
@@ -321,7 +324,8 @@ sub update {
 	die "Serial number is required.\n"
 		if !defined($serial) || $serial eq '';
 
-	my $version = defined($args{version}) ? $args{version} : 'latest';
+	my $version    = defined($args{version}) ? $args{version} : 'latest';
+	my $unattended = $args{unattended} // 0;
 
 	my $rpc = $self->{rpc};
 
@@ -380,15 +384,22 @@ sub update {
 	# Handle a meter running an unconfirmed temporary ROM.
 	if ($ota_error && $unconfirmed_rom) {
 		$self->_log("\n[!] Meter is running an unconfirmed temporary ROM.\n");
-		$self->_log("Options:\n");
-		$self->_log("  [C] Confirm the running ROM and retry OTA (Default)\n");
-		$self->_log("  [R] Restart meter (reverts to previous ROM) and retry OTA\n");
-		$self->_log("  [A] Abort\n");
 
-		my $ans = $self->_read_input("Choose an action [C/r/a]: ");
+		my $ans;
 
-		chomp($ans) if defined $ans;
-		$ans //= 'c';
+		if ($unattended) {
+			$self->_log("Unattended mode enabled: Automatically confirming running ROM and retrying OTA...\n");
+			$ans = 'c';
+		} else {
+			$self->_log("Options:\n");
+			$self->_log("  [C] Confirm the running ROM and retry OTA (Default)\n");
+			$self->_log("  [R] Restart meter (reverts to previous ROM) and retry OTA\n");
+			$self->_log("  [A] Abort\n");
+
+			$ans = $self->_read_input("Choose an action [C/r/a]: ");
+			chomp($ans) if defined $ans;
+			$ans //= 'c';
+		}
 
 		if ($ans =~ /^r/i) {
 			$self->_log("\nSending 'restart' command to revert to previous ROM...\n");
@@ -426,8 +437,7 @@ sub update {
 					$unconfirmed_rom,
 					$is_retryable_error
 				) = $self->_execute_ota($serial, $payload);
-			}
-			else {
+			} else {
 				die "\nFailed: Meter did not come back online after restart.\n";
 			}
 		}
@@ -470,12 +480,10 @@ sub update {
 					$unconfirmed_rom,
 					$is_retryable_error
 				) = $self->_execute_ota($serial, $payload);
-			}
-			else {
+			} else {
 				die "\nFailed: Could not confirm ROM (no response).\n";
 			}
-		}
-		else {
+		} else {
 			die "\nAborted by user.\n";
 		}
 	}
