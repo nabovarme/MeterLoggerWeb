@@ -48,11 +48,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 		showStatus('Network error communicating with server.', 'error');
 	}
 
-	// ==========================================
-	// 2. Test Wi-Fi Credentials via API
+// ==========================================
+	// 2. Test Wi-Fi Credentials via Async Polling
 	// ==========================================
 	testBtn.addEventListener('click', async () => {
-		showStatus('Testing Wi-Fi connection on meter... (up to 30s)', 'info');
+		showStatus('Testing Wi-Fi connection on meter... (this may take 1-2 minutes)', 'info');
 		testBtn.disabled = true;
 		updateBtn.disabled = true;
 		testBtn.textContent = 'Testing...';
@@ -64,25 +64,65 @@ document.addEventListener("DOMContentLoaded", async () => {
 		};
 
 		try {
+			// Step 1: Start test job
 			const res = await fetch('/api/wifi_test', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload)
 			});
-			
-			const data = await res.json();
-			
-			if (data.status === 'ok') {
-				const signalInfo = data.rssi ? ` (Signal: ${data.rssi} dBm)` : '';
-				showStatus('SUCCESS: Meter successfully connected to Wi-Fi!' + signalInfo, 'success');
-			} else {
-				const detail = data.reason ? ` [Reason Code: ${data.reason}]` : '';
-				showStatus('TEST FAILED: ' + (data.message || data.error) + detail, 'error');
+
+			const job = await res.json();
+
+			if (!job.command_id) {
+				showStatus('TEST FAILED: ' + (job.error || 'Failed to start test job'), 'error');
+				testBtn.disabled = false;
+				updateBtn.disabled = false;
+				testBtn.textContent = 'Test Connection';
+				return;
 			}
+
+			// Step 2: Poll for results every 2 seconds for up to 120 seconds
+			const commandId = job.command_id;
+			const serial = job.serial;
+			const maxPolls = 60; // 60 * 2s = 120s max
+			let pollCount = 0;
+
+			const pollInterval = setInterval(async () => {
+				pollCount++;
+
+				try {
+					const pollRes = await fetch(`/api/wifi_test?command_id=${commandId}&serial=${serial}`);
+					const pollData = await pollRes.json();
+
+					if (pollData.status === 'completed') {
+						clearInterval(pollInterval);
+						testBtn.disabled = false;
+						updateBtn.disabled = false;
+						testBtn.textContent = 'Test Connection';
+
+						if (pollData.result === 'ok') {
+							const signalInfo = pollData.rssi ? ` (Signal: ${pollData.rssi} dBm)` : '';
+							showStatus('SUCCESS: Meter successfully connected to Wi-Fi!' + signalInfo, 'success');
+						} else {
+							const detail = pollData.reason ? ` [Reason Code: ${pollData.reason}]` : '';
+							showStatus('TEST FAILED: ' + (pollData.error || 'Wi-Fi test failed') + detail, 'error');
+						}
+					}
+					else if (pollCount >= maxPolls) {
+						clearInterval(pollInterval);
+						testBtn.disabled = false;
+						updateBtn.disabled = false;
+						testBtn.textContent = 'Test Connection';
+						showStatus('TEST TIMEOUT: Meter did not return test results within 2 minutes.', 'error');
+					}
+				} catch (err) {
+					console.error('Polling error:', err);
+				}
+			}, 2000);
+
 		} catch (err) {
 			console.error(err);
 			showStatus('Network error communicating with test service.', 'error');
-		} finally {
 			testBtn.disabled = false;
 			updateBtn.disabled = false;
 			testBtn.textContent = 'Test Connection';
