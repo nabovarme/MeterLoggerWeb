@@ -47,21 +47,24 @@ sub mqtt_handler {
 	unless ($topic =~ m!/[^/]+/v2/([^/]+)/(\d+)!) {
 		return;
 	}
+
 	my $meter_serial = $1;
 	my $unix_time = $2;
 
 	# Only react to meters with commands in queue
-	$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
-		WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-		LIMIT 1 \
+	$sth = $dbh->prepare(qq[
+		SELECT serial
+		FROM command_queue
+		WHERE serial = ?
+		LIMIT 1
 	]);
-	$sth->execute;
+	$sth->execute($meter_serial);
 
 	return unless $sth->rows;
 
 	# Extract mac, iv, ciphertext
-	my $mac        = substr($message, 0, 32);
-	my $iv         = substr($message, 32, 16);
+	my $mac = substr($message, 0, 32);
+	my $iv = substr($message, 32, 16);
 	my $ciphertext = substr($message, 48);
 
 	# Extract function from topic
@@ -70,15 +73,21 @@ sub mqtt_handler {
 
 	# Get AES key from cache or DB
 	my $key = '';
-	if (exists($key_cache->{$meter_serial}) && ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
+	if (
+		exists($key_cache->{$meter_serial})
+		&& ($key_cache->{$meter_serial}->{cached_time} > (time() - $config_cached_time))
+	) {
 		$key = $key_cache->{$meter_serial}->{key};
 	}
 	else {
-		$sth = $dbh->prepare(qq[SELECT `key` FROM meters \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			LIMIT 1 \
+		$sth = $dbh->prepare(qq[
+			SELECT `key`
+			FROM meters
+			WHERE serial = ?
+			LIMIT 1
 		]);
-		$sth->execute;
+		$sth->execute($meter_serial);
+
 		if ($sth->rows) {
 			$d = $sth->fetchrow_hashref;
 			$key_cache->{$meter_serial}->{key} = $d->{key};
@@ -88,38 +97,6 @@ sub mqtt_handler {
 	}
 
 	return unless $key;
-
-	# --------------------
-	# scan_result special case (Backward compatibility)
-	# --------------------
-	if ($function =~ /^scan_result$/i) {
-		log_info("Received MQTT reply from $meter_serial: $function", {-no_script_name => 1});
-
-		# Check if the scan command is waiting for a synchronous callback
-		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = 'scan' \
-			AND state = 'sent' \
-			LIMIT 1 \
-		]);
-		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
-
-		if (my $row = $sth->fetchrow_hashref) {
-			if ($row->{has_callback}) {
-				$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, '');
-				$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $row->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
-				log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
-			}
-			else {
-				# Standard async cleanup
-				$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
-				log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
-			}
-		}
-		return;
-	}
 
 	# Decrypt message
 	my $sha256 = sha256(pack('H*', $key));
@@ -132,44 +109,110 @@ sub mqtt_handler {
 		$cleartext =~ s/[\x00\s]+$//;	# remove trailing nulls
 
 		# --------------------
-		# test_ssid_pwd_result special case
+		# scan_result special case (Backward compatibility)
 		# --------------------
-		if ($function =~ /^test_ssid_pwd_result$/i) {
-			log_info("Received MQTT reply from $meter_serial: $function ($cleartext)", {-no_script_name => 1});
+		if ($function =~ /^scan_result$/i) {
+			log_info("Received authenticated MQTT reply from $meter_serial:$function", {-no_script_name => 1});
 
-			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = 'test_ssid_pwd' \
-				AND state IN ('sent', 'received') \
-				LIMIT 1 \
+			$sth = $dbh->prepare(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function = 'scan'
+				AND state = 'sent'
+				LIMIT 1
 			]);
 			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
-					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
-					$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $row->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
+						undef, $row->{id}, ''
+					);
+					$dbh->do(
+						qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
 
-					log_info("Marked serial $meter_serial, command test_ssid_pwd for callback resolution", {-no_script_name => 1});
+					log_info("Marked serial $meter_serial, command scan for callback resolution", {-no_script_name => 1});
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[DELETE FROM command_queue WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
 
-					log_info("Deleted serial $meter_serial, command test_ssid_pwd", {-no_script_name => 1});
+					log_info("Deleted serial $meter_serial, command scan", {-no_script_name => 1});
 				}
 			}
+
 			return;
 		}
 
+		# --------------------
+		# test_ssid_pwd_result special case
+		# --------------------
+		if ($function =~ /^test_ssid_pwd_result$/i) {
+			log_info("Received MQTT reply from $meter_serial: $function ($cleartext)", {-no_script_name => 1});
+
+			$sth = $dbh->prepare(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function = 'test_ssid_pwd'
+				AND state IN ('sent', 'received')
+				LIMIT 1
+			]);
+			$sth->execute($meter_serial) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+			if (my $row = $sth->fetchrow_hashref) {
+				if ($row->{has_callback}) {
+					$dbh->do(
+						qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
+						undef, $row->{id}, $cleartext
+					);
+					$dbh->do(
+						qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Stored test_ssid_pwd response for $meter_serial:$cleartext", {-no_script_name => 1});
+				}
+				else {
+					$dbh->do(
+						qq[DELETE FROM command_queue WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Deleted test_ssid_pwd command for $meter_serial", {-no_script_name => 1});
+				}
+			}
+
+			return;
+		}
+
+		# Map response topics back to their original command_queue function names
+		my $lookup_function = $function;
+		if ($function eq 'test_ssid_pwd_result') {
+			$lookup_function = 'test_ssid_pwd';
+		}
+		elsif ($function eq 'stack_trace_result') {
+			$lookup_function = 'read_stack_trace';
+		}
+		elsif ($function eq 'scan_result') {
+			$lookup_function = 'scan';
+		}
+
 		# Only react to functions we have sent commands for
-		$sth = $dbh->prepare(qq[SELECT serial FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = ] . $dbh->quote($function) . qq[ \
-			LIMIT 1 \
+		$sth = $dbh->prepare(qq[
+			SELECT serial
+			FROM command_queue
+			WHERE serial = ?
+			AND function = ?
+			LIMIT 1
 		]);
-		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+		$sth->execute($meter_serial, $lookup_function) or log_warn($DBI::errstr, {-no_script_name => 1});
 
 		return unless $sth->rows;
 
@@ -178,13 +221,15 @@ sub mqtt_handler {
 		# --------------------
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
-			$dbh->do(qq[DELETE FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = ] . $dbh->quote($function) . qq[ \
-				AND param <= ] . ($cleartext + $tolerance) . qq[ \
-			]) or log_warn($DBI::errstr, {-no_script_name => 1});
+			$dbh->do(qq[
+				DELETE FROM command_queue
+				WHERE serial = ?
+				AND function = ?
+				AND param <= ?
+			], undef, $meter_serial, $function, $cleartext + $tolerance)
+				or log_warn($DBI::errstr, {-no_script_name => 1});
 
-			log_info("Cleared open_until commands <= $cleartext for $meter_serial", {-no_script_name => 1});
+			log_info("Cleared open_until commands <= $cleartext for$meter_serial", {-no_script_name => 1});
 			return;
 		}
 
@@ -192,10 +237,12 @@ sub mqtt_handler {
 		# status special case
 		# --------------------
 		if ($function =~ /^status$/i) {
-			$dbh->do(qq[DELETE FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = ] . $dbh->quote($function) . qq[ \
-			]) or log_warn($DBI::errstr, {-no_script_name => 1});
+			$dbh->do(qq[
+				DELETE FROM command_queue
+				WHERE serial = ?
+				AND function = ?
+			], undef, $meter_serial, $function)
+				or log_warn($DBI::errstr, {-no_script_name => 1});
 
 			log_info("Deleted status command for $meter_serial", {-no_script_name => 1});
 			return;
@@ -207,81 +254,114 @@ sub mqtt_handler {
 		if ($function =~ /^stack_trace_result$/i) {
 			log_info("Received stack_trace_result reply from $meter_serial ($cleartext)", {-no_script_name => 1});
 
-			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = 'read_stack_trace' \
-				AND state = 'sent' \
-				LIMIT 1 \
+			$sth = $dbh->prepare(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function = 'read_stack_trace'
+				AND state = 'sent'
+				LIMIT 1
 			]);
 			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
 
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
-					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
-					$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $row->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
+						undef, $row->{id}, $cleartext
+					);
+					$dbh->do(
+						qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 					log_info("Marked serial $meter_serial, command read_stack_trace for callback resolution", {-no_script_name => 1});
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[DELETE FROM command_queue WHERE id = ?],
+						undef, $row->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 					log_info("Deleted serial $meter_serial, command read_stack_trace", {-no_script_name => 1});
 				}
 			}
+
 			return;
 		}
 
 		# --------------------
-		# ota_update special case (Asynchronous OTA flashing)
+		# ota_update / ota_upgrade special case (Asynchronous OTA flashing)
 		# --------------------
-		if ($function =~ /^ota_update$/i) {
-			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-				AND function = 'ota_update' \
-				AND state IN ('sent', 'received') \
+		if ($function =~ /^ota_up(?:date|grade)$/i) {
+			$sth = $dbh->prepare(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function IN ('ota_upgrade', 'ota_update')
+				AND state IN ('sent', 'received')
 			]);
-			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+			$sth->execute($meter_serial) or log_warn($DBI::errstr, {-no_script_name => 1});
 
 			while ($d = $sth->fetchrow_hashref) {
 				if ($d->{has_callback}) {
-					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $d->{id}, $cleartext);
+					$dbh->do(
+						qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
+						undef, $d->{id}, $cleartext
+					);
 					# Bumping unix_time prevents the dispatcher from deleting the row during long 5-minute flash cycles
-					$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $d->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
+						undef, $d->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
 
 					log_info("Stored OTA response for $meter_serial:$cleartext", {-no_script_name => 1});
 				}
 				else {
-					$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id})
-						or log_warn($DBI::errstr, {-no_script_name => 1});
+					$dbh->do(
+						qq[DELETE FROM command_queue WHERE id = ?],
+						undef, $d->{id}
+					) or log_warn($DBI::errstr, {-no_script_name => 1});
+
 					log_info("Deleted OTA command for $meter_serial", {-no_script_name => 1});
 				}
 			}
+
 			return;
 		}
 
 		# --------------------
 		# General case (Handles /scan and /test_ssid_pwd ACKs flawlessly)
 		# --------------------
-		$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
-			WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
-			AND function = ] . $dbh->quote($function) . qq[ \
-			AND state = 'sent' \
+		$sth = $dbh->prepare(qq[
+			SELECT id, has_callback
+			FROM command_queue
+			WHERE serial = ?
+			AND function = ?
+			AND state = 'sent'
 		]);
-		$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+		$sth->execute($meter_serial, $lookup_function) or log_warn($DBI::errstr, {-no_script_name => 1});
 
 		while ($d = $sth->fetchrow_hashref) {
 			if ($d->{has_callback}) {
-				$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $d->{id}, $cleartext);
-				$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $d->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
+				$dbh->do(
+					qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
+					undef, $d->{id}, $cleartext
+				);
+				$dbh->do(
+					qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
+					undef, $d->{id}
+				) or log_warn($DBI::errstr, {-no_script_name => 1});
 
-				log_info("Marked serial $meter_serial, command $function for deletion", {-no_script_name => 1});
+				log_info("Marked serial $meter_serial, command$lookup_function for deletion", {-no_script_name => 1});
 			}
 			else {
-				$dbh->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{id})
-					or log_warn($DBI::errstr, {-no_script_name => 1});
-				log_info("Deleted serial $meter_serial, command $function", {-no_script_name => 1});
+				$dbh->do(
+					qq[DELETE FROM command_queue WHERE id = ?],
+					undef, $d->{id}
+				) or log_warn($DBI::errstr, {-no_script_name => 1});
+
+				log_info("Deleted serial $meter_serial, command$lookup_function", {-no_script_name => 1});
 			}
 		}
 	}
@@ -337,6 +417,7 @@ $subscribe_mqtt->subscribe(q[/flash_size/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/network_quality/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/chip_id/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/ota_update/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_key/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
