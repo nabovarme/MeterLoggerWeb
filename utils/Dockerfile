@@ -48,6 +48,17 @@ COPY ./utils/ota_update.pl send_ota.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
 
+# Add aliases for Perl scripts without the .pl suffix
+RUN echo 'alias mqtt_log_all="perl /home/meterlogger/mqtt_log_all.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias smstools_send="perl /home/meterlogger/smstools_send.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias mqtt_send="perl /home/meterlogger/mqtt_send.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias mqtt_queue_send="perl /home/meterlogger/mqtt_queue_send.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias find_alternative_ssid="perl /home/meterlogger/find_alternative_ssid.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias mesh_topology="perl /home/meterlogger/mesh_topology.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias generate_vapid_keys="perl /home/meterlogger/generate_vapid_keys.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias push_send="perl /home/meterlogger/push_send.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias send_ota="perl /home/meterlogger/send_ota.pl"' >> /home/meterlogger/.bashrc
+
 # Copy entrypoint script
 COPY ./utils/docker-entrypoint.sh /docker-entrypoint.sh
 
