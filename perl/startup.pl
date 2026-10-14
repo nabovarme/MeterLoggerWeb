@@ -21,6 +21,7 @@ use Nabovarme::APIAccount;
 use Nabovarme::APIWiFiPending;
 use Nabovarme::APIWiFiScan;
 use Nabovarme::APIWiFiScanRequest;
+use Nabovarme::APIWiFiTest;
 use Nabovarme::APIWiFiUpdate;
 use Nabovarme::APIWiFiMeshRSSI;
 use Nabovarme::APISMSSent;

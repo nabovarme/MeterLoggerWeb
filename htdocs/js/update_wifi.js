@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const statusMsg = document.getElementById('statusMsg');
 	const formCard = document.getElementById('formCard');
 	const form = document.getElementById('wifi-update-form');
-	const btn = document.getElementById('update-btn');
+	const updateBtn = document.getElementById('update-btn');
+	const testBtn = document.getElementById('test-btn');
 
 	// Helper to handle inline status alerts
 	function showStatus(message, type = 'info') {
@@ -48,14 +49,56 @@ document.addEventListener("DOMContentLoaded", async () => {
 	}
 
 	// ==========================================
-	// 2. Submit Form Updates via API
+	// 2. Test Wi-Fi Credentials via API
+	// ==========================================
+	testBtn.addEventListener('click', async () => {
+		showStatus('Testing Wi-Fi connection on meter... (up to 30s)', 'info');
+		testBtn.disabled = true;
+		updateBtn.disabled = true;
+		testBtn.textContent = 'Testing...';
+
+		const payload = {
+			serial: document.getElementById('input-serial').value,
+			ssid: document.getElementById('input-ssid').value,
+			password: document.getElementById('input-password').value
+		};
+
+		try {
+			const res = await fetch('/api/wifi_test', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+			
+			const data = await res.json();
+			
+			if (data.status === 'ok') {
+				const signalInfo = data.rssi ? ` (Signal: ${data.rssi} dBm)` : '';
+				showStatus('SUCCESS: Meter successfully connected to Wi-Fi!' + signalInfo, 'success');
+			} else {
+				const detail = data.reason ? ` [Reason Code: ${data.reason}]` : '';
+				showStatus('TEST FAILED: ' + (data.message || data.error) + detail, 'error');
+			}
+		} catch (err) {
+			console.error(err);
+			showStatus('Network error communicating with test service.', 'error');
+		} finally {
+			testBtn.disabled = false;
+			updateBtn.disabled = false;
+			testBtn.textContent = 'Test Connection';
+		}
+	});
+
+	// ==========================================
+	// 3. Submit Form Updates via API
 	// ==========================================
 	form.addEventListener('submit', async (e) => {
 		e.preventDefault(); 
 		
 		statusMsg.style.display = 'none';
-		btn.textContent = 'Updating...';
-		btn.disabled = true;
+		updateBtn.textContent = 'Updating...';
+		updateBtn.disabled = true;
+		testBtn.disabled = true;
 		
 		const payload = {
 			serial: document.getElementById('input-serial').value,
@@ -74,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			
 			if (data.status === 'ok') {
 				showStatus('WiFi credentials successfully sent to meter queue.', 'success');
-				btn.textContent = 'Updated';
+				updateBtn.textContent = 'Updated';
 				
 				// Hide success message automatically after 5 seconds
 				setTimeout(() => {
@@ -84,14 +127,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 				}, 5000);
 			} else {
 				showStatus('Failed: ' + (data.error || 'Unknown error'), 'error');
-				btn.textContent = 'Update';
+				updateBtn.textContent = 'Update';
 			}
 		} catch (err) {
 			console.error(err);
 			showStatus('Network error communicating with server.', 'error');
-			btn.textContent = 'Update';
+			updateBtn.textContent = 'Update';
 		} finally {
-			btn.disabled = false;
+			updateBtn.disabled = false;
+			testBtn.disabled = false;
 		}
 	});
 });

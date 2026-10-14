@@ -136,6 +136,30 @@ sub mqtt_handler {
 		# --------------------
 		if ($function =~ /^test_ssid_pwd_result$/i) {
 			log_info("Received MQTT reply from $meter_serial: $function ($cleartext)", {-no_script_name => 1});
+
+			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
+				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
+				AND function = 'test_ssid_pwd' \
+				AND state = 'sent' \
+				LIMIT 1 \
+			]);
+			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
+
+			if (my $row = $sth->fetchrow_hashref) {
+				if ($row->{has_callback}) {
+					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
+					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $row->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Marked serial $meter_serial, command test_ssid_pwd for callback resolution", {-no_script_name => 1});
+				}
+				else {
+					$dbh->do(qq[DELETE FROM command_queue WHERE id = ] . $row->{id})
+						or log_warn($DBI::errstr, {-no_script_name => 1});
+
+					log_info("Deleted serial $meter_serial, command test_ssid_pwd", {-no_script_name => 1});
+				}
+			}
 			return;
 		}
 
