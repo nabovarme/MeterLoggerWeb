@@ -8,7 +8,6 @@ use Apache2::RequestRec ();
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_UNAUTHORIZED HTTP_INTERNAL_SERVER_ERROR HTTP_METHOD_NOT_ALLOWED);
 use JSON ();
-use CGI ();
 
 use Nabovarme::Db;
 use Nabovarme::Admin;
@@ -32,8 +31,8 @@ sub handler {
 	}
 
 	my $data = eval { JSON->new->utf8->decode($content) } || {};
-	my $serial   = $data->{serial};
-	my $ssid     = $data->{ssid};
+	my $serial = $data->{serial};
+	my $ssid = $data->{ssid};
 	my $password = $data->{password} // '';
 
 	if (!$serial || !defined $ssid) {
@@ -51,7 +50,7 @@ sub handler {
 	my $dbh = Nabovarme::Db->my_connect
 		or return Apache2::Const::HTTP_INTERNAL_SERVER_ERROR;
 
-	# Auto-resolve mesh-password if target SSID matches mesh-<serial> pattern
+	# Auto-resolve mesh password if target SSID matches mesh-<serial> pattern
 	my $mesh_password = '';
 	if ($ssid =~ /^mesh-(\S+)$/) {
 		my $mesh_serial = $1;
@@ -71,7 +70,7 @@ sub handler {
 	$escaped_ssid =~ s/&/%26/g;
 	$escaped_ssid =~ s/=/%3d/g;
 
-	my $param = 'ssid=' . $escaped_ssid . '&pwd=' .$final_password;
+	my $param = 'ssid=' . $escaped_ssid . '&pwd=' . $final_password;
 
 	my $rpc = Nabovarme::MQTT_RPC->new();
 	if (!$rpc->connect()) {
@@ -82,7 +81,7 @@ sub handler {
 
 	my $test_result = undef;
 
-	# Fire synchronous MQTT RPC request with a 60-second timeout
+	# Fire synchronous MQTT RPC request with a 60-second timeout in continuous mode
 	my $rpc_status = $rpc->call({
 		serial     => $serial,
 		function   => 'test_ssid_pwd',
@@ -93,30 +92,35 @@ sub handler {
 		callback   => sub {
 			my $res = shift;
 			$test_result = $res->{param};
-			return 0;
+			return 0; # Return 0 immediately to unblock RPC loop on first response
 		}
 	});
 
-	if (!$rpc_status || !defined $test_result) {
+	if (!defined $test_result || $test_result eq '') {
 		$r->print(JSON->new->utf8->encode({
 			status  => 'error',
-			message => 'Meter timed out or did not respond to connection test'
+			message => 'Meter timed out or did not respond within 60 seconds'
 		}));
 		return Apache2::Const::OK;
 	}
 
-	# Parse key-value query parameters returned by meter: status=ok&rssi=-62 or status=fail&reason=201
+	# Safe robust query string parser
 	my %parsed_res;
 	foreach my $pair (split(/&/, $test_result)) {
 		my ($k, $v) = split(/=/, $pair, 2);
-		$parsed_res{$k} = $v if defined $k;
+		if (defined $k && $k ne '') {
+			$v //= '';
+			$v =~ tr/+/ /;
+			$v =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+			$parsed_res{$k} = $v;
+		}
 	}
 
-	my $conn_status = $parsed_res{status} || 'unknown';
-	my $rssi        = $parsed_res{rssi}   // undef;
-	my $reason      = $parsed_res{reason} // undef;
+	my $conn_status = $parsed_res{status} // '';
+	my $rssi = $parsed_res{rssi} // undef;
+	my $reason = $parsed_res{reason} // 'none';
 
-	if ($conn_status eq 'ok') {
+	if ($conn_status eq 'ok' || $test_result =~ /status=ok/i) {
 		$r->print(JSON->new->utf8->encode({
 			status  => 'ok',
 			rssi    => $rssi,
