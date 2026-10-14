@@ -95,8 +95,6 @@ sub call {
 
 			if ($d = $sth->fetchrow_hashref) {
 				if (defined $d->{resp_id}) {
-					warn "[DEBUG MQTT_RPC] Found response ID $d->{resp_id} in command_responses for command $d->{command_id}: $d->{cr_param}\n";
-
 					# Pop the processed message off the queue immediately
 					$self->{dbh}->do(qq[DELETE FROM command_responses WHERE id = ?], undef, $d->{resp_id});
 
