@@ -81,6 +81,8 @@ sub handler {
 
 	my $test_result = undef;
 
+	warn "[DEBUG APIWiFiTest] Calling test_ssid_pwd for serial $serial with param: $param\n";
+
 	# Fire synchronous MQTT RPC request with a 60-second timeout in continuous mode
 	my $rpc_status = $rpc->call({
 		serial     => $serial,
@@ -91,12 +93,16 @@ sub handler {
 		continuous => 1,
 		callback   => sub {
 			my $res = shift;
-			$test_result = ref($res) eq 'HASH' ? $res->{param} : $res;
-			return 0; # Return 0 immediately to unblock RPC loop on first response
+			warn "[DEBUG APIWiFiTest] Callback invoked! Raw res: " . Data::Dumper::Dumper($res) . "\n";
+			$test_result = (ref($res) eq 'HASH') ? $res->{param} : $res;
+			return 0; # Unblock RPC loop immediately
 		}
 	});
 
+	warn "[DEBUG APIWiFiTest] rpc_status: $rpc_status, test_result: " . ($test_result // 'UNDEF') . "\n";
+
 	if (!defined $test_result || $test_result eq '') {
+		warn "[DEBUG APIWiFiTest] test_result was empty/undef, returning timeout error\n";
 		$r->print(JSON->new->utf8->encode({
 			status  => 'error',
 			message => 'Meter timed out or did not respond within 60 seconds'
@@ -115,6 +121,8 @@ sub handler {
 			$parsed_res{$k} = $v;
 		}
 	}
+
+	warn "[DEBUG APIWiFiTest] Parsed results: " . Data::Dumper::Dumper(\%parsed_res) . "\n";
 
 	my $conn_status = $parsed_res{status} // '';
 	my $rssi = $parsed_res{rssi} // undef;
