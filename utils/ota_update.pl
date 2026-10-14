@@ -17,6 +17,7 @@ Usage: $0 [options] <serial> [serial ...]
 Options:
   -v, --version VERSION   Firmware version to install (default: latest)
   -c, --confirm           Query current running ROM version and confirm it
+  -u, --unattended        Run without interactive prompts
   -h, --help              Show this help message
 
 Examples:
@@ -24,18 +25,22 @@ Examples:
   $0 9999995 9999996 9999997
   $0 --version 20261013_152158 9999995 9999996
   $0 --confirm 9999995 9999996
+  $0 --unattended 9999995 9999996
+  $0 --unattended --confirm 9999995 9999996
 EOF
 	exit 0;
 }
 
 my $help = 0;
 my $confirm_only = 0;
+my $unattended = 0;
 my $version = 'latest';
 
 GetOptions(
-	'help|h'      => \$help,
-	'confirm|c'   => \$confirm_only,
-	'version|v=s' => \$version,
+	'help|h'        => \$help,
+	'confirm|c'     => \$confirm_only,
+	'unattended|u'  => \$unattended,
+	'version|v=s'   => \$version,
 ) or die "Error in command line arguments\n";
 
 print_usage() if $help;
@@ -65,12 +70,16 @@ for my $i (0 .. $#serials) {
 
 	eval {
 		if ($confirm_only) {
-			$ok = $ota->confirm($serial);
+			$ok = $ota->confirm(
+				$serial,
+				unattended => $unattended
+			);
 		}
 		else {
 			$ok = $ota->update(
 				$serial,
-				version => $version
+				version => $version,
+				unattended => $unattended
 			);
 		}
 
