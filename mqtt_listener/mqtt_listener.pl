@@ -140,7 +140,7 @@ sub mqtt_handler {
 			$sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue \
 				WHERE serial = ] . $dbh->quote($meter_serial) . qq[ \
 				AND function = 'test_ssid_pwd' \
-				AND state = 'sent' \
+				AND state IN ('sent', 'received') \
 				LIMIT 1 \
 			]);
 			$sth->execute or log_warn($DBI::errstr, {-no_script_name => 1});
@@ -148,7 +148,7 @@ sub mqtt_handler {
 			if (my $row = $sth->fetchrow_hashref) {
 				if ($row->{has_callback}) {
 					$dbh->do(qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())], undef, $row->{id}, $cleartext);
-					$dbh->do(qq[UPDATE command_queue SET state = 'received' WHERE id = ?], undef, $row->{id})
+					$dbh->do(qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?], undef, $row->{id})
 						or log_warn($DBI::errstr, {-no_script_name => 1});
 
 					log_info("Marked serial $meter_serial, command test_ssid_pwd for callback resolution", {-no_script_name => 1});
