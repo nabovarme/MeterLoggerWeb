@@ -89,7 +89,7 @@ sub handler {
 		param      => $param,
 		stateful   => 0,
 		timeout    => 60,
-		continuous => 0,
+		continuous => 1,
 		callback   => sub {
 			my $res = shift;
 			$test_result = $res->{param};
