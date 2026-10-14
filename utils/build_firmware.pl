@@ -10,6 +10,7 @@ use File::Copy qw(move);
 use Fcntl qw(:flock);
 use POSIX qw(strftime);
 use FindBin;
+use Getopt::Long qw(GetOptions);
 use lib qw(/usr/local/share/perl);
 use Nabovarme::Db;
 use Nabovarme::FirmwareBuilder qw(build_flags_from_sw_version);
@@ -20,20 +21,15 @@ use constant RELEASE_DIR => '/home/meterlogger/firmware';
 $| = 1;
 
 sub usage {
-	 die "Usage: $0 <serial>\n";
+	die "Usage: $0 [--dry-run] <serial>\n";
 }
 
+my $dry_run = 0;
+GetOptions('n|dry-run' => \$dry_run) or usage();
 my $serial = shift @ARGV;
 usage() unless defined $serial && $serial =~ /^\d+$/ && !@ARGV;
 
 my $serial_dir = RELEASE_DIR . "/$serial";
-make_path($serial_dir);
-
-# Serialize builds started by this utility for the same meter.
-open(my $lock_fh, '>', "$serial_dir/.build.lock")
-	or die "Cannot open build lock: $!\n";
-flock($lock_fh, LOCK_EX)
-	or die "Cannot lock meter $serial: $!\n";
 
 my $dbh = Nabovarme::Db->my_connect
 	or die "Database connection failed\n";
@@ -55,10 +51,11 @@ my $build_flags = build_flags_from_sw_version($meter->{sw_version}) // '';
 
 sub run_command {
 	my (@cmd) = @_;
-	print "+ @cmd\n";
+	my $display = display_command(@cmd);
+	print "+ $display\n";
 	my $status = system(@cmd);
 	die "Failed to execute command: $!\n" if $status == -1;
-	die "Command failed (" . ($status >> 8) . "): @cmd\n" if $status != 0;
+	die "Command failed (" . ($status >> 8) . "): $display\n" if $status != 0;
 }
 
 sub docker_output {
@@ -86,7 +83,6 @@ $fs_version = 'unknown' unless length $fs_version;
 $fs_version .= "-$config_hash-" . strftime('%Y%m%d%H%M%S', localtime) . "-$$";
 
 my $version_dir = "$serial_dir/$fs_version";
-mkdir($version_dir) or die "Cannot create unique release directory $version_dir: $!\n";
 
 my $container_name = "firmware_sdk_build_${serial}_$$";
 my @docker_args = (
@@ -106,11 +102,38 @@ push @docker_args, (
 	DOCKER_IMAGE,
 );
 
-my $ok = eval {
-	print "Building firmware for meter $serial ($info)\n";
-	print "Firmware version: $git_version\n";
-	print "Build flags: $build_flags\n";
+sub display_command {
+	my (@cmd) = @_;
+	my @display = @cmd;
+	for (my $i = 0; $i < @display - 1; $i++) {
+		$display[$i + 1] = 'KEY=[redacted]' if $display[$i] eq '-e' && $display[$i + 1] =~ /^KEY=/;
+	}
+	return join(' ', map { /[^a-zA-Z0-9_.,:\/=+-]/ ? "'" . ($_ =~ s/'/'\\''/gr) . "'" : $_ } @display);
+}
 
+print "Firmware build parameters for meter $serial ($info)\n";
+print "Firmware version: $git_version\n";
+print "Build flags: $build_flags\n";
+print "Docker image: " . DOCKER_IMAGE . "\n";
+print "Release directory: $version_dir\n";
+print "Key: [redacted] (" . length($key) . " characters)\n";
+print "Docker command: " . display_command(@docker_args) . "\n";
+
+if ($dry_run) {
+	print "Dry run: no build started and no release files changed.\n";
+	exit 0;
+}
+
+# Serialize builds started by this utility for the same meter.
+make_path($serial_dir);
+open(my $lock_fh, '>', "$serial_dir/.build.lock")
+	or die "Cannot open build lock: $!\n";
+flock($lock_fh, LOCK_EX)
+	or die "Cannot lock meter $serial: $!\n";
+
+mkdir($version_dir) or die "Cannot create unique release directory $version_dir: $!\n";
+
+my $ok = eval {
 	run_command(@docker_args);
 
 	my @artifacts = qw(
