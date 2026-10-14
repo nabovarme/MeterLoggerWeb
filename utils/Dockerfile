@@ -7,6 +7,7 @@ LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	pbzip2 \
 	docker.io \
+	util-linux \
 	&& rm -rf /var/lib/apt/lists/*
 
 USER root
@@ -23,7 +24,6 @@ RUN useradd -ms /bin/bash meterlogger
 RUN echo "meterlogger ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/meterlogger && \
 	chmod 0440 /etc/sudoers.d/meterlogger
 
-USER meterlogger
 WORKDIR /home/meterlogger
 
 # Add /home/meterlogger to system PATH
