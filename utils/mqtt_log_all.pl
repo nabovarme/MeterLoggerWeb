@@ -21,7 +21,7 @@
 #    - The script verifies the HMAC before decryption.
 #
 # 3. Message Structure:
-#       [32-byte HMAC][16-byte IV][Ciphertext]
+#      [32-byte HMAC][16-byte IV][Ciphertext]
 #
 # 4. Decryption Process:
 #    - Extract HMAC, IV, and ciphertext from the message.
@@ -55,13 +55,16 @@ my $client_count	= 0;
 my $graphics_mode	= 0;
 
 GetOptions(
-	'topic-only|t'	=> \$topic_only,
+	'topic-only|t'		=> \$topic_only,
 	'help|h'		=> \$help,
-	'client-count|c'=> \$client_count,
-	'graphics|g'	=> \$graphics_mode,
+	'client-count|c'	=> \$client_count,
+	'graphics|g'		=> \$graphics_mode,
 ) or usage();
 
 usage() if $help;
+
+# Store target serial numbers in a hash for lookup
+my %target_serials = map { $_ => 1 } @ARGV;
 
 print "Press Ctrl+C to exit.\n";
 
@@ -102,8 +105,18 @@ if ($graphics_mode) {
 	$log_win->refresh();
 
 	# Signal handlers
-	$SIG{INT} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode.\n"; exit; };
-	$SIG{HUP} = sub { endwin(); $dbh->disconnect() if $dbh; print "Exiting graphics mode due to HUP.\n"; exit; };
+	$SIG{INT} = sub {
+		endwin();
+		$dbh->disconnect() if $dbh;
+		print "Exiting graphics mode.\n";
+		exit;
+	};
+	$SIG{HUP} = sub {
+		endwin();
+		$dbh->disconnect() if $dbh;
+		print "Exiting graphics mode due to HUP.\n";
+		exit;
+	};
 }
 
 # Mode selection
@@ -120,7 +133,7 @@ run_mqtt_loop();
 # =============================================================================
 
 sub usage {
-	print "Usage: $0 [options] [serial]\n";
+	print "Usage: $0 [options] [serial1 serial2 ...]\n";
 	print "\n";
 	print "Options:\n";
 	print "\t-t, --topic-only   Print only the MQTT topic, skip decoded data\n";
@@ -128,7 +141,7 @@ sub usage {
 	print "\t-g, --graphics     Show clients on top and MQTT messages below (Curses mode)\n";
 	print "\t-h, --help         Show this help message\n";
 	print "\n";
-	print "If no serial is specified, all serials are processed.\n";
+	print "If no serials are specified, all serials are processed.\n";
 	exit;
 }
 
@@ -136,8 +149,14 @@ sub print_client_count {
 	my $sys_mqtt = Net::MQTT::Simple->new('mqtt');
 	my $count;
 
-	$SIG{INT} = sub { print "\nExiting client count mode.\n"; exit; };
-	$SIG{HUP} = sub { print "\nExiting client count mode due to HUP.\n"; exit; };
+	$SIG{INT} = sub {
+		print "\nExiting client count mode.\n";
+		exit;
+	};
+	$SIG{HUP} = sub {
+		print "\nExiting client count mode due to HUP.\n";
+		exit;
+	};
 
 	$sys_mqtt->run(
 		'$SYS/broker/clients/connected' => sub {
@@ -176,26 +195,39 @@ sub run_mqtt_loop {
 sub v2_mqtt_handler {
 	my ($topic, $message) = @_;
 
-	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) { return; }
+	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) {
+		return;
+	}
+
 	my $protocol_version	= $1;
-	my $meter_serial	= $2;
-	my $unix_time		= $3;
+	my $meter_serial		= $2;
+	my $unix_time			= $3;
 
-	if ($ARGV[0] && $meter_serial ne $ARGV[0]) { return; }
+	# If specific serials were passed, ignore messages from non-matching meters
+	if (%target_serials && !$target_serials{$meter_serial}) {
+		return;
+	}
 
-	if ($topic_only) {$message = '';
+	if ($topic_only) {
+		$message = '';
 	} else {
 		$message =~ /(.{32})(.{16})(.+)/s;
 		my ($mac, $iv, $ciphertext) = ($1, $2, $3);
 
-		my $sth =$dbh->prepare("SELECT `key` FROM meters WHERE serial = ".$dbh->quote($meter_serial)." LIMIT 1");
+		my $sth = $dbh->prepare(
+			"SELECT `key` FROM meters WHERE serial = " .
+			$dbh->quote($meter_serial) .
+			" LIMIT 1"
+		);
 		$sth->execute;
+
 		if ($sth->rows) {
-			my $key =$sth->fetchrow_hashref->{key} || warn "no aes key found";
+			my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
 			my $sha256 = sha256(pack('H*', $key));
-			my $aes_key = substr($sha256,0,16);
-			my $hmac_sha256_key = substr($sha256,16,16);
-			if ($mac eq hmac_sha256($topic.$iv.$ciphertext, $hmac_sha256_key)) {
+			my $aes_key = substr($sha256, 0, 16);
+			my $hmac_sha256_key = substr($sha256, 16, 16);
+
+			if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
 				my $cbc = Crypt::Mode::CBC->new('AES');
 				$message = $cbc->decrypt($ciphertext, $aes_key, $iv);
 				$message =~ s/\0+$//; # Strip trailing C null-terminator bytes
@@ -222,11 +254,11 @@ sub add_log_message {
 	push @log_lines, $msg;
 
 	# Keep only last $max_lines
-	@log_lines = @log_lines[-$max_lines..-1] if @log_lines > $max_lines;
+	@log_lines = @log_lines[-$max_lines .. -1] if @log_lines > $max_lines;
 
 	# Draw all visible lines
 	for my $i (0 .. $#log_lines) {
-		$log_win->move($i,0);
+		$log_win->move($i, 0);
 		$log_win->clrtoeol();
 		$log_win->addstr($log_lines[$i]);
 	}
@@ -240,9 +272,10 @@ sub add_log_message {
 sub display_top_window {
 	$top_win->clear();
 	$top_win->attron(A_BOLD);  # enable bold
-	$top_win->addstr(0,0,"MQTT clients connected: $client_count_current");
+	$top_win->addstr(0, 0, "MQTT clients connected: $client_count_current");
 	$top_win->attroff(A_BOLD); # disable bold
-	$top_win->move(1,0);
+	$top_win->move(1, 0);
+
 	my ($rows, $cols);
 	getmaxyx($top_win, $rows, $cols);
 	$top_win->hline('-', $cols);
