@@ -274,7 +274,10 @@ sub _execute_ota {
 				return 0;
 			}
 			# Classify transient network errors reported by the firmware.
-			elsif ($msg =~ /error_(tcp_drop|timeout|disconnected|dns)/i) {
+			elsif (
+				$msg =~ /(?:^|[\s&])status=error_(?:tcp_drop|timeout|disconnected|dns)\b/i
+				|| $msg =~ /error_(?:tcp_drop|timeout|disconnected|dns)\b/i
+			) {
 				$ota_error = 1;
 				$is_retryable_error = 1;
 				return 0;
@@ -365,13 +368,12 @@ sub update {
 		) = $self->_execute_ota($serial, $payload);
 
 		if (
-			$ota_error
-			&& $is_retryable_error
+			$is_retryable_error
 			&& $attempt < $max_ota_attempts
 		) {
 			$self->_log(
-				"\n[!] Network error encountered during OTA download. "
-				. "Retrying attempt ($attempt/$max_ota_attempts) in 5 seconds...\n\n"
+				"\n[!] Network error encountered during OTA update. "
+				. "Retrying attempt (" . ($attempt + 1) . "/$max_ota_attempts) in 5 seconds...\n\n"
 			);
 
 			sleep 5;
