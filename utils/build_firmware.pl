@@ -49,6 +49,15 @@ my $info = $meter->{info} // '';
 my $key = $meter->{key} // '';
 my $build_flags = build_flags_from_sw_version($meter->{sw_version}) // '';
 
+sub display_command {
+	my (@cmd) = @_;
+	my @display = @cmd;
+	for (my $i = 0; $i < @display - 1; $i++) {
+		$display[$i + 1] = 'KEY=[redacted]' if $display[$i] eq '-e' && $display[$i + 1] =~ /^KEY=/;
+	}
+	return join(' ', map { /[^a-zA-Z0-9_.,:\/=+-]/ ? "'" . ($_ =~ s/'/'\\''/gr) . "'" : $_ } @display);
+}
+
 sub run_command {
 	my (@cmd) = @_;
 	my $display = display_command(@cmd);
@@ -102,18 +111,9 @@ push @docker_args, (
 	DOCKER_IMAGE,
 );
 
-sub display_command {
-	my (@cmd) = @_;
-	my @display = @cmd;
-	for (my $i = 0; $i < @display - 1; $i++) {
-		$display[$i + 1] = 'KEY=[redacted]' if $display[$i] eq '-e' && $display[$i + 1] =~ /^KEY=/;
-	}
-	return join(' ', map { /[^a-zA-Z0-9_.,:\/=+-]/ ? "'" . ($_ =~ s/'/'\\''/gr) . "'" : $_ } @display);
-}
-
 print "Firmware build parameters for meter $serial ($info)\n";
 print "Firmware version: $git_version\n";
-print "Build flags: $build_flags\n";
+print "Build parameters: $build_flags\n";
 print "Docker image: " . DOCKER_IMAGE . "\n";
 print "Release directory: $version_dir\n";
 print "Key: [redacted] (" . length($key) . " characters)\n";
