@@ -216,6 +216,7 @@ while (1) {
 					$cleartext,
 				);
 
+				# Updating time prevents timeouts during long streams
 				$dbh->do(
 					qq[
 						UPDATE command_queue
@@ -232,16 +233,31 @@ while (1) {
 				);
 			}
 			else {
-				$dbh->do(
-					qq[DELETE FROM command_queue WHERE id = ?],
-					undef,
-					$row->{id},
-				);
+				# Handle multi-part fire-and-forget streams
+				if ($function =~ /^scan_result$/i && $cleartext ne '') {
+					log_debug(
+						"Retained fire-and-forget scan_result (multi-part) for $meter_serial",
+						{-no_script_name => 1},
+					);
+				}
+				elsif ($function =~ /^ota_up(?:date|grade)$/i && $cleartext !~ /success|error|committed/) {
+					log_debug(
+						"Retained fire-and-forget OTA stream (multi-part) for $meter_serial",
+						{-no_script_name => 1},
+					);
+				}
+				else {
+					$dbh->do(
+						qq[DELETE FROM command_queue WHERE id = ?],
+						undef,
+						$row->{id},
+					);
 
-				log_debug(
-					"Deleted fire-and-forget $lookup_function (ID: $row->{id})",
-					{-no_script_name => 1},
-				);
+					log_debug(
+						"Deleted fire-and-forget $lookup_function (ID: $row->{id})",
+						{-no_script_name => 1},
+					);
+				}
 			}
 		}
 	}
