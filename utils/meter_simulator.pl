@@ -136,20 +136,21 @@ $mqtt->subscribe(
 				# Generic ACK for set_cron, clear_cron, save, restart, set_key, set_ssid_pwd, etc.
 				send_encrypted_payload("/$function/v2/$serial/$now", "ok");
 			}
-		} else {
+		}
+		else {
 			print "[HMAC ERROR] Invalid signature on topic: $topic\n";
 		}
 	}
 );
 
-# --- Publish fake telemetry every 10 seconds ---
+# --- Publish fake telemetry every 60 seconds (1 minute) ---
 my $accumulated_volume = 1000.00;
 my $accumulated_energy = 500.00;
 
-my $timer;
-$timer = AnyEvent->timer(
+my $sample_timer;
+$sample_timer = AnyEvent->timer(
 	after    => 1,
-	interval => 10,
+	interval => 60,
 	cb       => sub {
 		my $unix_time = int(time());
 		my $topic = "/sample/v2/$serial/$unix_time";
@@ -162,8 +163,8 @@ $timer = AnyEvent->timer(
 		my $effect = sprintf("%.2f", ($flow * $tdif * 4.184) / 3600);
 
 		# Increment accumulators
-		$accumulated_volume += ($flow / 360);
-		$accumulated_energy += ($effect / 360);
+		$accumulated_volume += ($flow / 60);
+		$accumulated_energy += ($effect / 60);
 
 		my $cleartext = sprintf(
 			"t1=%.2f&t2=%.2f&tdif=%.2f&flow1=%d&effect1=%s&hr=1000&v1=%.2f&e1=%.2f&heap=42000",
@@ -172,6 +173,27 @@ $timer = AnyEvent->timer(
 
 		send_encrypted_payload($topic, $cleartext);
 		print "[SENT TELEMETRY] Topic: $topic | Payload:$cleartext\n";
+	}
+);
+
+# --- Publish health/status messages every 600 seconds (10 minutes) ---
+my $uptime_counter = 0;
+
+my $status_timer;
+$status_timer = AnyEvent->timer(
+	after    => 5,
+	interval => 600,
+	cb       => sub {
+		my $now = int(time());
+		$uptime_counter += 600;
+
+		send_encrypted_payload("/status/v2/$serial/$now", $current_valve_status);
+		send_encrypted_payload("/network_quality/v2/$serial/$now", "ping_response_time=12&ping_average_packet_loss=0%&disconnect_count=0");
+		send_encrypted_payload("/vdd/v2/$serial/$now", "3.31");
+		send_encrypted_payload("/rssi/v2/$serial/$now", "-45");
+		send_encrypted_payload("/uptime/v2/$serial/$now", $uptime_counter);
+
+		print "[SENT STATUS BATCH] Periodic status updates dispatched.\n";
 	}
 );
 
@@ -195,3 +217,7 @@ sub send_encrypted_payload {
 		qos     => 0
 	);
 }
+
+print "Simulator running. Press Ctrl+C to exit.\n";
+$cv->recv;
+
