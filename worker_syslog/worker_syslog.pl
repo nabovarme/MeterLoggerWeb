@@ -84,7 +84,6 @@ while (1) {
 			$meter_serial, $unix_time
 		);
 
-		log_warn("$topic\toffline", {-no_script_name => 1});
 		next;
 	}
 
