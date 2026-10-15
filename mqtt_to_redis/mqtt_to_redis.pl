@@ -2,86 +2,73 @@
 
 use strict;
 use warnings;
-use AnyEvent;
 use AnyEvent::MQTT;
 use Redis;
-use Storable qw(nfreeze);
+use Storable qw(freeze);
+use Time::HiRes qw(gettimeofday);
 
 use Nabovarme::Utils;
 
-# --- Config from environment ---
-my $mqtt_host = $ENV{'MQTT_HOST'}
-	or log_die("ERROR: MQTT_HOST environment variable not set", {-no_script_name => 1});
+sub get_timestamp_ms {
+	my ($seconds, $microseconds) = gettimeofday();
+	my ($sec, $min, $hour, $mday, $mon, $year) = localtime($seconds);
+	return sprintf("%04d-%02d-%02d %02d:%02d:%02d.%03d", 
+		$year + 1900, $mon + 1, $mday, $hour, $min, $sec, int($microseconds / 1000));
+}
 
-my $mqtt_port = $ENV{'MQTT_PORT'}
-	or log_die("ERROR: MQTT_PORT environment variable not set", {-no_script_name => 1});
+# Ensure signal handler cleans up properly
+$SIG{INT} = sub { log_info("Caught SIGINT, exiting.", {-no_script_name => 1}); exit 0; };
 
-my $redis_host = $ENV{'REDIS_HOST'}
-	or log_die("ERROR: REDIS_HOST environment variable not set", {-no_script_name => 1});
+my $mqtt_host  = $ENV{'MQTT_HOST'}  or log_die("MQTT_HOST not set");
+my $mqtt_port  = $ENV{'MQTT_PORT'}  or log_die("MQTT_PORT not set");
+my $redis_host = $ENV{'REDIS_HOST'} or log_die("REDIS_HOST not set");
+my $redis_port = $ENV{'REDIS_PORT'} or log_die("REDIS_PORT not set");
 
-my $redis_port = $ENV{'REDIS_PORT'}
-	or log_die("ERROR: REDIS_PORT environment variable not set", {-no_script_name => 1});
+my $redis = Redis->new(server => "$redis_host:$redis_port", reconnect => 60);
 
-# Establish Redis connection with auto-reconnect fallback
-my $redis = Redis->new(
-	server    => "$redis_host:$redis_port",
-	reconnect => 60,
-);
+log_info("Starting MQTT to Redis Router (PID $$)...", {-no_script_name => 1});
 
-warn("starting MQTT to Redis Router...\n");
+my $cv = AnyEvent->condvar;
 
-# Initialize the AnyEvent::MQTT client
-# Setting clean_session to 0 tells the broker to buffer messages for us if we disconnect
 my $mqtt = AnyEvent::MQTT->new(
-	host          => $mqtt_host,
-	port          => $mqtt_port,
-	clean_session => 0,
-	client_id     => "nabovarme_mqtt_bridge_" . $$,
+	host => $mqtt_host,
+	port => $mqtt_port,
+	on_error => sub {
+		my ($fatal, $message) = @_;
+		log_warn("MQTT Error: $message", {-no_script_name => 1});
+		$cv->send if $fatal;
+	}
 );
 
-# Subscribe to everything - we route it internally
-$mqtt->subscribe(
-	topic    => q[/#],
-	qos      => 1,
-	callback => \&mqtt_handler,
+# Catch all published topics and process via explicit callback
+my $guard = $mqtt->subscribe(
+	topic   => '#',
+	callback => \&process_mqtt_message
 );
 
-# Enter the AnyEvent main loop
-AnyEvent->condvar->recv;
-
-sub mqtt_handler {
+sub process_mqtt_message {
 	my ($topic, $message) = @_;
+	return unless ($topic && defined $message);
 
-	# Safely isolate empty or malformed network packets on startup
-	return unless defined $topic;
-	$message = '' unless defined $message;
+	# Guard clause: ignore status/config topics entirely
+	return if $topic =~ m!/config/! || $topic =~ m!/status!;
 
-	# Pack the topic and binary ciphertext into a single serialized payload
-	my $payload = nfreeze({ topic => $topic, message => $message });
+	my $recv_time = get_timestamp_ms();
+	my $payload   = freeze({ topic => $topic, message => $message });
 
-	eval {
-		my @queues;
-
-		# 1. Telemetry Queue (Strictly sample topics)
-		if ($topic =~ m!^/sample/!) {
-			push @queues, 'mqtt:queue:telemetry';
-		}
-		# 2. Command ACK Queue (Strictly command response & ACK topics)
-		elsif ($topic =~ m!^/(?:ping|open|open_until|open_until_delta|close|set_cron|cron|clear_cron|stack_trace_result|read_stack_trace|set_ssid|set_pwd|set_ssid_pwd|test_ssid_pwd|test_ssid_pwd_result|start_ap|stop_ap|start_fallback_ap|fallback_status|reconnect|save|restart|set_key|scan_result|ota_update|ota_upgrade)(?:/|$)!) {
-			push @queues, 'mqtt:queue:cmd_ack';
-		}
-		# 3. Syslog Queue (Device state & telemetry health metrics)
-		elsif ($topic =~ m!^/(?:version|status|uptime|vdd|rssi|ssid|wifi_status|ap_status|set_ap_mesh_pwd|chip_id|flash_id|flash_size|reset_reason|network_quality|offline|flash_error|cnx_csa_fn_called|mem)(?:/|$)!) {
-			push @queues, 'mqtt:queue:syslog';
-		}
-
-		# Fan-out push to Redis
-		foreach my $q (@queues) {
-			$redis->rpush($q, $payload);
-		}
-	};
-
-	if ($@) {
-		warn("Error pushing MQTT data to Redis: $@\n");
+	# Strict, non-overlapping routing block
+	if ($topic =~ m!/sample/v\d+/!) {
+		log_info("DEBUG [mqtt_to_redis] [$recv_time] Pushing to telemetry queue -> $topic", {-no_script_name => 1});
+		$redis->rpush('mqtt:queue:telemetry', $payload);
+	}
+	elsif ($topic =~ m!/syslog/!) {
+		log_info("DEBUG [mqtt_to_redis] [$recv_time] Pushing to syslog queue -> $topic", {-no_script_name => 1});
+		$redis->rpush('mqtt:queue:syslog', $payload);
+	}
+	elsif ($topic =~ m!/cmd_ack/!) {
+		log_info("DEBUG [mqtt_to_redis] [$recv_time] Pushing to cmd_ack queue -> $topic", {-no_script_name => 1});
+		$redis->rpush('mqtt:queue:cmd_ack', $payload);
 	}
 }
+
+$cv->wait;
