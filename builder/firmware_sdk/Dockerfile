@@ -2,12 +2,12 @@ FROM debian:buster
 
 LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
 
-# unrar is non-free
-RUN echo "deb http://deb.debian.org/debian buster non-free" >> /etc/apt/sources.list
-
-RUN sed -i 's|deb.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
-	sed -i 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
-	echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until
+# Use Debian Snapshot archive pinned to 2024-06-01 (includes final deb10 updates)
+RUN echo "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20240601T000000Z/ buster main non-free" > /etc/apt/sources.list && \
+    echo "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20240601T000000Z/ buster/updates main non-free" >> /etc/apt/sources.list && \
+    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until && \
+    echo 'Acquire::http::Pipeline-Depth "0";' >> /etc/apt/apt.conf.d/99no-check-valid-until && \
+    echo 'Acquire::http::No-Cache "true";' >> /etc/apt/apt.conf.d/99no-check-valid-until
 
 RUN apt-get update && apt-get install -y \
 	aptitude \
