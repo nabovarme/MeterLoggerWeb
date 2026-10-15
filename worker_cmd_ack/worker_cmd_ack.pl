@@ -71,8 +71,22 @@ while (1) {
 		{-no_script_name => 1},
 	);
 
-	my ($function, $meter_serial, $unix_time) =
-		$topic =~ m!^/([^/]+)/v\d+/([^/]+)/(\d+)!;
+	my ($function, $meter_serial, $unix_time) = $topic =~ m!/([^/]+)/v\d+/([^/]+)(?:/(\d+))?!;
+	next unless $meter_serial;
+
+	# --- Special Case: Offline has no payload ---
+	if ($function eq 'offline') {
+		$unix_time //= time();
+
+		$dbh->do(
+			qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES (?, 'offline', ?)],
+			undef,
+			$meter_serial, $unix_time
+		);
+
+		log_info("$topic\toffline", {-no_script_name => 1});
+		next;
+	}
 
 	unless ($function && $meter_serial) {
 		log_warn(
