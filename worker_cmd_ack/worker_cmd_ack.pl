@@ -31,10 +31,10 @@ while (1) {
 	unless ($dbh && $dbh->ping) {
 		log_die("Database connection lost. Exiting for Docker to restart.", {-no_script_name => 1});
 	}
-	
+
 	my $data = thaw($payload);
 	my ($topic, $message) = ($data->{topic}, $data->{message});
-	
+
 	my ($function, $meter_serial, $unix_time) = $topic =~ m!/([^/]+)/v\d+/([^/]+)/(\d+)!;
 	next unless $meter_serial;
 
@@ -49,7 +49,7 @@ while (1) {
 		log_info("Cleared open_until <= $cleartext for $meter_serial", {-no_script_name => 1});
 		next;
 	}
-	
+
 	# --- Special Case: status ---
 	if ($function =~ /^status$/i) {
 		$dbh->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = ?], undef, $meter_serial, $function);
@@ -63,12 +63,12 @@ while (1) {
 	$lookup_function = 'read_stack_trace' if $function eq 'stack_trace_result';
 	$lookup_function = 'scan' if $function eq 'scan_result';
 
-	my $state_clause = ($function =~ /^ota_up(?:date|grade)$/i || $function =~ /^test_ssid_pwd_result$/i) 
+	my $state_clause = ($function =~ /^ota_up(?:date|grade)$/i || $function =~ /^test_ssid_pwd_result$/i)
 						? "state IN ('sent', 'received')" : "state = 'sent'";
 
 	my $sth = $dbh->prepare(qq[SELECT id, has_callback FROM command_queue WHERE serial = ? AND function = ? AND $state_clause]);
 	$sth->execute($meter_serial, $lookup_function);
-	
+
 	while (my $d = $sth->fetchrow_hashref) {
 		if ($d->{has_callback}) {
 			# (Scan result specifically passes an empty string for the param back to the DB to match legacy behavior)

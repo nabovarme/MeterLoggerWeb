@@ -11,37 +11,37 @@ use AnyEvent::MQTT;
 
 use Nabovarme::Db;
 
-my $serial =$ARGV[0] or die "Usage: $0 <serial>\n";
+my $serial = $ARGV[0] or die "Usage: $0 <serial>\n";
 
 $| = 1; # Autoflush STDOUT
 
 # --- Connect to DB to fetch the AES Key ---
 my $dbh = Nabovarme::Db->my_connect or die "Database connection failed\n";
-my $sth =$dbh->prepare("SELECT `key` FROM meters WHERE serial = ? LIMIT 1");
+my $sth = $dbh->prepare("SELECT `key` FROM meters WHERE serial = ? LIMIT 1");
 $sth->execute($serial);
 
-my $row =$sth->fetchrow_hashref or die "Serial '$serial' not found in database.\n";
-my $hex_key =$row->{key} or die "No encryption key found for meter '$serial'.\n";
+my $row = $sth->fetchrow_hashref or die "Serial '$serial' not found in database.\n";
+my $hex_key = $row->{key} or die "No encryption key found for meter '$serial'.\n";
 $dbh->disconnect;
 
 # --- Setup Crypto ---
-my $sha256   = sha256(pack('H*',$hex_key));
+my $sha256   = sha256(pack('H*', $hex_key));
 my $aes_key  = substr($sha256, 0, 16);
 my $hmac_key = substr($sha256, 16, 16);
 my $cbc      = Crypt::Mode::CBC->new('AES');
 
 # --- Connect to MQTT ---
-my $mqtt_host =$ENV{MQTT_HOST} || 'mqtt';
-my $mqtt_port =$ENV{MQTT_PORT} || 1883;
+my $mqtt_host = $ENV{MQTT_HOST} || 'mqtt';
+my $mqtt_port = $ENV{MQTT_PORT} || 1883;
 
 print "Starting Advanced Meter Simulator for $serial...\n";
 print "Connecting to MQTT at $mqtt_host:$mqtt_port\n";
 
 my $mqtt = AnyEvent::MQTT->new(
-	host      => $mqtt_host,
-	port      => $mqtt_port,
+	host          => $mqtt_host,
+	port          => $mqtt_port,
 	clean_session => 0,
-	client_id => "meter_sim_${serial}_" . int(rand(10000))
+	client_id     => "meter_sim_${serial}_" . int(rand(10000))
 );
 
 my $cv = AnyEvent->condvar;
@@ -55,7 +55,7 @@ $mqtt->subscribe(
 	topic    => $config_topic,
 	qos      => 1,
 	callback => sub {
-		my ($topic,$message) = @_;
+		my ($topic, $message) = @_;
 		return unless length($message) >= 48;
 
 		my $mac        = substr($message, 0, 32);
@@ -63,21 +63,21 @@ $mqtt->subscribe(
 		my $ciphertext = substr($message, 48);
 
 		# Extract function from topic (/config/v2/serial/timestamp/function)
-		my ($function) =$topic =~ m!/config/v2/[^/]+/\d+/([^/]+)!;
+		my ($function) = $topic =~ m!/config/v2/[^/]+/\d+/([^/]+)!;
 		return unless $function;
 
 		# Authenticate and Decrypt
-		if ($mac eq hmac_sha256($topic .$iv . $ciphertext,$hmac_key)) {
-			my $cleartext = $cbc->decrypt($ciphertext, $aes_key,$iv);
+		if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_key)) {
+			my $cleartext = $cbc->decrypt($ciphertext, $aes_key, $iv);
 			$cleartext =~ s/[\x00\s]+$//; # Strip padding/nulls
-			print "[RECEIVED COMMAND] Function: $function \vert{} Payload:$cleartext\n";
+			print "[RECEIVED COMMAND] Function: $function | Payload:$cleartext\n";
 
 			my $now = int(time());
 
 			# --- Dispatch dynamic replies based on the requested command ---
-			if ($function eq 'status' || $function eq 'open' \vert{}\vert{}$function eq 'close') {
-				if ($function eq 'open')  {$current_valve_status = 'open'; }
-				if ($function eq 'close') {$current_valve_status = 'close'; }
+			if ($function eq 'status' || $function eq 'open' || $function eq 'close') {
+				if ($function eq 'open')  { $current_valve_status = 'open'; }
+				if ($function eq 'close') { $current_valve_status = 'close'; }
 				send_encrypted_payload("/status/v2/$serial/$now", $current_valve_status);
 			}
 			elsif ($function eq 'version') {
@@ -111,7 +111,7 @@ $mqtt->subscribe(
 			elsif ($function eq 'ap_status') {
 				send_encrypted_payload("/ap_status/v2/$serial/$now", "0");
 			}
-			elsif ($function eq 'chip_id' \vert{}\vert{}$function eq 'flash_id') {
+			elsif ($function eq 'chip_id' || $function eq 'flash_id') {
 				send_encrypted_payload("/$function/v2/$serial/$now", "0xDEADBEEF");
 			}
 			elsif ($function eq 'flash_size') {
@@ -129,7 +129,7 @@ $mqtt->subscribe(
 			elsif ($function eq 'test_ssid_pwd') {
 				send_encrypted_payload("/test_ssid_pwd_result/v2/$serial/$now", "status=ok&rssi=-45");
 			}
-			elsif ($function eq 'ota_update' \vert{}\vert{}$function eq 'ota_upgrade') {
+			elsif ($function eq 'ota_update' || $function eq 'ota_upgrade') {
 				send_encrypted_payload("/$function/v2/$serial/$now", "success");
 			}
 			else {
@@ -157,7 +157,7 @@ $timer = AnyEvent->timer(
 		# Generate realistic fluctuating values
 		my $t1     = 65.0 + (rand(4) - 2);
 		my $t2     = 35.0 + (rand(2) - 1);
-		my $tdif   = $t1 -$t2;
+		my $tdif   = $t1 - $t2;
 		my $flow   = ($current_valve_status eq 'open') ? 120 + int(rand(30)) : 0;
 		my $effect = sprintf("%.2f", ($flow * $tdif * 4.184) / 3600);
 
@@ -167,11 +167,11 @@ $timer = AnyEvent->timer(
 
 		my $cleartext = sprintf(
 			"t1=%.2f&t2=%.2f&tdif=%.2f&flow1=%d&effect1=%s&hr=1000&v1=%.2f&e1=%.2f&heap=42000",
-			$t1, $t2,$tdif, $flow,$effect, $accumulated_volume,$accumulated_energy
+			$t1, $t2, $tdif, $flow, $effect, $accumulated_volume, $accumulated_energy
 		);
 
-		send_encrypted_payload($topic,$cleartext);
-		print "[SENT TELEMETRY] Topic: $topic \vert{} Payload:$cleartext\n";
+		send_encrypted_payload($topic, $cleartext);
+		print "[SENT TELEMETRY] Topic: $topic | Payload:$cleartext\n";
 	}
 );
 
@@ -180,14 +180,14 @@ $cv->recv;
 
 # Helper to construct and send the encrypted binary packet
 sub send_encrypted_payload {
-	my ($target_topic,$plaintext) = @_;
+	my ($target_topic, $plaintext) = @_;
 
 	my $iv         = join('', map(chr(int rand(256)), 1..16));
-	my $padded     =$plaintext . "\0";
-	my $ciphertext = $cbc->encrypt($padded, $aes_key,$iv);
-	my $mac        = hmac_sha256($target_topic .$iv . $ciphertext,$hmac_key);
-	
-	my $payload =$mac . $iv .$ciphertext;
+	my $padded     = $plaintext . "\0";
+	my $ciphertext = $cbc->encrypt($padded, $aes_key, $iv);
+	my $mac        = hmac_sha256($target_topic . $iv . $ciphertext, $hmac_key);
+
+	my $payload = $mac . $iv . $ciphertext;
 
 	$mqtt->publish(
 		topic   => $target_topic,

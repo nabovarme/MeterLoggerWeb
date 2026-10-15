@@ -67,10 +67,10 @@ sub mqtt_handler {
 		if ($topic =~ m!/sample/!) {
 			push @queues, 'mqtt:queue:telemetry';
 		}
-		
+
 		# 2. Route to Syslog / Status Worker
 		# Handles: /version/, /uptime/, /vdd/, /rssi/, /ssid/, /wifi_status/, /ap_status/,
-		#          /chip_id/, /flash_id/, /flash_size/, /reset_reason/, /network_quality/, 
+		#          /chip_id/, /flash_id/, /flash_size/, /reset_reason/, /network_quality/,
 		#          /offline/, /flash_error/, /cnx_csa_fn_called/, /status/, /set_ap_mesh_pwd/,
 		#          /mem/, /scan_result/
 		if ($topic =~ m!/(?:version|uptime|vdd|rssi|ssid|wifi_status|ap_status|chip_id|flash_id|flash_size|reset_reason|network_quality|offline|flash_error|cnx_csa_fn_called|status|set_ap_mesh_pwd|mem|scan_result)/!) {
@@ -86,8 +86,8 @@ sub mqtt_handler {
 		}
 
 		# 4. Route to Command ACK Worker (Generic ACKs)
-		# Handles: /ping/, /open/, /close/, /set_cron/, /clear_cron/, /cron/, /set_ssid/, /set_pwd/, 
-		#          /set_ssid_pwd/, /test_ssid_pwd/, /start_ap/, /stop_ap/, /start_fallback_ap/, 
+		# Handles: /ping/, /open/, /close/, /set_cron/, /clear_cron/, /cron/, /set_ssid/, /set_pwd/,
+		#          /set_ssid_pwd/, /test_ssid_pwd/, /start_ap/, /stop_ap/, /start_fallback_ap/,
 		#          /fallback_status/, /reconnect/, /save/, /mem/, /restart/, /stack_trace/, /set_key/
 		if (!@queues && $topic =~ m!/v\d+/[^/]+/\d+$!) {
 			push @queues, 'mqtt:queue:cmd_ack';
