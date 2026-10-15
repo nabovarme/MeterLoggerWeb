@@ -41,7 +41,7 @@ my $mqtt = AnyEvent::MQTT->new(
 
 		log_warn("MQTT Error: $message", {-no_script_name => 1});
 		$cv->send if $fatal;
-	},
+	}
 );
 
 my $guard = $mqtt->subscribe(
