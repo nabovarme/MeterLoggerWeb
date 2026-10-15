@@ -421,6 +421,7 @@ $subscribe_mqtt->subscribe(q[/ota_upgrade/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_key/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/set_cron/#], \&mqtt_handler);
 $subscribe_mqtt->subscribe(q[/cron/#], \&mqtt_handler);
+$subscribe_mqtt->subscribe(q[/clear_cron/#], \&mqtt_handler);
 
 $subscribe_mqtt->run();
 
