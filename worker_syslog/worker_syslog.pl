@@ -11,7 +11,10 @@ use Nabovarme::Db;
 use Nabovarme::Crypto;
 use Nabovarme::Utils;
 
-$SIG{INT} = sub { log_info("Caught SIGINT, exiting.", {-no_script_name => 1}); exit 0; };
+$SIG{INT} = sub {
+	log_info("Caught SIGINT, exiting.", {-no_script_name => 1});
+	exit 0;
+};
 
 my $redis_host = $ENV{'REDIS_HOST'} or log_die("ERROR: REDIS_HOST not set");
 my $redis_port = $ENV{'REDIS_PORT'} or log_die("ERROR: REDIS_PORT not set");
@@ -34,8 +37,7 @@ my %STATUS_FIELDS = (
 	'chip_id'         => 'chip_id',
 	'flash_id'        => 'flash_id',
 	'flash_size'      => 'flash_size',
-	'vdd'             => 'vdd',
-	'mem'             => 'mem'
+	'reset_reason'    => 'reset_reason',
 );
 
 my %LOG_EVENTS = (
@@ -50,8 +52,10 @@ log_info("Starting Syslog Worker...", {-no_script_name => 1});
 sub decode_ssid {
 	my ($raw) = @_;
 	return undef unless defined $raw;
+
 	my $ssid = decode('UTF-8', $raw, Encode::FB_DEFAULT);
 	$ssid =~ s/[\x00-\x1F\x7F]//g;
+
 	return $ssid;
 }
 
@@ -71,7 +75,13 @@ while (1) {
 	# --- Special Case: Offline has no payload ---
 	if ($function eq 'offline') {
 		$unix_time //= time();
-		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES (?, 'offline', ?)], undef, $meter_serial, $unix_time);
+
+		$dbh->do(
+			qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES (?, 'offline', ?)],
+			undef,
+			$meter_serial, $unix_time
+		);
+
 		log_warn("$topic\toffline", {-no_script_name => 1});
 		next;
 	}
@@ -80,19 +90,38 @@ while (1) {
 	next unless defined $cleartext;
 	$cleartext =~ s/[\x00\s]+$//;
 
-	# --- Clean Dispatch Table Routing ---
+	# --- Clean Dispatch Routing ---
+	# 1. Update meters table if function exists in %STATUS_FIELDS
 	if (exists $STATUS_FIELDS{$function}) {
-		$dbh->do(qq[UPDATE meters SET $STATUS_FIELDS{$function} = ? WHERE serial = ?], undef, $cleartext, $meter_serial);
+		$dbh->do(
+			qq[UPDATE meters SET $STATUS_FIELDS{$function} = ? WHERE serial = ?],
+			undef,
+			$cleartext, $meter_serial
+		);
+
 		log_info("$topic\t$cleartext", {-no_script_name => 1});
 	}
-	elsif (exists $LOG_EVENTS{$function}) {
-		$dbh->do(qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)], undef, $meter_serial, $LOG_EVENTS{$function}, $cleartext, $unix_time);
-		log_info("$topic\t$cleartext", {-no_script_name => 1});
+
+	# 2. Insert event log if function exists in %LOG_EVENTS
+	if (exists $LOG_EVENTS{$function}) {
+		$dbh->do(
+			qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)],
+			undef,
+			$meter_serial, $LOG_EVENTS{$function}, $cleartext, $unix_time // time()
+		);
 	}
-	elsif ($function eq 'network_quality') {
+
+	# 3. Special handling for telemetry / scan structures
+	if ($function eq 'network_quality') {
 		$cleartext =~ s/&$//;
 		my %mq = $cleartext =~ /([^=]*)=(.*?)(?:&|$)/g;
-		$dbh->do(qq[UPDATE meters SET ping_response_time=?, ping_average_packet_loss=?, disconnect_count=? WHERE serial=?], undef, $mq{ping_response_time}, $mq{ping_average_packet_loss}, $mq{disconnect_count}, $meter_serial);
+
+		$dbh->do(
+			qq[UPDATE meters SET ping_response_time=?, ping_average_packet_loss=?, disconnect_count=? WHERE serial=?],
+			undef,
+			$mq{ping_response_time}, $mq{ping_average_packet_loss}, $mq{disconnect_count}, $meter_serial
+		);
+
 		log_info("$topic\t$cleartext", {-no_script_name => 1});
 	}
 	elsif ($function eq 'scan_result') {
@@ -104,13 +133,21 @@ while (1) {
 		my $ssid_utf8 = decode_ssid($mq{ssid});
 		$ssid_utf8 = substr($ssid_utf8, 0, 64) if defined $ssid_utf8 && length($ssid_utf8) > 64;
 
-		my $sth = $dbh->prepare(qq[INSERT INTO `wifi_scan` (`serial`,`ssid_raw`,`ssid`,`bssid`,`rssi`,`channel`,`auth_mode`,`pairwise_cipher`,`group_cipher`,`phy_11b`,`phy_11g`,`phy_11n`,`wps`,`unix_time`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,UNIX_TIMESTAMP())]);
-		$sth->execute($meter_serial, $mq{ssid}, $ssid_utf8, $mq{bssid}, $mq{rssi}, $mq{channel}, $mq{auth_mode}, $mq{pairwise_cipher}, $mq{group_cipher}, $mq{phy_11b}, $mq{phy_11g}, $mq{phy_11n}, $mq{wps});
+		my $sth = $dbh->prepare(
+			qq[INSERT INTO `wifi_scan` (`serial`,`ssid_raw`,`ssid`,`bssid`,`rssi`,`channel`,`auth_mode`,`pairwise_cipher`,`group_cipher`,`phy_11b`,`phy_11g`,`phy_11n`,`wps`,`unix_time`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,UNIX_TIMESTAMP())]
+		);
+
+		$sth->execute(
+			$meter_serial, $mq{ssid}, $ssid_utf8, $mq{bssid}, $mq{rssi}, $mq{channel},
+			$mq{auth_mode}, $mq{pairwise_cipher}, $mq{group_cipher}, $mq{phy_11b},
+			$mq{phy_11g}, $mq{phy_11n}, $mq{wps}
+		);
 
 		if ($sth->err) {
 			log_warn($sth->errstr, {-no_script_name => 1});
 			$redis->rpush('mqtt:queue:syslog', $payload);
-		} else {
+		}
+		else {
 			log_info("$topic\t$cleartext", {-no_script_name => 1});
 		}
 	}
