@@ -10,6 +10,45 @@ use Time::HiRes qw(gettimeofday);
 
 use Nabovarme::Utils;
 
+$SIG{INT} = sub {
+	log_info("Caught SIGINT, exiting.", {-no_script_name => 1});
+	exit 0;
+};
+
+my $mqtt_host = $ENV{MQTT_HOST}
+	or log_die("MQTT_HOST not set");
+my $mqtt_port = $ENV{MQTT_PORT}
+	or log_die("MQTT_PORT not set");
+my $redis_host = $ENV{REDIS_HOST}
+	or log_die("REDIS_HOST not set");
+my $redis_port = $ENV{REDIS_PORT}
+	or log_die("REDIS_PORT not set");
+
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+	reconnect => 60,
+);
+
+log_info("Starting MQTT to Redis Router (PID $$)...", {-no_script_name => 1});
+
+my $cv = AnyEvent->condvar;
+
+my $mqtt = AnyEvent::MQTT->new(
+	host => $mqtt_host,
+	port => $mqtt_port,
+	on_error => sub {
+		my ($fatal, $message) = @_;
+
+		log_warn("MQTT Error: $message", {-no_script_name => 1});
+		$cv->send if $fatal;
+	},
+);
+
+my $guard = $mqtt->subscribe(
+	topic => '#',
+	callback => \&process_mqtt_message,
+);
+
 sub get_timestamp_ms {
 	my ($seconds, $microseconds) = gettimeofday();
 	my ($sec, $min, $hour, $mday, $mon, $year) = localtime($seconds);
@@ -78,44 +117,5 @@ sub process_mqtt_message {
 		);
 	}
 }
-
-$SIG{INT} = sub {
-	log_info("Caught SIGINT, exiting.", {-no_script_name => 1});
-	exit 0;
-};
-
-my $mqtt_host = $ENV{MQTT_HOST}
-	or log_die("MQTT_HOST not set");
-my $mqtt_port = $ENV{MQTT_PORT}
-	or log_die("MQTT_PORT not set");
-my $redis_host = $ENV{REDIS_HOST}
-	or log_die("REDIS_HOST not set");
-my $redis_port = $ENV{REDIS_PORT}
-	or log_die("REDIS_PORT not set");
-
-my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
-	reconnect => 60,
-);
-
-log_info("Starting MQTT to Redis Router (PID $$)...", {-no_script_name => 1});
-
-my $cv = AnyEvent->condvar;
-
-my $mqtt = AnyEvent::MQTT->new(
-	host => $mqtt_host,
-	port => $mqtt_port,
-	on_error => sub {
-		my ($fatal, $message) = @_;
-
-		log_warn("MQTT Error: $message", {-no_script_name => 1});
-		$cv->send if $fatal;
-	},
-);
-
-my $guard = $mqtt->subscribe(
-	topic => '#',
-	callback => \&process_mqtt_message,
-);
 
 $cv->wait;
