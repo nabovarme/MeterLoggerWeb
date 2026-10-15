@@ -66,8 +66,8 @@ while (1) {
 	my $data = thaw($payload);
 	my ($topic, $message) = ($data->{topic}, $data->{message});
 
-	log_info(
-		"DEBUG [PID $$] [$pop_time] POPPED -> $topic",
+	log_debug(
+		"[$pop_time] POPPED -> $topic",
 		{-no_script_name => 1},
 	);
 
@@ -76,7 +76,7 @@ while (1) {
 
 	unless ($function && $meter_serial) {
 		log_warn(
-			"DEBUG [PID $$] Failed to parse function/serial from topic: $topic",
+			"Failed to parse function/serial from topic: $topic",
 			{-no_script_name => 1},
 		);
 		next;
@@ -94,8 +94,8 @@ while (1) {
 	$sth->execute($meter_serial);
 
 	unless ($sth->rows) {
-		log_info(
-			"DEBUG [PID $$] No pending commands in DB for serial $meter_serial. Dropping ACK.",
+		log_debug(
+			"No pending commands in DB for serial $meter_serial. Dropping ACK.",
 			{-no_script_name => 1},
 		);
 		next;
@@ -110,8 +110,8 @@ while (1) {
 	if (defined $cleartext) {
 		$cleartext =~ s/[\x00\s]+$//;
 
-		log_info(
-			"DEBUG [PID $$] Decrypted payload for $meter_serial:$function -> '$cleartext'",
+		log_debug(
+			"Decrypted payload for $meter_serial:$function -> '$cleartext'",
 			{-no_script_name => 1},
 		);
 
@@ -139,8 +139,8 @@ while (1) {
 				$cleartext + $tolerance,
 			);
 
-			log_info(
-				"DEBUG [PID $$] Deleted $rows open_until commands <= $cleartext for $meter_serial",
+			log_debug(
+				"Deleted $rows open_until commands <= $cleartext for $meter_serial",
 				{-no_script_name => 1},
 			);
 			next;
@@ -158,8 +158,8 @@ while (1) {
 				$function,
 			);
 
-			log_info(
-				"DEBUG [PID $$] Deleted $rows status commands for $meter_serial",
+			log_debug(
+				"Deleted $rows status commands for $meter_serial",
 				{-no_script_name => 1},
 			);
 			next;
@@ -175,7 +175,7 @@ while (1) {
 
 		$sth->execute($meter_serial, $lookup_function) or do {
 			log_warn(
-				"DEBUG [PID $$] DB Error: " . $DBI::errstr,
+				"DB Error: " . $DBI::errstr,
 				{-no_script_name => 1},
 			);
 			$redis->rpush('mqtt:queue:cmd_ack', $payload);
@@ -183,8 +183,8 @@ while (1) {
 		};
 
 		if ($sth->rows == 0) {
-			log_info(
-				"DEBUG [PID $$] No matching command_queue entry for $meter_serial -> $lookup_function",
+			log_debug(
+				"No matching command_queue entry for $meter_serial -> $lookup_function",
 				{-no_script_name => 1},
 			);
 		}
@@ -212,8 +212,8 @@ while (1) {
 					$row->{id},
 				);
 
-				log_info(
-					"DEBUG [PID $$] Marked $lookup_function (ID: $row->{id}) for callback resolution",
+				log_debug(
+					"Marked $lookup_function (ID: $row->{id}) for callback resolution",
 					{-no_script_name => 1},
 				);
 			}
@@ -224,8 +224,8 @@ while (1) {
 					$row->{id},
 				);
 
-				log_info(
-					"DEBUG [PID $$] Deleted fire-and-forget $lookup_function (ID: $row->{id})",
+				log_debug(
+					"Deleted fire-and-forget $lookup_function (ID: $row->{id})",
 					{-no_script_name => 1},
 				);
 			}
@@ -233,7 +233,7 @@ while (1) {
 	}
 	else {
 		log_warn(
-			"DEBUG [PID $$] Serial $meter_serial HMAC error on topic $topic",
+			"Serial $meter_serial HMAC error on topic $topic",
 			{-no_script_name => 1},
 		);
 	}

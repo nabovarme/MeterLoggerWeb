@@ -85,8 +85,8 @@ sub process_mqtt_message {
 	}
 	elsif ($topic =~ m!^/(?:ping|open|open_until|open_until_delta|close|set_cron|cron|clear_cron|stack_trace_result|read_stack_trace|set_ssid|set_pwd|set_ssid_pwd|test_ssid_pwd|test_ssid_pwd_result|start_ap|stop_ap|start_fallback_ap|fallback_status|reconnect|save|restart|set_key|scan_result|ota_update|ota_upgrade)/!) {
 		# Strictly command ACKs
-		log_info(
-			"DEBUG [mqtt_to_redis] [$recv_time] -> cmd_ack queue: $topic",
+		log_debug(
+			"[$recv_time] -> cmd_ack queue: $topic",
 			{-no_script_name => 1},
 		);
 
@@ -94,8 +94,8 @@ sub process_mqtt_message {
 	}
 	elsif ($topic =~ m!^/(?:version|status|uptime|vdd|rssi|ssid|wifi_status|ap_status|set_ap_mesh_pwd|chip_id|flash_id|flash_size|reset_reason|network_quality|offline|flash_error|cnx_csa_fn_called|mem)/!) {
 		# Shared: Acts as both a syslog metric AND a command response
-		log_info(
-			"DEBUG [mqtt_to_redis] [$recv_time] -> syslog & cmd_ack queue: $topic",
+		log_debug(
+			"[$recv_time] -> syslog & cmd_ack queue: $topic",
 			{-no_script_name => 1},
 		);
 
@@ -104,7 +104,7 @@ sub process_mqtt_message {
 	}
 	else {
 		log_warn(
-			"DEBUG [mqtt_to_redis] Unhandled/Dropped topic: $topic",
+			"Unhandled/Dropped topic: $topic",
 			{-no_script_name => 1},
 		);
 	}

@@ -17,8 +17,13 @@ sub get_timestamp_ms {
 
 	return sprintf(
 		"%04d-%02d-%02d %02d:%02d:%02d.%03d",
-		$year + 1900, $mon + 1, $mday, $hour, $min, $sec,
-		int($microseconds / 1000)
+		$year + 1900,
+		$mon + 1,
+		$mday,
+		$hour,
+		$min,
+		$sec,
+		int($microseconds / 1000),
 	);
 }
 
@@ -28,11 +33,18 @@ $SIG{INT} = sub {
 	exit 0;
 };
 
-my $redis_host = $ENV{'REDIS_HOST'} or log_die("ERROR: REDIS_HOST not set");
-my $redis_port = $ENV{'REDIS_PORT'} or log_die("ERROR: REDIS_PORT not set");
-my $redis = Redis->new(server => "$redis_host:$redis_port", reconnect => 60);
+my $redis_host = $ENV{'REDIS_HOST'}
+	or log_die("ERROR: REDIS_HOST not set");
+my $redis_port = $ENV{'REDIS_PORT'}
+	or log_die("ERROR: REDIS_PORT not set");
 
-my $dbh = Nabovarme::Db->my_connect or log_die("Cant't connect to DB $!");
+my $redis = Redis->new(
+	server => "$redis_host:$redis_port",
+	reconnect => 60,
+);
+
+my $dbh = Nabovarme::Db->my_connect
+	or log_die("Cant't connect to DB $!");
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 my $crypto = new Nabovarme::Crypto;
@@ -46,28 +58,35 @@ while (1) {
 	my $pop_time = get_timestamp_ms();
 
 	unless ($dbh && $dbh->ping) {
-		log_die("Database connection lost. Exiting for Docker to restart.", {-no_script_name => 1});
+		log_die(
+			"Database connection lost. Exiting for Docker to restart.",
+			{-no_script_name => 1},
+		);
 	}
 
 	my $data = thaw($payload);
 	my ($topic, $message) = ($data->{topic}, $data->{message});
 
-	log_info(
-		"DEBUG [PID $$] [$pop_time] POPPED queue item -> Topic:$topic | Msg len: " . length($message),
-		{-no_script_name => 1}
+	log_debug(
+		"[$pop_time] POPPED queue item -> Topic:$topic | Msg len: " . length($message),
+		{-no_script_name => 1},
 	);
 
 	my ($meter_serial, $unix_time) = $topic =~ m!/sample/v\d+/([^/]+)/(\d+)!;
 
 	unless ($meter_serial) {
 		log_warn(
-			"DEBUG [PID $$] Could not parse serial/time from topic:$topic",
-			{-no_script_name => 1}
+			"Could not parse serial/time from topic:$topic",
+			{-no_script_name => 1},
 		);
 		next;
 	}
 
-	my $sample = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
+	my $sample = $crypto->decrypt_topic_message_for_serial(
+		$topic,
+		$message,
+		$meter_serial,
+	);
 
 	if (defined $sample) {
 		$sample =~ s/&$//;
@@ -85,10 +104,10 @@ while (1) {
 			}
 		}
 
-		log_info(
-			"DEBUG [PID $$] Attempting DB INSERT -> Serial:$meter_serial | UnixTime: $unix_time | FlowTemp: " .
+		log_debug(
+			"Attempting DB INSERT -> Serial:$meter_serial | UnixTime: $unix_time | FlowTemp: " .
 			($mq{t1} // 'NULL'),
-			{-no_script_name => 1}
+			{-no_script_name => 1},
 		);
 
 		my $sth = $dbh->prepare(
@@ -96,16 +115,26 @@ while (1) {
 		);
 
 		$sth->execute(
-			$meter_serial, $mq{heap}, $mq{t1}, $mq{t2}, $mq{tdif}, $mq{t3},
-			$mq{flow1}, $mq{effect1}, $mq{hr}, $mq{v1}, $mq{e1}, $unix_time
+			$meter_serial,
+			$mq{heap},
+			$mq{t1},
+			$mq{t2},
+			$mq{tdif},
+			$mq{t3},
+			$mq{flow1},
+			$mq{effect1},
+			$mq{hr},
+			$mq{v1},
+			$mq{e1},
+			$unix_time,
 		);
 
 		if ($sth->err) {
 			my $err_str = $sth->errstr;
 
 			log_warn(
-				"DEBUG [PID $$] DB INSERT ERROR:$err_str -> Re-queuing payload to Redis",
-				{-no_script_name => 1}
+				"DB INSERT ERROR:$err_str -> Re-queuing payload to Redis",
+				{-no_script_name => 1},
 			);
 
 			# Rollback to queue
@@ -114,21 +143,31 @@ while (1) {
 		else {
 			my $rows = $sth->rows;
 
-			log_info(
-				"DEBUG [PID $$] DB INSERT SUCCESS (Rows affected:$rows) -> Serial: $meter_serial | UnixTime:$unix_time",
-				{-no_script_name => 1}
+			log_debug(
+				"DB INSERT SUCCESS (Rows affected:$rows) -> Serial: $meter_serial | UnixTime:$unix_time",
+				{-no_script_name => 1},
 			);
 
 			$dbh->do(
-				qq[UPDATE meters SET last_updated = ? WHERE serial = ? AND ? > last_updated],
+				qq[
+					UPDATE meters
+					SET last_updated = ?
+					WHERE serial = ?
+					AND ? > last_updated
+				],
 				undef,
-				$unix_time, $meter_serial, $unix_time
+				$unix_time,
+				$meter_serial,
+				$unix_time,
 			);
 
 			log_info("$topic$sample", {-no_script_name => 1});
 		}
 	}
 	else {
-		log_warn("DEBUG [PID $$]$topic hmac error", {-no_script_name => 1});
+		log_warn(
+			"Serial $meter_serial HMAC error on topic $topic",
+			{-no_script_name => 1},
+		);
 	}
 }

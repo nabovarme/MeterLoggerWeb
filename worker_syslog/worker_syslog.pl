@@ -72,6 +72,8 @@ while (1) {
 	my ($function, $meter_serial, $unix_time) = $topic =~ m!/([^/]+)/v\d+/([^/]+)(?:/(\d+))?!;
 	next unless $meter_serial;
 
+	log_debug("PID $$: Received $topic", {-no_script_name => 1});
+
 	# --- Special Case: Offline has no payload ---
 	if ($function eq 'offline') {
 		$unix_time //= time();
@@ -87,7 +89,11 @@ while (1) {
 	}
 
 	my $cleartext = $crypto->decrypt_topic_message_for_serial($topic, $message, $meter_serial);
-	next unless defined $cleartext;
+	unless (defined $cleartext) {
+		log_debug("PID $$: Decryption returned no cleartext for $topic", {-no_script_name => 1});
+		next;
+	}
+
 	$cleartext =~ s/[\x00\s]+$//;
 
 	# --- Clean Dispatch Routing ---
@@ -99,7 +105,7 @@ while (1) {
 			$cleartext, $meter_serial
 		);
 
-		log_info("$topic\t$cleartext", {-no_script_name => 1});
+		log_debug("$topic\t$cleartext", {-no_script_name => 1});
 	}
 
 	# 2. Insert event log if function exists in %LOG_EVENTS
@@ -122,7 +128,7 @@ while (1) {
 			$mq{ping_response_time}, $mq{ping_average_packet_loss}, $mq{disconnect_count}, $meter_serial
 		);
 
-		log_info("$topic\t$cleartext", {-no_script_name => 1});
+		log_debug("$topic\t$cleartext", {-no_script_name => 1});
 	}
 	elsif ($function eq 'scan_result') {
 		$cleartext =~ s/&$//;
@@ -148,7 +154,7 @@ while (1) {
 			$redis->rpush('mqtt:queue:syslog', $payload);
 		}
 		else {
-			log_info("$topic\t$cleartext", {-no_script_name => 1});
+			log_debug("$topic\t$cleartext", {-no_script_name => 1});
 		}
 	}
 }
