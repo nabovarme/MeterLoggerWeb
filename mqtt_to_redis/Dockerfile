@@ -1,4 +1,4 @@
-# mqtt_listener
+# mqtt_to_redis
 
 FROM perl-base:1.0
 
@@ -8,7 +8,8 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./mqtt_listener/mqtt_listener.pl /usr/local/bin/mqtt_listener.pl
+COPY ./mqtt_to_redis/mqtt_to_redis.pl /usr/local/bin/mqtt_to_redis.pl
+COPY ./mqtt_to_redis/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -19,4 +20,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-CMD ["/usr/local/bin/mqtt_listener.pl"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

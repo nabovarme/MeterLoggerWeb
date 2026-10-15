@@ -196,10 +196,10 @@ services:
       retries: 2
       start_period: 5s
 
-  meter_grapher:
+  mqtt_to_redis:
     build:
       context: '.'
-      dockerfile: ./meter_grapher/Dockerfile
+      dockerfile: ./mqtt_to_redis/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -209,13 +209,13 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
-    container_name: meter_grapher
-    hostname: meter-grapher
+    container_name: mqtt_to_redis
+    hostname: mqtt-to-redis
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     labels:
-      com.docker.compose.service: "meter-grapher"
+      com.docker.compose.service: "mqtt-to-redis"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
@@ -226,10 +226,70 @@ services:
       TZ: 'Europe/Copenhagen'
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
-  mqtt_listener:
+  worker_cmd_ack:
     build:
       context: '.'
-      dockerfile: ./mqtt_listener/Dockerfile
+      dockerfile: ./worker_cmd_ack/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: worker_cmd_ack
+    hostname: worker-cmd-ack
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "worker-cmd-ack"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+
+  worker_syslog:
+    build:
+      context: '.'
+      dockerfile: ./worker_syslog/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: worker_syslog
+    hostname: worker-syslog
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "worker-syslog"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+
+  worker_telemetry:
+    build:
+      context: '.'
+      dockerfile: ./worker_telemetry/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -237,17 +297,19 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
-    container_name: mqtt_listener
-    hostname: mqtt-listener
+    container_name: worker_telemetry
+    hostname: worker-telemetry
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     labels:
-      com.docker.compose.service: "mqtt-listener"
+      com.docker.compose.service: "worker-telemetry"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
@@ -274,6 +336,8 @@ services:
     environment:
       MQTT_HOST: ${MQTT_HOST}
       MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
       TZ: 'Europe/Copenhagen'
       ENABLE_DEBUG: ${ENABLE_DEBUG}
       GIT_COMMIT: ${GIT_COMMIT:-unknown}

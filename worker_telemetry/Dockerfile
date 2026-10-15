@@ -1,4 +1,4 @@
-# meter_grapher
+# worker_telemetry
 
 FROM perl-base:1.0
 
@@ -8,10 +8,8 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./meter_grapher/mqtt_to_redis.pl /usr/local/bin/mqtt_to_redis.pl
-COPY ./meter_grapher/meter_grapher.pl /usr/local/bin/meter_grapher.pl
-
-COPY ./meter_grapher/docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./worker_telemetry/worker_telemetry.pl /usr/local/bin/worker_telemetry.pl
+COPY ./worker_telemetry/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
