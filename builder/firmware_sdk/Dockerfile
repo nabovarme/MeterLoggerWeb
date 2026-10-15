@@ -72,7 +72,7 @@ RUN cd /meterlogger && git clone --recursive https://github.com/nabovarme/esp-op
 RUN rm -fr /meterlogger/esp-open-sdk/esp-open-lwip
 
 RUN cd /meterlogger/esp-open-sdk && git clone https://github.com/nabovarme/esp-open-lwip.git && \
-	cd /meterlogger/esp-open-sdk/esp-open-lwip && git checkout dev_null_pointer_deref
+	cd /meterlogger/esp-open-sdk/esp-open-lwip && git checkout stable
 
 RUN cd /meterlogger/esp-open-sdk && \
 	make STANDALONE=y
