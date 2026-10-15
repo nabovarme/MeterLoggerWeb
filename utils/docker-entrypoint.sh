@@ -1,36 +1,28 @@
 #!/bin/bash
+set -e
 
-# Ensure bash_history exists
+# Fix history file ownership if Docker mounted it as root
 HISTFILE=/home/meterlogger/.bash_history
 if [ ! -f "$HISTFILE" ]; then
 	touch "$HISTFILE"
-	chown meterlogger:meterlogger "$HISTFILE"
 fi
+sudo chown meterlogger:meterlogger "$HISTFILE"
 
-METERLOGGER_GROUPS=$(id -G meterlogger | tr ' ' ',')
-
+# Dynamically append Docker socket GID to supplementary groups
 if [ -S /var/run/docker.sock ]; then
 	DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
-
-	case ",$METERLOGGER_GROUPS," in
-		*,"$DOCKER_GID",*)
-			;;
-		*)
-			METERLOGGER_GROUPS="$METERLOGGER_GROUPS,$DOCKER_GID"
-			;;
-	esac
+	
+	# If no group exists with this GID, create one
+	if ! getent group "$DOCKER_GID" >/dev/null; then
+		sudo groupadd -g "$DOCKER_GID" docker_host
+	fi
+	
+	# Add meterlogger to this group so it persists for future 'docker exec' sessions
+	sudo usermod -aG "$DOCKER_GID" meterlogger
+	
+	# Exec the CMD using sudo to initialize the newly added group for the current session
+	exec sudo -E -u meterlogger -- "$@"
 fi
 
-if [ "$#" -gt 0 ]; then
-	exec setpriv \
-		--reuid=meterlogger \
-		--regid=meterlogger \
-		--groups="$METERLOGGER_GROUPS" \
-		-- "$@"
-else
-	exec setpriv \
-		--reuid=meterlogger \
-		--regid=meterlogger \
-		--groups="$METERLOGGER_GROUPS" \
-		-- /bin/bash -c 'while true; do sleep 1; done'
-fi
+# Fallback if no docker socket is mounted
+exec "$@"
