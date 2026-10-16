@@ -188,18 +188,18 @@ sub _wait_for_meter {
 	my $rpc = $self->{rpc};
 	my $max_attempts = 36;          # 36 attempts * 5s = 3 minutes total
 	my $rpc_timeout = 5;
-	my $reboot_start_time = time(); # Timestamp when reboot started
 
-	$self->_log(
-		"\nWaiting for meter $serial to come back online (retrying every ${poll_interval}s for up to 3 mins)...\n"
-	);
+	# Mandatory 20-second grace delay to allow the meter to stop execution and reboot,
+	# preventing stale telemetry published right before restart from causing false positives.
+	$self->_log("\nWaiting 20 seconds for meter $serial to shut down, flash, and reboot...\n");
+	sleep 20;
+
+	my $reboot_start_time = time(); # Set baseline timestamp AFTER the grace period
+
+	$self->_log("Polling meter $serial for online status (retrying every ${poll_interval}s for up to 3 mins)...\n");
 
 	for (my $i = 1; $i <= $max_attempts; $i++) {
-		# ----------------------------------------------------
-		# CHECK 1: Passive Database Activity Check
-		# Has the meter published any telemetry (/sample or /syslog)
-		# since the reboot process started?
-		# ----------------------------------------------------
+		# Check 1: Passive DB Activity Check (telemetry/syslog update since reboot)
 		my $sth = $rpc->{dbh}->prepare(qq[
 			SELECT last_updated 
 			FROM meters 
@@ -221,10 +221,7 @@ sub _wait_for_meter {
 			return 1;
 		}
 
-		# ----------------------------------------------------
-		# CHECK 2: Active RPC Version Query
-		# Pre-clear stale version queue rows to avoid deduplication stalls
-		# ----------------------------------------------------
+		# Check 2: Active RPC Version Query
 		$rpc->{dbh}->do(
 			"DELETE FROM command_queue WHERE serial = ? AND function = 'version'",
 			undef,
