@@ -174,12 +174,14 @@ sub _wait_for_meter {
 	my $max_attempts = 36;          # 36 attempts * 5s = 3 minutes total
 	my $rpc_timeout = 5;
 
+	# Set baseline timestamp BEFORE the grace period. This ensures we capture 
+	# the meter's first boot packet even if it connects extremely fast.
+	my $reboot_start_time = time(); 
+
 	# Mandatory 20-second grace delay to allow the meter to stop execution and reboot,
 	# preventing stale telemetry published right before restart from causing false positives.
 	$self->_log("\nWaiting 20 seconds for meter $serial to shut down, flash, and reboot...\n");
 	sleep 20;
-
-	my $reboot_start_time = time(); # Set baseline timestamp AFTER the grace period
 
 	$self->_log("Polling meter $serial for online status (retrying every ${poll_interval}s for up to 3 mins)...\n");
 
