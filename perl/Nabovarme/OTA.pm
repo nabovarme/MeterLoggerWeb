@@ -22,7 +22,6 @@ sub new {
 	}
 
 	$self->{logger} = $args{logger};
-	$self->{input}  = $args{input};
 
 	return bless $self, $type;
 }
@@ -36,19 +35,6 @@ sub _log {
 	} else {
 		print $message;
 	}
-}
-
-sub _read_input {
-	my $self = shift;
-	my $prompt = shift;
-
-	$self->_log($prompt);
-
-	if (ref($self->{input}) eq 'CODE') {
-		return $self->{input}->();
-	}
-
-	return scalar <STDIN>;
 }
 
 # Query the running firmware and interactively confirm the current ROM.
@@ -97,12 +83,11 @@ sub confirm {
 	if ($unattended) {
 		$self->_log("Unattended mode enabled: Automatically confirming running ROM.\n");
 		$ans = 'y';
+	} elsif (ref $args{on_prompt} eq 'CODE') {
+		$ans = $args{on_prompt}->($version_res);
 	} else {
-		$ans = $self->_read_input(
-			"Are you sure you want to confirm this running ROM permanently? [y/N]: "
-		);
-		chomp($ans) if defined $ans;
-		$ans //= 'n';
+		# If called programmatically without a callback, assume intent to confirm
+		$ans = 'y';
 	}
 
 	if ($ans !~ /^y/i) {
@@ -419,15 +404,10 @@ sub update {
 		} elsif ($unattended) {
 			$self->_log("Unattended mode enabled: Automatically confirming running ROM and retrying OTA...\n");
 			$ans = 'c';
+		} elsif (ref $args{on_unconfirmed} eq 'CODE') {
+			$ans = $args{on_unconfirmed}->();
 		} else {
-			$self->_log("Options:\n");
-			$self->_log("  [C] Confirm the running ROM and retry OTA (Default)\n");
-			$self->_log("  [R] Restart meter (reverts to previous ROM) and retry OTA\n");
-			$self->_log("  [A] Abort\n");
-
-			$ans = $self->_read_input("Choose an action [C/r/a]: ");
-			chomp($ans) if defined $ans;
-			$ans //= 'c';
+			die "\nFailed: Meter is running an unconfirmed ROM and no interactive callback was provided. Aborting.\n";
 		}
 
 		if ($ans =~ /^r/i) {

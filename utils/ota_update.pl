@@ -60,9 +60,14 @@ my $interrupted = 0;
 my $total = scalar @serials;
 
 $SIG{INT} = sub {
-	if (!$interrupted) {
-		$interrupted = 1;
-		print STDERR "\nInterrupted by user (Ctrl+C). Stopping after the current operation...\n";
+	if ($unattended || $unattended_revert) {
+		if (!$interrupted) {
+			$interrupted = 1;
+			print STDERR "\nInterrupted by user (Ctrl+C). Stopping after the current operation...\n";
+		}
+	} else {
+		print STDERR "\nInterrupted by user (Ctrl+C). Exiting immediately...\n";
+		exit(130);
 	}
 };
 
@@ -88,7 +93,18 @@ for my $i (0 .. $#serials) {
 		if ($confirm_only) {
 			$ok = $ota->confirm(
 				$serial,
-				unattended => $unattended
+				unattended => $unattended,
+				on_prompt  => sub {
+					print "Are you sure you want to confirm this running ROM permanently? [y/N]: ";
+					my $ans;
+					{
+						# Safe instant abort only while waiting at the prompt
+						local $SIG{INT} = sub { print "\nAborted by user.\n"; exit(130); };
+						$ans = <STDIN>;
+					}
+					chomp($ans) if defined $ans;
+					return $ans // 'n';
+				}
 			);
 		}
 		else {
@@ -96,7 +112,22 @@ for my $i (0 .. $#serials) {
 				$serial,
 				version => $version,
 				unattended => ($unattended || $unattended_revert),
-				unattended_revert => $unattended_revert
+				unattended_revert => $unattended_revert,
+				on_unconfirmed => sub {
+					print "Options:\n";
+					print "  [C] Confirm the running ROM and retry OTA (Default)\n";
+					print "  [R] Restart meter (reverts to previous ROM) and retry OTA\n";
+					print "  [A] Abort\n";
+					print "Choose an action [C/r/a]: ";
+					my $ans;
+					{
+						# Safe instant abort only while waiting at the prompt
+						local $SIG{INT} = sub { print "\nAborted by user.\n"; exit(130); };
+						$ans = <STDIN>;
+					}
+					chomp($ans) if defined $ans;
+					return $ans // 'c';
+				}
 			);
 		}
 
