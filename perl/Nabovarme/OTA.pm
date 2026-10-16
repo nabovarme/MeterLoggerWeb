@@ -79,7 +79,7 @@ sub confirm {
 		function => 'version',
 		param    => '',
 		stateful => 0,
-		timeout  => 15,
+		timeout  => 20,
 		callback => sub {
 			my $res = shift;
 			$version_res = $res->{param};
@@ -125,7 +125,7 @@ sub confirm {
 		function => 'ota_update',
 		param    => 'action=confirm',
 		stateful => 1,
-		timeout  => 15,
+		timeout  => 20,
 		callback => sub {
 			my $res = shift;
 			$confirm_res = $res->{param};
@@ -179,26 +179,23 @@ sub _get_hash {
 }
 
 # Wait for the meter to reboot and verify that it responds.
+# Check immediately, then retry every 20 seconds for up to about 3 minutes.
 sub _wait_for_meter {
 	my $self = shift;
 	my $serial = shift;
-	my $delay = shift || 15;
+	my $poll_interval = shift || 20;
 
 	my $rpc = $self->{rpc};
-
+	my $max_attempts = 9;
+	my $rpc_timeout = 20;
 	$self->_log(
-		"\nWaiting for meter to download firmware, flash, and reboot ($delay seconds)...\n"
-	);
-
-	sleep $delay;
-
-	$self->_log(
-		"Pinging meter to verify it comes back online (Retrying for ~2 mins)...\n"
+		"\nChecking whether meter is back online (every $poll_interval seconds, for up to about 3 minutes)...\n"
 	);
 
 	# Allow the background dispatcher time to retry each request.
-	for (my $i = 1; $i <= 10; $i++) {
+	for (my $i = 1; $i <= $max_attempts; $i++) {
 		my $res_param = '';
+		my $attempt_started = time;
 
 		# Clear the queue before pinging to prevent buildup.
 		$rpc->{dbh}->do(
@@ -212,7 +209,7 @@ sub _wait_for_meter {
 			function => 'version',
 			param    => '',
 			stateful => 0,
-			timeout  => 15,
+			timeout  => $rpc_timeout,
 			callback => sub {
 				my $res = shift;
 				$res_param = $res->{param};
@@ -225,8 +222,13 @@ sub _wait_for_meter {
 			return 1;
 		}
 
-		$self->_log("  No response. Retrying ($i/10)...\n")
-			if $i < 10;
+		if ($i < $max_attempts) {
+			my $elapsed = time - $attempt_started;
+			my $sleep_time = $poll_interval - $elapsed;
+			$sleep_time = 0 if $sleep_time < 0;
+			$self->_log("  No response. Retrying (" . ($i + 1) . "/$max_attempts) in $sleep_time seconds...\n");
+			sleep $sleep_time if $sleep_time > 0;
+		}
 	}
 
 	return 0;
@@ -423,7 +425,7 @@ sub update {
 				function => 'restart',
 				param    => '',
 				stateful => 1,
-				timeout  => 15,
+				timeout  => 20,
 				callback => sub {
 					$res_param = shift->{param};
 				}
@@ -432,7 +434,7 @@ sub update {
 			$self->_log("Meter acknowledged restart: $res_param\n")
 				if $res_param;
 
-			if ($self->_wait_for_meter($serial, 15)) {
+			if ($self->_wait_for_meter($serial, 20)) {
 				$self->_log(
 					"\nMeter reverted successfully! Retrying OTA update...\n\n"
 				);
@@ -465,7 +467,7 @@ sub update {
 				function => 'ota_update',
 				param    => 'action=confirm',
 				stateful => 1,
-				timeout  => 15,
+				timeout  => 20,
 				callback => sub {
 					my $res = shift;
 					$res_param = $res->{param};
@@ -503,7 +505,7 @@ sub update {
 	}
 
 	# Allow for the reboot countdown and firmware boot time.
-	if (!$self->_wait_for_meter($serial, 35)) {
+	if (!$self->_wait_for_meter($serial, 20)) {
 		die "\nWarning: Meter did not come back online within the expected time. "
 			. "It may have failed to boot the new ROM and safely reverted to the old one.\n";
 	}
