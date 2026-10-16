@@ -92,28 +92,35 @@ for my $i (0 .. $#serials) {
 		print STDERR "ERROR: Meter $serial failed: $error";
 		print STDERR "\n" if $error !~ /\n\z/;
 
-		push @failed, $serial;
+		push @failed, {
+			serial => $serial,
+			error => $error
+		};
 	}
 	elsif (!$ok) {
 		push @skipped, $serial;
 	}
 }
 
-if ($total > 1) {
-	print "\n", "=" x 60, "\n";
-	print "Batch processing completed.\n";
+print "\n", "=" x 60, "\n";
+print "Batch processing completed.\n";
 
-	if (@failed) {
-		print "Failed meters: " . join(", ", @failed) . "\n";
-	}
+if (@failed) {
+	print "\nFailed " . ($confirm_only ? "confirmations" : "upgrades") . ":\n";
 
-	if (@skipped) {
-		print "Skipped meters: " . join(", ", @skipped) . "\n";
-	}
+	for my $failure (@failed) {
+		my $error = $failure->{error};
+		$error =~ s/\s+\z//;
 
-	if (!@failed && !@skipped) {
-		print "All meters processed successfully.\n";
+		print "  Meter $failure->{serial}: $error\n";
 	}
+}
+else {
+	print "No " . ($confirm_only ? "confirmation failures" : "upgrade failures") . ".\n";
+}
+
+if (@skipped) {
+	print "\nSkipped meters: " . join(", ", @skipped) . "\n";
 }
 
 exit(@failed ? 1 : 0);
