@@ -48,15 +48,25 @@ print_usage() if $help;
 my @serials = @ARGV;
 print_usage() if !@serials;
 
+my @failed;
+my @skipped;
+my $interrupted = 0;
+my $total = scalar @serials;
+
+$SIG{INT} = sub {
+	if (!$interrupted) {
+		$interrupted = 1;
+		print STDERR "\nInterrupted by user (Ctrl+C). Stopping after the current operation...\n";
+	}
+};
+
 print "Connecting to database...\n";
 
 my $ota = Nabovarme::OTA->new();
 
-my @failed;
-my @skipped;
-my $total = scalar @serials;
-
 for my $i (0 .. $#serials) {
+	last if $interrupted;
+
 	my $serial = $serials[$i];
 
 	if ($total > 1) {
@@ -103,7 +113,9 @@ for my $i (0 .. $#serials) {
 }
 
 print "\n", "=" x 60, "\n";
-print "Batch processing completed.\n";
+print "Batch processing completed";
+print " (interrupted by user)" if $interrupted;
+print ".\n";
 
 if (@failed) {
 	print "\nFailed " . ($confirm_only ? "confirmations" : "upgrades") . ":\n";
@@ -123,4 +135,10 @@ if (@skipped) {
 	print "\nSkipped meters: " . join(", ", @skipped) . "\n";
 }
 
-exit(@failed ? 1 : 0);
+if ($interrupted) {
+	my $processed = $total - ($#serials + 1);
+	# The loop may have stopped before processing all requested meters.
+	print "\nBatch interrupted; remaining meters were not processed.\n";
+}
+
+exit($interrupted ? 130 : @failed ? 1 : 0);
