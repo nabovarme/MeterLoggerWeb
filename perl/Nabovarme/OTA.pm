@@ -329,6 +329,7 @@ sub update {
 
 	my $version    = defined($args{version}) ? $args{version} : 'latest';
 	my $unattended = $args{unattended} // 0;
+	my $unattended_revert = $args{unattended_revert} // 0;
 
 	my $rpc = $self->{rpc};
 
@@ -389,7 +390,10 @@ sub update {
 
 		my $ans;
 
-		if ($unattended) {
+		if ($unattended_revert) {
+			$self->_log("Unattended revert mode enabled: Restarting meter to revert to previous ROM, then retrying OTA...\n");
+			$ans = 'r';
+		} elsif ($unattended) {
 			$self->_log("Unattended mode enabled: Automatically confirming running ROM and retrying OTA...\n");
 			$ans = 'c';
 		} else {

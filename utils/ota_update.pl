@@ -17,7 +17,8 @@ Usage: $0 [options] <serial> [serial ...]
 Options:
   -v, --version VERSION   Firmware version to install (default: latest)
   -c, --confirm           Query current running ROM version and confirm it
-  -u, --unattended        Run without interactive prompts
+  -u, --unattended        Run without interactive prompts; confirm unconfirmed ROMs
+  -R, --unattended-revert Run unattended; revert unconfirmed ROMs before updating
   -h, --help              Show this help message
 
 Examples:
@@ -26,7 +27,7 @@ Examples:
   $0 --version 20261013_152158 9999995 9999996
   $0 --confirm 9999995 9999996
   $0 --unattended 9999995 9999996
-  $0 --unattended --confirm 9999995 9999996
+  $0 --unattended-revert 9999995 9999996
 EOF
 	exit 0;
 }
@@ -34,16 +35,21 @@ EOF
 my $help = 0;
 my $confirm_only = 0;
 my $unattended = 0;
+my $unattended_revert = 0;
 my $version = 'latest';
 
 GetOptions(
-	'help|h'        => \$help,
-	'confirm|c'     => \$confirm_only,
-	'unattended|u'  => \$unattended,
-	'version|v=s'   => \$version,
+	'help|h'               => \$help,
+	'confirm|c'            => \$confirm_only,
+	'unattended|u'         => \$unattended,
+	'unattended-revert|R' => \$unattended_revert,
+	'version|v=s'          => \$version,
 ) or die "Error in command line arguments\n";
 
 print_usage() if $help;
+
+die "Error: --unattended-revert cannot be used with --confirm.\n"
+	if $confirm_only && $unattended_revert;
 
 my @serials = @ARGV;
 print_usage() if !@serials;
@@ -89,7 +95,8 @@ for my $i (0 .. $#serials) {
 			$ok = $ota->update(
 				$serial,
 				version => $version,
-				unattended => $unattended
+				unattended => ($unattended || $unattended_revert),
+				unattended_revert => $unattended_revert
 			);
 		}
 
@@ -136,8 +143,6 @@ if (@skipped) {
 }
 
 if ($interrupted) {
-	my $processed = $total - ($#serials + 1);
-	# The loop may have stopped before processing all requested meters.
 	print "\nBatch interrupted; remaining meters were not processed.\n";
 }
 
