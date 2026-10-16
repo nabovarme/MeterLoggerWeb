@@ -178,37 +178,66 @@ sub _get_hash {
 	}
 }
 
-# Wait for the meter to reboot and verify that it responds.
-# Check immediately, then retry every 20 seconds for up to about 3 minutes.
+# Wait for the meter to reboot and verify that it comes back online.
+# Checks DB telemetry activity first, then falls back to active RPC version checks.
 sub _wait_for_meter {
 	my $self = shift;
 	my $serial = shift;
-	my $poll_interval = shift || 20;
+	my $poll_interval = shift || 5;
 
 	my $rpc = $self->{rpc};
-	my $max_attempts = 9;
-	my $rpc_timeout = 20;
+	my $max_attempts = 36;          # 36 attempts * 5s = 3 minutes total
+	my $rpc_timeout = 5;
+	my $reboot_start_time = time(); # Timestamp when reboot started
+
 	$self->_log(
-		"\nChecking whether meter is back online (every $poll_interval seconds, for up to about 3 minutes)...\n"
+		"\nWaiting for meter $serial to come back online (retrying every ${poll_interval}s for up to 3 mins)...\n"
 	);
 
-	# Allow the background dispatcher time to retry each request.
 	for (my $i = 1; $i <= $max_attempts; $i++) {
-		my $res_param = '';
-		my $attempt_started = time;
+		# ----------------------------------------------------
+		# CHECK 1: Passive Database Activity Check
+		# Has the meter published any telemetry (/sample or /syslog)
+		# since the reboot process started?
+		# ----------------------------------------------------
+		my $sth = $rpc->{dbh}->prepare(qq[
+			SELECT last_updated 
+			FROM meters 
+			WHERE serial = ? 
+			AND last_updated >= ? 
+			LIMIT 1
+		]);
+		$sth->execute($serial, $reboot_start_time);
 
-		# Clear the queue before pinging to prevent buildup.
+		if ($sth->rows) {
+			# Fetch running version string for logging display
+			my $v_sth = $rpc->{dbh}->prepare(qq[SELECT sw_version FROM meters WHERE serial = ? LIMIT 1]);
+			$v_sth->execute($serial);
+			my ($running_ver) = $v_sth->fetchrow_array;
+			$running_ver //= 'Unknown';
+
+			$self->_log("\n>>> METER IS BACK ONLINE (Detected via DB telemetry update) <<<\n");
+			$self->_log("Firmware Version Running: $running_ver\n");
+			return 1;
+		}
+
+		# ----------------------------------------------------
+		# CHECK 2: Active RPC Version Query
+		# Pre-clear stale version queue rows to avoid deduplication stalls
+		# ----------------------------------------------------
 		$rpc->{dbh}->do(
 			"DELETE FROM command_queue WHERE serial = ? AND function = 'version'",
 			undef,
 			$serial
 		);
 
+		my $res_param = '';
+
 		$rpc->call({
 			serial   => $serial,
 			function => 'version',
 			param    => '',
-			stateful => 0,
+			stateful => 1,          # Force stateful insertion to guarantee fresh delivery
 			timeout  => $rpc_timeout,
 			callback => sub {
 				my $res = shift;
@@ -217,18 +246,13 @@ sub _wait_for_meter {
 		});
 
 		if (defined($res_param) && $res_param ne '') {
-			$self->_log("\n>>> METER IS BACK ONLINE <<<\n");
+			$self->_log("\n>>> METER IS BACK ONLINE (Detected via direct version query) <<<\n");
 			$self->_log("Firmware Version Running: $res_param\n");
 			return 1;
 		}
 
-		if ($i < $max_attempts) {
-			my $elapsed = time - $attempt_started;
-			my $sleep_time = $poll_interval - $elapsed;
-			$sleep_time = 0 if $sleep_time < 0;
-			$self->_log("  No response. Retrying (" . ($i + 1) . "/$max_attempts) in $sleep_time seconds...\n");
-			sleep $sleep_time if $sleep_time > 0;
-		}
+		$self->_log("  [Attempt $i/$max_attempts] No response yet. Retrying in ${poll_interval}s...\n");
+		sleep $poll_interval;
 	}
 
 	return 0;
