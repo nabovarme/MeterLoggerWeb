@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+
 use Redis;
 use DBI;
 use Storable qw(thaw);
@@ -117,6 +118,11 @@ while (1) {
 	}
 
 	$cleartext =~ s/[\x00\s]+$//;
+
+	# Convert ampersands to spaces for reset_reason strings
+	if ($function eq 'reset_reason') {
+		$cleartext =~ s/&/ /g;
+	}
 
 	# Update the meters table for recognized status fields.
 	if (exists $STATUS_FIELDS{$function}) {
