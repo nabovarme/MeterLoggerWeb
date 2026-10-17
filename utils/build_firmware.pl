@@ -109,10 +109,10 @@ push @docker_args, (
 
 print "Firmware build parameters for meter $serial ($info)\n";
 print "Firmware version: $git_version\n";
-print "Build parameters: $build_flags SERIAL=$serial KEY=$key\n";
 print "Docker image: " . DOCKER_IMAGE . "\n";
 print "Release directory: $version_dir\n";
 print "Docker command: " . display_command(@docker_args) . "\n";
+print "Build parameters: $build_flags SERIAL=$serial KEY=$key\n";
 
 if ($dry_run) {
 	print "Dry run: no build started and no release files changed.\n";

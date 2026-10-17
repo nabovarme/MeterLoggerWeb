@@ -171,7 +171,7 @@ sub _wait_for_meter {
 	my $poll_interval = shift || 5;
 
 	my $rpc = $self->{rpc};
-	my $max_attempts = 36;          # 36 attempts * 5s = 3 minutes total
+	my $max_attempts = 6;
 	my $rpc_timeout = 5;
 
 	# Set baseline timestamp BEFORE the grace period. This ensures we capture 
