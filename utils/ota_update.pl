@@ -62,13 +62,13 @@ my $interrupted = 0;
 my $total = scalar @serials;
 
 $SIG{INT} = sub {
-	if ($unattended || $unattended_revert) {
-		if (!$interrupted) {
-			$interrupted = 1;
-			print STDERR "\nInterrupted by user (Ctrl+C). Stopping after the current operation...\n";
-		}
-	} else {
-		print STDERR "\nInterrupted by user (Ctrl+C). Exiting immediately...\n";
+	if (!$interrupted) {
+		$interrupted = 1;
+		print STDERR "\nWARNING: Ctrl+C received. Stopping after the current operation...\n";
+		print STDERR "Press Ctrl+C again to abort immediately.\n";
+	}
+	else {
+		print STDERR "\nAborted by user (second Ctrl+C).\n";
 		exit(130);
 	}
 };
