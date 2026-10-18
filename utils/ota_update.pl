@@ -1,11 +1,13 @@
+
 #!/usr/bin/perl -w
 
 use strict;
 use warnings;
 use FindBin;
-use lib "$FindBin::Bin/lib";
 use Getopt::Long qw(GetOptions);
+
 use Nabovarme::OTA;
+use Nabovarme::Db;
 
 # Ensure stdout flushes immediately
 $| = 1;
@@ -39,11 +41,11 @@ my $unattended_revert = 0;
 my $version = 'latest';
 
 GetOptions(
-	'help|h'               => \$help,
-	'confirm|c'            => \$confirm_only,
+	'help|h'              => \$help,
+	'confirm|c'           => \$confirm_only,
 	'unattended|u'         => \$unattended,
 	'unattended-revert|R' => \$unattended_revert,
-	'version|v=s'          => \$version,
+	'version|v=s'         => \$version,
 ) or die "Error in command line arguments\n";
 
 print_usage() if $help;
@@ -75,15 +77,35 @@ print "Connecting to database...\n";
 
 my $ota = Nabovarme::OTA->new();
 
+# Fetch meter information for user-facing output.
+my $dbh = Nabovarme::Db->my_connect
+	or die "Failed to connect to database to fetch meter information\n";
+
+my $info_sth = $dbh->prepare(qq[
+	SELECT `info`
+	FROM meters
+	WHERE `serial` = ?
+	LIMIT 1
+]);
+
 for my $i (0 .. $#serials) {
 	last if $interrupted;
 
 	my $serial = $serials[$i];
 
+	$info_sth->execute($serial);
+	my ($info) = $info_sth->fetchrow_array;
+	$info_sth->finish;
+
+	my $meter_label = $serial;
+	$meter_label .= " - $info" if defined $info && $info ne '';
+
 	if ($total > 1) {
 		print "\n", "=" x 60, "\n";
-		print "Meter $serial (" . ($i + 1) . "/$total)\n";
+		print "Meter $meter_label (" . ($i + 1) . "/$total)\n";
 		print "=" x 60, "\n";
+	} else {
+		print "Meter $meter_label\n";
 	}
 
 	my $ok;
@@ -99,7 +121,10 @@ for my $i (0 .. $#serials) {
 					my $ans;
 					{
 						# Safe instant abort only while waiting at the prompt
-						local $SIG{INT} = sub { print "\nAborted by user.\n"; exit(130); };
+						local $SIG{INT} = sub {
+							print "\nAborted by user.\n";
+							exit(130);
+						};
 						$ans = <STDIN>;
 					}
 					chomp($ans) if defined $ans;
@@ -110,10 +135,10 @@ for my $i (0 .. $#serials) {
 		else {
 			$ok = $ota->update(
 				$serial,
-				version => $version,
-				unattended => ($unattended || $unattended_revert),
+				version           => $version,
+				unattended        => ($unattended || $unattended_revert),
 				unattended_revert => $unattended_revert,
-				on_unconfirmed => sub {
+				on_unconfirmed    => sub {
 					print "Options:\n";
 					print "  [C] Confirm the running ROM and retry OTA (Default)\n";
 					print "  [R] Restart meter (reverts to previous ROM) and retry OTA\n";
@@ -122,7 +147,10 @@ for my $i (0 .. $#serials) {
 					my $ans;
 					{
 						# Safe instant abort only while waiting at the prompt
-						local $SIG{INT} = sub { print "\nAborted by user.\n"; exit(130); };
+						local $SIG{INT} = sub {
+							print "\nAborted by user.\n";
+							exit(130);
+						};
 						$ans = <STDIN>;
 					}
 					chomp($ans) if defined $ans;
@@ -137,18 +165,21 @@ for my $i (0 .. $#serials) {
 	};
 
 	if (defined($error) && $error ne '') {
-		print STDERR "ERROR: Meter $serial failed: $error";
+		print STDERR "ERROR: Meter $meter_label failed: $error";
 		print STDERR "\n" if $error !~ /\n\z/;
 
 		push @failed, {
 			serial => $serial,
-			error => $error
+			label  => $meter_label,
+			error  => $error
 		};
 	}
 	elsif (!$ok) {
-		push @skipped, $serial;
+		push @skipped, $meter_label;
 	}
 }
+
+$dbh->disconnect();
 
 print "\n", "=" x 60, "\n";
 print "Batch processing completed";
@@ -162,7 +193,7 @@ if (@failed) {
 		my $error = $failure->{error};
 		$error =~ s/\s+\z//;
 
-		print "  Meter $failure->{serial}: $error\n";
+		print "  Meter $failure->{label}: $error\n";
 	}
 }
 else {
