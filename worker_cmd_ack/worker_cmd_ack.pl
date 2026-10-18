@@ -121,6 +121,41 @@ while (1) {
 		$meter_serial,
 	);
 
+	my $pending_new_key;
+
+	# A set_key ACK may be encrypted with the new key instead of the current key.
+	if (!defined $cleartext && $function =~ /^set_key$/i) {
+		$sth = $dbh->prepare(qq[
+			SELECT id, param
+			FROM command_queue
+			WHERE serial = ?
+			AND function = 'set_key'
+			AND state IN ('sent', 'received')
+			ORDER BY id DESC
+			LIMIT 1
+		]);
+
+		$sth->execute($meter_serial);
+
+		if (my $row = $sth->fetchrow_hashref) {
+			if ($row->{param} =~ /(?:\A|&)key=([0-9a-fA-F]{32})(?:&|\z)/) {
+				$pending_new_key = $1;
+
+				$cleartext = $crypto->decrypt_topic_message_for_serial(
+					$topic,
+					$message,
+					$meter_serial,
+					$pending_new_key,
+				);
+
+				log_debug(
+					"Retried set_key ACK decryption with pending key for $meter_serial",
+					{-no_script_name => 1},
+				) if defined $cleartext;
+			}
+		}
+	}
+
 	if (defined $cleartext) {
 		$cleartext =~ s/[\x00\s]+$//;
 
@@ -128,6 +163,68 @@ while (1) {
 			"Decrypted payload for $meter_serial:$function -> '$cleartext'",
 			{-no_script_name => 1},
 		);
+
+		# --- Special Case: set_key ---
+		if ($function =~ /^set_key$/i) {
+			if ($cleartext =~ /\Astatus=ok\z/i) {
+				# Find the pending key if decryption succeeded with the current key.
+				unless (defined $pending_new_key) {
+					$sth = $dbh->prepare(qq[
+						SELECT id, param
+						FROM command_queue
+						WHERE serial = ?
+						AND function = 'set_key'
+						AND state IN ('sent', 'received')
+						ORDER BY id DESC
+						LIMIT 1
+					]);
+
+					$sth->execute($meter_serial);
+
+					if (my $row = $sth->fetchrow_hashref) {
+						if ($row->{param} =~ /(?:\A|&)key=([0-9a-fA-F]{32})(?:&|\z)/) {
+							$pending_new_key = $1;
+						}
+					}
+				}
+
+				if (defined $pending_new_key) {
+					my $update = $dbh->prepare(qq[
+						UPDATE meters
+						SET `key` = ?
+						WHERE serial = ?
+					]);
+
+					if ($update->execute($pending_new_key, $meter_serial)) {
+						$crypto->invalidate_key_cache($meter_serial)
+							if $crypto->can('invalidate_key_cache');
+
+						log_info(
+							"Successfully updated encryption key for $meter_serial after set_key ACK",
+							{-no_script_name => 1},
+						);
+					}
+					else {
+						log_warn(
+							"Failed to update encryption key for $meter_serial after set_key ACK: " . $DBI::errstr,
+							{-no_script_name => 1},
+						);
+					}
+				}
+				else {
+					log_warn(
+						"Received successful set_key ACK for $meter_serial but could not find the pending new key",
+						{-no_script_name => 1},
+					);
+				}
+			}
+			elsif ($cleartext =~ /\Astatus=error_invalid_key\z/i) {
+				log_warn(
+					"Meter $meter_serial rejected the new encryption key",
+					{-no_script_name => 1},
+				);
+			}
+		}
 
 		my $lookup_function = $function;
 		$lookup_function = 'test_ssid_pwd'
@@ -243,6 +340,12 @@ while (1) {
 				elsif ($function =~ /^ota_up(?:date|grade)$/i && $cleartext !~ /success|error|committed/) {
 					log_debug(
 						"Retained fire-and-forget OTA stream (multi-part) for $meter_serial",
+						{-no_script_name => 1},
+					);
+				}
+				elsif ($function =~ /^set_mqtt_host$/i && $cleartext !~ /^status=(?:ok|error_invalid_host)$/i) {
+					log_debug(
+						"Retained fire-and-forget set_mqtt_host awaiting final reply for $meter_serial",
 						{-no_script_name => 1},
 					);
 				}

@@ -27,7 +27,7 @@
 #    - Extract HMAC, IV, and ciphertext from the message.
 #    - Verify HMAC against topic, IV, and ciphertext.
 #    - Only decrypt if HMAC verification succeeds.
-#    - Decrypt using AES-CBC with derived key and IV from message.
+#  # Decryption and HMAC validation is now offloaded to the Nabovarme::Crypto module.
 # =============================================================================
 
 use strict;
@@ -36,23 +36,24 @@ use Data::Dumper;
 use Sys::Syslog;
 use Net::MQTT::Simple;
 use DBI;
-use Crypt::Mode::CBC;
-use Digest::SHA qw( sha256 hmac_sha256 );
 use Getopt::Long;
 use Curses;
 
 use Nabovarme::Db;
+use Nabovarme::Crypto;
 
 STDOUT->autoflush(1);
 
 openlog($0, "ndelay,pid", "local0");
 syslog('info', "starting...");
 
-# Command-line options
+# Command-line options and Global Variables
 my $topic_only		= 0;
 my $help			= 0;
 my $client_count	= 0;
 my $graphics_mode	= 0;
+my $dbh;
+my $crypto;
 
 GetOptions(
 	'topic-only|t'		=> \$topic_only,
@@ -69,7 +70,6 @@ my %target_serials = map { $_ => 1 } @ARGV;
 print "Press Ctrl+C to exit.\n";
 
 # Connect to DB
-my $dbh;
 if ($dbh = Nabovarme::Db->my_connect) {
 	$dbh->{'mysql_auto_reconnect'} = 1;
 	syslog('info', "connected to db");
@@ -77,6 +77,9 @@ if ($dbh = Nabovarme::Db->my_connect) {
 	syslog('info', "cant't connect to db $!");
 	die $!;
 }
+
+# Initialize Crypto module globally
+$crypto = Nabovarme::Crypto->new;
 
 # Graphics mode variables
 my ($top_win, $log_win, @log_lines, $client_count_current, $max_lines);
@@ -195,13 +198,15 @@ sub run_mqtt_loop {
 sub v2_mqtt_handler {
 	my ($topic, $message) = @_;
 
-	unless ($topic =~ m!/[^/]+/v(\d+)/([^/]+)/(\d+)!) {
+	# Extract function, version, serial, and time from topic
+	unless ($topic =~ m!^/([^/]+)/v(\d+)/([^/]+)/(\d+)!) {
 		return;
 	}
 
-	my $protocol_version	= $1;
-	my $meter_serial		= $2;
-	my $unix_time			= $3;
+	my $function         = $1;
+	my $protocol_version = $2;
+	my $meter_serial     = $3;
+	my $unix_time        = $4;
 
 	# If specific serials were passed, ignore messages from non-matching meters
 	if (%target_serials && !$target_serials{$meter_serial}) {
@@ -211,29 +216,26 @@ sub v2_mqtt_handler {
 	if ($topic_only) {
 		$message = '';
 	} else {
-		$message =~ /(.{32})(.{16})(.+)/s;
-		my ($mac, $iv, $ciphertext) = ($1, $2, $3);
-
-		my $sth = $dbh->prepare(
-			"SELECT `key` FROM meters WHERE serial = " .
-			$dbh->quote($meter_serial) .
-			" LIMIT 1"
+		# Use the central Nabovarme::Crypto module to decrypt
+		my $cleartext = $crypto->decrypt_topic_message_for_serial(
+			$topic,
+			$message,
+			$meter_serial,
 		);
-		$sth->execute;
 
-		if ($sth->rows) {
-			my $key = $sth->fetchrow_hashref->{key} || warn "no aes key found";
-			my $sha256 = sha256(pack('H*', $key));
-			my $aes_key = substr($sha256, 0, 16);
-			my $hmac_sha256_key = substr($sha256, 16, 16);
+		if (defined $cleartext) {
+			$cleartext =~ s/[\x00\s]+$//; # Strip trailing C null-terminator bytes
+			$message = $cleartext;
 
-			if ($mac eq hmac_sha256($topic . $iv . $ciphertext, $hmac_sha256_key)) {
-				my $cbc = Crypt::Mode::CBC->new('AES');
-				$message = $cbc->decrypt($ciphertext, $aes_key, $iv);
-				$message =~ s/\0+$//; # Strip trailing C null-terminator bytes
-			} else {
-				$message = "[HMAC verification failed]";
+			# If we observe a successful key change, invalidate our local memory cache
+			if ($function eq 'set_key' && $message =~ /\Astatus=ok(?:\s|\z)/i) {
+				$crypto->invalidate_key_cache($meter_serial) 
+					if $crypto->can('invalidate_key_cache');
+					
+				syslog('info', "Monitoring script detected key change for $meter_serial, cleared local cache.");
 			}
+		} else {
+			$message = "[HMAC verification failed]";
 		}
 	}
 

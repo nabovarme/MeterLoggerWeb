@@ -47,6 +47,7 @@ COPY --chown=meterlogger:meterlogger ./utils/push_send.pl push_send.pl
 COPY --chown=meterlogger:meterlogger ./utils/ota_update.pl ota_update.pl
 COPY --chown=meterlogger:meterlogger ./utils/build_firmware.pl build_firmware.pl
 COPY --chown=meterlogger:meterlogger ./utils/meter_simulator.pl meter_simulator.pl
+COPY --chown=meterlogger:meterlogger ./utils/set_meter_key.pl set_meter_key.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
 
@@ -61,7 +62,8 @@ RUN echo 'alias mqtt_log_all="perl /home/meterlogger/mqtt_log_all.pl"' >> /home/
 	echo 'alias push_send="perl /home/meterlogger/push_send.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias ota_update="perl /home/meterlogger/ota_update.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias build_firmware="perl /home/meterlogger/build_firmware.pl"' >> /home/meterlogger/.bashrc && \
-	echo 'alias meter_simulator="perl /home/meterlogger/meter_simulator.pl"' >> /home/meterlogger/.bashrc
+	echo 'alias meter_simulator="perl /home/meterlogger/meter_simulator.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias set_meter_key="perl /home/meterlogger/set_meter_key.pl"' >> /home/meterlogger/.bashrc
 
 # =========================================================================
 # Version Tracking Setup
