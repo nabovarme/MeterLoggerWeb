@@ -45,13 +45,15 @@ my %STATUS_FIELDS = (
 	'chip_id'         => 'chip_id',
 	'flash_id'        => 'flash_id',
 	'flash_size'      => 'flash_size',
-	'reset_reason'    => 'reset_reason',
+	'reset_reason'    => 'reset_reason'
 );
 
 my %LOG_EVENTS = (
 	'flash_error'       => 'flash_error',
 	'reset_reason'      => 'reset_reason',
 	'cnx_csa_fn_called' => 'cnx_csa_fn_called',
+	'vdd'               => 'vdd',
+	'mem'               => 'free_heap'
 );
 
 log_info("Starting Syslog Worker...", {-no_script_name => 1});
