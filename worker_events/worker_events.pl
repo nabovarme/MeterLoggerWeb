@@ -116,5 +116,5 @@ while (1) {
 		$cleartext, $unix_time // time(),
 	);
 
-	log_debug("Logged event '$event_name' for serial$meter_serial", {-no_script_name => 1});
+	log_debug("Logged event '$event_name' for serial $meter_serial", {-no_script_name => 1});
 }
