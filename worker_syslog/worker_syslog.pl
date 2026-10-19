@@ -220,4 +220,17 @@ while (1) {
 			log_debug("$topic\t$cleartext", {-no_script_name => 1});
 		}
 	}
+	else {
+		# Catch-all: If it wasn't matched by ANY of the above hashes or blocks,
+		# log it to the database's event log anyway so we have a record of it.
+		unless (exists $STATUS_FIELDS{$function} || exists $LOG_EVENTS{$function} || $function eq 'open' || $function eq 'close') {
+			$dbh->do(
+				qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)],
+				undef,
+				$meter_serial, $function,
+				$cleartext, $unix_time // time(),
+			);
+			log_debug("Catch-all syslog DB insert for unknown function: $function", {-no_script_name => 1});
+		}
+	}
 }

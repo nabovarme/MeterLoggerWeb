@@ -111,10 +111,15 @@ sub process_mqtt_message {
 		$redis->rpush('mqtt:queue:cmd_ack', $payload);
 	}
 	else {
+		# Catch-all for standard command ACKs (and NACKs for unknown commands).
+		# This ensures any echoed function name reaches worker_cmd_ack.pl to clear the DB queue.
 		log_warn(
-			"Unhandled/Dropped topic: $topic",
+			"Unhandled/Unknown topic (routing to cmd_ack to clear queue): $topic",
 			{-no_script_name => 1},
 		);
+
+		$redis->rpush('mqtt:queue:syslog', $payload);
+		$redis->rpush('mqtt:queue:cmd_ack', $payload);
 	}
 }
 
