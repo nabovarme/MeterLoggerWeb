@@ -94,7 +94,7 @@ while (1) {
 	# Handle Wi-Fi Site Survey Ingestion
 	if ($function eq 'scan_result') {
 		$cleartext =~ s/&$//;
-		my %mq = $cleartext =~ /([^=]*)=(.*?)(?:&\vert{}$)/g;
+		my %mq = $cleartext =~ /([^=]*)=(.*?)(?:&|$)/g;
 
 		$mq{ssid} = substr($mq{ssid} || '', 0, 64);
 		my $ssid_utf8 = decode_ssid($mq{ssid});
