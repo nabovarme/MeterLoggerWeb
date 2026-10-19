@@ -102,6 +102,10 @@ while (1) {
 			log_warn($sth->errstr, {-no_script_name => 1});
 			$redis->rpush('mqtt:queue:events', $payload);
 		}
+		else {
+			log_debug("Inserted wifi_scan result for serial $meter_serial: SSID='$mq{ssid}' RSSI=$mq{rssi}", {-no_script_name => 1});
+		}
+
 		next;
 	}
 
