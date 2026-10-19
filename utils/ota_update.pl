@@ -268,9 +268,9 @@ sub draw_dashboard {
 
 		put_text($line++, 0,
 			sprintf(
-				'%-4s %-12s [%s] %s',
+				'%-4s %-30s [%s] %s',
 				$marker,
-				$meter->{serial},
+				$meter->{label},
 				$bar,
 				$detail,
 			)
@@ -477,21 +477,11 @@ eval {
 };
 
 if ($ota && $dbh && $info_sth) {
+	# Fetch info for every requested meter before starting OTA processing.
+	# This lets the dashboard show all meter labels while they are waiting.
 	for my $i (0 .. $#serials) {
-		last if $interrupted;
-
-		$current_index = $i;
-
 		my $serial = $serials[$i];
 		my $meter = $meters[$i];
-
-		$meter->{status} = 'RUNNING';
-		$meter->{detail} = '';
-		$meter->{progress} = undef;
-
-		$current_operation = "Preparing meter $serial...";
-		draw_dashboard();
-
 		my $info;
 
 		eval {
@@ -503,25 +493,47 @@ if ($ota && $dbh && $info_sth) {
 		} or do {
 			my $error = $@ || "Failed to fetch meter information.\n";
 
+			$meter->{info_error} = $error;
+			add_log("ERROR: Failed to fetch info for meter $serial: $error");
+		};
+
+		$meter->{label} = $serial;
+		$meter->{label} .= " - $info" if defined $info && $info ne '';
+	}
+
+	draw_dashboard();
+
+	for my $i (0 .. $#serials) {
+		last if $interrupted;
+
+		$current_index = $i;
+
+		my $serial = $serials[$i];
+		my $meter = $meters[$i];
+		my $meter_label = $meter->{label};
+
+		$meter->{status} = 'RUNNING';
+		$meter->{detail} = '';
+		$meter->{progress} = undef;
+
+		$current_operation = "Preparing meter $serial...";
+		draw_dashboard();
+
+		if (defined $meter->{info_error}) {
+			my $error = $meter->{info_error};
+
 			$meter->{status} = 'FAILED';
 			$meter->{detail} = 'Database error';
 
 			push @failed, {
 				serial => $serial,
-				label  => $serial,
+				label  => $meter_label,
 				error  => $error,
 			};
 
 			add_log("ERROR: Meter $serial: $error");
 			next;
-		};
-
-		my $meter_label = $serial;
-		$meter_label .= " - $info" if defined $info && $info ne '';
-
-		$meter->{label} = $meter_label;
-		$current_operation = "Processing meter $meter_label";
-		draw_dashboard();
+		}
 
 		my $ok;
 		my $error;
