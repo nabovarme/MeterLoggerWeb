@@ -199,7 +199,7 @@ services:
   mqtt_to_redis:
     build:
       context: '.'
-      dockerfile: ./mqtt_to_redis/Dockerfile
+      dockerfile: ./mqtt_queue_workers/mqtt_to_redis/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -229,7 +229,7 @@ services:
   worker_cmd_ack:
     build:
       context: '.'
-      dockerfile: ./worker_cmd_ack/Dockerfile
+      dockerfile: ./mqtt_queue_workers/worker_cmd_ack/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -259,7 +259,7 @@ services:
   worker_events:
     build:
       context: '.'
-      dockerfile: ./worker_events/Dockerfile
+      dockerfile: ./mqtt_queue_workers/worker_events/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -289,7 +289,7 @@ services:
   worker_meters:
     build:
       context: '.'
-      dockerfile: ./worker_meters/Dockerfile
+      dockerfile: ./mqtt_queue_workers/worker_meters/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -319,7 +319,7 @@ services:
   worker_telemetry:
     build:
       context: '.'
-      dockerfile: ./worker_telemetry/Dockerfile
+      dockerfile: ./mqtt_queue_workers/worker_telemetry/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:

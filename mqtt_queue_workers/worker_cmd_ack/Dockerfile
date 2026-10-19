@@ -1,4 +1,4 @@
-# worker_telemetry
+# mqtt_to_redis
 
 FROM perl-base:1.0
 
@@ -8,8 +8,8 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./worker_telemetry/worker_telemetry.pl /usr/local/bin/worker_telemetry.pl
-COPY ./worker_telemetry/docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./mqtt_queue_workers/worker_cmd_ack/worker_cmd_ack.pl /usr/local/bin/worker_cmd_ack.pl
+COPY ./mqtt_queue_workers/worker_cmd_ack/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 

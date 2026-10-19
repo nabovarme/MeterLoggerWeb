@@ -8,8 +8,8 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./worker_cmd_ack/worker_cmd_ack.pl /usr/local/bin/worker_cmd_ack.pl
-COPY ./worker_cmd_ack/docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./mqtt_queue_workers/mqtt_to_redis/mqtt_to_redis.pl /usr/local/bin/mqtt_to_redis.pl
+COPY ./mqtt_queue_workers/mqtt_to_redis/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
