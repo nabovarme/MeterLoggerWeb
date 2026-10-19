@@ -1,6 +1,8 @@
 # Ensure bash_history file exists before build
 BASH_HISTORY_FILE=./utils/bash_history
 
+.PHONY: utils
+
 # Default target
 all: build up
 
@@ -16,11 +18,15 @@ up:
 	@echo "Starting all services..."
 	docker compose up -d
 
+# Enter the running utils container
+utils:
+	docker compose exec utils bash
+
 # Log a specific service
 log:
-	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
-		echo "Usage: make log <service>"; \
-		exit 1; \
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then 
+		echo "Usage: make log <service>"; 
+		exit 1; 
 	fi
 	docker compose logs -f $(filter-out $@,$(MAKECMDGOALS))
 
@@ -47,9 +53,9 @@ $(BASH_HISTORY_FILE):
 
 # Redeploy a specific service
 redeploy:
-	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
-		echo "Usage: make redeploy <service>"; \
-		exit 1; \
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then 
+		echo "Usage: make redeploy <service>"; 
+		exit 1; 
 	fi
 	git pull
 	docker compose build $(filter-out $@,$(MAKECMDGOALS))
