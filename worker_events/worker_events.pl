@@ -32,12 +32,11 @@ my $dbh = Nabovarme::Db->my_connect
 $dbh->{'mysql_auto_reconnect'} = 1;
 
 my $crypto = Nabovarme::Crypto->new;
-
 my %LOG_EVENTS = (
 	'flash_error'       => 'flash_error',
 	'cnx_csa_fn_called' => 'cnx_csa_fn_called',
 	'vdd'               => 'vdd',
-	'mem'               => 'free_heap',
+	'mem'               => 'free_heap'
 );
 
 log_info("Starting Event & Audit Worker (PID $$)...", {-no_script_name => 1});
@@ -66,17 +65,6 @@ while (1) {
 	my ($function, $meter_serial, $unix_time) = $topic =~ m!/([^/]+)/v\d+/([^/]+)(?:/(\d+))?!;
 
 	next unless $meter_serial;
-
-	# Special Case: Offline events carry no payload
-	if ($function eq 'offline') {
-		$dbh->do(
-			qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES (?, 'offline', ?)],
-			undef,
-			$meter_serial, $unix_time // time(),
-		);
-		log_info("$topic\toffline event logged", {-no_script_name => 1});
-		next;
-	}
 
 	my $cleartext = $crypto->decrypt_topic_message_for_serial(
 		$topic,
