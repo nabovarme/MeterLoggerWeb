@@ -2,6 +2,7 @@
 
 use strict;
 use warnings;
+
 use Redis;
 use DBI;
 use Storable qw(thaw);
@@ -57,61 +58,30 @@ while (1) {
 	my $pop_time = get_timestamp_ms();
 
 	unless ($dbh && $dbh->ping) {
-		log_die(
-			"Database connection lost. Exiting for Docker to restart.",
-			{-no_script_name => 1},
-		);
+		log_die("Database connection lost. Exiting for Docker restart.", {-no_script_name => 1});
 	}
 
 	my $data = thaw($payload);
 	my ($topic, $message) = ($data->{topic}, $data->{message});
 
-	log_debug(
-		"[$pop_time] POPPED -> $topic",
-		{-no_script_name => 1},
-	);
-
 	my ($function, $meter_serial, $unix_time) = $topic =~ m!/([^/]+)/v\d+/([^/]+)(?:/(\d+))?!;
 	next unless $meter_serial;
 
-	# --- Special Case: Offline has no payload ---
-	if ($function eq 'offline') {
-		$unix_time //= time();
-
-		$dbh->do(
-			qq[INSERT INTO `log` (`serial`, `function`, `unix_time`) VALUES (?, 'offline', ?)],
-			undef,
-			$meter_serial, $unix_time
-		);
-
-		log_info("$topic\toffline", {-no_script_name => 1});
-		next;
-	}
-
 	unless ($function && $meter_serial) {
-		log_warn(
-			"Failed to parse function/serial from topic: $topic",
-			{-no_script_name => 1},
-		);
+		log_warn("Failed to parse function/serial from topic: $topic", {-no_script_name => 1});
 		next;
 	}
 
 	next if $function =~ /^config$/i;
 
-	# Pre-check if commands exist
+	# Pre-check if any commands exist for this serial to avoid unnecessary decryption overhead
 	my $sth = $dbh->prepare(qq[
-		SELECT serial
-		FROM command_queue
-		WHERE serial = ?
-		LIMIT 1
+		SELECT serial FROM command_queue WHERE serial = ? LIMIT 1
 	]);
 	$sth->execute($meter_serial);
 
 	unless ($sth->rows) {
-		log_debug(
-			"No pending commands in DB for serial $meter_serial. Dropping ACK.",
-			{-no_script_name => 1},
-		);
+		log_debug("No pending commands in DB for serial $meter_serial. Dropping ACK.", {-no_script_name => 1});
 		next;
 	}
 
@@ -124,127 +94,74 @@ while (1) {
 	if (defined $cleartext) {
 		$cleartext =~ s/[\x00\s]+$//;
 
-		log_debug(
-			"Decrypted payload for $meter_serial:$function -> '$cleartext'",
-			{-no_script_name => 1},
-		);
+		log_debug("[$pop_time] Decrypted ACK $meter_serial:$function -> '$cleartext'", {-no_script_name => 1});
 
+		# Map result topics back to original command queue names
 		my $lookup_function = $function;
-		$lookup_function = 'test_ssid_pwd'
-			if $function =~ /^test_ssid_pwd_result$/i;
-		$lookup_function = 'read_stack_trace'
-			if $function =~ /^stack_trace_result$/i;
-		$lookup_function = 'scan'
-			if $function =~ /^scan_result$/i;
+		$lookup_function = 'test_ssid_pwd'  if $function =~ /^test_ssid_pwd_result$/i;
+		$lookup_function = 'read_stack_trace' if $function =~ /^stack_trace_result$/i;
+		$lookup_function = 'scan'            if $function =~ /^scan_result$/i;
 
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
-
 			my $rows = $dbh->do(
-				qq[
-					DELETE FROM command_queue
-					WHERE serial = ?
-					AND function = ?
-					AND param <= ?
-				],
+				qq[DELETE FROM command_queue WHERE serial = ? AND function = ? AND param <= ?],
 				undef,
 				$meter_serial,
 				$function,
 				$cleartext + $tolerance,
 			);
-
-			log_debug(
-				"Deleted $rows open_until commands <= $cleartext for $meter_serial",
-				{-no_script_name => 1},
-			);
+			log_debug("Deleted $rows open_until commands <= $cleartext for $meter_serial", {-no_script_name => 1});
 			next;
 		}
 
 		if ($function =~ /^status$/i) {
 			my $rows = $dbh->do(
-				qq[
-					DELETE FROM command_queue
-					WHERE serial = ?
-					AND function = ?
-				],
+				qq[DELETE FROM command_queue WHERE serial = ? AND function = ?],
 				undef,
 				$meter_serial,
 				$function,
 			);
-
-			log_debug(
-				"Deleted $rows status commands for $meter_serial",
-				{-no_script_name => 1},
-			);
+			log_debug("Deleted $rows status commands for $meter_serial", {-no_script_name => 1});
 			next;
 		}
 
 		$sth = $dbh->prepare(qq[
 			SELECT id, has_callback
 			FROM command_queue
-			WHERE serial = ?
-			AND function = ?
-			AND state IN ('sent', 'received')
+			WHERE serial = ? AND function = ? AND state IN ('sent', 'received')
 		]);
 
 		$sth->execute($meter_serial, $lookup_function) or do {
-			log_warn(
-				"DB Error: " . $DBI::errstr,
-				{-no_script_name => 1},
-			);
+			log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
 			$redis->rpush('mqtt:queue:cmd_ack', $payload);
 			next;
 		};
 
-		if ($sth->rows == 0) {
-			log_debug(
-				"No matching command_queue entry for $meter_serial -> $lookup_function",
-				{-no_script_name => 1},
-			);
-		}
-
 		while (my $row = $sth->fetchrow_hashref) {
 			if ($row->{has_callback}) {
 				$dbh->do(
-					qq[
-						INSERT INTO command_responses
-							(command_id, param, unix_time)
-						VALUES (?, ?, UNIX_TIMESTAMP())
-					],
+					qq[INSERT INTO command_responses (command_id, param, unix_time) VALUES (?, ?, UNIX_TIMESTAMP())],
 					undef,
 					$row->{id},
 					$cleartext,
 				);
 
-				# Updating time prevents timeouts during long streams
 				$dbh->do(
-					qq[
-						UPDATE command_queue
-						SET state = 'received', unix_time = UNIX_TIMESTAMP()
-						WHERE id = ?
-					],
+					qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
 					undef,
 					$row->{id},
 				);
 
-				log_debug(
-					"Marked $lookup_function (ID: $row->{id}) for callback resolution",
-					{-no_script_name => 1},
-				);
+				log_debug("Marked $lookup_function (ID: $row->{id}) for callback resolution", {-no_script_name => 1});
 			}
 			else {
-				# Handle multi-part fire-and-forget streams
+				# Retain state for multi-part responses until stream completes
 				if ($function =~ /^scan_result$/i && $cleartext ne '') {
-					log_debug(
-						"Retained fire-and-forget scan_result (multi-part) for $meter_serial",
-						{-no_script_name => 1},
-					);
+					log_debug("Retained scan_result stream for $meter_serial", {-no_script_name => 1});
 				}
-				elsif ($function =~ /^ota_up(?:date|grade)$/i && $cleartext !~ /success|error|committed/) {
-					log_debug(
-						"Retained fire-and-forget OTA stream (multi-part) for $meter_serial",
-						{-no_script_name => 1},
-					);
+				elsif ($function =~ /^ota_update$/i && $cleartext !~ /success|error|committed/) {
+					log_debug("Retained OTA stream for $meter_serial", {-no_script_name => 1});
 				}
 				else {
 					$dbh->do(
@@ -253,18 +170,12 @@ while (1) {
 						$row->{id},
 					);
 
-					log_debug(
-						"Deleted fire-and-forget $lookup_function (ID: $row->{id})",
-						{-no_script_name => 1},
-					);
+					log_debug("Deleted $lookup_function (ID: $row->{id})", {-no_script_name => 1});
 				}
 			}
 		}
 	}
 	else {
-		log_warn(
-			"Serial $meter_serial HMAC error on topic $topic",
-			{-no_script_name => 1},
-		);
+		log_warn("Serial $meter_serial HMAC error on topic $topic", {-no_script_name => 1});
 	}
 }

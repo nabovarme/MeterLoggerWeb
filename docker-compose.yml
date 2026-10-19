@@ -256,10 +256,10 @@ services:
       TZ: 'Europe/Copenhagen'
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
 
-  worker_syslog:
+  worker_events:
     build:
       context: '.'
-      dockerfile: ./worker_syslog/Dockerfile
+      dockerfile: ./worker_events/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
@@ -269,13 +269,43 @@ services:
         condition: service_healthy
       mqtt:
         condition: service_healthy
-    container_name: worker_syslog
-    hostname: worker-syslog
+    container_name: worker_events
+    hostname: worker-events
     volumes:
       - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
     restart: always
     labels:
-      com.docker.compose.service: "worker-syslog"
+      com.docker.compose.service: "worker-events"
+      app.git.commit: ${GIT_COMMIT:-unknown}
+    environment:
+      CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      TZ: 'Europe/Copenhagen'
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+
+  worker_meters:
+    build:
+      context: '.'
+      dockerfile: ./worker_meters/Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    container_name: worker_meters
+    hostname: worker-meters
+    volumes:
+      - ./db/conf.d/99-client.cnf:/etc/mysql/my.cnf:ro
+    restart: always
+    labels:
+      com.docker.compose.service: "worker-meters"
       app.git.commit: ${GIT_COMMIT:-unknown}
     environment:
       CRYPTO_KEY_CACHE_TIME: ${CRYPTO_KEY_CACHE_TIME}

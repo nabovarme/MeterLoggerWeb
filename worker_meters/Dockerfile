@@ -8,8 +8,8 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./worker_syslog/worker_syslog.pl /usr/local/bin/worker_syslog.pl
-COPY ./worker_syslog/docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./worker_meters/worker_meters.pl /usr/local/bin/worker_meters.pl
+COPY ./worker_meters/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 

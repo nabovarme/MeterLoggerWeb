@@ -69,57 +69,35 @@ sub process_mqtt_message {
 	my ($topic, $message) = @_;
 
 	return unless $topic && defined $message;
+	return if $topic =~ m!^/config/!; # Ignore outbound commands from broker
 
-	# Ignore config publishes from the broker/dispatcher.
-	return if $topic =~ m!^/config/!;
+	my $payload = freeze({ topic => $topic, message => $message });
 
-	my $recv_time = get_timestamp_ms();
-	my $payload = freeze({
-		topic => $topic,
-		message => $message,
-	});
-
+	# 1. High-Frequency Measurement Telemetry
 	if ($topic =~ m!^/sample/v\d+/!) {
 		$redis->rpush('mqtt:queue:telemetry', $payload);
 	}
-	elsif ($topic =~ m!^/(?:ping|open_until|open_until_delta|set_cron|cron|clear_cron|stack_trace|stack_trace_result|read_stack_trace|set_ssid|set_pwd|set_ssid_pwd|test_ssid_pwd|test_ssid_pwd_result|start_ap|stop_ap|start_fallback_ap|fallback_status|reconnect|save|restart|set_key|set_mqtt_host|scan|ota_update|ota_upgrade)/!) {
-		# Strictly command ACKs.
-		log_debug(
-			"[$recv_time] -> cmd_ack queue: $topic",
-			{-no_script_name => 1},
-		);
-
-		$redis->rpush('mqtt:queue:cmd_ack', $payload);
+	# 2. State & Meter Attributes (Updates `meters` table)
+	elsif ($topic =~ m!^/(?:version|uptime|ssid|rssi|wifi_status|ap_status|network_quality|disconnect_count|status|open|close|chip_id|flash_id|flash_size)/!) {
+		$redis->rpush('mqtt:queue:meters', $payload);
+		# Forward to cmd_ack if this response was triggered by an RPC command
+		$redis->rpush('mqtt:queue:cmd_ack', $payload) if $topic =~ m!/(?:open|close|status|version|uptime|ssid|rssi|wifi_status|ap_status|chip_id|flash_id|flash_size)!;
 	}
-	elsif ($topic =~ m!^/(?:offline|flash_error|cnx_csa_fn_called)/!) {
-		# Strictly syslog events.
-		log_debug(
-			"[$recv_time] -> syslog queue: $topic",
-			{-no_script_name => 1},
-		);
-
-		$redis->rpush('mqtt:queue:syslog', $payload);
+	# 3. System Events & Audit Logging (Inserts into `log` / `wifi_scan`)
+	elsif ($topic =~ m!^/(?:offline|flash_error|cnx_csa_fn_called|vdd|mem|scan_result)/!) {
+		$redis->rpush('mqtt:queue:events', $payload);
 	}
-	elsif ($topic =~ m!^/(?:open|close|version|status|uptime|vdd|rssi|ssid|wifi_status|ap_status|set_ap_mesh_pwd|chip_id|flash_id|flash_size|reset_reason|network_quality|disconnect_count|mem|scan_result)/!) {
-		# Shared: Acts as both a syslog metric and a command response.
-		log_debug(
-			"[$recv_time] -> syslog & cmd_ack queue: $topic",
-			{-no_script_name => 1},
-		);
-
-		$redis->rpush('mqtt:queue:syslog', $payload);
-		$redis->rpush('mqtt:queue:cmd_ack', $payload);
-	}
+	# 4. Command ACKs & Unknown Command Catch-All (Clears `command_queue`)
 	else {
-		# Catch-all for standard command ACKs (and NACKs for unknown commands).
-		# This ensures any echoed function name reaches worker_cmd_ack.pl to clear the DB queue.
-		log_warn(
-			"Unhandled/Unknown topic (routing to cmd_ack to clear queue): $topic",
-			{-no_script_name => 1},
-		);
-
-		$redis->rpush('mqtt:queue:syslog', $payload);
+		# Catch-all handles ping, open_until, set_cron, ota_update, test_ssid_pwd_result, 
+		# as well as unknown command NACKs (e.g., error=unknown_command)
 		$redis->rpush('mqtt:queue:cmd_ack', $payload);
+
+		# Route unknown/unrecognized commands to events queue as well for logging
+		if ($topic !~ m!^/(?:ping|open_until|open_until_delta|set_cron|cron|clear_cron|stack_trace|stack_trace_result|read_stack_trace|set_ssid|set_pwd|set_ssid_pwd|test_ssid_pwd|test_ssid_pwd_result|start_ap|stop_ap|start_fallback_ap|fallback_status|reconnect|save|restart|set_key|set_mqtt_host|scan|ota_update|ota_upgrade)/!) {
+			log_warn("Routing unknown command response to events and cmd_ack: $topic", {-no_script_name => 1});
+			$redis->rpush('mqtt:queue:events', $payload);
+		}
 	}
 }
 

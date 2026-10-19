@@ -1,7 +1,7 @@
 #!/bin/bash
 
 /usr/local/bin/worker_cmd_ack.pl &
-mqtt_to_redis_pid=$!
+worker_cmd_ack=$!
 
 wait -n
 kill $(jobs -p)
