@@ -25,12 +25,21 @@ sub new {
 
 sub decrypt_topic_message_for_serial {
 	my ($self, $topic, $message, $meter_serial) = @_;
-	$message =~ /(.{32})(.{16})(.+)/s;
 
-	my $key = '';
+	# Safely handle empty LWT messages (e.g. /offline/ topic)
+	if (defined $topic && $topic =~ m!/offline/! && (!defined $message || length($message) == 0)) {
+		return '';
+	}
+
+	# Ensure $message is defined and structured as MAC (32) + IV (16) + Ciphertext
+	if (!defined $message ||$message !~ /^(.{32})(.{16})(.+)/s) {
+		return undef;
+	}
+
 	my $mac = $1;
 	my $iv = $2;
 	my $ciphertext = $3;
+	my $key = '';
 
 	if (exists($self->{key_cache}->{$meter_serial}) && ($self->{key_cache}->{$meter_serial}->{cached_time} > (time() - $config_cached_time))) {
 		$key = $self->{key_cache}->{$meter_serial}->{key};
