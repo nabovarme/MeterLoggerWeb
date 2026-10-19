@@ -1,10 +1,10 @@
-
 #!/usr/bin/perl -w
 
 use strict;
 use warnings;
 use FindBin;
 use Getopt::Long qw(GetOptions);
+use Curses;
 
 use Nabovarme::OTA;
 use Nabovarme::Db;
@@ -43,7 +43,7 @@ my $version = 'latest';
 GetOptions(
 	'help|h'              => \$help,
 	'confirm|c'           => \$confirm_only,
-	'unattended|u'         => \$unattended,
+	'unattended|u'        => \$unattended,
 	'unattended-revert|R' => \$unattended_revert,
 	'version|v=s'         => \$version,
 ) or die "Error in command line arguments\n";
@@ -58,154 +58,578 @@ print_usage() if !@serials;
 
 my @failed;
 my @skipped;
+my @meters;
+my @log;
+
+my $current_index = -1;
+my $current_operation = 'Connecting to database...';
+my $prompt_text = '';
+my $prompt_input = '';
 my $interrupted = 0;
+my $curses_started = 0;
 my $total = scalar @serials;
+
+my $stdscr;
+
+for my $serial (@serials) {
+	push @meters, {
+		serial   => $serial,
+		label    => $serial,
+		status   => 'WAITING',
+		detail   => '',
+		progress => undef,
+	};
+}
+
+# Write text using Curses window methods instead of mvaddstr().
+sub put_text {
+	my ($row, $col, $text) = @_;
+
+	return if !$curses_started;
+
+	my ($rows, $cols);
+	$stdscr->getmaxyx($rows, $cols);
+
+	return if $row < 0 || $row >= $rows;
+	return if $col < 0 || $col >= $cols;
+
+	$text = clip_text($text, $cols - $col);
+
+	$stdscr->move($row, $col);
+	$stdscr->addstr($text);
+}
+
+sub clip_text {
+	my ($text, $width) = @_;
+
+	$text //= '';
+	$text =~ s/[\r\n\t]/ /g;
+
+	return '' if $width <= 0;
+
+	return substr($text, 0, $width);
+}
+
+# Create an ASCII progress bar compatible with limited terminal character sets.
+sub progress_bar {
+	my ($progress, $width) = @_;
+
+	$width = 1 if !defined($width) || $width < 1;
+
+	my $filled = 0;
+
+	if (defined $progress) {
+		$progress = 0 if $progress < 0;
+		$progress = 100 if $progress > 100;
+
+		$filled = int(($width * $progress / 100) + 0.5);
+	}
+
+	my $empty = $width - $filled;
+
+	return '#' x $filled . '-' x $empty;
+}
+
+# Return combined progress across all meters.
+# Finished meters count as 100%; the current meter uses reported OTA progress.
+sub batch_progress {
+	return 0 if !$total;
+
+	my $sum = 0;
+
+	for my $meter (@meters) {
+		if ($meter->{status} eq 'SUCCESS'
+			|| $meter->{status} eq 'FAILED'
+			|| $meter->{status} eq 'SKIPPED') {
+			$sum += 100;
+		}
+		elsif (defined $meter->{progress}) {
+			$sum += $meter->{progress};
+		}
+	}
+
+	return $sum / $total;
+}
+
+sub meter_progress {
+	my ($meter) = @_;
+
+	return 100 if $meter->{status} eq 'SUCCESS';
+	return $meter->{progress} if defined $meter->{progress};
+
+	return undef;
+}
+
+sub add_log {
+	my ($message) = @_;
+
+	$message //= '';
+	$message =~ s/\r//g;
+
+	push @log, split(/\n/, $message, -1);
+
+	# Keep enough recent output for the scrolling log window.
+	shift @log while @log > 1000;
+
+	draw_dashboard() if $curses_started;
+}
+
+sub draw_dashboard {
+	return if !$curses_started;
+
+	my ($rows, $cols);
+	$stdscr->getmaxyx($rows, $cols);
+
+	$stdscr->erase();
+
+	my $line = 0;
+
+	put_text($line++, 0, 'MeterLogger OTA Update');
+
+	put_text($line++, 0,
+		'Firmware: ' . $version
+		. ' | Mode: '
+		. ($confirm_only ? 'CONFIRM'
+			: $unattended_revert ? 'UNATTENDED REVERT'
+			: $unattended ? 'UNATTENDED'
+			: 'INTERACTIVE')
+	);
+
+	my $success_count = grep {
+		$_->{status} eq 'SUCCESS'
+	} @meters;
+
+	my $failed_count = grep {
+		$_->{status} eq 'FAILED'
+	} @meters;
+
+	my $skipped_count = grep {
+		$_->{status} eq 'SKIPPED'
+	} @meters;
+
+	my $completed = $success_count + $failed_count + $skipped_count;
+	my $remaining = $total - $completed;
+
+	put_text($line++, 0,
+		"Progress: $completed/$total completed"
+		. " | Success: $success_count"
+		. " | Failed: $failed_count"
+		. " | Skipped: $skipped_count"
+		. " | Remaining: $remaining"
+	);
+
+	# Keep the batch bar width fixed so it does not stretch across the terminal.
+	my $batch_bar_width = $cols >= 50 ? 30 : 15;
+
+	put_text($line++, 0,
+		sprintf(
+			'BATCH  [%s] %d/%d',
+			progress_bar(batch_progress(), $batch_bar_width),
+			$completed,
+			$total,
+		)
+	);
+
+	$line++;
+
+	put_text($line++, 0, 'METERS');
+
+	my $list_start = $line;
+	my $reserved = 6;
+	my $list_height = int(($rows - $reserved - $list_start) / 2);
+	$list_height = 1 if $list_height < 1;
+
+	my $first_meter = 0;
+
+	if ($current_index >= $list_height) {
+		$first_meter = $current_index - $list_height + 1;
+	}
+
+	for my $i ($first_meter .. $#meters) {
+		last if $line >= $list_start + $list_height;
+		last if $line >= $rows - $reserved;
+
+		my $meter = $meters[$i];
+
+		my $marker = $meter->{status} eq 'SUCCESS' ? '[OK]'
+			: $meter->{status} eq 'FAILED' ? '[!!]'
+			: $meter->{status} eq 'SKIPPED' ? '[--]'
+			: $meter->{status} eq 'RUNNING' ? '[>>]'
+			: '[..]';
+
+		my $bar_width = $cols >= 70 ? 18
+			: $cols >= 50 ? 10
+			: 5;
+
+		my $bar = progress_bar(meter_progress($meter), $bar_width);
+		my $detail = $meter->{detail} // '';
+
+		put_text($line++, 0,
+			sprintf(
+				'%-4s %-12s [%s] %s',
+				$marker,
+				$meter->{serial},
+				$bar,
+				$detail,
+			)
+		);
+	}
+
+	# Reserve the bottom part of the terminal for recent output.
+	my $log_header = $rows - $reserved;
+
+	put_text($log_header, 0, 'RECENT OUTPUT');
+
+	my $log_height = $rows - $log_header - 3;
+	$log_height = 0 if $log_height < 0;
+
+	my $log_start = @log - $log_height;
+	$log_start = 0 if $log_start < 0;
+
+	my $log_line = $log_header + 1;
+
+	for my $i ($log_start .. $#log) {
+		last if $log_line >= $rows - 2;
+
+		put_text($log_line++, 0, $log[$i]);
+	}
+
+	if ($prompt_text ne '') {
+		put_text($rows - 2, 0, $prompt_text . $prompt_input);
+	} else {
+		put_text($rows - 2, 0, $current_operation);
+	}
+
+	put_text($rows - 1, 0,
+		'Ctrl+C: stop after current operation | Second Ctrl+C: exit'
+	);
+
+	$stdscr->refresh();
+}
+
+sub prompt_line {
+	my ($message, $default) = @_;
+
+	$prompt_text = $message;
+	$prompt_input = '';
+
+	draw_dashboard();
+
+	while (1) {
+		my $key = $stdscr->getch();
+
+		next if !defined $key;
+
+		if ($key eq "\n" || $key eq "\r" || $key == KEY_ENTER) {
+			my $answer = $prompt_input;
+			$answer = $default if $answer eq '';
+
+			$prompt_text = '';
+			$prompt_input = '';
+
+			add_log("$message$answer\n");
+
+			return $answer;
+		}
+
+		if ($key == 27) {
+			$prompt_input = '';
+			draw_dashboard();
+			next;
+		}
+
+		if ($key == KEY_BACKSPACE || $key == 127 || $key == 8) {
+			chop $prompt_input if length $prompt_input;
+			draw_dashboard();
+			next;
+		}
+
+		if (length($key) == 1 && $key =~ /^[[:print:]]$/) {
+			$prompt_input .= $key;
+			draw_dashboard();
+		}
+	}
+}
+
+# Restore the terminal if the script exits unexpectedly.
+END {
+	if ($curses_started) {
+		endwin();
+	}
+}
 
 $SIG{INT} = sub {
 	if (!$interrupted) {
 		$interrupted = 1;
-		print STDERR "\nWARNING: Ctrl+C received. Stopping after the current operation...\n";
-		print STDERR "Press Ctrl+C again to abort immediately.\n";
-	}
-	else {
+
+		add_log('WARNING: Ctrl+C received. Stopping after the current operation...');
+		add_log('Press Ctrl+C again to abort immediately.');
+	} else {
+		endwin() if $curses_started;
+		$curses_started = 0;
+
 		print STDERR "\nAborted by user (second Ctrl+C).\n";
 		exit(130);
 	}
 };
 
-print "Connecting to database...\n";
+# Initialize curses.
+$stdscr = initscr();
+$curses_started = 1;
 
-my $ota = Nabovarme::OTA->new();
+cbreak();
+noecho();
+keypad($stdscr, 1);
 
-# Fetch meter information for user-facing output.
-my $dbh = Nabovarme::Db->my_connect
-	or die "Failed to connect to database to fetch meter information\n";
+$current_operation = 'Connecting to database...';
+draw_dashboard();
 
-my $info_sth = $dbh->prepare(qq[
-	SELECT `info`
-	FROM meters
-	WHERE `serial` = ?
-	LIMIT 1
-]);
+my $ota;
+my $dbh;
+my $info_sth;
 
-for my $i (0 .. $#serials) {
-	last if $interrupted;
+eval {
+	$ota = Nabovarme::OTA->new(
+		logger => sub {
+			my ($message) = @_;
 
-	my $serial = $serials[$i];
+			add_log($message);
 
-	$info_sth->execute($serial);
-	my ($info) = $info_sth->fetchrow_array;
-	$info_sth->finish;
+			if (defined $message && $current_index >= 0) {
+				my $meter = $meters[$current_index];
 
-	my $meter_label = $serial;
-	$meter_label .= " - $info" if defined $info && $info ne '';
-
-	if ($total > 1) {
-		print "\n", "=" x 60, "\n";
-		print "Meter $meter_label (" . ($i + 1) . "/$total)\n";
-		print "=" x 60, "\n";
-	} else {
-		print "Meter $meter_label\n";
-	}
-
-	my $ok;
-	my $error;
-
-	eval {
-		if ($confirm_only) {
-			$ok = $ota->confirm(
-				$serial,
-				unattended => $unattended,
-				on_prompt  => sub {
-					print "Are you sure you want to confirm this running ROM permanently? [y/N]: ";
-					my $ans;
-					{
-						# Safe instant abort only while waiting at the prompt
-						local $SIG{INT} = sub {
-							print "\nAborted by user.\n";
-							exit(130);
-						};
-						$ans = <STDIN>;
-					}
-					chomp($ans) if defined $ans;
-					return $ans // 'n';
+				# Track the OTA progress reported by the firmware.
+				if ($message =~ /status=started\b/) {
+					$meter->{progress} = 0;
+					$meter->{detail} = 'OTA started';
 				}
-			);
+				elsif ($message =~ /status=flashing_(\d+)%/) {
+					my $progress = $1;
+
+					$progress = 100 if $progress > 100;
+
+					$meter->{progress} = $progress;
+					$meter->{detail} = 'Flashing';
+				}
+				elsif ($message =~ /status=success\b/) {
+					$meter->{progress} = 100;
+					$meter->{detail} = 'Flash complete';
+				}
+				elsif ($message =~ /status=restarting_in_(\d+)s/) {
+					$meter->{progress} = 100;
+					$meter->{detail} = 'Restarting';
+				}
+				elsif ($message =~ /status=self_test_passed_committed\b/) {
+					$meter->{progress} = 100;
+					$meter->{detail} = 'Self-test passed';
+				}
+				elsif ($message =~ /status=already_committed\b/) {
+					$meter->{progress} = 100;
+					$meter->{detail} = 'Already committed';
+				}
+				elsif ($message =~ /status=(error_[a-z_]+)\b/) {
+					$meter->{detail} = $1;
+				}
+			}
+
+			if (defined $message && $message ne '') {
+				my @lines = split(/\n/, $message);
+				my $last_line = $lines[-1] // '';
+
+				$last_line =~ s/^\s+|\s+$//g;
+
+				$current_operation = $last_line
+					if $last_line ne '';
+			}
+
+			draw_dashboard();
+		}
+	);
+
+	$dbh = Nabovarme::Db->my_connect
+		or die "Failed to connect to database to fetch meter information\n";
+
+	$info_sth = $dbh->prepare(qq[
+		SELECT `info`
+		FROM meters
+		WHERE `serial` = ?
+		LIMIT 1
+	]);
+
+	1;
+} or do {
+	my $error = $@ || "Unknown error.\n";
+
+	add_log("ERROR: $error");
+
+	push @failed, {
+		serial => '-',
+		label  => 'Database connection',
+		error  => $error,
+	};
+};
+
+if ($ota && $dbh && $info_sth) {
+	for my $i (0 .. $#serials) {
+		last if $interrupted;
+
+		$current_index = $i;
+
+		my $serial = $serials[$i];
+		my $meter = $meters[$i];
+
+		$meter->{status} = 'RUNNING';
+		$meter->{detail} = '';
+		$meter->{progress} = undef;
+
+		$current_operation = "Preparing meter $serial...";
+		draw_dashboard();
+
+		my $info;
+
+		eval {
+			$info_sth->execute($serial);
+			($info) = $info_sth->fetchrow_array;
+			$info_sth->finish;
+
+			1;
+		} or do {
+			my $error = $@ || "Failed to fetch meter information.\n";
+
+			$meter->{status} = 'FAILED';
+			$meter->{detail} = 'Database error';
+
+			push @failed, {
+				serial => $serial,
+				label  => $serial,
+				error  => $error,
+			};
+
+			add_log("ERROR: Meter $serial: $error");
+			next;
+		};
+
+		my $meter_label = $serial;
+		$meter_label .= " - $info" if defined $info && $info ne '';
+
+		$meter->{label} = $meter_label;
+		$current_operation = "Processing meter $meter_label";
+		draw_dashboard();
+
+		my $ok;
+		my $error;
+
+		eval {
+			if ($confirm_only) {
+				$ok = $ota->confirm(
+					$serial,
+					unattended => $unattended,
+					on_prompt  => sub {
+						return prompt_line(
+							'Confirm running ROM permanently? [y/N]: ',
+							'n'
+						);
+					}
+				);
+			} else {
+				$ok = $ota->update(
+					$serial,
+					version           => $version,
+					unattended        => ($unattended || $unattended_revert),
+					unattended_revert => $unattended_revert,
+					on_unconfirmed    => sub {
+						add_log(
+							"Unconfirmed ROM detected. Choose an action:\n"
+							. "  C - Confirm the running ROM and retry OTA (default)\n"
+							. "  R - Restart and revert to the previous ROM\n"
+							. "  A - Abort\n"
+						);
+
+						return prompt_line(
+							'Choose action [C/r/a]: ',
+							'c'
+						);
+					}
+				);
+			}
+
+			1;
+		} or do {
+			$error = $@ || "Unknown error.\n";
+		};
+
+		if (defined($error) && $error ne '') {
+			$meter->{status} = 'FAILED';
+			$meter->{detail} = 'Operation failed';
+
+			add_log("ERROR: Meter $meter_label failed: $error");
+
+			push @failed, {
+				serial => $serial,
+				label  => $meter_label,
+				error  => $error,
+			};
+		}
+		elsif (!$ok) {
+			$meter->{status} = 'SKIPPED';
+			$meter->{detail} = 'Skipped';
+
+			push @skipped, $meter_label;
+			add_log("Meter $meter_label skipped.");
 		}
 		else {
-			$ok = $ota->update(
-				$serial,
-				version           => $version,
-				unattended        => ($unattended || $unattended_revert),
-				unattended_revert => $unattended_revert,
-				on_unconfirmed    => sub {
-					print "Options:\n";
-					print "  [C] Confirm the running ROM and retry OTA (Default)\n";
-					print "  [R] Restart meter (reverts to previous ROM) and retry OTA\n";
-					print "  [A] Abort\n";
-					print "Choose an action [C/r/a]: ";
-					my $ans;
-					{
-						# Safe instant abort only while waiting at the prompt
-						local $SIG{INT} = sub {
-							print "\nAborted by user.\n";
-							exit(130);
-						};
-						$ans = <STDIN>;
-					}
-					chomp($ans) if defined $ans;
-					return $ans // 'c';
-				}
-			);
+			$meter->{status} = 'SUCCESS';
+			$meter->{detail} = 'Completed';
+			$meter->{progress} = 100;
+
+			add_log("Meter $meter_label completed successfully.");
 		}
 
-		1;
-	} or do {
-		$error = $@ || "Unknown error.\n";
-	};
-
-	if (defined($error) && $error ne '') {
-		print STDERR "ERROR: Meter $meter_label failed: $error";
-		print STDERR "\n" if $error !~ /\n\z/;
-
-		push @failed, {
-			serial => $serial,
-			label  => $meter_label,
-			error  => $error
-		};
+		$current_operation = "Completed meter $meter_label";
+		draw_dashboard();
 	}
-	elsif (!$ok) {
-		push @skipped, $meter_label;
-	}
+
+	$dbh->disconnect();
 }
 
-$dbh->disconnect();
+add_log('');
+add_log('=' x 60);
 
-print "\n", "=" x 60, "\n";
-print "Batch processing completed";
-print " (interrupted by user)" if $interrupted;
-print ".\n";
+add_log(
+	'Batch processing completed'
+	. ($interrupted ? ' (interrupted by user)' : '')
+	. '.'
+);
 
 if (@failed) {
-	print "\nFailed " . ($confirm_only ? "confirmations" : "upgrades") . ":\n";
+	add_log('');
+	add_log('Failed ' . ($confirm_only ? 'confirmations' : 'upgrades') . ':');
 
 	for my $failure (@failed) {
 		my $error = $failure->{error};
 		$error =~ s/\s+\z//;
 
-		print "  Meter $failure->{label}: $error\n";
+		add_log("  Meter $failure->{label}: $error");
 	}
-}
-else {
-	print "No " . ($confirm_only ? "confirmation failures" : "upgrade failures") . ".\n";
+} else {
+	add_log(
+		'No '
+		. ($confirm_only ? 'confirmation failures' : 'upgrade failures')
+		. '.'
+	);
 }
 
-if (@skipped) {
-	print "\nSkipped meters: " . join(", ", @skipped) . "\n";
-}
+add_log("Skipped meters: " . join(", ", @skipped)) if @skipped;
 
-if ($interrupted) {
-	print "\nBatch interrupted; remaining meters were not processed.\n";
-}
+add_log('Batch interrupted; remaining meters were not processed.')
+	if $interrupted;
+
+$current_operation = 'Press any key to exit.';
+draw_dashboard();
+
+$stdscr->getch();
+
+endwin();
+$curses_started = 0;
 
 exit($interrupted ? 130 : @failed ? 1 : 0);
