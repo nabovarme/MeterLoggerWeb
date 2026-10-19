@@ -248,10 +248,14 @@ sub draw_dashboard {
 	}
 
 	# Keep labels aligned regardless of the length of meters.info.
-	# Use the remaining terminal width for a wider individual progress bar.
-	my $label_width = 36;
+	# Use the available terminal width to maximize individual progress bars.
+	my $label_width = 38;
 	my $detail_width = 20;
-	my $bar_width = $cols - 45 - $label_width - $detail_width;
+
+	# The row format is:
+	# MARKER + space + LABEL + space + [BAR] + space + DETAIL
+	my $fixed_width = 4 + 1 + $label_width + 1 + 1 + 1 + 1;
+	my $bar_width = $cols - $fixed_width - $detail_width - 2;
 	$bar_width = 5 if $bar_width < 5;
 
 	for my $i ($first_meter .. $#meters) {
@@ -266,9 +270,7 @@ sub draw_dashboard {
 			: $meter->{status} eq 'RUNNING' ? '[>>]'
 			: '[..]';
 
-		my $label = $meter->{label} // '';
-		$label = clip_text($label, $label_width);
-
+		my $label = clip_text($meter->{label}, $label_width);
 		my $bar = progress_bar(meter_progress($meter), $bar_width);
 
 		my $detail = $meter->{detail} // '';
