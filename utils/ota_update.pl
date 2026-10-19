@@ -66,6 +66,8 @@ my $current_operation = 'Connecting to database...';
 my $prompt_text = '';
 my $prompt_input = '';
 my $interrupted = 0;
+my $skip_current = 0;
+my $meter_operation_active = 0;
 my $curses_started = 0;
 my $total = scalar @serials;
 
@@ -301,7 +303,7 @@ sub draw_dashboard {
 	}
 
 	put_text($rows - 1, 0,
-		'Ctrl+C: stop after current operation | Second Ctrl+C: exit'
+		'Ctrl+C: skip current meter | Second Ctrl+C: exit'
 	);
 
 	$stdscr->refresh();
@@ -359,6 +361,11 @@ END {
 }
 
 $SIG{INT} = sub {
+	if ($meter_operation_active) {
+		$skip_current = 1;
+		die "__SKIP_CURRENT_METER__\n";
+	}
+
 	if (!$interrupted) {
 		$interrupted = 1;
 
@@ -519,6 +526,9 @@ if ($ota && $dbh && $info_sth) {
 		my $ok;
 		my $error;
 
+		$skip_current = 0;
+		$meter_operation_active = 1;
+
 		eval {
 			if ($confirm_only) {
 				$ok = $ota->confirm(
@@ -558,7 +568,16 @@ if ($ota && $dbh && $info_sth) {
 			$error = $@ || "Unknown error.\n";
 		};
 
-		if (defined($error) && $error ne '') {
+		$meter_operation_active = 0;
+
+		if ($skip_current) {
+			$meter->{status} = 'SKIPPED';
+			$meter->{detail} = 'Skipped by user';
+
+			push @skipped, $meter_label;
+			add_log("Meter $meter_label skipped by user (Ctrl+C).");
+		}
+		elsif (defined($error) && $error ne '') {
 			$meter->{status} = 'FAILED';
 			$meter->{detail} = 'Operation failed';
 
