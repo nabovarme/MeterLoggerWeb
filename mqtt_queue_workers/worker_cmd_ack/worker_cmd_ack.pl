@@ -147,6 +147,7 @@ while (1) {
 					$cleartext,
 				);
 
+				# Updating time prevents timeouts during long streams
 				$dbh->do(
 					qq[UPDATE command_queue SET state = 'received', unix_time = UNIX_TIMESTAMP() WHERE id = ?],
 					undef,
@@ -156,12 +157,10 @@ while (1) {
 				log_debug("Marked $lookup_function (ID: $row->{id}) for callback resolution", {-no_script_name => 1});
 			}
 			else {
-				# Retain state for multi-part responses until stream completes
-				if ($function =~ /^scan_result$/i && $cleartext ne '') {
-					log_debug("Retained scan_result stream for $meter_serial", {-no_script_name => 1});
-				}
-				elsif ($function =~ /^ota_update$/i && $cleartext !~ /success|error|committed/) {
-					log_debug("Retained OTA stream for $meter_serial", {-no_script_name => 1});
+				# Retain state ONLY for ongoing OTA firmware update streams.
+				# Delete immediately on the first scan_result (for both old and new meters) or any other command ACK.
+				if ($function =~ /^ota_update$/i && $cleartext !~ /success|error|committed/) {
+					log_debug("Retained OTA stream for $meter_serial (ID: $row->{id})", {-no_script_name => 1});
 				}
 				else {
 					$dbh->do(
@@ -170,7 +169,7 @@ while (1) {
 						$row->{id},
 					);
 
-					log_debug("Deleted $lookup_function (ID: $row->{id})", {-no_script_name => 1});
+					log_debug("Deleted $lookup_function on first response (ID: $row->{id})", {-no_script_name => 1});
 				}
 			}
 		}
