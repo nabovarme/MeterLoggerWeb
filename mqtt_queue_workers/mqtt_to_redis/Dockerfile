@@ -9,7 +9,6 @@ USER root
 COPY ./perl /usr/local/lib/perl
 
 COPY ./mqtt_queue_workers/mqtt_to_redis/mqtt_to_redis.pl /usr/local/bin/mqtt_to_redis.pl
-COPY ./mqtt_queue_workers/mqtt_to_redis/docker-entrypoint.sh /docker-entrypoint.sh
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -20,4 +19,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["perl", "/usr/local/bin/mqtt_to_redis.pl"]
