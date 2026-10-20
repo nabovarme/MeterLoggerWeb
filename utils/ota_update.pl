@@ -333,7 +333,7 @@ sub prompt_line {
 
 		next if !defined $key;
 
-		if ($key eq "\n" || $key eq "\r" || $key == KEY_ENTER) {
+		if ($key eq "\n" || $key eq "\r" || $key eq KEY_ENTER) {
 			my $answer = $prompt_input;
 			$answer = $default if $answer eq '';
 
@@ -345,19 +345,19 @@ sub prompt_line {
 			return $answer;
 		}
 
-		if ($key == 27) {
+		if ($key eq 27) {
 			$prompt_input = '';
 			draw_dashboard();
 			next;
 		}
 
-		if ($key == KEY_BACKSPACE || $key == 127 || $key == 8) {
+		if ($key eq KEY_BACKSPACE || $key eq 127 || $key eq 8) {
 			chop $prompt_input if length $prompt_input;
 			draw_dashboard();
 			next;
 		}
 
-		if (length($key) == 1 && $key =~ /^[[:print:]]$/) {
+		if (length($key) eq 1 && $key =~ /^[[:print:]]$/) {
 			$prompt_input .= $key;
 			draw_dashboard();
 		}
