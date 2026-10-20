@@ -14,10 +14,11 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # --- Constants ---
-use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # Retransmit every 10 seconds
-use constant MIN_METER_COMMAND_INTERVAL => 1.0;      # 1.0s minimum gap between commands to the SAME meter
-use constant DB_POLL_INTERVAL_SEC       => 1.0;      # Poll DB every 1 second
-use constant COMMAND_OFFSET_INTERVAL    => 0.02;     # 20ms offset to pace concurrent dispatches
+use constant DEFAULT_RETRANSMIT_DELAY   => 10;     # Retransmit standard commands every 10s
+use constant SLOW_CMD_RETRANSMIT_DELAY  => 30;     # Retransmit slow tasks (scan, ota_update, test_ssid_pwd) every 30s
+use constant MIN_METER_COMMAND_INTERVAL => 1.0;    # 1.0s minimum gap between commands to the SAME meter
+use constant DB_POLL_INTERVAL_SEC       => 1.0;    # Poll DB every 1 second
+use constant COMMAND_OFFSET_INTERVAL    => 0.02;   # 20ms offset to pace concurrent dispatches
 
 # --- Config from environment ---
 my $mqtt_host = $ENV{'MQTT_HOST'}
@@ -100,9 +101,9 @@ Mojo::IOLoop->recurring(10 => sub {
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
 		WHERE c1.state = 'sent' \
-		AND c2.state = 'sent' \
-		AND c1.id < c2.id \
-		AND c1.function NOT IN ('set_cron', 'clear_cron') \
+			AND c2.state = 'sent' \
+			AND c1.id < c2.id \
+			AND c1.function NOT IN ('set_cron', 'clear_cron') \
 	]) or warn $DBI::errstr;
 });
 
@@ -117,11 +118,11 @@ sub process_queue {
 			command_queue.`function`, \
 			command_queue.`param`, \
 			command_queue.`is_stateful`, \
+			command_queue.`last_sent`, \
 			meters.`key` \
 		FROM command_queue, meters \
 		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		AND (command_queue.`last_sent` = 0 OR command_queue.`last_sent` + ] . DELAY_BETWEEN_RETRANSMIT . qq[ <= UNIX_TIMESTAMP()) \
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn $DBI::errstr;
@@ -152,9 +153,19 @@ sub process_queue {
 		my $serial           = $d->{serial};
 		my $current_function = $d->{function};
 		my $is_stateful      = $d->{is_stateful};
+		my $last_cmd_sent    = $d->{last_sent} // 0;
 
 		# Skip if this command ID is already queued in an active timer
 		next if $in_flight{$cmd_id};
+
+		# Dynamic retransmission window: allow 30s for slow tasks like scan, ota_update, test_ssid_pwd
+		my $retransmit_window = ($current_function =~ /^(?:scan|ota_update|test_ssid_pwd)$/i)
+			? SLOW_CMD_RETRANSMIT_DELAY
+			: DEFAULT_RETRANSMIT_DELAY;
+
+		if ($last_cmd_sent > 0 && ($now - $last_cmd_sent < $retransmit_window)) {
+			next;
+		}
 
 		# Deduplicate stateless commands within the same pass
 		if (!$is_stateful) {
@@ -217,7 +228,7 @@ sub process_queue {
 # --------------------------------------------------
 # Main Event Loop
 # --------------------------------------------------
-Mojo::IOLoop->recurring(DB_POLL_INTERVAL_SEC => \&process_queue);
+Mojo::IOLoop->recurring(DB_POLL_INTERVAL_SEC() => \&process_queue);
 Mojo::IOLoop->start;
 
 1;

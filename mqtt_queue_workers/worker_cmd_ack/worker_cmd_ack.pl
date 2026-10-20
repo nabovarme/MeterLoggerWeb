@@ -39,7 +39,7 @@ my $redis_port = $ENV{'REDIS_PORT'}
 	or log_die("ERROR: REDIS_PORT not set");
 
 my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
+	server    => "$redis_host:$redis_port",
 	reconnect => 60,
 );
 
@@ -101,7 +101,7 @@ while (1) {
 
 		# Map result topics back to original command queue names
 		my $lookup_function = $function;
-		$lookup_function = 'test_ssid_pwd'   if $function =~ /^test_ssid_pwd_result$/i;
+		$lookup_function = 'test_ssid_pwd'    if $function =~ /^test_ssid_pwd_result$/i;
 		$lookup_function = 'read_stack_trace' if $function =~ /^stack_trace_result$/i;
 		$lookup_function = 'scan'             if $function =~ /^scan_result$/i;
 
@@ -129,36 +129,29 @@ while (1) {
 			next;
 		}
 
-		# Execute database query using $lookup_function and explicitly match both 'scan' and 'scan_result'
-		my $sth;
+		# Explicitly handle deleting scan / scan_result commands on first response for both old and new firmware
 		if ($lookup_function eq 'scan') {
-			$sth = $dbh->prepare_cached(qq[
-				SELECT id, has_callback
-				FROM command_queue
-				WHERE serial = ?
-				AND function IN ('scan', 'scan_result')
-				AND state IN ('sent', 'received')
-			]);
-			$sth->execute($meter_serial) or do {
-				log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
-				$redis->rpush('mqtt:queue:cmd_ack', $payload);
-				next;
-			};
+			my $rows = $dbh->do(
+				qq[DELETE FROM command_queue WHERE serial = ? AND function IN ('scan', 'scan_result')],
+				undef,
+				$meter_serial,
+			);
+			log_debug("Deleted $rows scan commands on scan_result for $meter_serial", {-no_script_name => 1});
+			next;
 		}
-		else {
-			$sth = $dbh->prepare_cached(qq[
-				SELECT id, has_callback
-				FROM command_queue
-				WHERE serial = ?
-				AND function = ?
-				AND state IN ('sent', 'received')
-			]);
-			$sth->execute($meter_serial, $lookup_function) or do {
-				log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
-				$redis->rpush('mqtt:queue:cmd_ack', $payload);
-				next;
-			};
-		}
+
+		my $sth = $dbh->prepare_cached(qq[
+			SELECT id, has_callback
+			FROM command_queue
+			WHERE serial = ?
+			AND function = ?
+			AND state IN ('sent', 'received')
+		]);
+		$sth->execute($meter_serial, $lookup_function) or do {
+			log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
+			$redis->rpush('mqtt:queue:cmd_ack', $payload);
+			next;
+		};
 
 		while (my $row = $sth->fetchrow_hashref) {
 			if ($row->{has_callback}) {
@@ -180,7 +173,7 @@ while (1) {
 			}
 			else {
 				# Retain state ONLY for ongoing OTA firmware update streams.
-				# Delete immediately on the first scan_result (for both old and new meters) or any other command ACK.
+				# Delete immediately on the first ACK or scan_result.
 				if ($function =~ /^ota_update$/i && $cleartext !~ /success|error|committed/) {
 					log_debug("Retained OTA stream for $meter_serial (ID: $row->{id})", {-no_script_name => 1});
 				}
