@@ -20,7 +20,7 @@ my @meter_topics = qw(
 
 # 2. Triggered Command Responses: State responses that must ALSO clear matching rows in `command_queue` via worker_cmd_ack.pl
 my @cmd_ack_topics = qw(
-	open close status version uptime ssid rssi wifi_status ap_status
+	open close status version uptime ssid rssi wifi_status ap_status network_quality
 	chip_id flash_id flash_size reset_reason disconnect_count scan_result
 );
 
