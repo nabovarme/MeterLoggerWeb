@@ -1,12 +1,16 @@
 package Nabovarme::MQTT_RPC;
 
 use strict;
+use warnings;
+
 use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
+use Nabovarme::FirmwareSupport;
+use Nabovarme::Utils;
 
 sub new {
 	my $type = shift;
@@ -37,6 +41,25 @@ sub call {
 	my $is_stateful = $args->{stateful} ? 1 : 0;
 	my $continuous = $args->{continuous} ? 1 : 0;
 
+	# Check firmware support before queueing the RPC.
+	my $sth = $self->{dbh}->prepare(qq[
+		SELECT `version` FROM meters
+		WHERE serial = ?
+		LIMIT 1
+	]);
+	$sth->execute($serial);
+
+	my ($version) = $sth->fetchrow_array;
+
+	if (
+		defined $version &&
+		length $version &&
+		!firmware_supports($version, $mqtt_function)
+	) {
+		log_debug("Skipping unsupported RPC '$mqtt_function' for meter $serial (firmware version $version)");
+		return 1;
+	}
+
 	my $quoted_serial = $self->{dbh}->quote($serial);
 	my $quoted_mqtt_function = $self->{dbh}->quote($mqtt_function);
 	my $quoted_message = $self->{dbh}->quote($message);
@@ -46,7 +69,7 @@ sub call {
 
 	my $d = undef;
 
-	my $sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
+	$sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
 		# Deduplicate ONLY if stateless (is_stateful == 0)
@@ -127,9 +150,9 @@ sub call {
 				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = ?], undef, $serial, $mqtt_function);
 				return 0;
 			}
-
 		}
 	}
+
 	return 1;
 }
 
