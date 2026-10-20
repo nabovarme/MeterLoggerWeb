@@ -5,7 +5,7 @@ use warnings;
 
 use Exporter qw(import);
 
-our @EXPORT_OK = qw(firmware_supports);
+our @EXPORT_OK = qw(firmware_supports parse_firmware_version);
 
 # RPCs already present in firmware version 967.
 my %initial_rpc = map { $_ => 1 } qw(
@@ -74,6 +74,21 @@ my @changes = (
 	[ 1754, 'set_mqtt_host',      1 ],
 	[ 1774, 'crypto',             0 ],
 );
+
+sub parse_firmware_version {
+	my ($sw_version) = @_;
+
+	return unless defined $sw_version && length $sw_version;
+
+	# Already a numeric firmware version.
+	return $1 if $sw_version =~ /^(\d+)$/;
+
+	# Extract the firmware build number following a known branch name.
+	# Examples: master-1438-, dns_cache-1227-, mesh-1011-, ota_debug-1773-.
+	return $1 if $sw_version =~ /-(?:master|dns_cache|mesh|ota_debug|ota|sdk_v2\.2\.x|my_lwip_dev|my_lwip|sdk_3_lwip_fix_dns_dhcp|sdk_3_ignore_multiple_mqtt_in_tcp)-(\d+)-/;
+
+	return;
+}
 
 sub firmware_supports {
 	my ($version, $command) = @_;

@@ -9,7 +9,7 @@ use DBI;
 use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
-use Nabovarme::FirmwareSupport qw(firmware_supports);
+use Nabovarme::FirmwareSupport qw(firmware_supports parse_firmware_version);
 use Nabovarme::Utils;
 
 sub new {
@@ -49,13 +49,10 @@ sub call {
 	]);
 	$sth->execute($serial);
 
-	my ($version) = $sth->fetchrow_array;
+	my ($sw_version) = $sth->fetchrow_array;
+	my $version = parse_firmware_version($sw_version);
 
-	if (
-		defined $version &&
-		length $version &&
-		!firmware_supports($version, $mqtt_function)
-	) {
+	if (defined $version && !firmware_supports($version, $mqtt_function)) {
 		log_debug("Skipping unsupported RPC '$mqtt_function' for meter $serial (firmware version $version)");
 		return 1;
 	}
