@@ -75,7 +75,7 @@ while (1) {
 	next if $function =~ /^config$/i;
 
 	# Pre-check if any commands exist for this serial to avoid unnecessary decryption overhead
-	my $sth = $dbh->prepare(qq[
+	my $sth = $dbh->prepare_cached(qq[
 		SELECT serial FROM command_queue WHERE serial = ? LIMIT 1
 	]);
 	$sth->execute($meter_serial);
@@ -98,9 +98,9 @@ while (1) {
 
 		# Map result topics back to original command queue names
 		my $lookup_function = $function;
-		$lookup_function = 'test_ssid_pwd'  if $function =~ /^test_ssid_pwd_result$/i;
+		$lookup_function = 'test_ssid_pwd'    if $function =~ /^test_ssid_pwd_result$/i;
 		$lookup_function = 'read_stack_trace' if $function =~ /^stack_trace_result$/i;
-		$lookup_function = 'scan'            if $function =~ /^scan_result$/i;
+		$lookup_function = 'scan'             if $function =~ /^scan_result$/i;
 
 		if ($function =~ /^open_until/i) {
 			my $tolerance = 1;
@@ -126,17 +126,35 @@ while (1) {
 			next;
 		}
 
-		$sth = $dbh->prepare(qq[
-			SELECT id, has_callback
-			FROM command_queue
-			WHERE serial = ? AND function = ? AND state IN ('sent', 'received')
-		]);
-
-		$sth->execute($meter_serial, $lookup_function) or do {
-			log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
-			$redis->rpush('mqtt:queue:cmd_ack', $payload);
-			next;
-		};
+		# Execute database query using $lookup_function and explicitly match both 'scan' and 'scan_result'
+		if ($lookup_function eq 'scan') {
+			$sth = $dbh->prepare_cached(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function IN ('scan', 'scan_result')
+				AND state IN ('sent', 'received')
+			]);
+			$sth->execute($meter_serial) or do {
+				log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
+				$redis->rpush('mqtt:queue:cmd_ack', $payload);
+				next;
+			};
+		}
+		else {
+			$sth = $dbh->prepare_cached(qq[
+				SELECT id, has_callback
+				FROM command_queue
+				WHERE serial = ?
+				AND function = ?
+				AND state IN ('sent', 'received')
+			]);
+			$sth->execute($meter_serial, $lookup_function) or do {
+				log_warn("DB Error: " . $DBI::errstr, {-no_script_name => 1});
+				$redis->rpush('mqtt:queue:cmd_ack', $payload);
+				next;
+			};
+		}
 
 		while (my $row = $sth->fetchrow_hashref) {
 			if ($row->{has_callback}) {
@@ -169,7 +187,7 @@ while (1) {
 						$row->{id},
 					);
 
-					log_debug("Deleted $lookup_function on first response (ID: $row->{id})", {-no_script_name => 1});
+					log_debug("Deleted $lookup_function on first ACK (ID: $row->{id})", {-no_script_name => 1});
 				}
 			}
 		}
