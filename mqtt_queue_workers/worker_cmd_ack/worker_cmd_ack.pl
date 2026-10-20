@@ -75,12 +75,15 @@ while (1) {
 	next if $function =~ /^config$/i;
 
 	# Pre-check if any commands exist for this serial to avoid unnecessary decryption overhead
-	my $sth = $dbh->prepare_cached(qq[
+	my $sth_check = $dbh->prepare_cached(qq[
 		SELECT serial FROM command_queue WHERE serial = ? LIMIT 1
 	]);
-	$sth->execute($meter_serial);
+	$sth_check->execute($meter_serial);
 
-	unless ($sth->rows) {
+	my ($has_pending) = $sth_check->fetchrow_array;
+	$sth_check->finish; # Ensures handle is marked inactive immediately
+
+	unless ($has_pending) {
 		log_debug("No pending commands in DB for serial $meter_serial. Dropping ACK.", {-no_script_name => 1});
 		next;
 	}
@@ -98,7 +101,7 @@ while (1) {
 
 		# Map result topics back to original command queue names
 		my $lookup_function = $function;
-		$lookup_function = 'test_ssid_pwd'    if $function =~ /^test_ssid_pwd_result$/i;
+		$lookup_function = 'test_ssid_pwd'   if $function =~ /^test_ssid_pwd_result$/i;
 		$lookup_function = 'read_stack_trace' if $function =~ /^stack_trace_result$/i;
 		$lookup_function = 'scan'             if $function =~ /^scan_result$/i;
 
@@ -127,6 +130,7 @@ while (1) {
 		}
 
 		# Execute database query using $lookup_function and explicitly match both 'scan' and 'scan_result'
+		my $sth;
 		if ($lookup_function eq 'scan') {
 			$sth = $dbh->prepare_cached(qq[
 				SELECT id, has_callback
@@ -191,6 +195,7 @@ while (1) {
 				}
 			}
 		}
+		$sth->finish; # Finish handle after completing row processing
 	}
 	else {
 		log_warn("Serial $meter_serial HMAC error on topic $topic", {-no_script_name => 1});
