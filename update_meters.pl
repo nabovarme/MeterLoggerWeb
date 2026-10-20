@@ -42,7 +42,7 @@ while (1) {
 # end of main
 
 sub get_version_and_status {
-	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key`, `version` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated' AND `enabled` = 1]);
+	$sth = $dbh->prepare(qq[SELECT `type`, `serial`, `key`, `sw_version` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated' AND `enabled` = 1]);
 	$sth->execute;
 
 	log_info("send mqtt retain to all meters for version and status");
@@ -144,7 +144,7 @@ sub get_version_and_status {
 }
 
 sub get_wifi_scan_results_and_daily {
-	$sth = $dbh->prepare(qq[SELECT `serial`, `key`, `version` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
+	$sth = $dbh->prepare(qq[SELECT `serial`, `key`, `sw_version` FROM meters WHERE `key` is not NULL AND `type` NOT LIKE 'aggregated']);
 	$sth->execute;
 
 	log_info("send mqtt scan command to all meters");

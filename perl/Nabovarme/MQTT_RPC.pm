@@ -43,7 +43,7 @@ sub call {
 
 	# Check firmware support before queueing the RPC.
 	my $sth = $self->{dbh}->prepare(qq[
-		SELECT `version` FROM meters
+		SELECT `sw_version` FROM meters
 		WHERE serial = ?
 		LIMIT 1
 	]);
