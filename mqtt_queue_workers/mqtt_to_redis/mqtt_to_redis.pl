@@ -55,15 +55,18 @@ $SIG{INT} = sub {
 
 my $mqtt_host = $ENV{MQTT_HOST}
 	or log_die("MQTT_HOST not set");
+
 my $mqtt_port = $ENV{MQTT_PORT}
 	or log_die("MQTT_PORT not set");
+
 my $redis_host = $ENV{REDIS_HOST}
 	or log_die("REDIS_HOST not set");
+
 my $redis_port = $ENV{REDIS_PORT}
 	or log_die("REDIS_PORT not set");
 
 my $redis = Redis->new(
-	server => "$redis_host:$redis_port",
+	server    => "$redis_host:$redis_port",
 	reconnect => 60,
 );
 
@@ -79,11 +82,11 @@ my $mqtt = AnyEvent::MQTT->new(
 
 		log_warn("MQTT Error: $message", {-no_script_name => 1});
 		$cv->send if $fatal;
-	}
+	},
 );
 
 my $guard = $mqtt->subscribe(
-	topic => '#',
+	topic    => '#',
 	callback => \&process_mqtt_message,
 );
 
@@ -99,7 +102,7 @@ sub get_timestamp_ms {
 		$hour,
 		$min,
 		$sec,
-		int($microseconds / 1000),
+		int($microseconds / 1000)
 	);
 }
 
@@ -128,6 +131,10 @@ sub process_mqtt_message {
 	# 3. System Events & Audit Logging (Inserts into `log` / `wifi_scan`)
 	elsif ($topic =~ $event_topic_re) {
 		$redis->rpush('mqtt:queue:events', $payload);
+
+		# Forward scan_result to cmd_ack so worker_cmd_ack clears pending scan commands
+		$redis->rpush('mqtt:queue:cmd_ack', $payload)
+			if $topic =~ m!/scan_result/!;
 	}
 
 	# 4. Command ACKs & Unknown Command Catch-All (Clears `command_queue`)
