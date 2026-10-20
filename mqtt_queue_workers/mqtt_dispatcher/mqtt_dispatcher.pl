@@ -58,14 +58,24 @@ my $m = Crypt::Mode::CBC->new('AES');
 # Cleanup Routine (Runs every 10 seconds)
 # --------------------------------------------------
 Mojo::IOLoop->recurring(10 => sub {
-	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout'])
-		or warn $DBI::errstr;
-	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
-		or warn $DBI::errstr;
+	$dbh->do(qq[
+		DELETE FROM command_queue
+		WHERE `state` = 'timeout'
+	]) or warn $DBI::errstr;
+
+	$dbh->do(qq[
+		DELETE FROM command_queue
+		WHERE `state` = 'received'
+			AND `unix_time` < UNIX_TIMESTAMP() - 120
+	]) or warn $DBI::errstr;
 
 	# Safely cleanup any orphaned responses just in case standard foreign key CASCADE skips
-	$dbh->do(qq[DELETE cr FROM command_responses cr LEFT JOIN command_queue cq ON cr.command_id = cq.id WHERE cq.id IS NULL])
-		or warn $DBI::errstr;
+	$dbh->do(qq[
+		DELETE cr
+		FROM command_responses cr
+		LEFT JOIN command_queue cq ON cr.command_id = cq.id
+		WHERE cq.id IS NULL
+	]) or warn $DBI::errstr;
 
 	# Timeouts are still correctly calculated based on original unix_time
 	$dbh->do(qq[UPDATE command_queue \
@@ -182,7 +192,8 @@ sub process_queue {
 		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
 			# Meter received a command recently -> delay to preserve per-meter processing window
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
-		} else {
+		}
+		else {
 			# Add offset to pace transmissions and avoid socket bursts
 			$delay = $dispatch_offset;
 			$dispatch_offset += COMMAND_OFFSET_INTERVAL;
@@ -215,6 +226,7 @@ sub process_queue {
 
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
+
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
 
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
