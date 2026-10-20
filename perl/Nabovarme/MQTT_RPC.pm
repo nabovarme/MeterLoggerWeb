@@ -9,7 +9,7 @@ use DBI;
 use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
-use Nabovarme::FirmwareSupport;
+use Nabovarme::FirmwareSupport qw(firmware_supports);
 use Nabovarme::Utils;
 
 sub new {
