@@ -21,7 +21,7 @@ my @meter_topics = qw(
 # 2. Triggered Command Responses: State responses that must ALSO clear matching rows in `command_queue` via worker_cmd_ack.pl
 my @cmd_ack_topics = qw(
 	open close status version uptime ssid rssi wifi_status ap_status
-	chip_id flash_id flash_size reset_reason disconnect_count
+	chip_id flash_id flash_size reset_reason disconnect_count scan_result
 );
 
 # 3. System & Audit Events: Asynchronous events inserted into the `log` or `wifi_scan` tables via worker_events.pl
@@ -96,13 +96,10 @@ sub get_timestamp_ms {
 
 	return sprintf(
 		"%04d-%02d-%02d %02d:%02d:%02d.%03d",
-		$year + 1900,
-		$mon + 1,
-		$mday,
-		$hour,
-		$min,
-		$sec,
-		int($microseconds / 1000)
+		$year + 1900, $mon + 1,
+		$mday, $hour,
+		$min, $sec,
+		int($microseconds / 1000),
 	);
 }
 
@@ -114,36 +111,36 @@ sub process_mqtt_message {
 
 	my $payload = freeze({ topic => $topic, message => $message });
 
-	# 1. High-Frequency Measurement Telemetry
+	# 1. High-Frequency Measurement Telemetry (Exits early for maximum broker speed)
 	if ($topic =~ $sample_topic_re) {
 		$redis->rpush('mqtt:queue:telemetry', $payload);
+		return;
 	}
 
-	# 2. State & Meter Attributes (Updates `meters` table)
-	elsif ($topic =~ $meter_topic_re) {
-		$redis->rpush('mqtt:queue:meters', $payload);
+	my $matched_known_route = 0;
 
-		# Forward to cmd_ack if this response was triggered by an RPC command
-		$redis->rpush('mqtt:queue:cmd_ack', $payload)
-			if $topic =~ $cmd_ack_topic_re;
+	# 2. State & Meter Attributes (Updates `meters` table)
+	if ($topic =~ $meter_topic_re) {
+		$redis->rpush('mqtt:queue:meters', $payload);
+		$matched_known_route = 1;
 	}
 
 	# 3. System Events & Audit Logging (Inserts into `log` / `wifi_scan`)
-	elsif ($topic =~ $event_topic_re) {
+	if ($topic =~ $event_topic_re) {
 		$redis->rpush('mqtt:queue:events', $payload);
-
-		# Forward scan_result to cmd_ack so worker_cmd_ack clears pending scan commands
-		$redis->rpush('mqtt:queue:cmd_ack', $payload)
-			if $topic =~ m!/scan_result/!;
+		$matched_known_route = 1;
 	}
 
-	# 4. Command ACKs & Unknown Command Catch-All (Clears `command_queue`)
-	else {
-		# Catch-all handles ping, open_until, set_cron, ota_update, test_ssid_pwd_result,
-		# as well as unknown command NACKs (e.g., error=unknown_command)
+	# 4. Command ACKs & Result Mappings (Clears `command_queue`)
+	if ($topic =~ $cmd_ack_topic_re) {
+		$redis->rpush('mqtt:queue:cmd_ack', $payload);
+		$matched_known_route = 1;
+	}
+
+	# 5. Catch-All for Unmatched or Unknown Commands
+	if (!$matched_known_route) {
 		$redis->rpush('mqtt:queue:cmd_ack', $payload);
 
-		# Route unknown/unrecognized commands to events queue as well for logging
 		if ($topic !~ $known_command_topic_re) {
 			log_warn(
 				"Routing unknown command response to events and cmd_ack: $topic",
