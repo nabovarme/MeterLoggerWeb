@@ -349,7 +349,7 @@ services:
   mqtt_dispatcher:
     build:
       context: '.'
-      dockerfile: ./mqtt_dispatcher/Dockerfile
+      dockerfile: ./mqtt_queue_workers/mqtt_dispatcher/Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-unknown}
     depends_on:
