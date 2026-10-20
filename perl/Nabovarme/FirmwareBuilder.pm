@@ -1,4 +1,3 @@
-
 package Nabovarme::FirmwareBuilder;
 
 use strict;
@@ -65,6 +64,11 @@ sub build_flags_from_sw_version {
 	if (($get_explicit_val->('NO_CRON') // '') eq '1'
 		|| $has_token{'NO_CRON'}) {
 		push @flags, 'NO_CRON=1';
+	}
+
+	if (($get_explicit_val->('DISABLE_LED') // '') eq '1'
+		|| $has_token{'DISABLE_LED'}) {
+		push @flags, 'DISABLE_LED=1';
 	}
 
 	# 3. Actuator configuration.
