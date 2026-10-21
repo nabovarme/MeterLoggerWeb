@@ -1,4 +1,4 @@
-# mqtt_listener
+# mqtt_to_redis
 
 FROM perl-base:1.0
 
@@ -8,7 +8,7 @@ USER root
 
 COPY ./perl /usr/local/lib/perl
 
-COPY ./mqtt_listener/mqtt_listener.pl /usr/local/bin/mqtt_listener.pl
+COPY ./mqtt_queue_workers/worker_meters/worker_meters.pl /usr/local/bin/worker_meters.pl
 
 ENV PERL5LIB=/usr/local/lib/perl
 
@@ -19,4 +19,4 @@ ENV PERL5LIB=/usr/local/lib/perl
 ARG GIT_COMMIT=unknown
 ENV GIT_COMMIT=${GIT_COMMIT}
 
-CMD ["/usr/local/bin/mqtt_listener.pl"]
+CMD ["perl", "/usr/local/bin/worker_meters.pl"]

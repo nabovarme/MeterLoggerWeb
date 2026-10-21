@@ -1,31 +1,32 @@
 # Ensure bash_history file exists before build
 BASH_HISTORY_FILE=./utils/bash_history
 
-# All services
-ALL_SERVICES=perl_modules_builder db mqtt web meter_grapher mqtt_listener mqtt_dispatcher smsd meter_alarm meter_notify meter_cron redis postfix
-OTHER_SERVICES=$(filter-out perl_modules_builder,$(ALL_SERVICES))
+.PHONY: utils
 
 # Default target
 all: build up
 
-# Build target: build and run perl_modules_builder first, then build other services
+# Build target: build perl_base first (relied on by other images), then build all other services
 build: $(BASH_HISTORY_FILE)
-	@echo "Building and starting perl_modules_builder..."
-	docker compose build perl_modules_builder
-	docker compose up -d perl_modules_builder
+	@echo "Building perl_base..."
+	docker compose build perl_base
 	@echo "Building remaining services..."
-	docker compose build $(OTHER_SERVICES)
+	docker compose build
 
-# Start all other services (after build)
+# Start all services
 up:
-	@echo "Starting all other services..."
-	docker compose up -d $(OTHER_SERVICES)
+	@echo "Starting all services..."
+	docker compose up -d
+
+# Enter the running utils container
+utils:
+	docker compose exec utils bash
 
 # Log a specific service
 log:
-	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
-		echo "Usage: make log <service>"; \
-		exit 1; \
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then 
+		echo "Usage: make log <service>"; 
+		exit 1; 
 	fi
 	docker compose logs -f $(filter-out $@,$(MAKECMDGOALS))
 
@@ -36,13 +37,13 @@ down:
 	docker compose down
 
 top:
-	docker stats $(ALL_SERVICES)
+	docker stats
 
 # Enter an interactive firmware build environment for manual compilation and debugging
 build-env:
 	@echo "Starting interactive firmware SDK environment..."
 	@echo "Tip: Run 'cd /meterlogger/MeterLogger && SERIAL=9999999 KEY=d7d1716fb13d5c88bc731366e7f17c94 AP=1 THERMO_NO=0 DEBUG_STACK_TRACE=1 make clean all' inside."
-	docker compose run --rm --entrypoint bash firmware_sdk
+	docker compose run --rm -v firmware_release:/meterlogger/MeterLogger/release --entrypoint bash firmware_sdk
 
 # Automatically create bash_history file if missing
 $(BASH_HISTORY_FILE):
@@ -52,14 +53,13 @@ $(BASH_HISTORY_FILE):
 
 # Redeploy a specific service
 redeploy:
-	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
-		echo "Usage: make redeploy <service>"; \
-		exit 1; \
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then 
+		echo "Usage: make redeploy <service>"; 
+		exit 1; 
 	fi
 	git pull
 	docker compose build $(filter-out $@,$(MAKECMDGOALS))
-	docker compose down $(filter-out $@,$(MAKECMDGOALS))
-	docker compose up -d $(filter-out $@,$(MAKECMDGOALS))
+	docker compose up -d --no-deps $(filter-out $@,$(MAKECMDGOALS))
 
 # Prevent make from treating service names as targets
 %:

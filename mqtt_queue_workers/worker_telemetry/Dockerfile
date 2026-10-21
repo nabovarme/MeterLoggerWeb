@@ -1,0 +1,22 @@
+# worker_telemetry
+
+FROM perl-base:1.0
+
+LABEL maintainer="Kristoffer Ek <stoffer@skulp.net>"
+
+USER root
+
+COPY ./perl /usr/local/lib/perl
+
+COPY ./mqtt_queue_workers/worker_telemetry/worker_telemetry.pl /usr/local/bin/worker_telemetry.pl
+
+ENV PERL5LIB=/usr/local/lib/perl
+
+# =========================================================================
+# Version Tracking Setup
+# Captures your current environment deployment hash safely from .env.version
+# =========================================================================
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+CMD ["perl", "/usr/local/bin/worker_telemetry.pl"]

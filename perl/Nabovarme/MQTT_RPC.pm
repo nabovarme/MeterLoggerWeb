@@ -1,23 +1,27 @@
 package Nabovarme::MQTT_RPC;
 
 use strict;
+use warnings;
+
 use Data::Dumper;
 use Sys::Syslog;
 use DBI;
 use Time::HiRes qw( usleep );
 
 use Nabovarme::Db;
+use Nabovarme::FirmwareSupport qw(firmware_supports parse_firmware_version);
+use Nabovarme::Utils;
 
 sub new {
 	my $type = shift;
 	my $self = {};
-	
+
 	return bless $self, $type;
 }
 
 sub connect {
 	my $self = shift;
-	
+
 	if ($self->{dbh} = Nabovarme::Db->my_connect) {
 		return 1;
 	}
@@ -35,17 +39,34 @@ sub call {
 	my $callback = $args->{callback};
 	my $timeout = $args->{timeout} || 0;
 	my $is_stateful = $args->{stateful} ? 1 : 0;
-	
+	my $continuous = $args->{continuous} ? 1 : 0;
+
+	# Check firmware support before queueing the RPC.
+	my $sth = $self->{dbh}->prepare(qq[
+		SELECT `sw_version` FROM meters
+		WHERE serial = ?
+		LIMIT 1
+	]);
+	$sth->execute($serial);
+
+	my ($sw_version) = $sth->fetchrow_array;
+	my $version = parse_firmware_version($sw_version);
+
+	if (defined $version && !firmware_supports($version, $mqtt_function)) {
+		log_debug("Skipping unsupported RPC '$mqtt_function' for meter $serial (firmware version $version)");
+		return 1;
+	}
+
 	my $quoted_serial = $self->{dbh}->quote($serial);
 	my $quoted_mqtt_function = $self->{dbh}->quote($mqtt_function);
 	my $quoted_message = $self->{dbh}->quote($message);
 	my $quoted_timeout = $self->{dbh}->quote($timeout);
 	my $quoted_stateful = $self->{dbh}->quote($is_stateful);
 	my $has_callback = $callback ? 1 : 0;
-	
+
 	my $d = undef;
 
-	my $sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
+	$sth = $self->{dbh}->prepare(qq[SELECT `id` FROM meters WHERE serial = ] . $quoted_serial . qq[ LIMIT 1]);
 	$sth->execute;
 	if ($sth->rows) {
 		# Deduplicate ONLY if stateless (is_stateful == 0)
@@ -76,29 +97,60 @@ sub call {
 				VALUES ($quoted_serial, $quoted_mqtt_function, $quoted_message, UNIX_TIMESTAMP(NOW()), 'sent', $has_callback, $quoted_timeout, $quoted_stateful)]);
 		}
 	}
-	
+
 	if ($callback) {
-		# wait for reply
-		do {
-			$sth = $self->{dbh}->prepare(qq[SELECT `id`, `serial`, `function`, `param`, `unix_time`, `state` FROM command_queue \
-				WHERE `serial` LIKE $quoted_serial AND `function` LIKE $quoted_mqtt_function AND (`state` = 'received' OR `state` = 'timeout')]);
-			$sth->execute;
+		my $start_time = time();
+
+		while (1) {
+			# Fetch responses iteratively from the dedicated stream table, resolving dropped messages
+			$sth = $self->{dbh}->prepare(qq[
+				SELECT cr.id AS resp_id, cr.param AS cr_param, cr.unix_time AS cr_unix_time, cq.state AS cq_state, cq.id AS command_id
+				FROM command_queue cq
+				LEFT JOIN command_responses cr ON cq.id = cr.command_id
+				WHERE cq.serial = ? AND cq.function = ?
+				AND (cr.id IS NOT NULL OR cq.state = 'timeout')
+				ORDER BY cr.id ASC LIMIT 1
+			]);
+			$sth->execute($serial, $mqtt_function);
+
 			if ($d = $sth->fetchrow_hashref) {
-				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE `id` = $d->{id}]);
-				$callback->({serial => $d->{serial}, function => $d->{function}, param => $d->{param}, unix_time => $d->{unix_time}});
-				if ($d->{state} =~ /^timeout$/i) {
+				if (defined $d->{resp_id}) {
+					# Pop the processed message off the queue immediately
+					$self->{dbh}->do(qq[DELETE FROM command_responses WHERE id = ?], undef, $d->{resp_id});
+
+					my $ret = 1;
+					if ($continuous) {
+						$ret = $callback->({serial => $serial, function => $mqtt_function, param => $d->{cr_param}, unix_time => $d->{cr_unix_time}});
+					} else {
+						$callback->({serial => $serial, function => $mqtt_function, param => $d->{cr_param}, unix_time => $d->{cr_unix_time}});
+						$ret = 0;
+					}
+
+					if (!$continuous || (defined $ret && $ret == 0)) {
+						$self->{dbh}->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{command_id});
+						return 1;
+					}
+
+					# Immediately cycle to process the next response if there's a backlog (no sleep needed)
+					next;
+				}
+				elsif ($d->{cq_state} =~ /^timeout$/i) {
+					$self->{dbh}->do(qq[DELETE FROM command_queue WHERE id = ?], undef, $d->{command_id});
 					return 0;
 				}
-				else {
-					return 1;
-				}
 			}
-			sleep 1;
-		} while (!$d)
+
+			usleep(100_000); # 100ms ultra-fast poll for highly responsive continuous streams
+
+			# Local hard timeout for continuous mode to prevent infinite hangs
+			if ($continuous && $timeout > 0 && (time() - $start_time > $timeout)) {
+				$self->{dbh}->do(qq[DELETE FROM command_queue WHERE serial = ? AND function = ?], undef, $serial, $mqtt_function);
+				return 0;
+			}
+		}
 	}
+
 	return 1;
 }
 
 1;
-
-__END__

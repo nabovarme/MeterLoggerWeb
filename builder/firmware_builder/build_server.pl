@@ -5,14 +5,15 @@ use warnings;
 
 use JSON;
 use Redis;
-use Digest::MD5 qw(md5_hex);
+use Digest::MD5 qw( md5_hex );
 
-use File::Path qw(make_path rmtree);
-use File::Copy qw(move);
+use File::Path qw( make_path rmtree );
+use File::Copy qw( move);
 use IO::Handle;
 
 use lib qw( /usr/local/share/perl );
 use Nabovarme::Db;
+use Nabovarme::FirmwareBuilder qw( build_flags_from_sw_version );
 
 use constant DOCKER_IMAGE      => 'firmware_sdk:latest';
 use constant SOURCE_DIR        => '/meterlogger/MeterLogger';
@@ -256,112 +257,6 @@ sub get_git_version_from_docker {
 	return "$branch-$count-$desc";
 }
 
-# Translate incoming aggregated user semantic version string into actual compiler instructions flags matching Makefile specs
-sub build_flags_from_sw_version {
-	my ($sw_version) = @_;
-	return 'AP=1' unless defined $sw_version;
-
-	# Extract out the bracketed segment metadata if present
-	my $flags_segment = $sw_version;
-	if ($sw_version =~ /\[(.*?)\]/) {
-		$flags_segment = $1;
-	}
-
-	# Split on spaces OR hyphens
-	my @tokens = split(/[\s\-]+/, $flags_segment);
-	my @flags = ('AP=1');
-
-	# Create a hash of all bare tokens for bulletproof O(1) lookups
-	my %has_token = map { $_ => 1 } @tokens;
-
-	# Helper for explicit "FLAG=1" overrides
-	my $get_explicit_val = sub {
-		my ($key) = @_;
-		my ($match) = grep { /^$key=/ } @tokens;
-		return $match ? (split(/=/, $match, 2))[1] : undef;
-	};
-
-	# ---------------------------------------------------------
-	# 1. Core Hardware Protocol Auto-Selectors (From version.h)
-	# ---------------------------------------------------------
-	if (($get_explicit_val->('MC_66B') // '') eq '1' || $has_token{'MC_66B'} || $has_token{'MC_B'} || ($has_token{'MC'} && $has_token{'B'})) {
-		# Handles: MC_66B=1, MC_B, and MC-B
-		push @flags, 'MC_66B=1';
-	}
-	elsif (($get_explicit_val->('EN61107') // '') eq '1' || $has_token{'EN61107'} || $has_token{'MC'}) {
-		# Handles: EN61107=1 and MC
-		push @flags, 'EN61107=1';
-	}
-	elsif (($get_explicit_val->('IMPULSE') // '') eq '1' || $has_token{'IMPULSE'}) {
-		# Handles: IMPULSE
-		push @flags, 'IMPULSE=1';
-	}
-	# Note: Default fallback (KMP) requires no extra flags
-
-	# ---------------------------------------------------------
-	# 2. Logic Overrides & Modifiers
-	# ---------------------------------------------------------
-	if (($get_explicit_val->('FLOW') // '') eq '1' || $has_token{'FLOW'} || $has_token{'FLOW_METER'}) {
-		push @flags, 'FLOW_METER=1';
-	}
-
-	# Note: version.h outputs "-NO_AUTO_CLOSE", which maps to AUTO_CLOSE=0
-	my $auto_close_val = $get_explicit_val->('AUTO_CLOSE');
-	if ($has_token{'NO_AUTO_CLOSE'} || (defined $auto_close_val && $auto_close_val eq '0')) {
-		push @flags, 'AUTO_CLOSE=0';
-	}
-
-	if (($get_explicit_val->('NO_CRON') // '') eq '1' || $has_token{'NO_CRON'}) {
-		push @flags, 'NO_CRON=1';
-	}
-
-	# ---------------------------------------------------------
-	# 3. Actuator Configuration States
-	# ---------------------------------------------------------
-	my $thermo_no = $get_explicit_val->('THERMO_NO');
-	if ($has_token{'THERMO_NO'} || (defined $thermo_no && $thermo_no eq '1')) {
-		push @flags, 'THERMO_NO=1';
-	}
-	elsif ($has_token{'THERMO_NC'} || (defined $thermo_no && $thermo_no eq '0')) {
-		push @flags, 'THERMO_NO=0';
-	}
-
-	if (($get_explicit_val->('THERMO_ON_AC_2') // '') eq '1' || $has_token{'THERMO_ON_AC_2'}) {
-		push @flags, 'THERMO_ON_AC_2=1';
-	}
-
-	if (($get_explicit_val->('LED_ON_AC') // '') eq '1' || $has_token{'LED_ON_AC'}) {
-		push @flags, 'LED_ON_AC=1';
-	}
-
-	if (($get_explicit_val->('AC_TEST') // '') eq '1' || $has_token{'AC_TEST'}) {
-		push @flags, 'AC_TEST=1';
-	}
-
-	# ---------------------------------------------------------
-	# 4. Diagnostics & Trace Variables
-	# ---------------------------------------------------------
-	my $wants_debug = $has_token{'DEBUG'} || ($get_explicit_val->('DEBUG') // '') eq '1';
-	# version.h outputs NO_METER, Makefile expects DEBUG_NO_METER
-	my $wants_debug_no_meter = $has_token{'DEBUG_NO_METER'} || $has_token{'NO_METER'};
-
-	if ($wants_debug_no_meter) {
-		push @flags, 'DEBUG=1', 'DEBUG_NO_METER=1';
-	}
-	elsif ($wants_debug) {
-		push @flags, 'DEBUG=1';
-	}
-
-	if (($get_explicit_val->('DEBUG_STACK_TRACE') // '') eq '1' || $has_token{'DEBUG_STACK_TRACE'}) {
-		push @flags, 'DEBUG_STACK_TRACE=1';
-	}
-
-	if (($get_explicit_val->('DEBUG_SHORT_WEB_CONFIG_TIME') // '') eq '1' || $has_token{'DEBUG_SHORT_WEB_CONFIG_TIME'}) {
-		push @flags, 'DEBUG_SHORT_WEB_CONFIG_TIME=1';
-	}
-
-	return join(' ', @flags);
-}
 
 sub print_progress {
 	my ($batch_id, $serial) = @_;
@@ -569,16 +464,26 @@ sub run_docker_build {
 			return;
 		}
 
-		my $docker_cmd = join(" ",
+		my @docker_args = (
 			"docker run --rm",
 			"--name firmware_sdk_$serial",
 			"-e SERIAL=$serial",
 			"-e KEY=$key",
-			"-e BUILD_FLAGS=\"$build_flags\"",
+			"-e BUILD_FLAGS=\"$build_flags\""
+		);
+
+		# Unpack build flags so Make can read them natively as separate environment variables
+		foreach my $flag (split(/[\s]+/, $build_flags)) {
+			push @docker_args, "-e $flag" if $flag;
+		}
+
+		push @docker_args, (
 			"-v firmware_release:" . RELEASE_DIR,
 			DOCKER_IMAGE,
 			"2>&1"
 		);
+
+		my $docker_cmd = join(" ", @docker_args);
 
 		print "[$serial] Running: $docker_cmd\n";
 
@@ -647,6 +552,57 @@ sub run_docker_build {
 	};
 }
 
+sub update_latest_symlink {
+	my ($serial_dir) = @_;
+
+	return unless -d $serial_dir;
+
+	opendir(my $dh, $serial_dir) or return;
+
+	my $highest_build_num = -1;
+	my $newest_mtime = 0;
+	my $target_dir;
+	my $mtime_fallback_dir;
+
+	while (my $entry = readdir($dh)) {
+		next if $entry =~ /^\./;
+		next if $entry eq 'latest';
+
+		my $full_path = "$serial_dir/$entry";
+		next unless -d $full_path;
+
+		# Check for essential compiled binaries instead of manifest.json
+		next unless (-f "$full_path/user1.bin" || -f "$full_path/rboot.bin");
+
+		# Track mtime fallback in case no build numbers can be extracted
+		my $mtime = (stat($full_path))[9] || 0;
+		if ($mtime > $newest_mtime) {
+			$newest_mtime = $mtime;
+			$mtime_fallback_dir = $entry;
+		}
+
+		# Parse git revision count (e.g., extracts 1600 from 'ota-1600-7df53-4435ea')
+		if ($entry =~ /(?:^|-)(\d+)-[a-f0-9]{4,}/i) {
+			my $build_num = int($1);
+			if ($build_num > $highest_build_num) {
+				$highest_build_num = $build_num;
+				$target_dir = $entry;
+			}
+		}
+	}
+	closedir($dh);
+
+	# Use the highest git build number directory, falling back to mtime if unmatched
+	my $selected_dir = $target_dir || $mtime_fallback_dir;
+
+	if ($selected_dir) {
+		my $latest_link = "$serial_dir/latest";
+		unlink $latest_link if -l $latest_link || -e $latest_link;
+		symlink($selected_dir, $latest_link)
+			or warn "Could not update symlink to $selected_dir: $!";
+	}
+}
+
 sub prepare_release_structure {
 	my ($serial, $fs_version) = @_;
 
@@ -659,11 +615,18 @@ sub prepare_release_structure {
 	my $isolated_src_dir = "$base_dir/$serial";
 
 	my @components = (
-		{ src => "$isolated_src_dir/0x00000.bin", dst => "$version_dir/0x00000.bin" },
-		{ src => "$isolated_src_dir/0x10000.bin", dst => "$version_dir/0x10000.bin" },
+		{ src => "$isolated_src_dir/rboot.bin", dst => "$version_dir/rboot.bin" },
+		{ src => "$isolated_src_dir/user1.bin", dst => "$version_dir/user1.bin" },
+		{ src => "$isolated_src_dir/user2.bin", dst => "$version_dir/user2.bin" },
+		{ src => "$isolated_src_dir/user1.ota.bin", dst => "$version_dir/user1.ota.bin" },
+		{ src => "$isolated_src_dir/user2.ota.bin", dst => "$version_dir/user2.ota.bin" },
 		{ src => "$isolated_src_dir/webpages.espfs", dst => "$version_dir/webpages.espfs" },
 		{ src => "$isolated_src_dir/esp_init_data_default_112th_byte_0x03.bin", dst => "$version_dir/esp_init_data_default_112th_byte_0x03.bin" },
-		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" }
+		{ src => "$isolated_src_dir/blank.bin", dst => "$version_dir/blank.bin" },
+		{ src => "$isolated_src_dir/user1.bin.sha256", dst => "$version_dir/user1.bin.sha256" },
+		{ src => "$isolated_src_dir/user2.bin.sha256", dst => "$version_dir/user2.bin.sha256" },
+		{ src => "$isolated_src_dir/user1.ota.bin.sha256", dst => "$version_dir/user1.ota.bin.sha256" },
+		{ src => "$isolated_src_dir/user2.ota.bin.sha256", dst => "$version_dir/user2.ota.bin.sha256" }
 	);
 
 	foreach my $cmp (@components) {
@@ -679,11 +642,8 @@ sub prepare_release_structure {
 
 	rmdir($isolated_src_dir);
 
-	my $latest_link = "$serial_dir/latest";
-	unlink $latest_link if -l $latest_link || -e $latest_link;
-
-	symlink($fs_version, $latest_link)
-		or warn "Could not create symlink tracking pointer link: $!";
+	# Atomically recalculate and point 'latest' to the newest valid release folder
+	update_latest_symlink($serial_dir);
 }
 
 sub generate_manifest {
@@ -691,24 +651,31 @@ sub generate_manifest {
 
 	my $dir = RELEASE_DIR . "/$serial/$fs_version";
 
+	# Updated to reflect the new ESP Web Tools flash map for the initial device provision
+	# Note: user2.bin is excluded here because Slot 1 is left blank until the first Wi-Fi OTA
+	# blank.bin is flashed to 0x01000 to erase the rBoot config sector and force a Slot 0 boot
 	my $manifest = {
-		name => "$info $serial ($sw_version) [Multi-Segment]",
+		name => "$info $serial ($sw_version) [rBoot OTA]",
 		version => $sw_version || 'unknown',
 		builds => [
 			{
 				chipFamily => "ESP8266",
 				parts => [
 					{
-						path => "0x00000.bin",
+						path => "rboot.bin",
 						offset => 0x00000
 					},
 					{
-						path => "0x10000.bin",
-						offset => 0x10000
+						path => "blank.bin",
+						offset => 0x01000
+					},
+					{
+						path => "user1.bin",
+						offset => 0x02000
 					},
 					{
 						path => "webpages.espfs",
-						offset => 0x60000
+						offset => 0x7C000
 					},
 					{
 						path => "esp_init_data_default_112th_byte_0x03.bin",

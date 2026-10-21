@@ -1,4 +1,3 @@
-
 # MeterLoggerWeb
 
 **MeterLoggerWeb** is the backend monitoring and alarm system for MeterLogger devices. It processes meter data, evaluates user-defined alarm conditions, and sends SMS notifications based on various metrics and conditions.
@@ -36,6 +35,113 @@ The application is split into highly isolated micro-services orchestrated by Doc
 * **`firmware_sdk`**: Minimal build context containing ESP8266 compilers and system libraries.
 * **`firmware_builder`**: Multithreaded Perl daemon checking out parallel compilations from Redis and wrapping them in virtualized Docker workers.
 * **`smsd`**: Cellular SMS gateway routing warning dispatches asynchronously over localized D-Link cellular interfaces.
+
+### MQTT Backend Workers
+
+MQTT messages are received by `mqtt_to_redis.pl` and dispatched to Redis queues for asynchronous processing. Three workers handle the messages according to their purpose: telemetry, device diagnostics, and command responses.
+
+#### `mqtt_to_redis.pl` — MQTT Router
+
+Subscribes to all MQTT topics and routes recognized messages into Redis queues.
+
+- Ignores messages under `/config/`.
+- Routes `/sample/vN/` messages to `mqtt:queue:telemetry`.
+- Routes command acknowledgements and selected command responses to `mqtt:queue:cmd_ack`.
+- Routes device status and diagnostic messages to `mqtt:queue:syslog`.
+- Sends certain status and diagnostic messages to both the syslog and command acknowledgement queues.
+- Logs and drops topics that do not match a recognized routing rule.
+
+Each queued message contains the MQTT topic and payload, serialized using Perl's `Storable::freeze`.
+
+#### `worker_telemetry.pl` — Meter Telemetry
+
+Consumes messages from `mqtt:queue:telemetry`.
+
+**Topic pattern:**
+- `/sample/vN/`
+
+These messages contain meter sample data, including measurements such as energy, volume, temperatures, flow, and other telemetry fields.
+
+#### `worker_syslog.pl` — Device Status and Diagnostics
+
+Consumes messages from `mqtt:queue:syslog`.
+
+**Topic prefixes:**
+- `/version/`
+- `/status/`
+- `/uptime/`
+- `/vdd/`
+- `/rssi/`
+- `/ssid/`
+- `/wifi_status/`
+- `/ap_status/`
+- `/set_ap_mesh_pwd/`
+- `/chip_id/`
+- `/flash_id/`
+- `/flash_size/`
+- `/reset_reason/`
+- `/network_quality/`
+- `/offline/`
+- `/flash_error/`
+- `/cnx_csa_fn_called/`
+- `/mem/`
+
+These messages provide information about firmware, device state, power, memory, Wi-Fi connectivity, network quality, and other operational diagnostics.
+
+#### `worker_cmd_ack.pl` — Command Responses and Acknowledgements
+
+Consumes messages from `mqtt:queue:cmd_ack`.
+
+**Topic prefixes:**
+- `/ping/`
+- `/open/`
+- `/open_until/`
+- `/open_until_delta/`
+- `/close/`
+- `/set_cron/`
+- `/cron/`
+- `/clear_cron/`
+- `/stack_trace_result/`
+- `/read_stack_trace/`
+- `/set_ssid/`
+- `/set_pwd/`
+- `/set_ssid_pwd/`
+- `/test_ssid_pwd/`
+- `/test_ssid_pwd_result/`
+- `/start_ap/`
+- `/stop_ap/`
+- `/start_fallback_ap/`
+- `/fallback_status/`
+- `/reconnect/`
+- `/save/`
+- `/restart/`
+- `/set_key/`
+- `/scan_result/`
+- `/ota_update/`
+- `/ota_upgrade/`
+
+The following topics are also sent to **both** `mqtt:queue:syslog` and `mqtt:queue:cmd_ack`:
+
+- `/version/`
+- `/status/`
+- `/uptime/`
+- `/vdd/`
+- `/rssi/`
+- `/ssid/`
+- `/wifi_status/`
+- `/ap_status/`
+- `/set_ap_mesh_pwd/`
+- `/chip_id/`
+- `/flash_id/`
+- `/flash_size/`
+- `/reset_reason/`
+- `/network_quality/`
+- `/offline/`
+- `/flash_error/`
+- `/cnx_csa_fn_called/`
+- `/mem/`
+
+This overlap allows the same device report to be used for operational monitoring and as a response to a command. These lists describe the router's current matching rules; they do not guarantee that every command has a corresponding response.
 
 ---
 
@@ -231,5 +337,3 @@ This condition triggers if the meter has been offline for more than an hour and 
 
 - Use `alarm_state`, `last_notification`, and `snooze` to control notification logic.
 - Logs are printed to STDOUT for debug; check container logs if running via Docker.
-
----

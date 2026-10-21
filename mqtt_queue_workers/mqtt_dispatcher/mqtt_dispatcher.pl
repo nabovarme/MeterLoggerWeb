@@ -14,10 +14,11 @@ use Nabovarme::Db;
 use Nabovarme::Utils;
 
 # --- Constants ---
-use constant DELAY_BETWEEN_RETRANSMIT   => 10;       # Retransmit every 10 seconds
-use constant MIN_METER_COMMAND_INTERVAL => 1.0;      # 1.0s minimum gap between commands to the SAME meter
-use constant DB_POLL_INTERVAL_SEC       => 1.0;      # Poll DB every 1 second
-use constant COMMAND_OFFSET_INTERVAL    => 0.02;     # 20ms offset to pace concurrent dispatches
+use constant DEFAULT_RETRANSMIT_DELAY   => 10;     # Retransmit standard commands every 10s
+use constant SLOW_CMD_RETRANSMIT_DELAY  => 30;     # Retransmit slow tasks (scan, ota_update, test_ssid_pwd) every 30s
+use constant MIN_METER_COMMAND_INTERVAL => 1.0;    # 1.0s minimum gap between commands to the SAME meter
+use constant DB_POLL_INTERVAL_SEC       => 1.0;    # Poll DB every 1 second
+use constant COMMAND_OFFSET_INTERVAL    => 0.02;   # 20ms offset to pace concurrent dispatches
 
 # --- Config from environment ---
 my $mqtt_host = $ENV{'MQTT_HOST'}
@@ -57,10 +58,24 @@ my $m = Crypt::Mode::CBC->new('AES');
 # Cleanup Routine (Runs every 10 seconds)
 # --------------------------------------------------
 Mojo::IOLoop->recurring(10 => sub {
-	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'timeout'])
-		or warn $DBI::errstr;
-	$dbh->do(qq[DELETE FROM command_queue WHERE `state` = 'received' AND `unix_time` < UNIX_TIMESTAMP() - 120])
-		or warn $DBI::errstr;
+	$dbh->do(qq[
+		DELETE FROM command_queue
+		WHERE `state` = 'timeout'
+	]) or warn $DBI::errstr;
+
+	$dbh->do(qq[
+		DELETE FROM command_queue
+		WHERE `state` = 'received'
+			AND `unix_time` < UNIX_TIMESTAMP() - 120
+	]) or warn $DBI::errstr;
+
+	# Safely cleanup any orphaned responses just in case standard foreign key CASCADE skips
+	$dbh->do(qq[
+		DELETE cr
+		FROM command_responses cr
+		LEFT JOIN command_queue cq ON cr.command_id = cq.id
+		WHERE cq.id IS NULL
+	]) or warn $DBI::errstr;
 
 	# Timeouts are still correctly calculated based on original unix_time
 	$dbh->do(qq[UPDATE command_queue \
@@ -96,10 +111,10 @@ Mojo::IOLoop->recurring(10 => sub {
 		JOIN command_queue c2 \
 			ON c1.serial = c2.serial AND c1.function = c2.function \
 		WHERE c1.state = 'sent' \
-		AND c2.state = 'sent' \
-		AND c1.id < c2.id \
-		AND c1.function NOT IN ('set_cron', 'clear_cron') \
-	]) or warn$DBI::errstr;
+			AND c2.state = 'sent' \
+			AND c1.id < c2.id \
+			AND c1.function NOT IN ('set_cron', 'clear_cron') \
+	]) or warn $DBI::errstr;
 });
 
 # --------------------------------------------------
@@ -113,11 +128,11 @@ sub process_queue {
 			command_queue.`function`, \
 			command_queue.`param`, \
 			command_queue.`is_stateful`, \
+			command_queue.`last_sent`, \
 			meters.`key` \
 		FROM command_queue, meters \
 		WHERE command_queue.`serial` = meters.`serial` \
 		AND `state` = 'sent' \
-		AND (command_queue.`last_sent` = 0 OR command_queue.`last_sent` + ] . DELAY_BETWEEN_RETRANSMIT . qq[ <= UNIX_TIMESTAMP()) \
 		ORDER BY command_queue.`has_callback` DESC, IF(command_queue.`sent_count` = 0, 0, 1) ASC, command_queue.`unix_time` ASC \
 	]);
 	$sth->execute or warn $DBI::errstr;
@@ -129,7 +144,7 @@ sub process_queue {
 			    `last_sent` = UNIX_TIMESTAMP() \
 			WHERE `id` = ? \
 	]);
-	
+
 	my $sth_update_stateless = $dbh->prepare_cached(qq[
 		UPDATE command_queue \
 			SET `sent_count` = `sent_count` + 1, \
@@ -148,9 +163,19 @@ sub process_queue {
 		my $serial           = $d->{serial};
 		my $current_function = $d->{function};
 		my $is_stateful      = $d->{is_stateful};
+		my $last_cmd_sent    = $d->{last_sent} // 0;
 
 		# Skip if this command ID is already queued in an active timer
 		next if $in_flight{$cmd_id};
+
+		# Dynamic retransmission window: allow 30s for slow tasks like scan, ota_update, test_ssid_pwd
+		my $retransmit_window = ($current_function =~ /^(?:scan|ota_update|test_ssid_pwd)$/i)
+			? SLOW_CMD_RETRANSMIT_DELAY
+			: DEFAULT_RETRANSMIT_DELAY;
+
+		if ($last_cmd_sent > 0 && ($now - $last_cmd_sent < $retransmit_window)) {
+			next;
+		}
 
 		# Deduplicate stateless commands within the same pass
 		if (!$is_stateful) {
@@ -163,18 +188,19 @@ sub process_queue {
 		my $last_sent = $meter_last_sent_time{$serial} // 0;
 		my $time_since_last_sent = $now - $last_sent;
 		my $delay = 0;
-		
+
 		if ($time_since_last_sent < MIN_METER_COMMAND_INTERVAL) {
 			# Meter received a command recently -> delay to preserve per-meter processing window
 			$delay = MIN_METER_COMMAND_INTERVAL - $time_since_last_sent;
-		} else {
+		}
+		else {
 			# Add offset to pace transmissions and avoid socket bursts
 			$delay = $dispatch_offset;
 			$dispatch_offset += COMMAND_OFFSET_INTERVAL;
 		}
 
 		# Mark projected send time and in-flight status IMMEDIATELY
-		$meter_last_sent_time{$serial} = $now +$delay;
+		$meter_last_sent_time{$serial} = $now + $delay;
 		$in_flight{$cmd_id} = 1;
 
 		# Execute the pre-compiled statements (Uses a fraction of the CPU)
@@ -193,15 +219,16 @@ sub process_queue {
 			my $hmac_sha256_key = substr($sha256, 16, 16);
 
 			log_debug("send mqtt function " . $current_function . " to " . $serial, {-no_script_name => 1});
-			
+
 			my $topic = '/config/v2/' . $serial . '/' . int(time()) . '/' . $current_function;
 			my $message = $d->{param} . "\0";
 			my $iv = join('', map(chr(int rand(256)), 1..16));
-			
+
 			$message = $m->encrypt($message, $aes_key, $iv);
 			$message = $iv . $message;
+
 			my $hmac_sha256_hash = hmac_sha256($topic . $message, $hmac_sha256_key);
-			
+
 			$publish_mqtt->publish($topic => $hmac_sha256_hash . $message);
 
 			# Release in-flight flag after transmission finishes
@@ -213,7 +240,7 @@ sub process_queue {
 # --------------------------------------------------
 # Main Event Loop
 # --------------------------------------------------
-Mojo::IOLoop->recurring(DB_POLL_INTERVAL_SEC => \&process_queue);
+Mojo::IOLoop->recurring(DB_POLL_INTERVAL_SEC() => \&process_queue);
 Mojo::IOLoop->start;
 
 1;

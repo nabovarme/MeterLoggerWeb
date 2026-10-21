@@ -37,9 +37,9 @@ sub handler {
 	my $dbh = Nabovarme::Db->my_connect
 		or return Apache2::Const::HTTP_SERVICE_UNAVAILABLE;
 
-	$r->content_type("application/json; charset=utf-8");
-	$r->headers_out->set('Cache-Control' => 'max-age=60, public');
-	$r->headers_out->set('Expires' => HTTP::Date::time2str(time + 60));
+	# Disable caching for real-time Wi-Fi scan results
+	$r->headers_out->set('Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0');
+	$r->headers_out->set('Pragma' => 'no-cache');
 	$r->err_headers_out->add("Access-Control-Allow-Origin" => '*');
 
 	my $week_ago = time - 7*24*60*60;
@@ -130,15 +130,18 @@ sub handler {
 	my @result;
 	for my $ssid (keys %aps_by_ssid) {
 
+		# Filter out unwanted network SSIDs from Wi-Fi scan results
+		next if $ssid =~ /^(?:KAM_|stofferFon)/i;
+
 		my $entries = $aps_by_ssid{$ssid};
 		next unless $entries && @$entries;
-
-		# Skip the SSID the serial is currently connected to
-		next if defined $current_connected_ssid && $ssid eq $current_connected_ssid;
 
 		# Base record taken from the most recent scan entry for metadata (channel, ciphers, etc.)
 		my ($latest_entry) = sort { $b->{unix_time} <=> $a->{unix_time} } @$entries;
 		my $base_entry = { %$latest_entry };
+
+		# Flag the currently connected network for the UI
+		$base_entry->{connected} = (defined $current_connected_ssid && $ssid eq $current_connected_ssid) ? 1 : 0;
 
 		if ($ssid =~ /^mesh-/) {
 
@@ -148,6 +151,14 @@ sub handler {
 			if (my $info = $mesh_chain_info{$ssid}) {
 				$base_entry->{rssi} = $info->{min_rssi};
 				$base_entry->{hop}  = $info->{hop};
+				
+				my ($mesh_serial) = $ssid =~ /^mesh-(.*)$/;
+				my ($meter_info)  = $dbh->selectrow_array("SELECT info FROM meters WHERE serial = ?", undef, $mesh_serial);
+				
+				if (defined $meter_info && $meter_info ne '') {
+					$base_entry->{info} = $meter_info;
+				}
+
 				push @result, $base_entry;
 			}
 
