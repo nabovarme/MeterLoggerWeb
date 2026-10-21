@@ -222,9 +222,9 @@ sub _wait_for_meter {
 
 	# Allow time for flashing, rebooting, and reconnecting to Wi-Fi/MQTT.
 	$self->_log(
-		"\nWaiting 25 seconds for meter $serial to reboot and re-establish connection...\n"
+		"\nWaiting 15 seconds for meter $serial to reboot and re-establish connection...\n"
 	);
-	sleep 25;
+	sleep 15;
 
 	$self->_log(
 		"Polling meter $serial for online status "
