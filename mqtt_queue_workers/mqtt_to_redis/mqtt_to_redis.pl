@@ -26,7 +26,7 @@ my @cmd_ack_topics = qw(
 
 # 3. System & Audit Events: Asynchronous events inserted into the `log` or `wifi_scan` tables via worker_events.pl
 my @event_topics = qw(
-	offline flash_error cnx_csa_fn_called vdd mem scan_result
+	offline flash_error scan_result debug_serial cnx_csa_fn_called vdd mem
 );
 
 # 4. Standard RPC Commands: Known command endpoints used by the catch-all router to suppress "Unknown command" warnings
