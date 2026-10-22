@@ -36,6 +36,7 @@ my %STATUS_FIELDS = (
 	'version'         => 'sw_version',
 	'status'          => 'valve_status',
 	'uptime'          => 'uptime',
+	'reset_reason'    => 'reset_reason',
 	'ssid'            => 'ssid',
 	'rssi'            => 'rssi',
 	'wifi_status'     => 'wifi_status',
