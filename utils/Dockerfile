@@ -22,10 +22,17 @@ RUN groupadd -g 1000 meterlogger && \
 RUN echo "meterlogger ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/meterlogger && \
 	chmod 0440 /etc/sudoers.d/meterlogger
 
+# Copy the toolchain and the firmware source code from the SDK image[cite: 1]
+COPY --chown=meterlogger:meterlogger --from=firmware_sdk:latest /meterlogger /meterlogger
+
+# Set up the environment variables required by the SDK[cite: 1]
+ENV XTENSA_TOOLS_ROOT="/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin"
+ENV SDK_BASE="/meterlogger/esp-open-sdk/sdk"
+
 WORKDIR /home/meterlogger
 
-# Add /home/meterlogger to system PATH
-ENV PATH="/home/meterlogger:${PATH}"
+# Add Xtensa tools and /home/meterlogger to system PATH[cite: 1]
+ENV PATH="/meterlogger/esp-open-sdk/xtensa-lx106-elf/bin:/home/meterlogger:${PATH}"
 
 RUN echo 'shopt -s histappend' >> /home/meterlogger/.bashrc && \
 	echo 'PROMPT_COMMAND="history -a; history -n; $PROMPT_COMMAND"' >> /home/meterlogger/.bashrc && \
@@ -47,6 +54,7 @@ COPY --chown=meterlogger:meterlogger ./utils/push_send.pl push_send.pl
 COPY --chown=meterlogger:meterlogger ./utils/ota_update.pl ota_update.pl
 COPY --chown=meterlogger:meterlogger ./utils/build_firmware.pl build_firmware.pl
 COPY --chown=meterlogger:meterlogger ./utils/meter_simulator.pl meter_simulator.pl
+COPY --chown=meterlogger:meterlogger ./utils/unwind_crash.pl unwind_crash.pl
 
 ENV PERL5LIB=/home/meterlogger/perl
 
@@ -61,7 +69,8 @@ RUN echo 'alias mqtt_log_all="perl /home/meterlogger/mqtt_log_all.pl"' >> /home/
 	echo 'alias push_send="perl /home/meterlogger/push_send.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias ota_update="perl /home/meterlogger/ota_update.pl"' >> /home/meterlogger/.bashrc && \
 	echo 'alias build_firmware="perl /home/meterlogger/build_firmware.pl"' >> /home/meterlogger/.bashrc && \
-	echo 'alias meter_simulator="perl /home/meterlogger/meter_simulator.pl"' >> /home/meterlogger/.bashrc
+	echo 'alias meter_simulator="perl /home/meterlogger/meter_simulator.pl"' >> /home/meterlogger/.bashrc && \
+	echo 'alias unwind_crash="perl /home/meterlogger/unwind_crash.pl"' >> /home/meterlogger/.bashrc
 
 # =========================================================================
 # Version Tracking Setup

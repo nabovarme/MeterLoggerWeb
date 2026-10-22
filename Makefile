@@ -39,12 +39,6 @@ down:
 top:
 	docker stats
 
-# Enter an interactive firmware build environment for manual compilation and debugging
-build-env:
-	@echo "Starting interactive firmware SDK environment..."
-	@echo "Tip: Run 'cd /meterlogger/MeterLogger && SERIAL=9999999 KEY=d7d1716fb13d5c88bc731366e7f17c94 AP=1 THERMO_NO=0 DEBUG_STACK_TRACE=1 make clean all' inside."
-	docker compose run --rm -v firmware_release:/meterlogger/MeterLogger/release --entrypoint bash firmware_sdk
-
 # Automatically create bash_history file if missing
 $(BASH_HISTORY_FILE):
 	@mkdir -p ./utils
