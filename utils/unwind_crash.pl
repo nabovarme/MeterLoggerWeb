@@ -365,5 +365,5 @@ sub get_cause_desc {
 }
 
 sub print_usage {
-	print "Usage: perl unwind_crash.pl -e <MeterLogger.elf> -h \"<hex_payload_data>\"\n";
+	print "Usage: perl unwind_crash.pl -e firmware/<serial>/<version>/app_slot[0|1].out -h \"<hex_payload_data>\"\n";
 }
