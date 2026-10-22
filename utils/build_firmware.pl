@@ -105,6 +105,9 @@ for my $flag (split /\s+/, $build_flags) {
 push @docker_args, (
 	'-v', 'firmware_release:/meterlogger/MeterLogger/release',
 	DOCKER_IMAGE,
+	# Override CMD to run the standard entrypoint, THEN manually copy the .out files
+	'/bin/bash', '-c', 
+	"/docker-entrypoint.sh && cp build_ota/app_slot0.out release/$serial/ && cp build_ota/app_slot1.out release/$serial/"
 );
 
 print "Firmware build parameters for meter $serial ($info)\n";
@@ -132,6 +135,8 @@ my $ok = eval {
 	run_command(@docker_args);
 
 	my @artifacts = qw(
+		app_slot0.out
+		app_slot1.out
 		rboot.bin
 		user1.bin
 		user2.bin
