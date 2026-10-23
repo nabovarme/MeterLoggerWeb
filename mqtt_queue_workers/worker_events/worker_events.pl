@@ -113,14 +113,6 @@ while (1) {
 	my $event_name = $LOG_EVENTS{$function} // $function;
 
 	if ($event_name eq 'offline') {
-		my ($last_updated) = $dbh->selectrow_array(
-			qq[SELECT `last_updated` FROM `meters` WHERE `serial` = ?],
-			undef,
-			$meter_serial,
-		);
-
-		next if defined $last_updated && defined $unix_time && $unix_time < $last_updated;
-
 		$dbh->do(
 			qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)],
 			undef,
