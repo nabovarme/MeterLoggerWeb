@@ -1,4 +1,3 @@
-
 package Nabovarme::SetKey;
 
 use strict;
@@ -115,32 +114,61 @@ sub set_key {
 	my $key = $self->_generate_key();
 
 	log_info("Changing key for meter $serial (firmware $version).");
-	log_debug("Generated new key for meter $serial: $key");
 
 	$self->_clear_pending_command($serial, 'set_key');
 
 	log_info("Sending set_key command to meter $serial.");
 
 	my $response = '';
+	my $success;
+	my $rpc_error = '';
 
-	my $success = $rpc->call({
-		serial   => $serial,
-		function => 'set_key',
-		param    => $key,
-		stateful => 1,
-		timeout  => 20,
-		callback => sub {
-			my $res = shift;
-			$response = $res->{param} // '';
-			log_info("Meter $serial response: $response");
-		}
-	});
+	{
+		local $SIG{INT} = sub {
+			die "Interrupted by SIGINT.\n";
+		};
 
-	log_die(
-		"Failed to change key for meter $serial"
-		. (length($response) ? " (response: $response)" : '')
-		. ". Database key was not changed.\n"
-	) if !$success || $response !~ /(?:^|&)status=ok(?:&|$)/;
+		local $SIG{TERM} = sub {
+			die "Interrupted by SIGTERM.\n";
+		};
+
+		$success = eval {
+			$rpc->call({
+				serial   => $serial,
+				function => 'set_key',
+				param    => $key,
+				stateful => 1,
+				timeout  => 20,
+				callback => sub {
+					my $res = shift;
+					$response = $res->{param} // '';
+					log_info("Meter $serial response: $response");
+				}
+			});
+		};
+
+		$rpc_error = $@;
+	}
+
+	if ($rpc_error || !$success || $response !~ /(?:^|&)status=ok(?:&|$)/) {
+		my $cleanup_error = '';
+
+		eval {
+			$self->_clear_pending_command($serial, 'set_key');
+		};
+
+		$cleanup_error = $@;
+
+		log_warn("Failed to clean up pending set_key command for meter $serial: $cleanup_error")
+			if $cleanup_error;
+
+		log_die(
+			"Failed to change key for meter $serial"
+			. ($rpc_error ? " ($rpc_error)" : '')
+			. (length($response) ? " (response: $response)" : '')
+			. ". Database key was not changed.\n"
+		);
+	}
 
 	log_info("Meter $serial acknowledged key change. Updating database.");
 
