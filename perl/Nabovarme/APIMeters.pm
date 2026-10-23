@@ -105,6 +105,9 @@ sub handler {
 					: undef;
 			}
 
+			my $reset_reason = $row->{reset_reason} || '';
+			$reset_reason =~ s/&/ /g if $reset_reason =~ /^reason=4(?:&|$)/;
+
 			push @{ $current_group->{meters} }, {
 				serial						=> $row->{serial} || '',
 				info						=> $row->{info} || '',
@@ -117,7 +120,7 @@ sub handler {
 				wifi_status					=> $row->{wifi_status} || '',
 				ap_status					=> $row->{ap_status} || '',
 				uptime						=> $row->{uptime} || 0,
-				reset_reason				=> $row->{reset_reason} || '',
+				reset_reason				=> $reset_reason,
 				ssid						=> $row->{ssid} || '',
 				location_lat				=> $row->{location_lat} || '',
 				location_long				=> $row->{location_long} || '',
