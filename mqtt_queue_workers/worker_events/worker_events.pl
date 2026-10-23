@@ -112,7 +112,15 @@ while (1) {
 	# Known System Events
 	my $event_name = $LOG_EVENTS{$function} // $function;
 
-	# Insert event entry into `log`
+	# Insert event entry into `log` only if param has changed
+	my ($last_param) = $dbh->selectrow_array(
+		qq[SELECT `param` FROM `log` WHERE `serial` = ? AND `function` = ? ORDER BY `unix_time` DESC LIMIT 1],
+		undef,
+		$meter_serial, $event_name,
+	);
+
+	next if defined $last_param && $last_param eq $cleartext;
+
 	$dbh->do(
 		qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)],
 		undef,
