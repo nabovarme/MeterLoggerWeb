@@ -699,9 +699,9 @@ services:
     stdin_open: true
     restart: unless-stopped
 
-  docker-proxy:
+  docker_proxy:
     image: tecnativa/docker-socket-proxy:latest
-    container_name: docker-proxy
+    container_name: docker_proxy
     hostname: docker-proxy
     restart: unless-stopped
     volumes:
