@@ -112,6 +112,26 @@ while (1) {
 	# Known System Events
 	my $event_name = $LOG_EVENTS{$function} // $function;
 
+	if ($event_name eq 'offline') {
+		my ($last_updated) = $dbh->selectrow_array(
+			qq[SELECT `last_updated` FROM `meters` WHERE `serial` = ?],
+			undef,
+			$meter_serial,
+		);
+
+		next if defined $last_updated && defined $unix_time && $unix_time < $last_updated;
+
+		$dbh->do(
+			qq[INSERT INTO `log` (`serial`, `function`, `param`, `unix_time`) VALUES (?, ?, ?, ?)],
+			undef,
+			$meter_serial, $event_name,
+			$cleartext, $unix_time // time(),
+		);
+
+		log_debug("Logged event '$event_name' for serial $meter_serial", {-no_script_name => 1});
+		next;
+	}
+
 	# Insert event entry into `log` only if param has changed
 	my ($last_param) = $dbh->selectrow_array(
 		qq[SELECT `param` FROM `log` WHERE `serial` = ? AND `function` = ? ORDER BY `unix_time` DESC LIMIT 1],
