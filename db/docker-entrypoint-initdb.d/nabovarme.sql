@@ -305,7 +305,8 @@ CREATE TABLE `log` (
   `function` varchar(256) DEFAULT NULL,
   `param` varchar(256) DEFAULT NULL,
   `unix_time` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `log_serial_function_id_idx` (`serial`,`function`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=64481108 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
