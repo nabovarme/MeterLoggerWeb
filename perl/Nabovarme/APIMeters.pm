@@ -106,8 +106,8 @@ sub handler {
 			}
 
 			my $reset_reason = $row->{reset_reason} || '';
-			$reset_reason =~ s/&/ /g if $reset_reason =~ /^reason=4(?:&|$)/;
-
+			$reset_reason = join(' ', split(/&/, $reset_reason));
+	
 			push @{ $current_group->{meters} }, {
 				serial						=> $row->{serial} || '',
 				info						=> $row->{info} || '',
