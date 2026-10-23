@@ -195,6 +195,7 @@
 		$d->{ssid} .= '';
 		$d->{sw_version} =~ s/[\x00\s]+$//;
 		$d->{sw_version} .= '';
+		$d->{reset_reason} = join ' ', split(/&/, $d->{reset_reason}) if defined $d->{reset_reason};
 		-]
 				var m = L.marker([ [+ $d->{location_lat} +], [+ $d->{location_long} +] ], 
 					{
