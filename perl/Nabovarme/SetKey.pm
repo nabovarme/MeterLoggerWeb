@@ -3,6 +3,7 @@ package Nabovarme::SetKey;
 use strict;
 use warnings;
 
+use Math::Random::Secure qw(irand);
 use Nabovarme::MQTT_RPC;
 use Nabovarme::FirmwareSupport qw(firmware_supports parse_firmware_version);
 use Nabovarme::Utils;
@@ -69,20 +70,7 @@ sub _clear_pending_command {
 sub _generate_key {
 	my $self = shift;
 
-	open(my $fh, '<:raw', '/dev/urandom')
-		or log_die("Cannot open /dev/urandom: $!\n");
-
-	my $random_bytes = '';
-	my $bytes_read = read($fh, $random_bytes, 16);
-	my $close_ok = close($fh);
-
-	log_die("Failed to generate random key.\n")
-		if !defined($bytes_read) || $bytes_read != 16;
-
-	log_die("Cannot close /dev/urandom: $!\n")
-		if !$close_ok;
-
-	return unpack('H*', $random_bytes);
+	return join('', map { sprintf("%02x", irand(256)) } 1..16);
 }
 
 # Change the meter key and update the database after acknowledgment.
