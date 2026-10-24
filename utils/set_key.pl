@@ -3,30 +3,18 @@
 use strict;
 use warnings;
 
-use Getopt::Long qw(GetOptions);
-
 use Nabovarme::SetKey;
 use Nabovarme::Utils;
 
-my $log_file;
+my $log_file = 'meter_key_changes.log';
 
-GetOptions(
-	'l|log-file:o' => \$log_file,
-) or log_die("Usage: $0 [-l[=LOGFILE]] <serial> [serial ...]\n");
-
-if (defined($log_file)) {
-	$log_file = 'meter_key_changes.log' if $log_file eq '';
-} else {
-	undef $log_file;
-}
-
-log_die("Usage: $0 [-l[=LOGFILE]] <serial> [serial ...]\n")
+log_die("Usage: $0 <serial> [serial ...]\n")
 	if !@ARGV;
 
 my @serials = @ARGV;
 
 my %args;
-$args{log_file} = $log_file if defined($log_file);
+$args{log_file} = $log_file;
 
 my $set_key = Nabovarme::SetKey->new(%args);
 
