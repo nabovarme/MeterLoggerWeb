@@ -11,7 +11,7 @@ use Nabovarme::Utils;
 my $log_file;
 
 GetOptions(
-	'l|log-file:s' => \$log_file,
+	'l|log-file:o' => \$log_file,
 ) or log_die("Usage: $0 [-l[=LOGFILE]] <serial> [serial ...]\n");
 
 if (defined($log_file)) {
