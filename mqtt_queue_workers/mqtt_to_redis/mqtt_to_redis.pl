@@ -16,6 +16,7 @@ use Nabovarme::Utils;
 my @meter_topics = qw(
 	version uptime ssid rssi wifi_status ap_status network_quality
 	disconnect_count status open close chip_id flash_id flash_size reset_reason
+	set_ap_mesh_pwd
 );
 
 # 2. Triggered Command Responses: State responses that must ALSO clear matching rows in `command_queue` via worker_cmd_ack.pl
@@ -27,6 +28,7 @@ my @cmd_ack_topics = qw(
 # 3. System & Audit Events: Asynchronous events inserted into the `log` or `wifi_scan` tables via worker_events.pl
 my @event_topics = qw(
 	offline scan_result status version wifi_status ap_status reset_reason
+	fallback_status
 	flash_error debug_serial cnx_csa_fn_called vdd mem
 );
 
