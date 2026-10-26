@@ -23,6 +23,7 @@ my @meter_topics = qw(
 my @cmd_ack_topics = qw(
 	open close status version uptime ssid rssi wifi_status ap_status network_quality
 	chip_id flash_id flash_size reset_reason disconnect_count scan_result
+	set_ap_mesh_pwd
 );
 
 # 3. System & Audit Events: Asynchronous events inserted into the `log` or `wifi_scan` tables via worker_events.pl
