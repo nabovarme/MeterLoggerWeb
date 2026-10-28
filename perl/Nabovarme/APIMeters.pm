@@ -107,6 +107,7 @@ sub handler {
 		WHERE m.type IN ('heat', 'heat_supply', 'heat_sub')
 		ORDER BY mg.`id`, m.info;
 		];
+
 		$sth = $dbh->prepare($sql);
 		$sth->execute();
 

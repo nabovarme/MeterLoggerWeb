@@ -26,7 +26,27 @@ sub handler {
 			SELECT
 				mg.`group` AS meter_group,
 				mg.`id` AS group_id,
-				m.*,
+				m.serial,
+				m.info,
+				m.enabled,
+				m.sw_version,
+				m.valve_status,
+				m.valve_installed,
+				m.last_updated,
+				m.rssi,
+				m.wifi_status,
+				m.ap_status,
+				m.uptime,
+				m.reset_reason,
+				m.ssid,
+				m.location_lat,
+				m.location_long,
+				m.flash_id,
+				m.flash_size,
+				m.ping_response_time,
+				m.ping_average_packet_loss,
+				m.disconnect_count,
+				m.comment,
 				latest_sc.energy,
 				latest_sc.volume,
 				latest_sc.hours,
@@ -48,10 +68,16 @@ sub handler {
 				SELECT sc1.*
 				FROM samples_cache sc1
 				INNER JOIN (
-					SELECT serial, MAX(unix_time) AS max_time
-					FROM samples_cache
-					GROUP BY serial
-				) latest ON sc1.serial = latest.serial AND sc1.unix_time = latest.max_time
+					SELECT sc.serial, MAX(sc.id) AS id
+					FROM samples_cache sc
+					INNER JOIN (
+						SELECT serial, MAX(unix_time) AS max_time
+						FROM samples_cache
+						GROUP BY serial
+					) latest ON sc.serial = latest.serial
+						AND sc.unix_time = latest.max_time
+					GROUP BY sc.serial
+				) latest ON sc1.id = latest.id
 			) latest_sc ON m.serial = latest_sc.serial
 			LEFT JOIN (
 				SELECT serial, SUM(amount / price) AS paid_kwh
