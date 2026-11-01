@@ -63,7 +63,7 @@ sub handler {
 		return Apache2::Const::HTTP_NOT_FOUND;
 	}
 
-	log_warn("OTA firmware download: serial=$serial slot=$slot version=$target_dir file=$bin_name", { -no_script_name => 1, -custom_tag => 'OTA' });
+	log_warn("firmware download: serial=$serial slot=$slot version=$target_dir file=$bin_name", { -no_script_name => 1, -custom_tag => 'OTA' });
 
 	# Internal redirect via mod_perl to stream binary with zero memory overhead
 	$r->internal_redirect("/$relative_path");
