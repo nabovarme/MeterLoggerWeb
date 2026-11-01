@@ -10,7 +10,6 @@ use Apache2::Const -compile => qw(OK HTTP_BAD_REQUEST HTTP_NOT_FOUND HTTP_SERVIC
 use CGI ();
 
 use Nabovarme::Db;
-use Nabovarme::Utils qw(log_info);
 
 sub handler {
 	my $r = shift;
@@ -63,7 +62,7 @@ sub handler {
 		return Apache2::Const::HTTP_NOT_FOUND;
 	}
 
-	log_info("OTA firmware download: serial=$serial slot=$slot version=$target_dir file=$bin_name");
+	warn "OTA firmware download: serial=$serial slot=$slot version=$target_dir file=$bin_name";
 
 	# Internal redirect via mod_perl to stream binary with zero memory overhead
 	$r->internal_redirect("/$relative_path");
