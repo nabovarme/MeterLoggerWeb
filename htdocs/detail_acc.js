@@ -369,6 +369,8 @@ function fetchAndRenderAccountInfo(graph) {
 			updateRemainingKwhInfo();
 			updateLastReadingStats();
 
+			renderPaymentRowsFromAccountData(data.account);
+
 			if (graph && graph.rawData_ && graph.rawData_.length > 0) {
 				const labels = graph.getLabels();
 				const seriesName = labels[1];
@@ -411,16 +413,7 @@ function fetchAndRenderAccountInfo(graph) {
 
 				graph.setAnnotations(markerAnnotations);
 				bindAnnotationEventsAndIds(graph);
-				renderPaymentRowsFromAccountData(data.account);
 				filterPaymentsBySelectedGraphRange(graph);
-			}
-
-			renderPaymentRowsFromAccountData(data.account);
-
-			if (graph) {
-				setTimeout(() => {
-					filterPaymentsBySelectedGraphRange(graph); // ensure filter happens after table DOM exists
-				}, 0);
 			}
 
 			return data;
