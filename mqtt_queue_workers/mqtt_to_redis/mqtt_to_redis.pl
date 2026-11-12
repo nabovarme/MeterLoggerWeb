@@ -29,7 +29,7 @@ my @cmd_ack_topics = qw(
 # 3. System & Audit Events: Asynchronous events inserted into the `log` or `wifi_scan` tables via worker_events.pl
 my @event_topics = qw(
 	offline scan_result status version wifi_status ap_status reset_reason
-	fallback_status
+	fallback_status ssid
 	flash_error debug_serial cnx_csa_fn_called vdd mem
 );
 
