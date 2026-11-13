@@ -198,10 +198,14 @@ sub handler {
 		my $final_password = length($password) ? $password : $mesh_password;
 
 		my $escaped_ssid = $ssid;
-		$escaped_ssid =~ s/&/%26/g;
-		$escaped_ssid =~ s/=/%3d/g;
+		my $escaped_pwd  = $final_password;
+		for ($escaped_ssid, $escaped_pwd) {
+			s/%/%25/g;
+			s/&/%26/g;
+			s/=/%3D/g;
+		}
 
-		my $param = 'ssid=' . $escaped_ssid . '&pwd=' . $final_password;
+		my $param = 'ssid=' . $escaped_ssid . '&pwd=' . $escaped_pwd;
 
 		# Enqueue test command into command_queue (timeout set to 120s to give meter ample time)
 		$dbh->do(qq[

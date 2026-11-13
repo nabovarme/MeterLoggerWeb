@@ -92,13 +92,14 @@ sub handler {
 	# ==========================================
 	elsif ($r->method eq 'POST') {
 		my $content = '';
-		if (my $len = $r->headers_in->{'Content-Length'}) {$r->read($content, $len);
+		if (my $len = $r->headers_in->{'Content-Length'}) {
+			$r->read($content, $len);
 		}
 		
 		my $data = eval { JSON->new->utf8->decode($content) } || {};
 		my $serial = $data->{serial};
 		my $ssid = $data->{ssid};
-		my $password = $data->{password} || '';
+		my $password = defined $data->{password} ? $data->{password} : '';
 
 		if (!$serial || !defined $ssid) {
 			$r->status(Apache2::Const::HTTP_BAD_REQUEST);
@@ -127,16 +128,20 @@ sub handler {
 			}
 		}
 
-		my $final_password = $password || $mesh_password;
+		my $final_password = $password ne '' ? $password : $mesh_password;
 
-		# URL encode '&' and '=' to prevent breaking the firmware parser
-		$ssid =~ s/&/%26/g;
-		$ssid =~ s/=/%3d/g;
+		# URL encode '%', '&', and '=' to prevent breaking the firmware parser
+		for ($ssid, $final_password) {
+			s/%/%25/g;
+			s/&/%26/g;
+			s/=/%3D/g;
+		}
 
-		my $param = 'ssid=' . $ssid . '&' . 'pwd=' . $final_password;
+		my $param = 'ssid=' . $ssid . '&pwd=' . $final_password;
 
 		my $rpc = Nabovarme::MQTT_RPC->new();
-		if ($rpc->connect()) {$rpc->call({
+		if ($rpc->connect()) {
+			$rpc->call({
 				serial   => $serial,
 				function => 'set_ssid_pwd',
 				param    => $param,
