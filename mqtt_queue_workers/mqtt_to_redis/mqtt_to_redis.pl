@@ -40,7 +40,7 @@ my @known_command_topics = qw(
 	set_ssid set_pwd set_ssid_pwd test_ssid_pwd test_ssid_pwd_result
 	set_ap_mesh_pwd start_ap stop_ap start_fallback_ap fallback_status reconnect
 	save restart set_key set_mqtt_host scan ota_update ota_upgrade
-	reset_reason disconnect_count
+	reset_reason disconnect_count optical_log
 );
 
 # Compile MQTT topic patterns
