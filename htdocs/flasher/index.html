@@ -317,6 +317,7 @@
 		let selectedFirmware = null;
 		let transport = null;
 		let activeIndex = 0;
+		let activeRebuildCount = 0;
 
 		function log(msg) {
 			logDiv.textContent += "\n" + msg;
@@ -403,8 +404,8 @@
 			customDropdown.classList.add('hidden');
 		}
 
-		// Dynamic list processor tracking the serial identity boundary mapping for post-compilation auto-select locks
-		function loadFirmwareList(targetDeviceSerial = null) {
+		// Dynamic list processor tracking serial + exact modifier flags for post-compilation auto-select
+		function loadFirmwareList(targetDeviceSerial = null, expectedModifiers = null) {
 			return fetch('firmware/firmwares.json')
 				.then(res => res.json())
 				.then(list => {
@@ -412,23 +413,30 @@
 					searchInput.disabled = false;
 					searchInput.focus();
 
-					// ROBUST AUTO-SELECT ENGINE: Targets serial identity paired with custom tag boundaries to bypass path translation changes
 					if (targetDeviceSerial) {
 						setTimeout(() => {
-							const matchingFw = allFirmwares.find(fw => 
-								fw.serial === targetDeviceSerial && 
+							const customCandidates = allFirmwares.filter(fw =>
+								fw.serial === targetDeviceSerial &&
 								(fw.version.includes('CUSTOM') || fw.version.includes('custom') || fw.name.includes('CUSTOM'))
 							);
+
+							let matchingFw = null;
+							if (expectedModifiers) {
+								matchingFw = customCandidates.find(fw => {
+									const tokens = fw.name.split(/[\s\-()\[\]]+/);
+									const nonBaseFlags = tokens.filter(t => t.includes('=') && t !== 'AP=1');
+									return expectedModifiers.every(mod => tokens.includes(mod)) &&
+										nonBaseFlags.length === expectedModifiers.length;
+								});
+							}
+
+							if (!matchingFw) {
+								matchingFw = customCandidates[0] || allFirmwares.find(fw => fw.serial === targetDeviceSerial);
+							}
+
 							if (matchingFw) {
 								selectFirmwareOption(matchingFw);
-								log(`[UI Target Selected] Successfully locked option select engine back onto serial target: "${targetDeviceSerial}"`);
-							} else {
-								console.warn(`[UI Warning] Robust serial locator fell back; attempting baseline version literal check loop...`);
-								// Final safety catch: if exact serial + CUSTOM match fails, lock onto the absolute first entry matching that serial context
-								const fallbackFw = allFirmwares.find(fw => fw.serial === targetDeviceSerial);
-								if (fallbackFw) {
-									selectFirmwareOption(fallbackFw);
-								}
+								log(`[UI Target Selected] Locked onto: "${matchingFw.name}"`);
 							}
 						}, 50);
 					}
@@ -573,7 +581,7 @@
 		});
 
 		// =========================================================================
-		// REMOTE COMPILER ACTION HANDLER (WITH INLINE FEEDBACK LOOP)
+		// REMOTE COMPILER ACTION HANDLER (NON-BLOCKING MULTI-BUILD QUEUE)
 		// =========================================================================
 		rebuildBtn.addEventListener('click', async () => {
 			if (!selectedFirmware) { 
@@ -616,17 +624,22 @@
 
 			// JOIN WITH DASH: Concatenates separate build flags cleanly using a dash (-)
 			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('-') : 'STANDARD';
-			const originalButtonText = rebuildBtn.textContent;
-			const buildTargetSerial = selectedFirmware.serial; // Capture local scope context before re-instantiation
+			const buildTargetSerial = selectedFirmware.serial;
+			const buildModifiersSnapshot = [...modifiers];
+
+			const updateRebuildButtonLabel = () => {
+				rebuildBtn.textContent = activeRebuildCount > 0
+					? `Rebuild Firmware (${activeRebuildCount} building...)`
+					: 'Rebuild Firmware';
+			};
 
 			try {
-				// Inline UI Locking Feedback Loop
-				rebuildBtn.disabled = true;
-				rebuildBtn.textContent = 'Building Firmware...';
+				activeRebuildCount++;
+				updateRebuildButtonLabel();
 				
 				setLogVisibility(true);
-				logTitleText.textContent = "Log (Compiling)";
-				log(`[Compiler] Dispatching configuration rebuild request payload targeting serial: ${buildTargetSerial}...`);
+				logTitleText.textContent = `Log (${activeRebuildCount} compiling)`;
+				log(`[Compiler] Dispatching rebuild for serial ${buildTargetSerial} [${swVersionSuffix}]...`);
 
 				const targetApiUri = `/api/rebuild?serial=${encodeURIComponent(buildTargetSerial)}&sw_version_modifiers=${encodeURIComponent(swVersionSuffix)}`;
 				
@@ -638,7 +651,7 @@
 				}
 
 				const batchId = outcome.batch_id;
-				log(`[Compiler Success] Remote build job dispatched into worker stack. Batch ID: ${batchId}`);
+				log(`[Compiler Queued] Serial ${buildTargetSerial} dispatched (Batch ID: ${batchId}). You can queue another build now.`);
 
 				// --- BEGIN POLL CHECK INTERVAL LOOP ---
 				const pollInterval = setInterval(async () => {
@@ -652,16 +665,17 @@
 						// If the batch has cleared out of the working queues, compilation has concluded
 						if (!status.is_active) {
 							clearInterval(pollInterval);
-							
-							// Restore original element states immediately
-							rebuildBtn.disabled = false;
-							rebuildBtn.textContent = originalButtonText;
-							
-							logTitleText.textContent = "Log (Build Complete)";
-							log(`[Compiler Finished] Custom firmware image compiled and indexed successfully.`);
-							
-							// Pass target device serial down to the reloader stack for explicit identification lock
-							await loadFirmwareList(buildTargetSerial);
+
+							activeRebuildCount = Math.max(0, activeRebuildCount - 1);
+							updateRebuildButtonLabel();
+
+							logTitleText.textContent = activeRebuildCount > 0
+								? `Log (${activeRebuildCount} compiling)`
+								: 'Log (Build Complete)';
+							log(`[Compiler Finished] Custom firmware ready for serial ${buildTargetSerial} [${swVersionSuffix}].`);
+
+							// Pass target device serial and exact flags to auto-select the newly built profile
+							await loadFirmwareList(buildTargetSerial, buildModifiersSnapshot);
 						}
 					} catch (pollErr) {
 						console.error("Polling resolution error wrapper caught: ", pollErr);
@@ -669,11 +683,10 @@
 				}, 1500); // Check tracking metrics table array bounds every 1.5 seconds
 
 			} catch (err) {
+				activeRebuildCount = Math.max(0, activeRebuildCount - 1);
+				updateRebuildButtonLabel();
 				log(`[Compiler Error Failed] Build creation process failed: ${err.message}`);
 				alert(`Failed to trigger customized compilation stack: ${err.message}`);
-				
-				rebuildBtn.disabled = false;
-				rebuildBtn.textContent = originalButtonText;
 			}
 		});
 

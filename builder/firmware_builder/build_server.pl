@@ -34,17 +34,17 @@ STDOUT->autoflush(1);
 STDERR->autoflush(1);
 
 # Graceful shutdown flag
-my $running = 1;
+our $WORKER_RUNNING = 1;
 
 # Handle shutdown signals for main process
 $SIG{TERM} = sub {
 	print "Main process received SIGTERM, shutting down...\n";
-	$running = 0;
+	$WORKER_RUNNING = 0;
 };
 
 $SIG{INT} = sub {
 	print "Main process received SIGINT, shutting down...\n";
-	$running = 0;
+	$WORKER_RUNNING = 0;
 };
 
 # Redis connection (MAIN PROCESS ONLY)
@@ -81,29 +81,28 @@ for (1..$workers) {
 			server => "$redis_host:$redis_port",
 		);
 
-		# Child-local running flag
-		my $running = 1;
+		$WORKER_RUNNING = 1;
 
 		# IMPORTANT: child must handle shutdown signals
 		$SIG{TERM} = sub {
 			print "Worker $$ received TERM\n";
-			$running = 0;
+			$WORKER_RUNNING = 0;
 		};
 
 		$SIG{INT} = sub {
 			print "Worker $$ received INT\n";
-			$running = 0;
+			$WORKER_RUNNING = 0;
 		};
 
 		print "Worker $worker_id started (pid $$)\n";
 
-		while ($running) {
+		while ($WORKER_RUNNING) {
 
 			my $job_json = $redis->blpop($REDIS_QUEUE, 1);
 			next unless $job_json;
 
 			# parent may be shutting down; don't start new work
-			next unless $running;
+			next unless $WORKER_RUNNING;
 
 			my ($queue, $data) = @$job_json;
 
@@ -134,7 +133,7 @@ print "Workers started\n";
 my $last_sync_time = 0;
 
 # Trigger listener and database synchronization loop (parent)
-while ($running) {
+while ($WORKER_RUNNING) {
 
 	# 1. Non-blocking check for manual Redis triggers (1 second timeout)
 	my $data = $redis->blpop($REDIS_TRIGGER, 1);
@@ -191,7 +190,7 @@ while ($running) {
 		}
 	}
 
-	last unless $running;
+	last unless $WORKER_RUNNING;
 	sleep 1 if !$current_batch;
 }
 
@@ -404,10 +403,19 @@ sub run_docker_build {
 	my $skip_key  = "$REDIS_JOBS_SKIP:$batch_id";
 	my $fail_key  = "$REDIS_JOBS_FAIL:$batch_id";
 
-	my $got_lock = $redis->set($lock_key, 1, 'NX', 'EX', 7200);
+	# Wait for any active build of the same serial to finish staging its outputs
+	my $got_lock = 0;
+	my $waited   = 0;
+	while ($WORKER_RUNNING) {
+		$got_lock = $redis->set($lock_key, $$, 'NX', 'EX', 7200);
+		last if $got_lock;
+		print "[$serial] Waiting for active build on this serial to finish...\n" if $waited == 0;
+		$waited++;
+		sleep 1;
+	}
 
 	if (!$got_lock) {
-		print "[$serial] Skipping (already in progress)\n";
+		print "[$serial] Skipping (worker shutting down while waiting for lock)\n";
 		$redis->incr($skip_key);
 		print_progress($batch_id, $serial);
 		return;
@@ -435,10 +443,11 @@ sub run_docker_build {
 		my $sw_version = $version;
 		
 		# If the job came from the Web API, it contains a stale database version prefix.
-		# We must strip off the stale prefix and inject the true git version.
+		# Strip off the stale prefix, inject the true git version, and derive fresh build flags.
 		if ($sw_version =~ /-CUSTOM/i) {
 			# Replaces "master-1449-dff6d-CUSTOM..." with "master-1465-4e0b-CUSTOM..."
 			$sw_version =~ s/^.*?-CUSTOM/$true_git_version-CUSTOM/i;
+			$build_flags = build_flags_from_sw_version($sw_version);
 		} else {
 			$sw_version = $true_git_version;
 		}
