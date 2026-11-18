@@ -468,15 +468,12 @@ sub run_docker_build {
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 		my $failed_flag   = RELEASE_DIR . "/$serial/$fs_version/build_failed.flag";
 
-		if (-f $firmware_path || -f $failed_flag) {
-			if (-f $firmware_path && $sw_version =~ /-CUSTOM/i) {
-				my $serial_dir = RELEASE_DIR . "/$serial";
-				utime(undef, undef, "$serial_dir/$fs_version");
-				update_latest_symlink($serial_dir, $fs_version);
-				print "[$serial] Skipping build (already exists), updated 'latest' symlink to $fs_version\n";
-			} else {
-				print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
-			}
+		if ($sw_version =~ /-CUSTOM/i) {
+			# Always recompile when explicitly triggered via the Web UI Rebuild button
+			unlink $firmware_path if -f $firmware_path;
+			unlink $failed_flag   if -f $failed_flag;
+		} elsif (-f $firmware_path || -f $failed_flag) {
+			print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
 			$redis->incr($skip_key);
 			return;
 		}
