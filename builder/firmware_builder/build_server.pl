@@ -333,7 +333,7 @@ sub process_build {
 		if (!$force_full_rebuild && !$trigger) {
 			my $firmware_path = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/manifest.json";
 			my $failed_flag   = RELEASE_DIR . "/$row->{serial}/$meter_fs_version/build_failed.flag";
-			if (-f $firmware_path || -f$failed_flag) {
+			if (-f $firmware_path || -f $failed_flag) {
 				next;
 			}
 		}
@@ -364,7 +364,8 @@ sub process_build {
 		return;
 	}
 
-	my $batch_id = time();$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
+	my $batch_id = time();
+	$redis->rpush($REDIS_ACTIVE_BATCHES, $batch_id);
 
 	my $total_key = "$REDIS_JOBS_TOTAL:$batch_id";
 	my $done_key  = "$REDIS_JOBS_DONE:$batch_id";
@@ -458,8 +459,15 @@ sub run_docker_build {
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 		my $failed_flag   = RELEASE_DIR . "/$serial/$fs_version/build_failed.flag";
 
-		if (-f $firmware_path || -f$failed_flag) {
-			print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
+		if (-f $firmware_path || -f $failed_flag) {
+			if (-f $firmware_path && $sw_version =~ /-CUSTOM/i) {
+				my $serial_dir = RELEASE_DIR . "/$serial";
+				utime(undef, undef, "$serial_dir/$fs_version");
+				update_latest_symlink($serial_dir, $fs_version);
+				print "[$serial] Skipping build (already exists), updated 'latest' symlink to $fs_version\n";
+			} else {
+				print "[$serial] Skipping build (already exists or previously failed for this exact version)\n";
+			}
 			$redis->incr($skip_key);
 			return;
 		}
@@ -553,20 +561,22 @@ sub run_docker_build {
 }
 
 sub update_latest_symlink {
-	my ($serial_dir) = @_;
+	my ($serial_dir, $preferred_dir) = @_;
 
 	return unless -d $serial_dir;
 
 	opendir(my $dh, $serial_dir) or return;
 
 	my $highest_build_num = -1;
+	my $highest_mtime = -1;
+	my $target_is_preferred = 0;
 	my $newest_mtime = 0;
 	my $target_dir;
 	my $mtime_fallback_dir;
 
 	while (my $entry = readdir($dh)) {
 		next if $entry =~ /^\./;
-		next if $entry eq 'latest';
+		next if $entry =~ /^latest(?:\.tmp\.\d+)?$/;
 
 		my $full_path = "$serial_dir/$entry";
 		next unless -d $full_path;
@@ -574,9 +584,11 @@ sub update_latest_symlink {
 		# Check for essential compiled binaries instead of manifest.json
 		next unless (-f "$full_path/user1.bin" || -f "$full_path/rboot.bin");
 
+		my $is_preferred = (defined $preferred_dir && $entry eq $preferred_dir) ? 1 : 0;
+
 		# Track mtime fallback in case no build numbers can be extracted
 		my $mtime = (stat($full_path))[9] || 0;
-		if ($mtime > $newest_mtime) {
+		if ($is_preferred || $mtime > $newest_mtime) {
 			$newest_mtime = $mtime;
 			$mtime_fallback_dir = $entry;
 		}
@@ -584,8 +596,12 @@ sub update_latest_symlink {
 		# Parse git revision count (e.g., extracts 1600 from 'ota-1600-7df53-4435ea')
 		if ($entry =~ /(?:^|-)(\d+)-[a-f0-9]{4,}/i) {
 			my $build_num = int($1);
-			if ($build_num > $highest_build_num) {
+			if ($build_num > $highest_build_num
+				|| ($build_num == $highest_build_num && $is_preferred)
+				|| ($build_num == $highest_build_num && !$target_is_preferred && $mtime > $highest_mtime)) {
 				$highest_build_num = $build_num;
+				$highest_mtime = $mtime;
+				$target_is_preferred = $is_preferred;
 				$target_dir = $entry;
 			}
 		}
@@ -597,9 +613,14 @@ sub update_latest_symlink {
 
 	if ($selected_dir) {
 		my $latest_link = "$serial_dir/latest";
-		unlink $latest_link if -l $latest_link || -e $latest_link;
-		symlink($selected_dir, $latest_link)
-			or warn "Could not update symlink to $selected_dir: $!";
+		my $tmp_link    = "$serial_dir/latest.tmp.$$";
+		unlink $tmp_link if -l $tmp_link || -e $tmp_link;
+		if (symlink($selected_dir, $tmp_link)) {
+			rename($tmp_link, $latest_link)
+				or warn "Could not atomically rename $tmp_link to $latest_link: $!";
+		} else {
+			warn "Could not create temporary symlink $tmp_link -> $selected_dir: $!";
+		}
 	}
 }
 
@@ -643,7 +664,7 @@ sub prepare_release_structure {
 	rmdir($isolated_src_dir);
 
 	# Atomically recalculate and point 'latest' to the newest valid release folder
-	update_latest_symlink($serial_dir);
+	update_latest_symlink($serial_dir, $fs_version);
 }
 
 sub generate_manifest {
