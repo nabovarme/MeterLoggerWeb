@@ -69,111 +69,128 @@ sub box3_at {
 	return $cnt > 0 ? ($sum / $cnt) : 0;
 }
 
-# 3. Build cumulative pure-blue blink-energy map across the entire clip
-my @energy = (0) x ($W * $H);
-for my $f ($lag .. $num_frames - 1) {
-	my $cur = $frames_pure_blue[$f];
-	my $prv = $frames_pure_blue[$f - $lag];
-	for my $p (0 .. ($W * $H - 1)) {
-		my $d = abs($cur->[$p] - $prv->[$p]);
-		$energy[$p] += $d * $d if $d > 8;
-	}
-}
+sub find_peak_in_range {
+	my ($f_start, $f_end) = @_;
+	$f_start = $lag if $f_start < $lag;
+	$f_end = $num_frames - 1 if $f_end >= $num_frames;
 
-my ($best_x, $best_y, $best_e) = (int($W / 2), int($H / 2), -1);
-for my $y (2 .. $H - 3) {
-	for my $x (2 .. $W - 3) {
-		my $e = 0;
-		for my $dy (-2 .. 2) {
-			my $row = ($y + $dy) * $W;
-			for my $dx (-2 .. 2) {
-				$e += $energy[$row + $x + $dx];
+	my @energy = (0) x ($W * $H);
+	for my $f ($f_start .. $f_end) {
+		my $cur = $frames_pure_blue[$f];
+		my $prv = $frames_pure_blue[$f - $lag];
+		for my $p (0 .. ($W * $H - 1)) {
+			my $d = abs($cur->[$p] - $prv->[$p]);
+			$energy[$p] += $d * $d if $d > 8;
+		}
+	}
+
+	my ($bx, $by, $be) = (int($W / 2), int($H / 2), -1);
+	for my $y (2 .. $H - 3) {
+		for my $x (2 .. $W - 3) {
+			my $e = 0;
+			for my $dy (-2 .. 2) {
+				my $row = ($y + $dy) * $W;
+				for my $dx (-2 .. 2) {
+					$e += $energy[$row + $x + $dx];
+				}
 			}
-		}
-		if ($e > $best_e) {
-			$best_e = $e;
-			$best_x = $x;
-			$best_y = $y;
-		}
-	}
-}
-
-my ($seed_f, $best_delta) = ($lag, -1);
-for my $f ($lag .. $num_frames - 1) {
-	my $d = abs(box3_at($frames_pure_blue[$f], $best_x, $best_y)
-	          - box3_at($frames_pure_blue[$f - $lag], $best_x, $best_y));
-	if ($d > $best_delta) {
-		$best_delta = $d;
-		$seed_f = $f;
-	}
-}
-
-printf "Locked onto blue LED casing at pixel (x=%d, y=%d), peak frame %d (t=%.0f ms, delta=%.1f)\n",
-	$best_x, $best_y, $seed_f, $seed_f * $dt_ms, $best_delta;
-
-# 4. Smooth velocity-clamped tracker + stationary wide diffused ROI
-my @track_x = ($best_x) x $num_frames;
-my @track_y = ($best_y) x $num_frames;
-my $step_r = 2;
-my $max_drift = 18;
-my $min_blink_delta = $best_delta * 0.25;
-$min_blink_delta = 8.0 if $min_blink_delta < 8.0;
-
-my ($cx, $cy) = ($best_x, $best_y);
-for my $f ($seed_f .. $num_frames - 1) {
-	my $cur = $frames_pure_blue[$f];
-	my $prv = $frames_pure_blue[$f - $lag];
-	my ($best_d, $bx, $by) = (0, $cx, $cy);
-
-	for my $dy (-$step_r .. $step_r) {
-		my $y = $cy + $dy;
-		next if $y < 1 || $y >= $H - 1 || abs($y - $best_y) > $max_drift;
-		for my $dx (-$step_r .. $step_r) {
-			my $x = $cx + $dx;
-			next if $x < 1 || $x >= $W - 1 || abs($x - $best_x) > $max_drift;
-			my $d = abs(box3_at($cur, $x, $y) - box3_at($prv, $x, $y));
-			if ($d > $best_d) {
-				$best_d = $d;
+			if ($e > $be) {
+				$be = $e;
 				$bx = $x;
 				$by = $y;
 			}
 		}
 	}
-	if ($best_d >= $min_blink_delta) {
-		$cx = $bx;
-		$cy = $by;
-	}
-	$track_x[$f] = $cx;
-	$track_y[$f] = $cy;
-}
 
-($cx, $cy) = ($best_x, $best_y);
-for (my $f = $seed_f - 1; $f >= 0; $f--) {
-	my $ref_f = $f + $lag < $num_frames ? $f + $lag : $num_frames - 1;
-	my $cur = $frames_pure_blue[$f];
-	my $nxt = $frames_pure_blue[$ref_f];
-	my ($best_d, $bx, $by) = (0, $cx, $cy);
-
-	for my $dy (-$step_r .. $step_r) {
-		my $y = $cy + $dy;
-		next if $y < 1 || $y >= $H - 1 || abs($y - $best_y) > $max_drift;
-		for my $dx (-$step_r .. $step_r) {
-			my $x = $cx + $dx;
-			next if $x < 1 || $x >= $W - 1 || abs($x - $best_x) > $max_drift;
-			my $d = abs(box3_at($cur, $x, $y) - box3_at($nxt, $x, $y));
-			if ($d > $best_d) {
-				$best_d = $d;
-				$bx = $x;
-				$by = $y;
-			}
+	my ($sf, $bd) = ($f_start, -1);
+	for my $f ($f_start .. $f_end) {
+		my $d = abs(box3_at($frames_pure_blue[$f], $bx, $by)
+		          - box3_at($frames_pure_blue[$f - $lag], $bx, $by));
+		if ($d > $bd) {
+			$bd = $d;
+			$sf = $f;
 		}
 	}
-	if ($best_d >= $min_blink_delta) {
-		$cx = $bx;
-		$cy = $by;
+	return ($bx, $by, $sf, $bd, $be);
+}
+
+# 3. Chunked smooth tracker (re-anchors every 1.5 s)
+my $chunk_frames = int(1500.0 / $dt_ms);
+my @track_x = (0) x $num_frames;
+my @track_y = (0) x $num_frames;
+
+my ($global_bx, $global_by, $global_sf, $global_bd, $global_be) = find_peak_in_range($lag, $num_frames - 1);
+printf "Global peak blue LED casing at (x=%d, y=%d), frame %d (t=%.0f ms, delta=%.1f)\n",
+	$global_bx, $global_by, $global_sf, $global_sf * $dt_ms, $global_bd;
+
+for (my $c0 = 0; $c0 < $num_frames; $c0 += $chunk_frames) {
+	my $c1 = $c0 + $chunk_frames - 1;
+	$c1 = $num_frames - 1 if $c1 >= $num_frames;
+
+	my ($bx, $by, $sf, $bd, $be) = find_peak_in_range($c0, $c1);
+	if ($bd < 10.0) {
+		($bx, $by, $sf, $bd) = ($global_bx, $global_by, int(($c0 + $c1) / 2), $global_bd);
 	}
-	$track_x[$f] = $cx;
-	$track_y[$f] = $cy;
+
+	my $step_r = 2;
+	my $max_drift = 35;
+	my $min_d = $bd * 0.22;
+	$min_d = 8.0 if $min_d < 8.0;
+
+	my ($cx, $cy) = ($bx, $by);
+	for my $f ($sf .. $c1) {
+		my $cur = $frames_pure_blue[$f];
+		my $prv = $f - $lag >= 0 ? $frames_pure_blue[$f - $lag] : $cur;
+		my ($best_d, $nx, $ny) = (0, $cx, $cy);
+		for my $dy (-$step_r .. $step_r) {
+			my $y = $cy + $dy;
+			next if $y < 1 || $y >= $H - 1 || abs($y - $by) > $max_drift;
+			for my $dx (-$step_r .. $step_r) {
+				my $x = $cx + $dx;
+				next if $x < 1 || $x >= $W - 1 || abs($x - $bx) > $max_drift;
+				my $d = abs(box3_at($cur, $x, $y) - box3_at($prv, $x, $y));
+				if ($d > $best_d) {
+					$best_d = $d;
+					$nx = $x;
+					$ny = $y;
+				}
+			}
+		}
+		if ($best_d >= $min_d) {
+			$cx = $nx;
+			$cy = $ny;
+		}
+		$track_x[$f] = $cx;
+		$track_y[$f] = $cy;
+	}
+
+	($cx, $cy) = ($bx, $by);
+	for (my $f = $sf - 1; $f >= $c0; $f--) {
+		my $ref_f = $f + $lag < $num_frames ? $f + $lag : $num_frames - 1;
+		my $cur = $frames_pure_blue[$f];
+		my $nxt = $frames_pure_blue[$ref_f];
+		my ($best_d, $nx, $ny) = (0, $cx, $cy);
+		for my $dy (-$step_r .. $step_r) {
+			my $y = $cy + $dy;
+			next if $y < 1 || $y >= $H - 1 || abs($y - $by) > $max_drift;
+			for my $dx (-$step_r .. $step_r) {
+				my $x = $cx + $dx;
+				next if $x < 1 || $x >= $W - 1 || abs($x - $bx) > $max_drift;
+				my $d = abs(box3_at($cur, $x, $y) - box3_at($nxt, $x, $y));
+				if ($d > $best_d) {
+					$best_d = $d;
+					$nx = $x;
+					$ny = $y;
+				}
+			}
+		}
+		if ($best_d >= $min_d) {
+			$cx = $nx;
+			$cy = $ny;
+		}
+		$track_x[$f] = $cx;
+		$track_y[$f] = $cy;
+	}
 }
 
 sub extract_signal {
@@ -203,16 +220,17 @@ sub extract_signal {
 	return \@sig;
 }
 
-my @fixed_x = ($best_x) x $num_frames;
-my @fixed_y = ($best_y) x $num_frames;
+my @fixed_x = ($global_bx) x $num_frames;
+my @fixed_y = ($global_by) x $num_frames;
 
 my @candidates = (
-	[ "tracked", extract_signal(\@track_x, \@track_y, 4, 12) ],
-	[ "wide-roi", extract_signal(\@fixed_x, \@fixed_y, 7, 16) ],
+	[ "chunk-tracked", extract_signal(\@track_x, \@track_y, 5, 14) ],
+	[ "wide-roi",      extract_signal(\@fixed_x, \@fixed_y, 9, 20) ],
 );
 
-my %decoded_packets;
-my $found_any = 0;
+my %exact_packets;
+my %soft_packets; # key -> [flips, quality_score, tag, rx_crc, invert, payload_str]
+my $found_exact = 0;
 
 sub is_printable_payload {
 	my ($bytes_ref) = @_;
@@ -222,31 +240,96 @@ sub is_printable_payload {
 	return 1;
 }
 
+sub ascii_plausibility {
+	my ($str) = @_;
+	my $score = 0;
+	for my $ch (split //, $str) {
+		if ($ch =~ /[A-Za-z0-9 _\-().:]/) {
+			$score += 2;
+		} else {
+			$score -= 3;
+		}
+	}
+	return $score;
+}
+
+sub check_frame_bytes {
+	my ($s_slice, $pkt_len) = @_;
+	my $need_bits = (1 + $pkt_len + 1) * 8;
+	return if length($s_slice) < $need_bits;
+
+	my @bytes;
+	for (my $b = 0; $b < $need_bits; $b += 8) {
+		push @bytes, oct('0b' . substr($s_slice, $b, 8));
+	}
+	my @payload_bytes = @bytes[1 .. $pkt_len];
+	my $rx_crc        = $bytes[1 + $pkt_len];
+	my $calc_crc      = crc8($pkt_len, @payload_bytes);
+
+	return unless $rx_crc == $calc_crc && is_printable_payload(\@payload_bytes);
+	my $payload_str = pack('C*', @payload_bytes);
+	$payload_str =~ s/\0+$//;
+	return ($rx_crc, $payload_str);
+}
+
 sub try_decode_bitstream {
-	my ($bit_str, $tag) = @_;
+	my ($bit_str, $confs_ref, $tag) = @_;
 	for my $invert (0, 1) {
 		my $s = $invert ? ($bit_str =~ tr/01/10/r) : $bit_str;
 		my $pos = index($s, '01111110'); # SOF 0x7E
 		while ($pos != -1) {
-			my $payload_bits = substr($s, $pos + 8);
-			my @bytes;
-			for (my $b = 0; $b + 8 <= length($payload_bits); $b += 8) {
-				push @bytes, oct('0b' . substr($payload_bits, $b, 8));
-			}
-			if (@bytes >= 4) {
-				my $pkt_len = $bytes[0];
-				if ($pkt_len >= 2 && $pkt_len <= 64 && @bytes >= 1 + $pkt_len + 1) {
-					my @payload_bytes = @bytes[1 .. $pkt_len];
-					my $rx_crc        = $bytes[1 + $pkt_len];
-					my $calc_crc      = crc8($pkt_len, @payload_bytes);
-					if ($rx_crc == $calc_crc && is_printable_payload(\@payload_bytes)) {
-						my $payload_str = pack('C*', @payload_bytes);
-						$payload_str =~ s/\0+$//;
+			my $frame_start = $pos + 8;
+			if ($frame_start + 32 <= length($s)) {
+				my $pkt_len = oct('0b' . substr($s, $frame_start, 8));
+				my $need_bits = (1 + $pkt_len + 1) * 8;
+
+				if ($pkt_len >= 2 && $pkt_len <= 64 && $frame_start + $need_bits <= length($s)) {
+					my $slice = substr($s, $frame_start, $need_bits);
+
+					# 1. Exact CRC8 match (0 flips)
+					if (my ($rx_crc, $payload_str) = check_frame_bytes($slice, $pkt_len)) {
 						my $key = "$rx_crc:$payload_str";
-						if (!$decoded_packets{$key}++) {
+						if (!$exact_packets{$key}++) {
 							printf "OK (%s, CRC 0x%02X, invert=%d): %s\n",
 								$tag, $rx_crc, $invert, $payload_str;
-							$found_any = 1;
+							$found_exact = 1;
+						}
+					} elsif (!$found_exact && defined $confs_ref) {
+						# 2. Soft-decision recovery over the 10 weakest-confidence bits
+						my @weak = sort { $confs_ref->[$frame_start + $a] <=> $confs_ref->[$frame_start + $b] }
+							(8 .. $need_bits - 1);
+						my $top1 = @weak < 12 ? scalar(@weak) : 12;
+						my $top2 = @weak < 8  ? scalar(@weak) : 8;
+
+						for my $i (0 .. $top1 - 1) {
+							my $cand_s = $slice;
+							my $idx1 = $weak[$i];
+							substr($cand_s, $idx1, 1, substr($cand_s, $idx1, 1) eq '0' ? '1' : '0');
+							if (my ($rx_crc, $payload_str) = check_frame_bytes($cand_s, $pkt_len)) {
+								my $q = 1000 + ascii_plausibility($payload_str) - $confs_ref->[$frame_start + $idx1];
+								my $key = "$rx_crc:$payload_str";
+								if (!$soft_packets{$key} || $q > $soft_packets{$key}[1]) {
+									$soft_packets{$key} = [1, $q, "$tag [1-bit soft fix]", $rx_crc, $invert, $payload_str];
+								}
+							}
+						}
+
+						for my $i (0 .. $top2 - 2) {
+							for my $j ($i + 1 .. $top2 - 1) {
+								my $cand_s = $slice;
+								my ($idx1, $idx2) = ($weak[$i], $weak[$j]);
+								substr($cand_s, $idx1, 1, substr($cand_s, $idx1, 1) eq '0' ? '1' : '0');
+								substr($cand_s, $idx2, 1, substr($cand_s, $idx2, 1) eq '0' ? '1' : '0');
+								if (my ($rx_crc, $payload_str) = check_frame_bytes($cand_s, $pkt_len)) {
+									my $q = ascii_plausibility($payload_str)
+									      - $confs_ref->[$frame_start + $idx1]
+									      - $confs_ref->[$frame_start + $idx2];
+									my $key = "$rx_crc:$payload_str";
+									if (!$soft_packets{$key} || $q > $soft_packets{$key}[1]) {
+										$soft_packets{$key} = [2, $q, "$tag [2-bit soft fix]", $rx_crc, $invert, $payload_str];
+									}
+								}
+							}
 						}
 					}
 				}
@@ -256,135 +339,110 @@ sub try_decode_bitstream {
 	}
 }
 
-# 5. Local-Normalized Slip-Tolerant PLL (adapts to iPhone Auto-Exposure changes mid-video!)
-my $win_half = int(400.0 / $dt_ms); # +/- 400 ms sliding window (~12 bit periods)
-
+# 4. Half-Bit Box-Integral Matched Filter + Sliding Midpoint Calibration
 for my $cand (@candidates) {
 	my ($cname, $sig_ref) = @$cand;
 	my @raw = @$sig_ref;
+	my $n = scalar @raw;
 
-	# Compute local sliding-window min/max so AE gain drops don't hide later bursts
-	my @norm;
-	for my $i (0 .. $#raw) {
-		my $lo = $i - $win_half < 0 ? 0 : $i - $win_half;
-		my $hi = $i + $win_half > $#raw ? $#raw : $i + $win_half;
-		my ($lmin, $lmax) = (1e9, -1e9);
-		for my $j ($lo .. $hi) {
-			$lmin = $raw[$j] if $raw[$j] < $lmin;
-			$lmax = $raw[$j] if $raw[$j] > $lmax;
-		}
-		if (($lmax - $lmin) < 10.0) {
-			push @norm, -1.0;
-		} else {
-			push @norm, (($raw[$i] - $lmin) / ($lmax - $lmin)) * 2.0 - 1.0;
-		}
-	}
-
-	my $sample_at = sub {
+	my $raw_at = sub {
 		my ($t_ms) = @_;
 		my $idx = $t_ms / $dt_ms;
-		return -1.0 if $idx < 0 || $idx >= $#norm;
+		return $raw[0] if $idx <= 0;
+		return $raw[$n - 1] if $idx >= $n - 1;
 		my $i0 = int($idx);
 		my $frac = $idx - $i0;
-		return $norm[$i0] * (1.0 - $frac) + $norm[$i0 + 1] * $frac;
+		return $raw[$i0] * (1.0 - $frac) + $raw[$i0 + 1] * $frac;
 	};
 
-	for my $thresh (-0.15, 0.0, 0.15, 0.30, -0.30) {
-		my @edges;
-		for my $i (1 .. $#norm) {
-			my $v0 = $norm[$i - 1] - $thresh;
-			my $v1 = $norm[$i] - $thresh;
-			if ($v0 <= 0 && $v1 > 0) {
-				my $frac = ($v1 - $v0) != 0 ? (-$v0 / ($v1 - $v0)) : 0.5;
-				push @edges, [ ($i - 1 + $frac) * $dt_ms, 1 ];
-			} elsif ($v0 > 0 && $v1 <= 0) {
-				my $frac = ($v0 - $v1) != 0 ? ($v0 / ($v0 - $v1)) : 0.5;
-				push @edges, [ ($i - 1 + $frac) * $dt_ms, 0 ];
-			}
-		}
+	# Integrate interior of first half-bit [-0.70*th .. -0.20*th] vs second [+0.20*th .. +0.70*th]
+	my $halfbit_diff = sub {
+		my ($t_mid, $th) = @_;
+		my $m1 = ($raw_at->($t_mid - $th * 0.70) + $raw_at->($t_mid - $th * 0.45) + $raw_at->($t_mid - $th * 0.20)) / 3.0;
+		my $m2 = ($raw_at->($t_mid + $th * 0.20) + $raw_at->($t_mid + $th * 0.45) + $raw_at->($t_mid + $th * 0.70)) / 3.0;
+		return $m2 - $m1;
+	};
 
-		next if @edges < 30;
-		my $total_ms = $#norm * $dt_ms;
-
-		for (my $th = 14.0; $th <= 17.5; $th += 0.1) {
-			my $tbit = $th * 2.0;
-			my $tol  = $th * 0.55;
-
-			for my $start_idx (0 .. $#edges - 32) {
-				my @bits;
-				my $t_cur = $edges[$start_idx][0];
-				push @bits, $edges[$start_idx][1];
-				my $e_ptr = $start_idx + 1;
-				my $misses = 0;
-
-				while ($t_cur + $tbit < $total_ms && @bits < 560) {
-					my $t_target = $t_cur + $tbit;
-					while ($e_ptr <= $#edges && $edges[$e_ptr][0] < $t_target - $tol) {
-						$e_ptr++;
-					}
-
-					my ($best_e, $best_err) = (-1, 1e9);
-					my $scan = $e_ptr;
-					while ($scan <= $#edges && $edges[$scan][0] <= $t_target + $tol) {
-						my $err = abs($edges[$scan][0] - $t_target);
-						if ($err < $best_err) {
-							$best_err = $err;
-							$best_e = $scan;
-						}
-						$scan++;
-					}
-
-					if ($best_e != -1) {
-						push @bits, $edges[$best_e][1];
-						$t_cur = 0.65 * $edges[$best_e][0] + 0.35 * $t_target;
-						$e_ptr = $best_e + 1;
-						$misses = 0;
-					} else {
-						my $s_before = $sample_at->($t_target - $th * 0.45);
-						my $s_after  = $sample_at->($t_target + $th * 0.45);
-						push @bits, ($s_before > $s_after ? 0 : 1);
-						$t_cur = $t_target;
-						last if ++$misses > 3;
-					}
-				}
-
-				if (@bits >= 32) {
-					try_decode_bitstream(join('', @bits), sprintf("%s LocalPLL T=%.2f th=%.2f", $cname, $th, $thresh));
-				}
-			}
-			last if $found_any;
-		}
-		last if $found_any;
+	my @deriv = (0.0) x $n;
+	for my $i (1 .. $n - 2) {
+		$deriv[$i] = ($raw[$i + 1] - $raw[$i - 1]) * 0.5;
 	}
-	last if $found_any;
+
+	my @slope_peaks;
+	for my $i (2 .. $n - 3) {
+		my $d = $deriv[$i];
+		if ($d > 6.0 && $d >= $deriv[$i - 1] && $d >= $deriv[$i + 1]) {
+			push @slope_peaks, $i * $dt_ms;
+		} elsif ($d < -6.0 && $d <= $deriv[$i - 1] && $d <= $deriv[$i + 1]) {
+			push @slope_peaks, $i * $dt_ms;
+		}
+	}
+
+	next if @slope_peaks < 20;
+	my $total_ms = ($n - 1) * $dt_ms;
+
+	# Sweep T_half in 5 us steps across 15.800 .. 16.200 ms
+	for (my $th = 15.800; $th <= 16.200; $th += 0.005) {
+		my $tbit = $th * 2.0;
+
+		for my $t_start (@slope_peaks) {
+			next if $t_start + 40 * $tbit > $total_ms;
+
+			my $t_cur = $t_start;
+			my @diffs;
+			while ($t_cur + $th < $total_ms && @diffs < 620) {
+				my $d0 = $halfbit_diff->($t_cur, $th);
+				push @diffs, $d0;
+
+				# Unbiased Manchester early-late gate: maximize |m2 - m1|
+				my ($best_shift, $best_mag) = (0.0, abs($d0));
+				for my $sh (-3.5, -2.0, -1.0, 1.0, 2.0, 3.5) {
+					my $mag = abs($halfbit_diff->($t_cur + $sh, $th));
+					if ($mag > $best_mag * 1.08) {
+						$best_mag = $mag;
+						$best_shift = $sh;
+					}
+				}
+				$t_cur += $tbit + $best_shift * 0.25;
+			}
+
+			next if @diffs < 40;
+
+			# Sliding-window (+/- 12 bits) midpoint normalization removes asymmetric glow bias
+			my (@bits, @confs);
+			my $win = 12;
+			for my $k (0 .. $#diffs) {
+				my $lo = $k - $win < 0 ? 0 : $k - $win;
+				my $hi = $k + $win > $#diffs ? $#diffs : $k + $win;
+				my ($dmin, $dmax) = (1e9, -1e9);
+				for my $j ($lo .. $hi) {
+					$dmin = $diffs[$j] if $diffs[$j] < $dmin;
+					$dmax = $diffs[$j] if $diffs[$j] > $dmax;
+				}
+				my $mid = ($dmax + $dmin) * 0.5;
+				my $norm_d = $diffs[$k] - $mid;
+				push @bits, ($norm_d > 0 ? 1 : 0);
+				push @confs, abs($norm_d);
+			}
+
+			try_decode_bitstream(join('', @bits), \@confs, sprintf("%s BoxMatched T=%.3f", $cname, $th));
+			last if $found_exact;
+		}
+		last if $found_exact;
+	}
+	last if $found_exact;
 }
 
-if (!$found_any) {
-	print "\nNo valid CRC8 frame found. Dumping all pulses after t=1000 ms:\n";
-	my ($sig_ref) = @{$candidates[0]}[1];
-	my @raw = @$sig_ref;
-	my ($cur_v, $cur_c, $start_f, $printed) = (0, 1, 0, 0);
-	for my $f (1 .. $#raw) {
-		my $lo = $f - $win_half < 0 ? 0 : $f - $win_half;
-		my $hi = $f + $win_half > $#raw ? $#raw : $f + $win_half;
-		my ($lmin, $lmax) = (1e9, -1e9);
-		for my $j ($lo .. $hi) {
-			$lmin = $raw[$j] if $raw[$j] < $lmin;
-			$lmax = $raw[$j] if $raw[$j] > $lmax;
-		}
-		my $v = (($lmax - $lmin) >= 10.0 && $raw[$f] > ($lmin + $lmax) * 0.5) ? 1 : 0;
-		if ($v == $cur_v) {
-			$cur_c++;
-		} else {
-			if ($start_f * $dt_ms >= 950) {
-				printf "  t=%6.1f ms | level=%d | dur=%5.1f ms\n",
-					$start_f * $dt_ms, $cur_v, $cur_c * $dt_ms;
-				last if ++$printed >= 90;
-			}
-			$cur_v = $v;
-			$cur_c = 1;
-			$start_f = $f;
-		}
+if (!$found_exact) {
+	if (%soft_packets) {
+		my ($best_key) = sort {
+			$soft_packets{$a}[0] <=> $soft_packets{$b}[0] ||
+			$soft_packets{$b}[1] <=> $soft_packets{$a}[1]
+		} keys %soft_packets;
+		my ($flips, $q, $tag, $rx_crc, $invert, $payload_str) = @{$soft_packets{$best_key}};
+		printf "OK (%s, CRC 0x%02X, invert=%d): %s\n", $tag, $rx_crc, $invert, $payload_str;
+	} else {
+		print "No valid CRC8 frame found.\n";
 	}
 }
 
