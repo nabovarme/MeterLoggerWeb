@@ -73,7 +73,7 @@ my @changes = (
 	[ 1698, 'ota_upgrade',        0 ],
 	[ 1754, 'set_mqtt_host',      1 ],
 	[ 1774, 'crypto',             0 ],
-	[ 1837, 'optical_log',        0 ],
+	[ 1821, 'optical_log',        0 ],
 );
 
 sub parse_firmware_version {
