@@ -71,6 +71,11 @@ sub build_flags_from_sw_version {
 		push @flags, 'DISABLE_LED=1';
 	}
 
+	if (($get_explicit_val->('ENABLE_LED_OPTICAL') // '') eq '1'
+		|| $has_token{'ENABLE_LED_OPTICAL'}) {
+		push @flags, 'ENABLE_LED_OPTICAL=1';
+	}
+
 	# 3. Actuator configuration.
 	my $thermo_no = $get_explicit_val->('THERMO_NO');
 	if ($has_token{'THERMO_NO'}

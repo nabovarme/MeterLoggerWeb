@@ -269,6 +269,9 @@
 					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
 						<input type="checkbox" id="flagShortWebConfig" value="DEBUG_SHORT_WEB_CONFIG_TIME"> Fast Web Config Timeout (DEBUG_SHORT_WEB_CONFIG_TIME)
 					</label>
+					<label class="default" style="font-size: 85%; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+						<input type="checkbox" id="flagLedOptical" value="ENABLE_LED_OPTICAL"> Enable Optical LED Telemetry (ENABLE_LED_OPTICAL)
+					</label>
 				</div>
 			</div>
 		</div>
@@ -538,18 +541,19 @@
 				}
 
 				// 2. Overrides & Modifiers Checkbox Selectors
-				document.getElementById('flagFlowMeter').checked   = checkFlagState('FLOW') || checkFlagState('FLOW_METER');
-				document.getElementById('flagAutoClose').checked   = checkFlagState('NO_AUTO_CLOSE') || (() => {
+				document.getElementById('flagFlowMeter').checked      = checkFlagState('FLOW') || checkFlagState('FLOW_METER');
+				document.getElementById('flagAutoClose').checked      = checkFlagState('NO_AUTO_CLOSE') || (() => {
 					const am = flagTokens.find(t => t.startsWith('AUTO_CLOSE='));
 					return am ? am.split('=')[1] === '0' : false;
 				})();
-				document.getElementById('flagNoCron').checked      = checkFlagState('NO_CRON');
-				document.getElementById('flagThermoAC2').checked   = checkFlagState('THERMO_ON_AC_2');
-				document.getElementById('flagLedAc').checked       = checkFlagState('LED_ON_AC');
-				document.getElementById('flagAcTest').checked      = checkFlagState('AC_TEST');
-				document.getElementById('flagNoMeter').checked     = checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
-				document.getElementById('flagStackTrace').checked  = checkFlagState('DEBUG_STACK_TRACE');
+				document.getElementById('flagNoCron').checked         = checkFlagState('NO_CRON');
+				document.getElementById('flagThermoAC2').checked      = checkFlagState('THERMO_ON_AC_2');
+				document.getElementById('flagLedAc').checked          = checkFlagState('LED_ON_AC');
+				document.getElementById('flagAcTest').checked         = checkFlagState('AC_TEST');
+				document.getElementById('flagNoMeter').checked        = checkFlagState('DEBUG_NO_METER') || checkFlagState('NO_METER');
+				document.getElementById('flagStackTrace').checked     = checkFlagState('DEBUG_STACK_TRACE');
 				document.getElementById('flagShortWebConfig').checked = checkFlagState('DEBUG_SHORT_WEB_CONFIG_TIME');
+				document.getElementById('flagLedOptical').checked     = checkFlagState('ENABLE_LED_OPTICAL');
 				
 				// 3. Actuator State Dropdown Auto-Populate Logic
 				if (checkFlagState('THERMO_NO') || (() => {
@@ -590,24 +594,25 @@
 			}
 
 			// 2. Explicit Modifier Flags
-			if (document.getElementById('flagFlowMeter').checked)   modifiers.push('FLOW_METER=1');
-			if (document.getElementById('flagAutoClose').checked)   modifiers.push('AUTO_CLOSE=0');
-			if (document.getElementById('flagNoCron').checked)      modifiers.push('NO_CRON=1');
+			if (document.getElementById('flagFlowMeter').checked)      modifiers.push('FLOW_METER=1');
+			if (document.getElementById('flagAutoClose').checked)      modifiers.push('AUTO_CLOSE=0');
+			if (document.getElementById('flagNoCron').checked)         modifiers.push('NO_CRON=1');
 			
 			// 3. Explicit Actuator Flags
 			const thermoState = document.getElementById('flagThermoActuator').value;
 			if (thermoState === 'THERMO_NC') modifiers.push('THERMO_NO=0');
 			if (thermoState === 'THERMO_NO') modifiers.push('THERMO_NO=1');
 
-			if (document.getElementById('flagThermoAC2').checked)   modifiers.push('THERMO_ON_AC_2=1');
-			if (document.getElementById('flagLedAc').checked)       modifiers.push('LED_ON_AC=1');
-			if (document.getElementById('flagAcTest').checked)      modifiers.push('AC_TEST=1');
+			if (document.getElementById('flagThermoAC2').checked)      modifiers.push('THERMO_ON_AC_2=1');
+			if (document.getElementById('flagLedAc').checked)          modifiers.push('LED_ON_AC=1');
+			if (document.getElementById('flagAcTest').checked)         modifiers.push('AC_TEST=1');
 
 			// 4. Explicit Debug Flags
-			if (document.getElementById('flagSerialDebug').checked)  modifiers.push('DEBUG=1');
-			if (document.getElementById('flagNoMeter').checked)     modifiers.push('DEBUG_NO_METER=1');
-			if (document.getElementById('flagStackTrace').checked)  modifiers.push('DEBUG_STACK_TRACE=1');
+			if (document.getElementById('flagSerialDebug').checked)    modifiers.push('DEBUG=1');
+			if (document.getElementById('flagNoMeter').checked)        modifiers.push('DEBUG_NO_METER=1');
+			if (document.getElementById('flagStackTrace').checked)     modifiers.push('DEBUG_STACK_TRACE=1');
 			if (document.getElementById('flagShortWebConfig').checked) modifiers.push('DEBUG_SHORT_WEB_CONFIG_TIME=1');
+			if (document.getElementById('flagLedOptical').checked)     modifiers.push('ENABLE_LED_OPTICAL=1');
 
 			// JOIN WITH DASH: Concatenates separate build flags cleanly using a dash (-)
 			const swVersionSuffix = modifiers.length > 0 ? modifiers.join('-') : 'STANDARD';
