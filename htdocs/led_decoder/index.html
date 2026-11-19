@@ -60,7 +60,7 @@
 
 		.log-output { width: 100%; height: 210px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
 		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
-		.log-output strong.decoded-str { font-weight: 700; color: #000; background: #e8f3ff; padding: 1px 4px; border-radius: 3px; }
+		.log-output strong.decoded-str { font-weight: 700; color: #000; }
 		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 6px; }
 		progress { width: 220px; }
 
@@ -103,7 +103,7 @@
 
 			<div class="legend">
 				<span class="legend-item"><span class="swatch-track"></span> Tracked ROI (<span id="trackDimLabel">11&times;11</span>)</span>
-				<span class="legend-item"><span class="swatch-wide"></span> Anchor ROI (<span id="wideDimLabel">19&times;19</span>)</span>
+				<span class="legend-item"><span class="swatch-wide"></span> Stationary Wide ROI (Backup) (<span id="wideDimLabel">19&times;19</span>)</span>
 			</div>
 
 			<div class="scrubber-row">
@@ -157,7 +157,7 @@
 
 			<div class="settings-group">
 				<div class="settings-group-title">
-					<span><span class="dot-amber"></span>Anchor / Stationary ROI</span>
+					<span><span class="dot-amber"></span>Stationary Wide ROI (Backup)</span>
 					<button id="autoAnchorBtn" class="secondary" style="padding: 2px 8px; font-size: 0.75rem;">Auto Peak</button>
 				</div>
 				<div class="grid-2">
@@ -415,7 +415,17 @@
 		}
 	}
 
-	function drawRectanglesOnContext(tx, ty, anchorX, anchorY, trackHalfBox, wideHalfBox, showTrackBox) {
+	function drawRectanglesOnContext(tx, ty, anchorX, anchorY, trackHalfBox, wideHalfBox, maxDrift, showTrackBox) {
+		// 0. Max Drift boundary (faint dotted outline showing how far the green box can wander)
+		if (maxDrift > 0) {
+			ctx.save();
+			ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+			ctx.lineWidth = 1;
+			ctx.setLineDash([2, 4]);
+			ctx.strokeRect(anchorX - maxDrift + 0.5, anchorY - maxDrift + 0.5, maxDrift * 2, maxDrift * 2);
+			ctx.restore();
+		}
+
 		// 1. Stationary / Anchor wide-ROI box (amber dashed)
 		const wSize = 2 * wideHalfBox;
 		ctx.save();
@@ -453,7 +463,7 @@
 		if (!vizState.framesRgba || f < 0 || f >= vizState.framesRgba.length) {
 			ctx.fillStyle = "#000";
 			ctx.fillRect(0, 0, W, H);
-			drawRectanglesOnContext(anchorX, anchorY, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, true);
+			drawRectanglesOnContext(anchorX, anchorY, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, s.maxDrift, true);
 			return;
 		}
 
@@ -466,7 +476,7 @@
 		const tx = hasTrack ? vizState.trackX[f] : anchorX;
 		const ty = hasTrack ? vizState.trackY[f] : anchorY;
 
-		drawRectanglesOnContext(tx, ty, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, true);
+		drawRectanglesOnContext(tx, ty, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, s.maxDrift, true);
 
 		const tMs = Math.round(f * vizState.dtMs);
 		if (hasTrack) {
@@ -1052,7 +1062,7 @@
 					}
 					const ax = s.anchorMode === 'pinned' ? s.anchorX : liveTrackX;
 					const ay = s.anchorMode === 'pinned' ? s.anchorY : liveTrackY;
-					drawRectanglesOnContext(liveTrackX, liveTrackY, ax, ay, s.trackHalfBox, s.wideHalfBox, true);
+					drawRectanglesOnContext(liveTrackX, liveTrackY, ax, ay, s.trackHalfBox, s.wideHalfBox, s.maxDrift, true);
 					frameMeta.textContent = `Decoding frame ${decodedCount + 1} / ${track.sampleCount} | Live Peak: (${liveTrackX}, ${liveTrackY})`;
 				}
 
@@ -1155,7 +1165,7 @@
 						const ty = spot ? spot.by : s.anchorY;
 						const ax = s.anchorMode === 'pinned' ? s.anchorX : tx;
 						const ay = s.anchorMode === 'pinned' ? s.anchorY : ty;
-						drawRectanglesOnContext(tx, ty, ax, ay, s.trackHalfBox, s.wideHalfBox, true);
+						drawRectanglesOnContext(tx, ty, ax, ay, s.trackHalfBox, s.wideHalfBox, s.maxDrift, true);
 
 						f++;
 						if (video.duration > 0) {
