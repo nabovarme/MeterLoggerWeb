@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Optical LED Manchester Decoder</title>
+	<style>
+		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background: #f4f4f9; color: #333; }
+		.panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
+		h1 { margin-top: 0; font-size: 1.5rem; }
+		.controls { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; }
+		input[type="file"] { flex-grow: 1; }
+		input[type="number"] { width: 80px; padding: 5px; }
+		button { background: #007bf5; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+		button:disabled { background: #ccc; cursor: not-allowed; }
+		textarea { width: 100%; height: 300px; font-family: monospace; font-size: 13px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; resize: vertical; }
+		canvas { border: 1px solid #ccc; border-radius: 4px; background: #000; width: 160px; height: 90px; }
+		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #666; margin-bottom: 5px; }
+		progress { width: 200px; }
+	</style>
+</head>
+<body>
+
+<div class="panel">
+	<h1>Optical LED Decoder</h1>
+	<div class="controls">
+		<input type="file" id="videoInput" accept="video/*">
+		<label>FPS: <input type="number" id="fpsInput" value="240"></label>
+		<button id="processBtn">Process Video</button>
+		<canvas id="previewCanvas" width="160" height="90"></canvas>
+	</div>
+
+	<div class="status-bar">
+		<span id="statusText">Waiting for video...</span>
+		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
+	</div>
+	<textarea id="logOutput" readonly placeholder="Decoded telemetry will appear here..."></textarea>
+</div>
+
+<script>
+	const W = 160, H = 90;
+	const HALF_BIT_MS = 15.0;
+	const frame_bytes = W * H;
+
+	const videoInput = document.getElementById('videoInput');
+	const fpsInput = document.getElementById('fpsInput');
+	const processBtn = document.getElementById('processBtn');
+	const logOutput = document.getElementById('logOutput');
+	const statusText = document.getElementById('statusText');
+	const progressBar = document.getElementById('progressBar');
+	const previewCanvas = document.getElementById('previewCanvas');
+	const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+
+	function log(msg) {
+		logOutput.value += msg + "\n";
+		logOutput.scrollTop = logOutput.scrollHeight;
+		console.log(msg);
+	}
+
+	function extractBlueChannels(imgData, frames_blue, frames_pure_blue, f_offset) {
+		for (let i = 0; i < frame_bytes; i++) {
+			const r = imgData[i * 4];
+			const g = imgData[i * 4 + 1];
+			const b = imgData[i * 4 + 2];
+
+			const blue_excess = b - Math.floor((r + g) / 2);
+			frames_blue[f_offset + i] = blue_excess > 0 ? (b + blue_excess * 1.5) : b;
+			frames_pure_blue[f_offset + i] = blue_excess > 10 ? blue_excess : 0;
+		}
+	}
+
+	// Lightweight ISO BMFF (.MOV / .MP4) box parser for frame-exact WebCodecs extraction
+	async function parseIsoBmffVideoTrack(file) {
+		function readFourCC(view, off) {
+			return String.fromCharCode(
+				view.getUint8(off),
+				view.getUint8(off + 1),
+				view.getUint8(off + 2),
+				view.getUint8(off + 3)
+			);
+		}
+
+		function readUint64(view, off) {
+			const hi = view.getUint32(off);
+			const lo = view.getUint32(off + 4);
+			return hi * 4294967296 + lo;
+		}
+
+		function iterBoxes(view, start, end) {
+			const boxes = [];
+			let pos = start;
+			while (pos + 8 <= end) {
+				let size = view.getUint32(pos);
+				const type = readFourCC(view, pos + 4);
+				let headerSize = 8;
+				if (size === 1) {
+					if (pos + 16 > end) break;
+					size = readUint64(view, pos + 8);
+					headerSize = 16;
+				} else if (size === 0) {
+					size = end - pos;
+				}
+				if (size < headerSize || pos + size > end) break;
+				boxes.push({ type, start: pos, dataStart: pos + headerSize, end: pos + size });
+				pos += size;
+			}
+			return boxes;
+		}
+
+		// Scan top-level boxes via slices so large mdat payloads aren't copied into RAM twice
+		let pos = 0;
+		let moovBuffer = null;
+		while (pos + 8 <= file.size) {
+			const hdrView = new DataView(await file.slice(pos, pos + 16).arrayBuffer());
+			let size = hdrView.getUint32(0);
+			const type = readFourCC(hdrView, 4);
+			let headerSize = 8;
+			if (size === 1) {
+				size = readUint64(hdrView, 8);
+				headerSize = 16;
+			} else if (size === 0) {
+				size = file.size - pos;
+			}
+			if (size < headerSize || pos + size > file.size) break;
+			if (type === 'moov') {
+				moovBuffer = await file.slice(pos + headerSize, pos + size).arrayBuffer();
+				break;
+			}
+			pos += size;
+		}
+
+		if (!moovBuffer) throw new Error("No moov atom found (not an MP4/MOV file).");
+
+		const moovView = new DataView(moovBuffer);
+		const traks = iterBoxes(moovView, 0, moovBuffer.byteLength).filter(b => b.type === 'trak');
+
+		for (const trak of traks) {
+			const mdia = iterBoxes(moovView, trak.dataStart, trak.end).find(b => b.type === 'mdia');
+			if (!mdia) continue;
+
+			const mdiaChildren = iterBoxes(moovView, mdia.dataStart, mdia.end);
+			const mdhd = mdiaChildren.find(b => b.type === 'mdhd');
+			const hdlr = mdiaChildren.find(b => b.type === 'hdlr');
+			const minf = mdiaChildren.find(b => b.type === 'minf');
+			if (!mdhd || !hdlr || !minf) continue;
+
+			const handlerType = readFourCC(moovView, hdlr.dataStart + 8);
+			if (handlerType !== 'vide') continue;
+
+			const mdhdVer = moovView.getUint8(mdhd.dataStart);
+			const timescale = mdhdVer === 1
+				? moovView.getUint32(mdhd.dataStart + 20)
+				: moovView.getUint32(mdhd.dataStart + 12);
+
+			const stbl = iterBoxes(moovView, minf.dataStart, minf.end).find(b => b.type === 'stbl');
+			if (!stbl) continue;
+
+			const stblBoxes = iterBoxes(moovView, stbl.dataStart, stbl.end);
+			const stsd = stblBoxes.find(b => b.type === 'stsd');
+			const stts = stblBoxes.find(b => b.type === 'stts');
+			const ctts = stblBoxes.find(b => b.type === 'ctts');
+			const stsc = stblBoxes.find(b => b.type === 'stsc');
+			const stsz = stblBoxes.find(b => b.type === 'stsz');
+			const stco = stblBoxes.find(b => b.type === 'stco');
+			const co64 = stblBoxes.find(b => b.type === 'co64');
+			const stss = stblBoxes.find(b => b.type === 'stss');
+
+			if (!stsd || !stts || !stsc || !stsz || (!stco && !co64)) continue;
+
+			// VisualSampleEntry fixed header is 86 bytes (8-byte box header + 78-byte fields)
+			const entryStart = stsd.dataStart + 8;
+			const entrySize = moovView.getUint32(entryStart);
+			const format = readFourCC(moovView, entryStart + 4);
+			const codedWidth = moovView.getUint16(entryStart + 32);
+			const codedHeight = moovView.getUint16(entryStart + 34);
+
+			const configBoxes = iterBoxes(moovView, entryStart + 86, entryStart + entrySize);
+			let codec = null;
+			let description = null;
+
+			if (format === 'avc1' || format === 'avc3') {
+				const avcC = configBoxes.find(b => b.type === 'avcC');
+				if (avcC) {
+					description = new Uint8Array(moovBuffer.slice(avcC.dataStart, avcC.end));
+					const hex = (n) => n.toString(16).padStart(2, '0');
+					codec = `avc1.${hex(description[1])}${hex(description[2])}${hex(description[3])}`;
+				}
+			} else if (format === 'hvc1' || format === 'hev1') {
+				const hvcC = configBoxes.find(b => b.type === 'hvcC');
+				if (hvcC) {
+					description = new Uint8Array(moovBuffer.slice(hvcC.dataStart, hvcC.end));
+					const b1 = description[1];
+					const profileSpace = ['', 'A', 'B', 'C'][(b1 >> 6) & 0x03];
+					const profileIdc = b1 & 0x1f;
+					const tierFlag = (b1 & 0x20) ? 'H' : 'L';
+					const compat = moovView.getUint32(hvcC.dataStart + 2);
+					let revCompat = 0;
+					for (let bit = 0; bit < 32; bit++) {
+						if ((compat >>> bit) & 1) {
+							revCompat = (revCompat | (1 << (31 - bit))) >>> 0;
+						}
+					}
+					const levelIdc = description[12];
+					const constraintBytes = [];
+					for (let i = 6; i < 12; i++) constraintBytes.push(description[i]);
+					while (constraintBytes.length > 0 && constraintBytes[constraintBytes.length - 1] === 0) {
+						constraintBytes.pop();
+					}
+					const constraintStr = constraintBytes.length > 0
+						? '.' + constraintBytes.map(b => b.toString(16).toUpperCase()).join('.')
+						: '';
+					codec = `${format}.${profileSpace}${profileIdc}.${revCompat.toString(16).toUpperCase()}.${tierFlag}${levelIdc}${constraintStr}`;
+				}
+			}
+
+			if (!codec || !description) throw new Error(`Missing decoder config box for ${format}`);
+
+			// Parse stsz (sample sizes)
+			const fixedSampleSize = moovView.getUint32(stsz.dataStart + 4);
+			const sampleCount = moovView.getUint32(stsz.dataStart + 8);
+			const sampleSizes = new Uint32Array(sampleCount);
+			if (fixedSampleSize !== 0) {
+				sampleSizes.fill(fixedSampleSize);
+			} else {
+				for (let i = 0; i < sampleCount; i++) {
+					sampleSizes[i] = moovView.getUint32(stsz.dataStart + 12 + i * 4);
+				}
+			}
+
+			// Parse stco / co64 (chunk offsets)
+			const chunkCount = moovView.getUint32((stco || co64).dataStart + 4);
+			const chunkOffsets = new Float64Array(chunkCount);
+			if (stco) {
+				for (let i = 0; i < chunkCount; i++) {
+					chunkOffsets[i] = moovView.getUint32(stco.dataStart + 8 + i * 4);
+				}
+			} else {
+				for (let i = 0; i < chunkCount; i++) {
+					chunkOffsets[i] = readUint64(moovView, co64.dataStart + 8 + i * 8);
+				}
+			}
+
+			// Parse stsc (sample-to-chunk) -> compute exact file offset of every sample
+			const stscCount = moovView.getUint32(stsc.dataStart + 4);
+			const stscEntries = [];
+			for (let i = 0; i < stscCount; i++) {
+				const off = stsc.dataStart + 8 + i * 12;
+				stscEntries.push({
+					firstChunk: moovView.getUint32(off) - 1,
+					samplesPerChunk: moovView.getUint32(off + 4)
+				});
+			}
+
+			const sampleOffsets = new Float64Array(sampleCount);
+			let sampleIdx = 0;
+			for (let e = 0; e < stscEntries.length && sampleIdx < sampleCount; e++) {
+				const startChunk = stscEntries[e].firstChunk;
+				const endChunk = (e + 1 < stscEntries.length) ? stscEntries[e + 1].firstChunk : chunkCount;
+				const spc = stscEntries[e].samplesPerChunk;
+				for (let c = startChunk; c < endChunk && sampleIdx < sampleCount; c++) {
+					let bytePos = chunkOffsets[c];
+					for (let s = 0; s < spc && sampleIdx < sampleCount; s++) {
+						sampleOffsets[sampleIdx] = bytePos;
+						bytePos += sampleSizes[sampleIdx];
+						sampleIdx++;
+					}
+				}
+			}
+
+			// Parse stts (DTS deltas & detect high-speed burst FPS)
+			const sttsCount = moovView.getUint32(stts.dataStart + 4);
+			const sampleDts = new Float64Array(sampleCount);
+			const sampleDur = new Uint32Array(sampleCount);
+			const sttsRuns = [];
+			let curDts = 0;
+			let sIdx = 0;
+			let minDelta = Infinity;
+			for (let i = 0; i < sttsCount; i++) {
+				const off = stts.dataStart + 8 + i * 8;
+				const cnt = moovView.getUint32(off);
+				const delta = moovView.getUint32(off + 4);
+				sttsRuns.push({ cnt, delta });
+				if (delta > 0 && delta < minDelta) minDelta = delta;
+				for (let k = 0; k < cnt && sIdx < sampleCount; k++) {
+					sampleDts[sIdx] = curDts;
+					sampleDur[sIdx] = delta;
+					curDts += delta;
+					sIdx++;
+				}
+			}
+
+			// Average the high-speed burst deltas (handles alternating 2/3 ticks at timescale=600 -> 240 fps)
+			let fastTicks = 0;
+			let fastFrames = 0;
+			for (const run of sttsRuns) {
+				if (run.delta > 0 && run.delta <= minDelta * 1.6) {
+					fastTicks += run.cnt * run.delta;
+					fastFrames += run.cnt;
+				}
+			}
+			const detectedFps = (fastTicks > 0 && fastFrames > 0)
+				? (timescale * fastFrames) / fastTicks
+				: 240.0;
+
+			// Parse ctts (QuickTime v0 and ISO v1 both store signed 32-bit offsets in iOS .MOV files)
+			const samplePts = new Float64Array(sampleCount);
+			samplePts.set(sampleDts);
+			if (ctts) {
+				const cttsCount = moovView.getUint32(ctts.dataStart + 4);
+				let cIdx = 0;
+				for (let i = 0; i < cttsCount; i++) {
+					const off = ctts.dataStart + 8 + i * 8;
+					const cnt = moovView.getUint32(off);
+					const offsetVal = moovView.getInt32(off + 4);
+					for (let k = 0; k < cnt && cIdx < sampleCount; k++) {
+						samplePts[cIdx] += offsetVal;
+						cIdx++;
+					}
+				}
+			}
+
+			// Parse stss (sync/keyframe table)
+			const keyFrames = new Uint8Array(sampleCount);
+			if (!stss) {
+				keyFrames.fill(1);
+			} else {
+				const stssCount = moovView.getUint32(stss.dataStart + 4);
+				for (let i = 0; i < stssCount; i++) {
+					const kIdx = moovView.getUint32(stss.dataStart + 8 + i * 4) - 1;
+					if (kIdx >= 0 && kIdx < sampleCount) keyFrames[kIdx] = 1;
+				}
+			}
+
+			return {
+				codec,
+				description,
+				codedWidth,
+				codedHeight,
+				timescale,
+				detectedFps,
+				sampleCount,
+				sampleOffsets,
+				sampleSizes,
+				samplePts,
+				sampleDur,
+				keyFrames
+			};
+		}
+
+		throw new Error("No video track found in container.");
+	}
+
+	// Primary frame-exact extraction via WebCodecs VideoDecoder (equivalent to ffmpeg -fps_mode passthrough)
+	async function extractFramesWebCodecs(file) {
+		const track = await parseIsoBmffVideoTrack(file);
+		const config = {
+			codec: track.codec,
+			codedWidth: track.codedWidth,
+			codedHeight: track.codedHeight,
+			description: track.description,
+			optimizeForLatency: false
+		};
+
+		const support = await VideoDecoder.isConfigSupported(config);
+		if (!support.supported) {
+			throw new Error(`Browser WebCodecs does not support ${track.codec}`);
+		}
+
+		const decodedFrames = [];
+		let decodedCount = 0;
+		let decodeError = null;
+
+		const decoder = new VideoDecoder({
+			output(videoFrame) {
+				const ts = videoFrame.timestamp;
+				ctx.drawImage(videoFrame, 0, 0, W, H);
+				videoFrame.close();
+
+				const imgData = ctx.getImageData(0, 0, W, H).data;
+				const blue = new Float32Array(frame_bytes);
+				const pureBlue = new Float32Array(frame_bytes);
+				extractBlueChannels(imgData, blue, pureBlue, 0);
+				decodedFrames.push({ ts, blue, pureBlue });
+				decodedCount++;
+
+				if ((decodedCount & 31) === 0 || decodedCount === track.sampleCount) {
+					progressBar.value = (decodedCount / track.sampleCount) * 100;
+				}
+			},
+			error(err) {
+				decodeError = err;
+			}
+		});
+
+		decoder.configure(config);
+		statusText.textContent = `Decoding ${track.sampleCount} frames via WebCodecs (${track.codec})...`;
+
+		// Read compressed video samples in chunks to keep memory usage bounded
+		const BATCH_SAMPLES = 128;
+		for (let start = 0; start < track.sampleCount; start += BATCH_SAMPLES) {
+			if (decodeError) throw decodeError;
+			const end = Math.min(start + BATCH_SAMPLES, track.sampleCount);
+
+			let minOff = Infinity, maxOff = 0;
+			for (let i = start; i < end; i++) {
+				if (track.sampleOffsets[i] < minOff) minOff = track.sampleOffsets[i];
+				const eOff = track.sampleOffsets[i] + track.sampleSizes[i];
+				if (eOff > maxOff) maxOff = eOff;
+			}
+
+			const sliceBuf = await file.slice(minOff, maxOff).arrayBuffer();
+
+			for (let i = start; i < end; i++) {
+				if (decodeError) throw decodeError;
+				while (decoder.decodeQueueSize > 32) {
+					await new Promise(r => setTimeout(r, 1));
+				}
+				const relOff = track.sampleOffsets[i] - minOff;
+				const data = new Uint8Array(sliceBuf, relOff, track.sampleSizes[i]);
+				decoder.decode(new EncodedVideoChunk({
+					type: track.keyFrames[i] ? 'key' : 'delta',
+					timestamp: Math.round((track.samplePts[i] * 1_000_000) / track.timescale),
+					duration: Math.round((track.sampleDur[i] * 1_000_000) / track.timescale),
+					data
+				}));
+			}
+		}
+
+		await decoder.flush();
+		decoder.close();
+		if (decodeError) throw decodeError;
+
+		// Guarantee strict presentation-timestamp order for B-frame streams
+		decodedFrames.sort((a, b) => a.ts - b.ts);
+
+		const num_frames = decodedFrames.length;
+		const frames_blue = new Float32Array(num_frames * frame_bytes);
+		const frames_pure_blue = new Float32Array(num_frames * frame_bytes);
+		for (let f = 0; f < num_frames; f++) {
+			frames_blue.set(decodedFrames[f].blue, f * frame_bytes);
+			frames_pure_blue.set(decodedFrames[f].pureBlue, f * frame_bytes);
+		}
+
+		return {
+			frames_blue,
+			frames_pure_blue,
+			num_frames,
+			detectedFps: track.detectedFps
+		};
+	}
+
+	// Fallback sequential playback capture via requestVideoFrameCallback
+	async function extractFramesPlayback(file, fps) {
+		return new Promise((resolve, reject) => {
+			const url = URL.createObjectURL(file);
+			const video = document.createElement('video');
+			video.src = url;
+			video.muted = true;
+			video.playsInline = true;
+
+			video.onloadedmetadata = () => {
+				const maxFrames = Math.ceil((video.duration + 1) * fps);
+				const frames_blue = new Float32Array(maxFrames * frame_bytes);
+				const frames_pure_blue = new Float32Array(maxFrames * frame_bytes);
+				let f = 0;
+
+				statusText.textContent = "Capturing sequential frames...";
+
+				const onFrame = (now, metadata) => {
+					if (f < maxFrames) {
+						ctx.drawImage(video, 0, 0, W, H);
+						const imgData = ctx.getImageData(0, 0, W, H).data;
+						extractBlueChannels(imgData, frames_blue, frames_pure_blue, f * frame_bytes);
+						f++;
+						if (video.duration > 0) {
+							progressBar.value = Math.min(100, (metadata.mediaTime / video.duration) * 100);
+						}
+					}
+					if (!video.ended && !video.paused) {
+						video.requestVideoFrameCallback(onFrame);
+					}
+				};
+
+				video.onended = () => {
+					URL.revokeObjectURL(url);
+					resolve({ frames_blue, frames_pure_blue, num_frames: f, detectedFps: fps });
+				};
+
+				video.onerror = () => {
+					URL.revokeObjectURL(url);
+					reject(new Error("Video decoding failed."));
+				};
+
+				if ('requestVideoFrameCallback' in video) {
+					video.requestVideoFrameCallback(onFrame);
+					video.play().catch(reject);
+				} else {
+					URL.revokeObjectURL(url);
+					reject(new Error("Neither WebCodecs nor requestVideoFrameCallback is supported in this browser."));
+				}
+			};
+		});
+	}
+
+	processBtn.addEventListener('click', async () => {
+		if (!videoInput.files.length) return alert("Please select a video file first.");
+
+		processBtn.disabled = true;
+		logOutput.value = "";
+		progressBar.style.display = "block";
+		progressBar.value = 0;
+
+		const file = videoInput.files[0];
+		let fps = parseFloat(fpsInput.value) || 240.0;
+
+		try {
+			let extracted;
+			if ('VideoDecoder' in window) {
+				try {
+					extracted = await extractFramesWebCodecs(file);
+					if (extracted.detectedFps && Math.abs(extracted.detectedFps - fps) > 0.5) {
+						fps = Math.round(extracted.detectedFps * 100) / 100;
+						fpsInput.value = fps;
+					}
+					log(`Stream FPS: ${fps.toFixed(2)} (${(1000.0 / fps).toFixed(2)} ms/frame -> ${(HALF_BIT_MS / (1000.0 / fps)).toFixed(2)} frames/half-bit)`);
+					log(`Decoded ${extracted.num_frames} frames via WebCodecs.`);
+				} catch (wcErr) {
+					log(`WebCodecs fallback (${wcErr.message}), using sequential playback capture...`);
+					extracted = await extractFramesPlayback(file, fps);
+					log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
+				}
+			} else {
+				extracted = await extractFramesPlayback(file, fps);
+				log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
+			}
+
+			const { frames_blue, frames_pure_blue, num_frames } = extracted;
+			const dt_ms = 1000.0 / fps;
+
+			if (num_frames < 20) throw new Error("Too few frames extracted.");
+
+			statusText.textContent = "Analyzing signal...";
+			setTimeout(() => runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms), 50);
+
+		} catch (err) {
+			log(`Error: ${err.message}`);
+			statusText.textContent = "Processing failed.";
+			processBtn.disabled = false;
+			progressBar.style.display = "none";
+		}
+	});
+
+	// 2. Core DSP Math Translation
+	function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms) {
+		let lag = Math.floor((HALF_BIT_MS / dt_ms) + 0.5);
+		if (lag < 1) lag = 1;
+
+		function box3_at(frameArray, f_offset, cx, cy) {
+			let sum = 0, cnt = 0;
+			for (let dy = -1; dy <= 1; dy++) {
+				let y = cy + dy;
+				if (y < 0 || y >= H) continue;
+				for (let dx = -1; dx <= 1; dx++) {
+					let x = cx + dx;
+					if (x < 0 || x >= W) continue;
+					sum += frameArray[f_offset + y * W + x];
+					cnt++;
+				}
+			}
+			return cnt > 0 ? sum / cnt : 0;
+		}
+
+		function find_peak_in_range(f_start, f_end) {
+			f_start = Math.max(lag, f_start);
+			f_end = Math.min(num_frames - 1, f_end);
+
+			const energy = new Float32Array(frame_bytes);
+			for (let f = f_start; f <= f_end; f++) {
+				const cur_offset = f * frame_bytes;
+				const prv_offset = (f - lag) * frame_bytes;
+				for (let p = 0; p < frame_bytes; p++) {
+					const d = Math.abs(frames_pure_blue[cur_offset + p] - frames_pure_blue[prv_offset + p]);
+					if (d > 8) energy[p] += d * d;
+				}
+			}
+
+			let bx = Math.floor(W / 2), by = Math.floor(H / 2), be = -1;
+			for (let y = 2; y < H - 2; y++) {
+				for (let x = 2; x < W - 2; x++) {
+					let e = 0;
+					for (let dy = -2; dy <= 2; dy++) {
+						const row = (y + dy) * W;
+						for (let dx = -2; dx <= 2; dx++) {
+							e += energy[row + x + dx];
+						}
+					}
+					if (e > be) { be = e; bx = x; by = y; }
+				}
+			}
+
+			let sf = f_start, bd = -1;
+			for (let f = f_start; f <= f_end; f++) {
+				const d = Math.abs(
+					box3_at(frames_pure_blue, f * frame_bytes, bx, by) -
+					box3_at(frames_pure_blue, (f - lag) * frame_bytes, bx, by)
+				);
+				if (d > bd) { bd = d; sf = f; }
+			}
+			return { bx, by, sf, bd, be };
+		}
+
+		const track_x = new Int32Array(num_frames);
+		const track_y = new Int32Array(num_frames);
+		const chunk_frames = Math.floor(1500.0 / dt_ms);
+
+		log("Locating LED emitter ROI bounding boxes...");
+		const global = find_peak_in_range(lag, num_frames - 1);
+		log(`Global peak blue LED casing at (x=${global.bx}, y=${global.by}), frame ${global.sf} (t=${Math.round(global.sf * dt_ms)} ms, delta=${global.bd.toFixed(1)})`);
+
+		// ROI Tracking
+		for (let c0 = 0; c0 < num_frames; c0 += chunk_frames) {
+			let c1 = Math.min(c0 + chunk_frames - 1, num_frames - 1);
+			let peak = find_peak_in_range(c0, c1);
+
+			if (peak.bd < 10.0) {
+				peak = { bx: global.bx, by: global.by, sf: Math.floor((c0 + c1) / 2), bd: global.bd };
+			}
+
+			const step_r = 2;
+			const max_drift = 35;
+			let min_d = Math.max(8.0, peak.bd * 0.22);
+
+			// Forward track
+			let cx = peak.bx, cy = peak.by;
+			for (let f = peak.sf; f <= c1; f++) {
+				const cur_offset = f * frame_bytes;
+				const prv_offset = (f - lag >= 0 ? f - lag : f) * frame_bytes;
+				let best_d = 0, nx = cx, ny = cy;
+
+				for (let dy = -step_r; dy <= step_r; dy++) {
+					let y = cy + dy;
+					if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
+					for (let dx = -step_r; dx <= step_r; dx++) {
+						let x = cx + dx;
+						if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
+						let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, prv_offset, x, y));
+						if (d > best_d) { best_d = d; nx = x; ny = y; }
+					}
+				}
+				if (best_d >= min_d) { cx = nx; cy = ny; }
+				track_x[f] = cx; track_y[f] = cy;
+			}
+
+			// Backward track
+			cx = peak.bx; cy = peak.by;
+			for (let f = peak.sf - 1; f >= c0; f--) {
+				const ref_f = Math.min(f + lag, num_frames - 1);
+				const cur_offset = f * frame_bytes;
+				const nxt_offset = ref_f * frame_bytes;
+				let best_d = 0, nx = cx, ny = cy;
+
+				for (let dy = -step_r; dy <= step_r; dy++) {
+					let y = cy + dy;
+					if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
+					for (let dx = -step_r; dx <= step_r; dx++) {
+						let x = cx + dx;
+						if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
+						let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, nxt_offset, x, y));
+						if (d > best_d) { best_d = d; nx = x; ny = y; }
+					}
+				}
+				if (best_d >= min_d) { cx = nx; cy = ny; }
+				track_x[f] = cx; track_y[f] = cy;
+			}
+		}
+
+		// Top-K Intensity Extraction
+		function extract_signal(tx_ref, ty_ref, half_box, top_k) {
+			const sig = new Float32Array(num_frames);
+			for (let f = 0; f < num_frames; f++) {
+				const tx = tx_ref[f], ty = ty_ref[f];
+				const f_offset = f * frame_bytes;
+				const patch = [];
+
+				for (let dy = -half_box; dy <= half_box; dy++) {
+					const y = ty + dy;
+					if (y < 0 || y >= H) continue;
+					for (let dx = -half_box; dx <= half_box; dx++) {
+						const x = tx + dx;
+						if (x < 0 || x >= W) continue;
+						patch.push(frames_blue[f_offset + y * W + x]);
+					}
+				}
+
+				patch.sort((a, b) => b - a);
+				const n = Math.min(patch.length, top_k);
+				let sum = 0;
+				for (let i = 0; i < n; i++) sum += patch[i];
+				sig[f] = sum / n;
+			}
+			return sig;
+		}
+
+		log("Extracting signals...");
+		const fixed_x = new Int32Array(num_frames).fill(global.bx);
+		const fixed_y = new Int32Array(num_frames).fill(global.by);
+
+		const candidates = [
+			{ name: "chunk-tracked", sig: extract_signal(track_x, track_y, 5, 14) },
+			{ name: "wide-roi", sig: extract_signal(fixed_x, fixed_y, 9, 20) }
+		];
+
+		let found_exact = false;
+		const exact_packets = new Set();
+		const soft_packets = [];
+
+		function crc8(data) {
+			let crc = 0;
+			for (let b of data) {
+				crc ^= b;
+				for (let i = 0; i < 8; i++) {
+					crc = (crc & 0x80) ? (((crc << 1) ^ 0x07) & 0xFF) : ((crc << 1) & 0xFF);
+				}
+			}
+			return crc;
+		}
+
+		function is_printable(bytes) {
+			for (let b of bytes) {
+				if (!((b >= 0x20 && b <= 0x7E) || b === 0x0A || b === 0x0D || b === 0x09 || b === 0x00)) return false;
+			}
+			return true;
+		}
+
+		function ascii_plausibility(str) {
+			let score = 0;
+			for (let ch of str) {
+				if (/[A-Za-z0-9 _\-().:]/.test(ch)) score += 2;
+				else score -= 3;
+			}
+			return score;
+		}
+
+		function check_frame_bytes(s_slice, pkt_len) {
+			const need_bits = (1 + pkt_len + 1) * 8;
+			if (s_slice.length < need_bits) return null;
+
+			const bytes = [];
+			for (let b = 0; b < need_bits; b += 8) {
+				bytes.push(parseInt(s_slice.substring(b, b + 8), 2));
+			}
+
+			const payload = bytes.slice(1, 1 + pkt_len);
+			const rx_crc = bytes[1 + pkt_len];
+			const calc_crc = crc8(bytes.slice(0, 1 + pkt_len));
+
+			if (rx_crc === calc_crc && is_printable(payload)) {
+				let str = String.fromCharCode(...payload).replace(/\0+$/, '');
+				return { rx_crc, str };
+			}
+			return null;
+		}
+
+		function try_decode_bitstream(s, confs, tag) {
+			for (let invert = 0; invert <= 1; invert++) {
+				const bit_str = invert ? s.replace(/0/g, 'x').replace(/1/g, '0').replace(/x/g, '1') : s;
+				let pos = bit_str.indexOf('01111110'); // SOF
+
+				while (pos !== -1) {
+					const f_start = pos + 8;
+					if (f_start + 32 <= bit_str.length) {
+						const pkt_len = parseInt(bit_str.substring(f_start, f_start + 8), 2);
+						const need_bits = (1 + pkt_len + 1) * 8;
+
+						if (pkt_len >= 2 && pkt_len <= 64 && f_start + need_bits <= bit_str.length) {
+							const slice = bit_str.substring(f_start, f_start + need_bits);
+
+							// 1. Exact match
+							const exact = check_frame_bytes(slice, pkt_len);
+							if (exact) {
+								const key = `${exact.rx_crc}:${exact.str}`;
+								if (!exact_packets.has(key)) {
+									exact_packets.add(key);
+									log(`\nOK (${tag}, CRC 0x${exact.rx_crc.toString(16).toUpperCase()}, invert=${invert}):\n${exact.str}`);
+									found_exact = true;
+								}
+							} else if (!found_exact && confs) {
+								// 2. Soft-decision 1-bit and 2-bit flip recovery
+								const weak = [];
+								for (let i = 8; i < need_bits; i++) weak.push(i);
+								weak.sort((a, b) => confs[f_start + a] - confs[f_start + b]);
+
+								const top1 = Math.min(weak.length, 12);
+								const top2 = Math.min(weak.length, 8);
+
+								for (let i = 0; i < top1; i++) {
+									const idx1 = weak[i];
+									const cArr = slice.split('');
+									cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
+									const soft = check_frame_bytes(cArr.join(''), pkt_len);
+									if (soft) {
+										const q = 1000 + ascii_plausibility(soft.str) - confs[f_start + idx1];
+										soft_packets.push({ q, flips: 1, tag: `${tag} [1-bit soft fix]`, ...soft, invert });
+									}
+								}
+
+								for (let i = 0; i < top2 - 1; i++) {
+									for (let j = i + 1; j < top2; j++) {
+										const idx1 = weak[i], idx2 = weak[j];
+										const cArr = slice.split('');
+										cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
+										cArr[idx2] = cArr[idx2] === '0' ? '1' : '0';
+										const soft = check_frame_bytes(cArr.join(''), pkt_len);
+										if (soft) {
+											const q = ascii_plausibility(soft.str) - confs[f_start + idx1] - confs[f_start + idx2];
+											soft_packets.push({ q, flips: 2, tag: `${tag} [2-bit soft fix]`, ...soft, invert });
+										}
+									}
+								}
+							}
+						}
+					}
+					pos = bit_str.indexOf('01111110', pos + 1);
+				}
+			}
+		}
+
+		// Matched filter phase loop
+		log("Running Matched Filters (Searching timeline...)");
+
+		for (let cand of candidates) {
+			const raw = cand.sig;
+			const raw_at = (t_ms) => {
+				let idx = t_ms / dt_ms;
+				if (idx <= 0) return raw[0];
+				if (idx >= num_frames - 1) return raw[num_frames - 1];
+				let i0 = Math.floor(idx);
+				let frac = idx - i0;
+				return raw[i0] * (1.0 - frac) + raw[i0 + 1] * frac;
+			};
+
+			const halfbit_diff = (t_mid, th) => {
+				let m1 = (raw_at(t_mid - th * 0.70) + raw_at(t_mid - th * 0.45) + raw_at(t_mid - th * 0.20)) / 3.0;
+				let m2 = (raw_at(t_mid + th * 0.20) + raw_at(t_mid + th * 0.45) + raw_at(t_mid + th * 0.70)) / 3.0;
+				return m2 - m1;
+			};
+
+			const deriv = new Float32Array(num_frames);
+			for (let i = 1; i <= num_frames - 2; i++) {
+				deriv[i] = (raw[i + 1] - raw[i - 1]) * 0.5;
+			}
+
+			const slope_peaks = [];
+			for (let i = 2; i <= num_frames - 3; i++) {
+				const d = deriv[i];
+				if ((d > 6.0 && d >= deriv[i - 1] && d >= deriv[i + 1]) ||
+					(d < -6.0 && d <= deriv[i - 1] && d <= deriv[i + 1])) {
+					slope_peaks.push(i * dt_ms);
+				}
+			}
+
+			if (slope_peaks.length < 20) continue;
+			const total_ms = (num_frames - 1) * dt_ms;
+
+			for (let th = 15.800; th <= 16.200; th += 0.005) {
+				const tbit = th * 2.0;
+
+				for (let t_start of slope_peaks) {
+					if (t_start + 40 * tbit > total_ms) continue;
+
+					let t_cur = t_start;
+					const diffs = [];
+					while (t_cur + th < total_ms && diffs.length < 620) {
+						const d0 = halfbit_diff(t_cur, th);
+						diffs.push(d0);
+
+						let best_shift = 0.0, best_mag = Math.abs(d0);
+						for (let sh of [-3.5, -2.0, -1.0, 1.0, 2.0, 3.5]) {
+							const mag = Math.abs(halfbit_diff(t_cur + sh, th));
+							if (mag > best_mag * 1.08) { best_mag = mag; best_shift = sh; }
+						}
+						t_cur += tbit + best_shift * 0.25;
+					}
+
+					if (diffs.length < 40) continue;
+
+					const bits = [], confs = [];
+					const win = 12;
+					for (let k = 0; k < diffs.length; k++) {
+						const lo = Math.max(0, k - win);
+						const hi = Math.min(diffs.length - 1, k + win);
+						let dmin = 1e9, dmax = -1e9;
+						for (let j = lo; j <= hi; j++) {
+							if (diffs[j] < dmin) dmin = diffs[j];
+							if (diffs[j] > dmax) dmax = diffs[j];
+						}
+						const mid = (dmax + dmin) * 0.5;
+						const norm_d = diffs[k] - mid;
+						bits.push(norm_d > 0 ? '1' : '0');
+						confs.push(Math.abs(norm_d));
+					}
+
+					try_decode_bitstream(bits.join(''), confs, `${cand.name} BoxMatched T=${th.toFixed(3)}`);
+					if (found_exact) break;
+				}
+				if (found_exact) break;
+			}
+			if (found_exact) break;
+		}
+
+		if (!found_exact) {
+			if (soft_packets.length > 0) {
+				soft_packets.sort((a, b) => (a.flips - b.flips) || (b.q - a.q));
+				const best = soft_packets[0];
+				log(`\nOK (${best.tag}, CRC 0x${best.rx_crc.toString(16).toUpperCase()}, invert=${best.invert}):\n${best.str}`);
+			} else {
+				log("\nNo valid CRC8 frame found. Try adjusting FPS or selecting a clearer video.");
+			}
+		}
+
+		statusText.textContent = "Processing complete.";
+		processBtn.disabled = false;
+		progressBar.style.display = "none";
+	}
+</script>
+
+</body>
+</html>
