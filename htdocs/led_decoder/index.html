@@ -5,59 +5,692 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Optical LED Manchester Decoder</title>
 	<style>
-		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background: #f4f4f9; color: #333; }
+		* { box-sizing: border-box; }
+		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1120px; margin: 0 auto; background: #f4f4f9; color: #333; }
 		.panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; }
-		h1 { margin-top: 0; font-size: 1.5rem; }
-		.controls { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; }
-		input[type="file"] { flex-grow: 1; }
-		input[type="number"] { width: 80px; padding: 5px; }
-		button { background: #007bf5; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-		button:disabled { background: #ccc; cursor: not-allowed; }
-		textarea { width: 100%; height: 300px; font-family: monospace; font-size: 13px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; resize: vertical; }
-		canvas { border: 1px solid #ccc; border-radius: 4px; background: #000; width: 160px; height: 90px; }
-		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #666; margin-bottom: 5px; }
-		progress { width: 200px; }
+		h1 { margin-top: 0; margin-bottom: 14px; font-size: 1.45rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+		.subtitle-badge { font-size: 0.8rem; font-weight: normal; color: #555; background: #eef2f7; padding: 4px 10px; border-radius: 12px; }
+		.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+		input[type="file"] { flex-grow: 1; min-width: 200px; }
+		input[type="number"], select { padding: 5px 7px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+		input[type="number"] { width: 74px; }
+		button { background: #007bf5; color: white; border: none; padding: 7px 14px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+		button:hover:not(:disabled) { background: #0066cc; }
+		button.secondary { background: #eef1f5; color: #333; border: 1px solid #ccd2da; }
+		button.secondary:hover:not(:disabled) { background: #e1e6ed; }
+		button:disabled { background: #ccc; color: #fff; cursor: not-allowed; border-color: transparent; }
+		.drop-hint { font-size: 0.84rem; color: #666; margin-bottom: 16px; }
+
+		.workspace { display: grid; grid-template-columns: minmax(340px, 500px) 1fr; gap: 18px; align-items: start; margin-bottom: 16px; }
+		@media (max-width: 860px) {
+			.workspace { grid-template-columns: 1fr; }
+		}
+
+		.preview-card { padding: 12px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
+		.canvas-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid #bbb; border-radius: 4px; overflow: hidden; }
+		canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
+		.canvas-help { font-size: 0.78rem; color: #666; }
+
+		.legend { font-size: 0.82rem; color: #444; display: flex; gap: 14px; flex-wrap: wrap; }
+		.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+		.swatch-track { width: 12px; height: 12px; border: 2px solid #00ff66; background: rgba(0, 255, 102, 0.18); display: inline-block; }
+		.swatch-wide { width: 12px; height: 12px; border: 2px dashed #ffbb00; display: inline-block; }
+
+		.scrubber-row { display: flex; gap: 6px; align-items: center; }
+		.scrubber-row button { padding: 5px 10px; font-size: 0.84rem; }
+		.scrubber-row input[type="range"] { flex-grow: 1; }
+		.frame-meta { font-family: monospace; font-size: 0.82rem; color: #222; background: #fff; padding: 6px 8px; border: 1px solid #e1e4e8; border-radius: 4px; }
+
+		.settings-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; }
+		.settings-group { background: #fff; border: 1px solid #e4e7ec; border-radius: 5px; padding: 10px 12px; }
+		.settings-group-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+		.dot-green { width: 9px; height: 9px; border-radius: 50%; background: #00cc52; display: inline-block; margin-right: 5px; }
+		.dot-amber { width: 9px; height: 9px; border-radius: 50%; background: #ffaa00; display: inline-block; margin-right: 5px; }
+		.dot-blue { width: 9px; height: 9px; border-radius: 50%; background: #007bf5; display: inline-block; margin-right: 5px; }
+
+		.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+		.field { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.84rem; color: #333; }
+		.field label { white-space: nowrap; }
+		.field-inputs { display: flex; align-items: center; gap: 4px; }
+		.field-inputs input[type="number"] { width: 68px; padding: 3px 5px; font-size: 0.84rem; }
+		.dim-tag { font-family: monospace; font-size: 0.76rem; color: #666; }
+
+		.settings-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.83rem; color: #444; }
+		.checkbox-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+		.log-output { width: 100%; height: 210px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
+		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
+		.log-output strong.decoded-str { font-weight: 700; color: #000; background: #e8f3ff; padding: 1px 4px; border-radius: 3px; }
+		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 6px; }
+		progress { width: 220px; }
+
+		.drop-overlay { position: fixed; inset: 0; background: rgba(0, 123, 245, 0.14); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 9999; pointer-events: none; }
+		.drop-overlay.active { display: flex; }
+		.drop-overlay-box { background: white; border: 3px dashed #007bf5; border-radius: 12px; padding: 36px 48px; text-align: center; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18); font-size: 1.15rem; font-weight: bold; color: #007bf5; }
+		.drop-overlay-sub { font-size: 0.9rem; font-weight: normal; color: #555; margin-top: 6px; }
 	</style>
 </head>
 <body>
 
+<div id="dropOverlay" class="drop-overlay">
+	<div class="drop-overlay-box">
+		Drop video file to decode
+		<div class="drop-overlay-sub">Supports 240 fps Slow-Mo .MOV / .MP4 recordings</div>
+	</div>
+</div>
+
 <div class="panel">
-	<h1>Optical LED Decoder</h1>
+	<h1>
+		Optical LED Manchester Decoder
+		<span class="subtitle-badge">WebCodecs + Live ROI Tracker</span>
+	</h1>
+
 	<div class="controls">
 		<input type="file" id="videoInput" accept="video/*">
-		<label>FPS: <input type="number" id="fpsInput" value="240"></label>
+		<label>FPS: <input type="number" id="fpsInput" value="240" min="1" max="2000" step="1"></label>
 		<button id="processBtn">Process Video</button>
-		<canvas id="previewCanvas" width="160" height="90"></canvas>
+		<button id="redecodeBtn" class="secondary" disabled>Re-decode (Cached)</button>
+		<button id="resetSettingsBtn" class="secondary">Reset Defaults</button>
+	</div>
+	<div class="drop-hint">Drag &amp; drop a video anywhere on this page to decode immediately, or drag/resize the ROI rectangles directly on the video preview.</div>
+
+	<div class="workspace">
+		<div class="preview-card">
+			<div class="canvas-wrap">
+				<canvas id="previewCanvas" width="160" height="90"></canvas>
+			</div>
+			<div class="canvas-help">Click or drag on video to pin ROI center &bull; Drag rectangle edges/corners to resize</div>
+
+			<div class="legend">
+				<span class="legend-item"><span class="swatch-track"></span> Tracked ROI (<span id="trackDimLabel">11&times;11</span>)</span>
+				<span class="legend-item"><span class="swatch-wide"></span> Anchor ROI (<span id="wideDimLabel">19&times;19</span>)</span>
+			</div>
+
+			<div class="scrubber-row">
+				<button id="prevFrameBtn" class="secondary" disabled title="Previous frame">&lt;</button>
+				<button id="playPauseBtn" disabled>Play</button>
+				<button id="nextFrameBtn" class="secondary" disabled title="Next frame">&gt;</button>
+				<select id="playSpeedSelect" title="Playback speed">
+					<option value="15">0.25&times; (60 fps)</option>
+					<option value="60">0.06&times; (16 fps)</option>
+					<option value="4">1&times; (240 fps)</option>
+				</select>
+				<input type="range" id="frameSlider" min="0" max="0" value="0" disabled>
+			</div>
+
+			<div id="frameMeta" class="frame-meta">Frame: - / -</div>
+		</div>
+
+		<div class="settings-card">
+			<div class="settings-group">
+				<div class="settings-group-title">
+					<span><span class="dot-green"></span>Tracked ROI (Motion-Following)</span>
+					<span class="dim-tag" id="trackAreaTag">11&times;11 px</span>
+				</div>
+				<div class="grid-2">
+					<div class="field">
+						<label for="trackHalfBoxInput">Half-Box Radius</label>
+						<div class="field-inputs">
+							<input type="number" id="trackHalfBoxInput" value="5" min="1" max="30" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="trackTopKInput">Top-K Pixels</label>
+						<div class="field-inputs">
+							<input type="number" id="trackTopKInput" value="14" min="1" max="400" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="stepRInput">Max Step / Frame</label>
+						<div class="field-inputs">
+							<input type="number" id="stepRInput" value="2" min="1" max="15" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="maxDriftInput">Max Drift (px)</label>
+						<div class="field-inputs">
+							<input type="number" id="maxDriftInput" value="35" min="1" max="90" step="1">
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="settings-group">
+				<div class="settings-group-title">
+					<span><span class="dot-amber"></span>Anchor / Stationary ROI</span>
+					<button id="autoAnchorBtn" class="secondary" style="padding: 2px 8px; font-size: 0.75rem;">Auto Peak</button>
+				</div>
+				<div class="grid-2">
+					<div class="field">
+						<label for="anchorModeSelect">Anchor Mode</label>
+						<div class="field-inputs">
+							<select id="anchorModeSelect">
+								<option value="auto">Auto Peak</option>
+								<option value="pinned">Pinned (X, Y)</option>
+							</select>
+						</div>
+					</div>
+					<div class="field">
+						<label for="wideHalfBoxInput">Half-Box Radius</label>
+						<div class="field-inputs">
+							<input type="number" id="wideHalfBoxInput" value="9" min="1" max="35" step="1">
+							<span class="dim-tag" id="wideAreaTag">19&times;19</span>
+						</div>
+					</div>
+					<div class="field">
+						<label for="anchorXInput">Center X (0-159)</label>
+						<div class="field-inputs">
+							<input type="number" id="anchorXInput" value="80" min="0" max="159" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="anchorYInput">Center Y (0-89)</label>
+						<div class="field-inputs">
+							<input type="number" id="anchorYInput" value="45" min="0" max="89" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="wideTopKInput">Top-K Pixels</label>
+						<div class="field-inputs">
+							<input type="number" id="wideTopKInput" value="20" min="1" max="600" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="candidateModeSelect">Signal Source</label>
+						<div class="field-inputs">
+							<select id="candidateModeSelect">
+								<option value="both">Tracked + Anchor</option>
+								<option value="tracked">Tracked Only</option>
+								<option value="anchor">Anchor Only</option>
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="settings-group">
+				<div class="settings-group-title">
+					<span><span class="dot-blue"></span>Manchester &amp; Signal Thresholds</span>
+				</div>
+				<div class="grid-2">
+					<div class="field">
+						<label for="halfBitMsInput">Half-Bit (ms)</label>
+						<div class="field-inputs">
+							<input type="number" id="halfBitMsInput" value="15.0" min="1" max="200" step="0.1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="blueThreshInput">Blue Excess Min</label>
+						<div class="field-inputs">
+							<input type="number" id="blueThreshInput" value="10" min="0" max="200" step="1">
+						</div>
+					</div>
+					<div class="field">
+						<label for="thMinInput">Sweep Min (ms)</label>
+						<div class="field-inputs">
+							<input type="number" id="thMinInput" value="15.800" min="1" max="200" step="0.01">
+						</div>
+					</div>
+					<div class="field">
+						<label for="thMaxInput">Sweep Max (ms)</label>
+						<div class="field-inputs">
+							<input type="number" id="thMaxInput" value="16.200" min="1" max="200" step="0.01">
+						</div>
+					</div>
+					<div class="field">
+						<label for="slopeThreshInput">Edge Slope Min</label>
+						<div class="field-inputs">
+							<input type="number" id="slopeThreshInput" value="6.0" min="0.5" max="100" step="0.5">
+						</div>
+					</div>
+					<div class="field">
+						<label for="softModeSelect">CRC8 Soft Fix</label>
+						<div class="field-inputs">
+							<select id="softModeSelect">
+								<option value="2">1 &amp; 2-bit fix</option>
+								<option value="1">1-bit fix only</option>
+								<option value="0">Exact CRC8 only</option>
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="settings-footer">
+				<label class="checkbox-label">
+					<input type="checkbox" id="autoRedecodeCheck" checked>
+					Auto re-decode on change
+				</label>
+				<label class="checkbox-label">
+					<input type="checkbox" id="liveAnimCheck" checked>
+					Live tracking animation
+				</label>
+			</div>
+		</div>
 	</div>
 
 	<div class="status-bar">
 		<span id="statusText">Waiting for video...</span>
 		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
 	</div>
-	<textarea id="logOutput" readonly placeholder="Decoded telemetry will appear here..."></textarea>
+	<div id="logOutput" class="log-output" data-placeholder="Decoded telemetry will appear here..."></div>
 </div>
 
 <script>
 	const W = 160, H = 90;
-	const HALF_BIT_MS = 15.0;
 	const frame_bytes = W * H;
 
 	const videoInput = document.getElementById('videoInput');
 	const fpsInput = document.getElementById('fpsInput');
 	const processBtn = document.getElementById('processBtn');
+	const redecodeBtn = document.getElementById('redecodeBtn');
+	const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 	const logOutput = document.getElementById('logOutput');
 	const statusText = document.getElementById('statusText');
 	const progressBar = document.getElementById('progressBar');
 	const previewCanvas = document.getElementById('previewCanvas');
+	const playPauseBtn = document.getElementById('playPauseBtn');
+	const prevFrameBtn = document.getElementById('prevFrameBtn');
+	const nextFrameBtn = document.getElementById('nextFrameBtn');
+	const playSpeedSelect = document.getElementById('playSpeedSelect');
+	const frameSlider = document.getElementById('frameSlider');
+	const frameMeta = document.getElementById('frameMeta');
+	const dropOverlay = document.getElementById('dropOverlay');
 	const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
 
-	function log(msg) {
-		logOutput.value += msg + "\n";
-		logOutput.scrollTop = logOutput.scrollHeight;
-		console.log(msg);
+	// Settings controls
+	const trackHalfBoxInput = document.getElementById('trackHalfBoxInput');
+	const trackTopKInput = document.getElementById('trackTopKInput');
+	const stepRInput = document.getElementById('stepRInput');
+	const maxDriftInput = document.getElementById('maxDriftInput');
+	const anchorModeSelect = document.getElementById('anchorModeSelect');
+	const autoAnchorBtn = document.getElementById('autoAnchorBtn');
+	const wideHalfBoxInput = document.getElementById('wideHalfBoxInput');
+	const anchorXInput = document.getElementById('anchorXInput');
+	const anchorYInput = document.getElementById('anchorYInput');
+	const wideTopKInput = document.getElementById('wideTopKInput');
+	const candidateModeSelect = document.getElementById('candidateModeSelect');
+	const halfBitMsInput = document.getElementById('halfBitMsInput');
+	const blueThreshInput = document.getElementById('blueThreshInput');
+	const thMinInput = document.getElementById('thMinInput');
+	const thMaxInput = document.getElementById('thMaxInput');
+	const slopeThreshInput = document.getElementById('slopeThreshInput');
+	const softModeSelect = document.getElementById('softModeSelect');
+	const autoRedecodeCheck = document.getElementById('autoRedecodeCheck');
+	const liveAnimCheck = document.getElementById('liveAnimCheck');
+	const trackDimLabel = document.getElementById('trackDimLabel');
+	const wideDimLabel = document.getElementById('wideDimLabel');
+	const trackAreaTag = document.getElementById('trackAreaTag');
+	const wideAreaTag = document.getElementById('wideAreaTag');
+
+	let currentFile = null;
+	let isProcessing = false;
+	let dragDepth = 0;
+	let redecodeTimer = null;
+
+	// Cached decoded frame buffers for instant re-decoding when tweaking ROIs or thresholds
+	let cachedMedia = {
+		framesRgba: null,
+		framesBlue: null,
+		framesPureBlue: null,
+		cachedBlueThresh: null,
+		numFrames: 0,
+		fps: 240.0
+	};
+
+	// Visualization state for live & post-DSP frame scrubbing and interactive ROI rectangles
+	let vizState = {
+		framesRgba: null,
+		trackX: null,
+		trackY: null,
+		globalBx: 80,
+		globalBy: 45,
+		dtMs: 1000.0 / 240.0,
+		currentFrame: 0,
+		isPlaying: false,
+		rafId: null,
+		lastStepTime: 0,
+		liveBox: null
+	};
+
+	function getSettings() {
+		const trackHalfBox = Math.max(1, Math.min(35, parseInt(trackHalfBoxInput.value, 10) || 5));
+		const wideHalfBox = Math.max(1, Math.min(40, parseInt(wideHalfBoxInput.value, 10) || 9));
+		const trackMaxPixels = (2 * trackHalfBox + 1) * (2 * trackHalfBox + 1);
+		const wideMaxPixels = (2 * wideHalfBox + 1) * (2 * wideHalfBox + 1);
+
+		const trackTopK = Math.max(1, Math.min(trackMaxPixels, parseInt(trackTopKInput.value, 10) || 14));
+		const wideTopK = Math.max(1, Math.min(wideMaxPixels, parseInt(wideTopKInput.value, 10) || 20));
+		const stepR = Math.max(1, Math.min(20, parseInt(stepRInput.value, 10) || 2));
+		const maxDrift = Math.max(1, Math.min(90, parseInt(maxDriftInput.value, 10) || 35));
+
+		const anchorMode = anchorModeSelect.value;
+		const anchorX = Math.max(0, Math.min(W - 1, parseInt(anchorXInput.value, 10) || 0));
+		const anchorY = Math.max(0, Math.min(H - 1, parseInt(anchorYInput.value, 10) || 0));
+		const candidateMode = candidateModeSelect.value;
+
+		const halfBitMs = Math.max(0.5, parseFloat(halfBitMsInput.value) || 15.0);
+		const blueThresh = Math.max(0, Math.min(255, parseFloat(blueThreshInput.value) || 10));
+		let thMin = Math.max(0.5, parseFloat(thMinInput.value) || 15.800);
+		let thMax = Math.max(thMin, parseFloat(thMaxInput.value) || 16.200);
+		const slopeThresh = Math.max(0.1, parseFloat(slopeThreshInput.value) || 6.0);
+		const softMode = parseInt(softModeSelect.value, 10);
+
+		return {
+			trackHalfBox,
+			trackTopK,
+			stepR,
+			maxDrift,
+			anchorMode,
+			anchorX,
+			anchorY,
+			wideHalfBox,
+			wideTopK,
+			candidateMode,
+			halfBitMs,
+			blueThresh,
+			thMin,
+			thMax,
+			slopeThresh,
+			softMode
+		};
 	}
 
-	function extractBlueChannels(imgData, frames_blue, frames_pure_blue, f_offset) {
+	function updateDimensionLabels() {
+		const s = getSettings();
+		const tSide = 2 * s.trackHalfBox + 1;
+		const wSide = 2 * s.wideHalfBox + 1;
+		trackDimLabel.textContent = `${tSide}\u00d7${tSide}`;
+		wideDimLabel.textContent = `${wSide}\u00d7${wSide}`;
+		trackAreaTag.textContent = `${tSide}\u00d7${tSide} px`;
+		wideAreaTag.textContent = `${wSide}\u00d7${wSide}`;
+	}
+
+	function stopPlayback() {
+		vizState.isPlaying = false;
+		playPauseBtn.textContent = "Play";
+		if (vizState.rafId !== null) {
+			cancelAnimationFrame(vizState.rafId);
+			vizState.rafId = null;
+		}
+	}
+
+	function drawRectanglesOnContext(tx, ty, anchorX, anchorY, trackHalfBox, wideHalfBox, showTrackBox) {
+		// 1. Stationary / Anchor wide-ROI box (amber dashed)
+		const wSize = 2 * wideHalfBox;
+		ctx.save();
+		ctx.strokeStyle = "rgba(255, 187, 0, 0.85)";
+		ctx.lineWidth = 1;
+		ctx.setLineDash([2, 2]);
+		ctx.strokeRect(anchorX - wideHalfBox + 0.5, anchorY - wideHalfBox + 0.5, wSize, wSize);
+
+		// Anchor center tick
+		ctx.setLineDash([]);
+		ctx.fillStyle = "rgba(255, 187, 0, 0.9)";
+		ctx.fillRect(anchorX, anchorY, 1, 1);
+		ctx.restore();
+
+		// 2. Active chunk-tracked ROI box (bright green solid)
+		if (showTrackBox) {
+			const tSize = 2 * trackHalfBox;
+			ctx.save();
+			ctx.strokeStyle = "#00ff66";
+			ctx.lineWidth = 1;
+			ctx.strokeRect(tx - trackHalfBox + 0.5, ty - trackHalfBox + 0.5, tSize, tSize);
+
+			// Center pixel marker
+			ctx.fillStyle = "#00ff66";
+			ctx.fillRect(tx, ty, 1, 1);
+			ctx.restore();
+		}
+	}
+
+	function drawFrameWithTracking(f) {
+		const s = getSettings();
+		const anchorX = s.anchorMode === 'pinned' ? s.anchorX : vizState.globalBx;
+		const anchorY = s.anchorMode === 'pinned' ? s.anchorY : vizState.globalBy;
+
+		if (!vizState.framesRgba || f < 0 || f >= vizState.framesRgba.length) {
+			ctx.fillStyle = "#000";
+			ctx.fillRect(0, 0, W, H);
+			drawRectanglesOnContext(anchorX, anchorY, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, true);
+			return;
+		}
+
+		vizState.currentFrame = f;
+		frameSlider.value = f;
+
+		ctx.putImageData(new ImageData(vizState.framesRgba[f], W, H), 0, 0);
+
+		const hasTrack = vizState.trackX && vizState.trackY;
+		const tx = hasTrack ? vizState.trackX[f] : anchorX;
+		const ty = hasTrack ? vizState.trackY[f] : anchorY;
+
+		drawRectanglesOnContext(tx, ty, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, true);
+
+		const tMs = Math.round(f * vizState.dtMs);
+		if (hasTrack) {
+			frameMeta.textContent = `Frame: ${f} / ${vizState.framesRgba.length - 1} (${tMs} ms) | Tracked: (${tx}, ${ty}) | Anchor: (${anchorX}, ${anchorY})`;
+		} else {
+			frameMeta.textContent = `Frame: ${f} / ${vizState.framesRgba.length - 1} (${tMs} ms) | Anchor: (${anchorX}, ${anchorY})`;
+		}
+	}
+
+	function playbackLoop(now) {
+		if (!vizState.isPlaying || !vizState.framesRgba) return;
+		const stepMs = parseInt(playSpeedSelect.value, 10) || 15;
+		if (now - vizState.lastStepTime >= stepMs) {
+			vizState.lastStepTime = now;
+			const nextFrame = (vizState.currentFrame + 1) % vizState.framesRgba.length;
+			drawFrameWithTracking(nextFrame);
+		}
+		vizState.rafId = requestAnimationFrame(playbackLoop);
+	}
+
+	playPauseBtn.addEventListener('click', () => {
+		if (!vizState.framesRgba) return;
+		if (vizState.isPlaying) {
+			stopPlayback();
+		} else {
+			vizState.isPlaying = true;
+			playPauseBtn.textContent = "Pause";
+			vizState.lastStepTime = performance.now();
+			vizState.rafId = requestAnimationFrame(playbackLoop);
+		}
+	});
+
+	prevFrameBtn.addEventListener('click', () => {
+		if (!vizState.framesRgba) return;
+		stopPlayback();
+		drawFrameWithTracking(Math.max(0, vizState.currentFrame - 1));
+	});
+
+	nextFrameBtn.addEventListener('click', () => {
+		if (!vizState.framesRgba) return;
+		stopPlayback();
+		drawFrameWithTracking(Math.min(vizState.framesRgba.length - 1, vizState.currentFrame + 1));
+	});
+
+	frameSlider.addEventListener('input', () => {
+		stopPlayback();
+		drawFrameWithTracking(parseInt(frameSlider.value, 10));
+	});
+
+	// Interactive Canvas Rectangle Dragging & Resizing
+	let canvasDrag = null;
+
+	function clientToCanvasCoords(e) {
+		const rect = previewCanvas.getBoundingClientRect();
+		const x = Math.max(0, Math.min(W - 1, Math.round(((e.clientX - rect.left) / rect.width) * W)));
+		const y = Math.max(0, Math.min(H - 1, Math.round(((e.clientY - rect.top) / rect.height) * H)));
+		return { x, y };
+	}
+
+	function hitTestRectangles(px, py) {
+		const s = getSettings();
+		const anchorX = s.anchorMode === 'pinned' ? s.anchorX : vizState.globalBx;
+		const anchorY = s.anchorMode === 'pinned' ? s.anchorY : vizState.globalBy;
+		const hasTrack = vizState.trackX && vizState.trackY;
+		const tx = hasTrack ? vizState.trackX[vizState.currentFrame] : anchorX;
+		const ty = hasTrack ? vizState.trackY[vizState.currentFrame] : anchorY;
+
+		// Check if pointer is near perimeter of green Tracked ROI
+		const tDx = Math.abs(px - tx);
+		const tDy = Math.abs(py - ty);
+		if (Math.max(tDx, tDy) >= s.trackHalfBox - 1 && Math.max(tDx, tDy) <= s.trackHalfBox + 2) {
+			return 'resize-track';
+		}
+
+		// Check if pointer is near perimeter of amber Anchor ROI
+		const wDx = Math.abs(px - anchorX);
+		const wDy = Math.abs(py - anchorY);
+		if (Math.max(wDx, wDy) >= s.wideHalfBox - 1 && Math.max(wDx, wDy) <= s.wideHalfBox + 2) {
+			return 'resize-wide';
+		}
+
+		return 'move-anchor';
+	}
+
+	previewCanvas.addEventListener('pointerdown', (e) => {
+		if (isProcessing) return;
+		const { x, y } = clientToCanvasCoords(e);
+		const mode = hitTestRectangles(x, y);
+		canvasDrag = { mode };
+		previewCanvas.setPointerCapture(e.pointerId);
+		stopPlayback();
+
+		if (mode === 'move-anchor') {
+			anchorModeSelect.value = 'pinned';
+			anchorXInput.value = x;
+			anchorYInput.value = y;
+			vizState.globalBx = x;
+			vizState.globalBy = y;
+			drawFrameWithTracking(vizState.currentFrame);
+		}
+	});
+
+	previewCanvas.addEventListener('pointermove', (e) => {
+		const { x, y } = clientToCanvasCoords(e);
+
+		if (!canvasDrag) {
+			const hoverMode = hitTestRectangles(x, y);
+			previewCanvas.style.cursor = hoverMode === 'move-anchor' ? 'crosshair' : 'nwse-resize';
+			return;
+		}
+
+		const s = getSettings();
+		const anchorX = s.anchorMode === 'pinned' ? s.anchorX : vizState.globalBx;
+		const anchorY = s.anchorMode === 'pinned' ? s.anchorY : vizState.globalBy;
+		const hasTrack = vizState.trackX && vizState.trackY;
+		const tx = hasTrack ? vizState.trackX[vizState.currentFrame] : anchorX;
+		const ty = hasTrack ? vizState.trackY[vizState.currentFrame] : anchorY;
+
+		if (canvasDrag.mode === 'move-anchor') {
+			anchorModeSelect.value = 'pinned';
+			anchorXInput.value = x;
+			anchorYInput.value = y;
+			vizState.globalBx = x;
+			vizState.globalBy = y;
+		} else if (canvasDrag.mode === 'resize-track') {
+			const newHalf = Math.max(1, Math.min(35, Math.max(Math.abs(x - tx), Math.abs(y - ty))));
+			trackHalfBoxInput.value = newHalf;
+			const maxK = (2 * newHalf + 1) * (2 * newHalf + 1);
+			if (parseInt(trackTopKInput.value, 10) > maxK) trackTopKInput.value = maxK;
+		} else if (canvasDrag.mode === 'resize-wide') {
+			const newHalf = Math.max(1, Math.min(40, Math.max(Math.abs(x - anchorX), Math.abs(y - anchorY))));
+			wideHalfBoxInput.value = newHalf;
+			const maxK = (2 * newHalf + 1) * (2 * newHalf + 1);
+			if (parseInt(wideTopKInput.value, 10) > maxK) wideTopKInput.value = maxK;
+		}
+
+		updateDimensionLabels();
+		drawFrameWithTracking(vizState.currentFrame);
+	});
+
+	previewCanvas.addEventListener('pointerup', (e) => {
+		if (!canvasDrag) return;
+		canvasDrag = null;
+		try { previewCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+		scheduleAutoRedecode(50);
+	});
+
+	function scheduleAutoRedecode(delayMs = 180) {
+		updateDimensionLabels();
+		drawFrameWithTracking(vizState.currentFrame);
+		if (!autoRedecodeCheck.checked || !cachedMedia.framesRgba || isProcessing) return;
+		clearTimeout(redecodeTimer);
+		redecodeTimer = setTimeout(() => {
+			redecodeFromCache();
+		}, delayMs);
+	}
+
+	// Bind live updates to all rectangle & threshold inputs
+	const settingElements = [
+		trackHalfBoxInput, trackTopKInput, stepRInput, maxDriftInput,
+		anchorModeSelect, wideHalfBoxInput, anchorXInput, anchorYInput,
+		wideTopKInput, candidateModeSelect, blueThreshInput,
+		thMinInput, thMaxInput, slopeThreshInput, softModeSelect
+	];
+
+	for (const el of settingElements) {
+		el.addEventListener('input', () => scheduleAutoRedecode(200));
+		el.addEventListener('change', () => scheduleAutoRedecode(50));
+	}
+
+	halfBitMsInput.addEventListener('input', () => {
+		const hb = parseFloat(halfBitMsInput.value);
+		if (hb > 0) {
+			// Keep sweep window centered proportionally around nominal half-bit period
+			thMinInput.value = (hb * (15.800 / 15.0)).toFixed(3);
+			thMaxInput.value = (hb * (16.200 / 15.0)).toFixed(3);
+		}
+		scheduleAutoRedecode(250);
+	});
+
+	autoAnchorBtn.addEventListener('click', () => {
+		anchorModeSelect.value = 'auto';
+		scheduleAutoRedecode(30);
+	});
+
+	resetSettingsBtn.addEventListener('click', () => {
+		trackHalfBoxInput.value = 5;
+		trackTopKInput.value = 14;
+		stepRInput.value = 2;
+		maxDriftInput.value = 35;
+		anchorModeSelect.value = 'auto';
+		wideHalfBoxInput.value = 9;
+		wideTopKInput.value = 20;
+		candidateModeSelect.value = 'both';
+		halfBitMsInput.value = '15.0';
+		blueThreshInput.value = 10;
+		thMinInput.value = '15.800';
+		thMaxInput.value = '16.200';
+		slopeThreshInput.value = '6.0';
+		softModeSelect.value = '2';
+		updateDimensionLabels();
+		scheduleAutoRedecode(30);
+	});
+
+	function clearLog() {
+		logOutput.textContent = "";
+	}
+
+	function log(msg) {
+		logOutput.appendChild(document.createTextNode(msg + "\n"));
+		logOutput.scrollTop = logOutput.scrollHeight;
+	}
+
+	function logDecoded(header, payload) {
+		logOutput.appendChild(document.createTextNode(header + "\n"));
+		const strong = document.createElement('strong');
+		strong.className = 'decoded-str';
+		strong.textContent = payload;
+		logOutput.appendChild(strong);
+		logOutput.appendChild(document.createTextNode("\n"));
+		logOutput.scrollTop = logOutput.scrollHeight;
+	}
+
+	function extractBlueChannels(imgData, frames_blue, frames_pure_blue, f_offset, blueThresh) {
 		for (let i = 0; i < frame_bytes; i++) {
 			const r = imgData[i * 4];
 			const g = imgData[i * 4 + 1];
@@ -65,8 +698,29 @@
 
 			const blue_excess = b - Math.floor((r + g) / 2);
 			frames_blue[f_offset + i] = blue_excess > 0 ? (b + blue_excess * 1.5) : b;
-			frames_pure_blue[f_offset + i] = blue_excess > 10 ? blue_excess : 0;
+			frames_pure_blue[f_offset + i] = blue_excess > blueThresh ? blue_excess : 0;
 		}
+	}
+
+	// Quick live hotspot estimator used while decoding frames so the rectangle tracks live during load
+	function estimateLiveHotspot(frames_pure_blue, curFrameIdx, lag) {
+		if (curFrameIdx < lag) return null;
+		const curOff = curFrameIdx * frame_bytes;
+		const prvOff = (curFrameIdx - lag) * frame_bytes;
+		let bestD = 8;
+		let bx = -1, by = -1;
+		for (let y = 2; y < H - 2; y += 2) {
+			const row = y * W;
+			for (let x = 2; x < W - 2; x += 2) {
+				const d = Math.abs(frames_pure_blue[curOff + row + x] - frames_pure_blue[prvOff + row + x]);
+				if (d > bestD) {
+					bestD = d;
+					bx = x;
+					by = y;
+				}
+			}
+		}
+		return bx >= 0 ? { bx, by } : null;
 	}
 
 	// Lightweight ISO BMFF (.MOV / .MP4) box parser for frame-exact WebCodecs extraction
@@ -107,7 +761,6 @@
 			return boxes;
 		}
 
-		// Scan top-level boxes via slices so large mdat payloads aren't copied into RAM twice
 		let pos = 0;
 		let moovBuffer = null;
 		while (pos + 8 <= file.size) {
@@ -167,7 +820,6 @@
 
 			if (!stsd || !stts || !stsc || !stsz || (!stco && !co64)) continue;
 
-			// VisualSampleEntry fixed header is 86 bytes (8-byte box header + 78-byte fields)
 			const entryStart = stsd.dataStart + 8;
 			const entrySize = moovView.getUint32(entryStart);
 			const format = readFourCC(moovView, entryStart + 4);
@@ -215,7 +867,6 @@
 
 			if (!codec || !description) throw new Error(`Missing decoder config box for ${format}`);
 
-			// Parse stsz (sample sizes)
 			const fixedSampleSize = moovView.getUint32(stsz.dataStart + 4);
 			const sampleCount = moovView.getUint32(stsz.dataStart + 8);
 			const sampleSizes = new Uint32Array(sampleCount);
@@ -227,7 +878,6 @@
 				}
 			}
 
-			// Parse stco / co64 (chunk offsets)
 			const chunkCount = moovView.getUint32((stco || co64).dataStart + 4);
 			const chunkOffsets = new Float64Array(chunkCount);
 			if (stco) {
@@ -240,7 +890,6 @@
 				}
 			}
 
-			// Parse stsc (sample-to-chunk) -> compute exact file offset of every sample
 			const stscCount = moovView.getUint32(stsc.dataStart + 4);
 			const stscEntries = [];
 			for (let i = 0; i < stscCount; i++) {
@@ -267,7 +916,6 @@
 				}
 			}
 
-			// Parse stts (DTS deltas & detect high-speed burst FPS)
 			const sttsCount = moovView.getUint32(stts.dataStart + 4);
 			const sampleDts = new Float64Array(sampleCount);
 			const sampleDur = new Uint32Array(sampleCount);
@@ -289,7 +937,6 @@
 				}
 			}
 
-			// Average the high-speed burst deltas (handles alternating 2/3 ticks at timescale=600 -> 240 fps)
 			let fastTicks = 0;
 			let fastFrames = 0;
 			for (const run of sttsRuns) {
@@ -302,7 +949,6 @@
 				? (timescale * fastFrames) / fastTicks
 				: 240.0;
 
-			// Parse ctts (QuickTime v0 and ISO v1 both store signed 32-bit offsets in iOS .MOV files)
 			const samplePts = new Float64Array(sampleCount);
 			samplePts.set(sampleDts);
 			if (ctts) {
@@ -319,7 +965,6 @@
 				}
 			}
 
-			// Parse stss (sync/keyframe table)
 			const keyFrames = new Uint8Array(sampleCount);
 			if (!stss) {
 				keyFrames.fill(1);
@@ -350,8 +995,8 @@
 		throw new Error("No video track found in container.");
 	}
 
-	// Primary frame-exact extraction via WebCodecs VideoDecoder (equivalent to ffmpeg -fps_mode passthrough)
-	async function extractFramesWebCodecs(file) {
+	// Primary frame-exact extraction via WebCodecs VideoDecoder
+	async function extractFramesWebCodecs(file, blueThresh) {
 		const track = await parseIsoBmffVideoTrack(file);
 		const config = {
 			codec: track.codec,
@@ -369,6 +1014,9 @@
 		const decodedFrames = [];
 		let decodedCount = 0;
 		let decodeError = null;
+		let lastLivePaint = 0;
+		let liveTrackX = Math.floor(W / 2);
+		let liveTrackY = Math.floor(H / 2);
 
 		const decoder = new VideoDecoder({
 			output(videoFrame) {
@@ -379,10 +1027,36 @@
 				const imgData = ctx.getImageData(0, 0, W, H).data;
 				const blue = new Float32Array(frame_bytes);
 				const pureBlue = new Float32Array(frame_bytes);
-				extractBlueChannels(imgData, blue, pureBlue, 0);
-				decodedFrames.push({ ts, blue, pureBlue });
-				decodedCount++;
+				extractBlueChannels(imgData, blue, pureBlue, 0, blueThresh);
+				decodedFrames.push({ ts, blue, pureBlue, rgba: imgData });
 
+				// Live preview overlay while extracting frames
+				const now = performance.now();
+				if (now - lastLivePaint >= 30) {
+					lastLivePaint = now;
+					const s = getSettings();
+					if (decodedCount >= 4) {
+						const prv = decodedFrames[decodedCount - 4].pureBlue;
+						let bestD = 8;
+						for (let y = 2; y < H - 2; y += 2) {
+							const row = y * W;
+							for (let x = 2; x < W - 2; x += 2) {
+								const d = Math.abs(pureBlue[row + x] - prv[row + x]);
+								if (d > bestD) {
+									bestD = d;
+									liveTrackX = x;
+									liveTrackY = y;
+								}
+							}
+						}
+					}
+					const ax = s.anchorMode === 'pinned' ? s.anchorX : liveTrackX;
+					const ay = s.anchorMode === 'pinned' ? s.anchorY : liveTrackY;
+					drawRectanglesOnContext(liveTrackX, liveTrackY, ax, ay, s.trackHalfBox, s.wideHalfBox, true);
+					frameMeta.textContent = `Decoding frame ${decodedCount + 1} / ${track.sampleCount} | Live Peak: (${liveTrackX}, ${liveTrackY})`;
+				}
+
+				decodedCount++;
 				if ((decodedCount & 31) === 0 || decodedCount === track.sampleCount) {
 					progressBar.value = (decodedCount / track.sampleCount) * 100;
 				}
@@ -395,7 +1069,6 @@
 		decoder.configure(config);
 		statusText.textContent = `Decoding ${track.sampleCount} frames via WebCodecs (${track.codec})...`;
 
-		// Read compressed video samples in chunks to keep memory usage bounded
 		const BATCH_SAMPLES = 128;
 		for (let start = 0; start < track.sampleCount; start += BATCH_SAMPLES) {
 			if (decodeError) throw decodeError;
@@ -430,27 +1103,29 @@
 		decoder.close();
 		if (decodeError) throw decodeError;
 
-		// Guarantee strict presentation-timestamp order for B-frame streams
 		decodedFrames.sort((a, b) => a.ts - b.ts);
 
 		const num_frames = decodedFrames.length;
 		const frames_blue = new Float32Array(num_frames * frame_bytes);
 		const frames_pure_blue = new Float32Array(num_frames * frame_bytes);
+		const frames_rgba = new Array(num_frames);
 		for (let f = 0; f < num_frames; f++) {
 			frames_blue.set(decodedFrames[f].blue, f * frame_bytes);
 			frames_pure_blue.set(decodedFrames[f].pureBlue, f * frame_bytes);
+			frames_rgba[f] = decodedFrames[f].rgba;
 		}
 
 		return {
 			frames_blue,
 			frames_pure_blue,
+			frames_rgba,
 			num_frames,
 			detectedFps: track.detectedFps
 		};
 	}
 
 	// Fallback sequential playback capture via requestVideoFrameCallback
-	async function extractFramesPlayback(file, fps) {
+	async function extractFramesPlayback(file, fps, blueThresh) {
 		return new Promise((resolve, reject) => {
 			const url = URL.createObjectURL(file);
 			const video = document.createElement('video');
@@ -462,6 +1137,7 @@
 				const maxFrames = Math.ceil((video.duration + 1) * fps);
 				const frames_blue = new Float32Array(maxFrames * frame_bytes);
 				const frames_pure_blue = new Float32Array(maxFrames * frame_bytes);
+				const frames_rgba = [];
 				let f = 0;
 
 				statusText.textContent = "Capturing sequential frames...";
@@ -470,7 +1146,17 @@
 					if (f < maxFrames) {
 						ctx.drawImage(video, 0, 0, W, H);
 						const imgData = ctx.getImageData(0, 0, W, H).data;
-						extractBlueChannels(imgData, frames_blue, frames_pure_blue, f * frame_bytes);
+						extractBlueChannels(imgData, frames_blue, frames_pure_blue, f * frame_bytes, blueThresh);
+						frames_rgba.push(imgData);
+
+						const s = getSettings();
+						const spot = estimateLiveHotspot(frames_pure_blue, f, 4);
+						const tx = spot ? spot.bx : s.anchorX;
+						const ty = spot ? spot.by : s.anchorY;
+						const ax = s.anchorMode === 'pinned' ? s.anchorX : tx;
+						const ay = s.anchorMode === 'pinned' ? s.anchorY : ty;
+						drawRectanglesOnContext(tx, ty, ax, ay, s.trackHalfBox, s.wideHalfBox, true);
+
 						f++;
 						if (video.duration > 0) {
 							progressBar.value = Math.min(100, (metadata.mediaTime / video.duration) * 100);
@@ -483,7 +1169,7 @@
 
 				video.onended = () => {
 					URL.revokeObjectURL(url);
-					resolve({ frames_blue, frames_pure_blue, num_frames: f, detectedFps: fps });
+					resolve({ frames_blue, frames_pure_blue, frames_rgba, num_frames: f, detectedFps: fps });
 				};
 
 				video.onerror = () => {
@@ -502,426 +1188,642 @@
 		});
 	}
 
-	processBtn.addEventListener('click', async () => {
-		if (!videoInput.files.length) return alert("Please select a video file first.");
+	async function startProcessing(file) {
+		if (!file) {
+			alert("Please select or drop a video file first.");
+			return;
+		}
+		if (isProcessing) return;
+
+		isProcessing = true;
+		currentFile = file;
+
+		stopPlayback();
+		playPauseBtn.disabled = true;
+		prevFrameBtn.disabled = true;
+		nextFrameBtn.disabled = true;
+		frameSlider.disabled = true;
+		redecodeBtn.disabled = true;
+		vizState.framesRgba = null;
+		vizState.trackX = null;
+		vizState.trackY = null;
 
 		processBtn.disabled = true;
-		logOutput.value = "";
+		clearLog();
 		progressBar.style.display = "block";
 		progressBar.value = 0;
 
-		const file = videoInput.files[0];
+		const settings = getSettings();
 		let fps = parseFloat(fpsInput.value) || 240.0;
+		log(`File: ${file.name}`);
 
 		try {
 			let extracted;
 			if ('VideoDecoder' in window) {
 				try {
-					extracted = await extractFramesWebCodecs(file);
+					extracted = await extractFramesWebCodecs(file, settings.blueThresh);
 					if (extracted.detectedFps && Math.abs(extracted.detectedFps - fps) > 0.5) {
 						fps = Math.round(extracted.detectedFps * 100) / 100;
 						fpsInput.value = fps;
 					}
-					log(`Stream FPS: ${fps.toFixed(2)} (${(1000.0 / fps).toFixed(2)} ms/frame -> ${(HALF_BIT_MS / (1000.0 / fps)).toFixed(2)} frames/half-bit)`);
+					const dt_ms = 1000.0 / fps;
+					log(`Stream FPS: ${fps.toFixed(2)} (${dt_ms.toFixed(2)} ms/frame -> ${(settings.halfBitMs / dt_ms).toFixed(2)} frames/half-bit)`);
 					log(`Decoded ${extracted.num_frames} frames via WebCodecs.`);
 				} catch (wcErr) {
 					log(`WebCodecs fallback (${wcErr.message}), using sequential playback capture...`);
-					extracted = await extractFramesPlayback(file, fps);
+					extracted = await extractFramesPlayback(file, fps, settings.blueThresh);
 					log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
 				}
 			} else {
-				extracted = await extractFramesPlayback(file, fps);
+				extracted = await extractFramesPlayback(file, fps, settings.blueThresh);
 				log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
 			}
 
-			const { frames_blue, frames_pure_blue, num_frames } = extracted;
+			const { frames_blue, frames_pure_blue, frames_rgba, num_frames } = extracted;
 			const dt_ms = 1000.0 / fps;
 
 			if (num_frames < 20) throw new Error("Too few frames extracted.");
 
-			statusText.textContent = "Analyzing signal...";
-			setTimeout(() => runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms), 50);
+			cachedMedia = {
+				framesRgba: frames_rgba,
+				framesBlue: frames_blue,
+				framesPureBlue: frames_pure_blue,
+				cachedBlueThresh: settings.blueThresh,
+				numFrames: num_frames,
+				fps
+			};
+
+			vizState.framesRgba = frames_rgba;
+			vizState.dtMs = dt_ms;
+			frameSlider.min = 0;
+			frameSlider.max = num_frames - 1;
+			frameSlider.value = 0;
+
+			statusText.textContent = "Analyzing signal & tracking ROI...";
+			await runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings);
 
 		} catch (err) {
 			log(`Error: ${err.message}`);
 			statusText.textContent = "Processing failed.";
 			processBtn.disabled = false;
 			progressBar.style.display = "none";
+			isProcessing = false;
+		}
+	}
+
+	async function redecodeFromCache() {
+		if (!cachedMedia.framesRgba || isProcessing) return;
+		isProcessing = true;
+		stopPlayback();
+		processBtn.disabled = true;
+		redecodeBtn.disabled = true;
+
+		try {
+			const settings = getSettings();
+			const fps = parseFloat(fpsInput.value) || cachedMedia.fps;
+			const dt_ms = 1000.0 / fps;
+			const num_frames = cachedMedia.numFrames;
+			vizState.dtMs = dt_ms;
+
+			// Recompute blue channel arrays only if blueThresh changed
+			if (cachedMedia.cachedBlueThresh !== settings.blueThresh) {
+				statusText.textContent = "Recomputing blue-excess channels...";
+				await new Promise(r => setTimeout(r, 10));
+				const frames_blue = new Float32Array(num_frames * frame_bytes);
+				const frames_pure_blue = new Float32Array(num_frames * frame_bytes);
+				for (let f = 0; f < num_frames; f++) {
+					extractBlueChannels(cachedMedia.framesRgba[f], frames_blue, frames_pure_blue, f * frame_bytes, settings.blueThresh);
+				}
+				cachedMedia.framesBlue = frames_blue;
+				cachedMedia.framesPureBlue = frames_pure_blue;
+				cachedMedia.cachedBlueThresh = settings.blueThresh;
+			}
+
+			clearLog();
+			log(`Re-decoding cached ${num_frames} frames @ ${fps.toFixed(2)} FPS (BlueThresh=${settings.blueThresh}, HalfBit=${settings.halfBitMs.toFixed(1)} ms)...`);
+			statusText.textContent = "Re-running ROI tracker & matched filters...";
+			await runDSP(cachedMedia.framesBlue, cachedMedia.framesPureBlue, num_frames, dt_ms, settings);
+		} catch (err) {
+			log(`Error: ${err.message}`);
+			statusText.textContent = "Re-decode failed.";
+			processBtn.disabled = false;
+			redecodeBtn.disabled = false;
+			isProcessing = false;
+		}
+	}
+
+	function selectAndRunFile(file) {
+		if (!file) return;
+		currentFile = file;
+		try {
+			const dt = new DataTransfer();
+			dt.items.add(file);
+			videoInput.files = dt.files;
+		} catch (_) {}
+		startProcessing(file);
+	}
+
+	processBtn.addEventListener('click', () => {
+		const file = (videoInput.files && videoInput.files[0]) || currentFile;
+		startProcessing(file);
+	});
+
+	redecodeBtn.addEventListener('click', () => {
+		redecodeFromCache();
+	});
+
+	videoInput.addEventListener('change', () => {
+		if (videoInput.files && videoInput.files[0]) {
+			startProcessing(videoInput.files[0]);
 		}
 	});
 
-	// 2. Core DSP Math Translation
-	function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms) {
-		let lag = Math.floor((HALF_BIT_MS / dt_ms) + 0.5);
-		if (lag < 1) lag = 1;
+	// Full-page drag-and-drop handlers
+	window.addEventListener('dragenter', (e) => {
+		if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+		e.preventDefault();
+		dragDepth++;
+		dropOverlay.classList.add('active');
+	});
 
-		function box3_at(frameArray, f_offset, cx, cy) {
-			let sum = 0, cnt = 0;
-			for (let dy = -1; dy <= 1; dy++) {
-				let y = cy + dy;
-				if (y < 0 || y >= H) continue;
-				for (let dx = -1; dx <= 1; dx++) {
-					let x = cx + dx;
-					if (x < 0 || x >= W) continue;
-					sum += frameArray[f_offset + y * W + x];
-					cnt++;
-				}
-			}
-			return cnt > 0 ? sum / cnt : 0;
+	window.addEventListener('dragover', (e) => {
+		if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+		e.preventDefault();
+		e.dataTransfer.dropEffect = 'copy';
+	});
+
+	window.addEventListener('dragleave', (e) => {
+		if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+		dragDepth = Math.max(0, dragDepth - 1);
+		if (dragDepth === 0) {
+			dropOverlay.classList.remove('active');
 		}
+	});
 
-		function find_peak_in_range(f_start, f_end) {
-			f_start = Math.max(lag, f_start);
-			f_end = Math.min(num_frames - 1, f_end);
+	window.addEventListener('drop', (e) => {
+		e.preventDefault();
+		dragDepth = 0;
+		dropOverlay.classList.remove('active');
 
-			const energy = new Float32Array(frame_bytes);
-			for (let f = f_start; f <= f_end; f++) {
-				const cur_offset = f * frame_bytes;
-				const prv_offset = (f - lag) * frame_bytes;
-				for (let p = 0; p < frame_bytes; p++) {
-					const d = Math.abs(frames_pure_blue[cur_offset + p] - frames_pure_blue[prv_offset + p]);
-					if (d > 8) energy[p] += d * d;
+		const files = e.dataTransfer && e.dataTransfer.files;
+		if (files && files.length > 0) {
+			selectAndRunFile(files[0]);
+		}
+	});
+
+	// Animate live ROI tracking sweep across the active burst
+	async function animateLiveTrackingSweep(startFrame, endFrame, peakFrame) {
+		if (!liveAnimCheck.checked || !vizState.framesRgba) {
+			drawFrameWithTracking(peakFrame);
+			return;
+		}
+		const span = Math.max(1, endFrame - startFrame);
+		const steps = Math.min(36, span);
+		const stride = Math.max(1, Math.floor(span / steps));
+		for (let f = startFrame; f <= endFrame; f += stride) {
+			drawFrameWithTracking(f);
+			await new Promise(r => requestAnimationFrame(r));
+		}
+		drawFrameWithTracking(peakFrame);
+	}
+
+	// 2. Core DSP Math Translation (with live tracking visualization & user-configurable ROI/thresholds)
+	async function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings) {
+		try {
+			const HALF_BIT_MS = settings.halfBitMs;
+			let lag = Math.floor((HALF_BIT_MS / dt_ms) + 0.5);
+			if (lag < 1) lag = 1;
+
+			function box3_at(frameArray, f_offset, cx, cy) {
+				let sum = 0, cnt = 0;
+				for (let dy = -1; dy <= 1; dy++) {
+					let y = cy + dy;
+					if (y < 0 || y >= H) continue;
+					for (let dx = -1; dx <= 1; dx++) {
+						let x = cx + dx;
+						if (x < 0 || x >= W) continue;
+						sum += frameArray[f_offset + y * W + x];
+						cnt++;
+					}
 				}
+				return cnt > 0 ? sum / cnt : 0;
 			}
 
-			let bx = Math.floor(W / 2), by = Math.floor(H / 2), be = -1;
-			for (let y = 2; y < H - 2; y++) {
-				for (let x = 2; x < W - 2; x++) {
-					let e = 0;
-					for (let dy = -2; dy <= 2; dy++) {
-						const row = (y + dy) * W;
-						for (let dx = -2; dx <= 2; dx++) {
-							e += energy[row + x + dx];
+			function find_peak_in_range(f_start, f_end, restrictCenter = null, restrictRadius = 0) {
+				f_start = Math.max(lag, f_start);
+				f_end = Math.min(num_frames - 1, f_end);
+
+				const energy = new Float32Array(frame_bytes);
+				for (let f = f_start; f <= f_end; f++) {
+					const cur_offset = f * frame_bytes;
+					const prv_offset = (f - lag) * frame_bytes;
+					for (let p = 0; p < frame_bytes; p++) {
+						const d = Math.abs(frames_pure_blue[cur_offset + p] - frames_pure_blue[prv_offset + p]);
+						if (d > 8) energy[p] += d * d;
+					}
+				}
+
+				const yMin = restrictCenter ? Math.max(2, restrictCenter.y - restrictRadius) : 2;
+				const yMax = restrictCenter ? Math.min(H - 3, restrictCenter.y + restrictRadius) : H - 3;
+				const xMin = restrictCenter ? Math.max(2, restrictCenter.x - restrictRadius) : 2;
+				const xMax = restrictCenter ? Math.min(W - 3, restrictCenter.x + restrictRadius) : W - 3;
+
+				let bx = restrictCenter ? restrictCenter.x : Math.floor(W / 2);
+				let by = restrictCenter ? restrictCenter.y : Math.floor(H / 2);
+				let be = -1;
+
+				for (let y = yMin; y <= yMax; y++) {
+					for (let x = xMin; x <= xMax; x++) {
+						let e = 0;
+						for (let dy = -2; dy <= 2; dy++) {
+							const row = (y + dy) * W;
+							for (let dx = -2; dx <= 2; dx++) {
+								e += energy[row + x + dx];
+							}
+						}
+						if (e > be) { be = e; bx = x; by = y; }
+					}
+				}
+
+				let sf = f_start, bd = -1;
+				for (let f = f_start; f <= f_end; f++) {
+					const d = Math.abs(
+						box3_at(frames_pure_blue, f * frame_bytes, bx, by) -
+						box3_at(frames_pure_blue, (f - lag) * frame_bytes, bx, by)
+					);
+					if (d > bd) { bd = d; sf = f; }
+				}
+				return { bx, by, sf, bd, be };
+			}
+
+			const track_x = new Int32Array(num_frames);
+			const track_y = new Int32Array(num_frames);
+			const chunk_frames = Math.floor(1500.0 / dt_ms);
+
+			log("Locating LED emitter ROI bounding boxes...");
+			let global;
+			if (settings.anchorMode === 'pinned') {
+				global = find_peak_in_range(lag, num_frames - 1, { x: settings.anchorX, y: settings.anchorY }, settings.maxDrift);
+				global.bx = settings.anchorX;
+				global.by = settings.anchorY;
+				log(`Pinned Anchor LED ROI at (x=${global.bx}, y=${global.by}), peak frame ${global.sf} (t=${Math.round(global.sf * dt_ms)} ms, delta=${global.bd.toFixed(1)})`);
+			} else {
+				global = find_peak_in_range(lag, num_frames - 1);
+				anchorXInput.value = global.bx;
+				anchorYInput.value = global.by;
+				log(`Global peak blue LED casing at (x=${global.bx}, y=${global.by}), frame ${global.sf} (t=${Math.round(global.sf * dt_ms)} ms, delta=${global.bd.toFixed(1)})`);
+			}
+
+			// ROI Tracking
+			const pinCenter = settings.anchorMode === 'pinned' ? { x: settings.anchorX, y: settings.anchorY } : null;
+			for (let c0 = 0; c0 < num_frames; c0 += chunk_frames) {
+				let c1 = Math.min(c0 + chunk_frames - 1, num_frames - 1);
+				let peak = find_peak_in_range(c0, c1, pinCenter, settings.maxDrift);
+
+				if (peak.bd < 10.0) {
+					peak = { bx: global.bx, by: global.by, sf: Math.floor((c0 + c1) / 2), bd: global.bd };
+				}
+
+				const step_r = settings.stepR;
+				const max_drift = settings.maxDrift;
+				let min_d = Math.max(8.0, peak.bd * 0.22);
+
+				// Forward track
+				let cx = peak.bx, cy = peak.by;
+				for (let f = peak.sf; f <= c1; f++) {
+					const cur_offset = f * frame_bytes;
+					const prv_offset = (f - lag >= 0 ? f - lag : f) * frame_bytes;
+					let best_d = 0, nx = cx, ny = cy;
+
+					for (let dy = -step_r; dy <= step_r; dy++) {
+						let y = cy + dy;
+						if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
+						for (let dx = -step_r; dx <= step_r; dx++) {
+							let x = cx + dx;
+							if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
+							let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, prv_offset, x, y));
+							if (d > best_d) { best_d = d; nx = x; ny = y; }
 						}
 					}
-					if (e > be) { be = e; bx = x; by = y; }
+					if (best_d >= min_d) { cx = nx; cy = ny; }
+					track_x[f] = cx; track_y[f] = cy;
+				}
+
+				// Backward track
+				cx = peak.bx; cy = peak.by;
+				for (let f = peak.sf - 1; f >= c0; f--) {
+					const ref_f = Math.min(f + lag, num_frames - 1);
+					const cur_offset = f * frame_bytes;
+					const nxt_offset = ref_f * frame_bytes;
+					let best_d = 0, nx = cx, ny = cy;
+
+					for (let dy = -step_r; dy <= step_r; dy++) {
+						let y = cy + dy;
+						if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
+						for (let dx = -step_r; dx <= step_r; dx++) {
+							let x = cx + dx;
+							if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
+							let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, nxt_offset, x, y));
+							if (d > best_d) { best_d = d; nx = x; ny = y; }
+						}
+					}
+					if (best_d >= min_d) { cx = nx; cy = ny; }
+					track_x[f] = cx; track_y[f] = cy;
 				}
 			}
 
-			let sf = f_start, bd = -1;
-			for (let f = f_start; f <= f_end; f++) {
-				const d = Math.abs(
-					box3_at(frames_pure_blue, f * frame_bytes, bx, by) -
-					box3_at(frames_pure_blue, (f - lag) * frame_bytes, bx, by)
-				);
-				if (d > bd) { bd = d; sf = f; }
+			// Attach live tracking arrays and animate across the active region
+			vizState.trackX = track_x;
+			vizState.trackY = track_y;
+			vizState.globalBx = global.bx;
+			vizState.globalBy = global.by;
+			playPauseBtn.disabled = false;
+			prevFrameBtn.disabled = false;
+			nextFrameBtn.disabled = false;
+			frameSlider.disabled = false;
+
+			const sweepStart = Math.max(0, global.sf - Math.floor(1200 / dt_ms));
+			const sweepEnd = Math.min(num_frames - 1, global.sf + Math.floor(1200 / dt_ms));
+			await animateLiveTrackingSweep(sweepStart, sweepEnd, global.sf);
+
+			// Top-K Intensity Extraction
+			function extract_signal(tx_ref, ty_ref, half_box, top_k) {
+				const sig = new Float32Array(num_frames);
+				for (let f = 0; f < num_frames; f++) {
+					const tx = tx_ref[f], ty = ty_ref[f];
+					const f_offset = f * frame_bytes;
+					const patch = [];
+
+					for (let dy = -half_box; dy <= half_box; dy++) {
+						const y = ty + dy;
+						if (y < 0 || y >= H) continue;
+						for (let dx = -half_box; dx <= half_box; dx++) {
+							const x = tx + dx;
+							if (x < 0 || x >= W) continue;
+							patch.push(frames_blue[f_offset + y * W + x]);
+						}
+					}
+
+					patch.sort((a, b) => b - a);
+					const n = Math.min(patch.length, top_k);
+					let sum = 0;
+					for (let i = 0; i < n; i++) sum += patch[i];
+					sig[f] = n > 0 ? (sum / n) : 0;
+				}
+				return sig;
 			}
-			return { bx, by, sf, bd, be };
-		}
 
-		const track_x = new Int32Array(num_frames);
-		const track_y = new Int32Array(num_frames);
-		const chunk_frames = Math.floor(1500.0 / dt_ms);
+			log("Extracting signals...");
+			const fixed_x = new Int32Array(num_frames).fill(global.bx);
+			const fixed_y = new Int32Array(num_frames).fill(global.by);
 
-		log("Locating LED emitter ROI bounding boxes...");
-		const global = find_peak_in_range(lag, num_frames - 1);
-		log(`Global peak blue LED casing at (x=${global.bx}, y=${global.by}), frame ${global.sf} (t=${Math.round(global.sf * dt_ms)} ms, delta=${global.bd.toFixed(1)})`);
-
-		// ROI Tracking
-		for (let c0 = 0; c0 < num_frames; c0 += chunk_frames) {
-			let c1 = Math.min(c0 + chunk_frames - 1, num_frames - 1);
-			let peak = find_peak_in_range(c0, c1);
-
-			if (peak.bd < 10.0) {
-				peak = { bx: global.bx, by: global.by, sf: Math.floor((c0 + c1) / 2), bd: global.bd };
+			const candidates = [];
+			if (settings.candidateMode === 'both' || settings.candidateMode === 'tracked') {
+				candidates.push({
+					name: "chunk-tracked",
+					sig: extract_signal(track_x, track_y, settings.trackHalfBox, settings.trackTopK)
+				});
+			}
+			if (settings.candidateMode === 'both' || settings.candidateMode === 'anchor') {
+				candidates.push({
+					name: settings.anchorMode === 'pinned' ? "pinned-roi" : "wide-roi",
+					sig: extract_signal(fixed_x, fixed_y, settings.wideHalfBox, settings.wideTopK)
+				});
 			}
 
-			const step_r = 2;
-			const max_drift = 35;
-			let min_d = Math.max(8.0, peak.bd * 0.22);
+			let found_exact = false;
+			let matchedFrameIdx = global.sf;
+			const exact_packets = new Set();
+			const soft_packets = [];
 
-			// Forward track
-			let cx = peak.bx, cy = peak.by;
-			for (let f = peak.sf; f <= c1; f++) {
-				const cur_offset = f * frame_bytes;
-				const prv_offset = (f - lag >= 0 ? f - lag : f) * frame_bytes;
-				let best_d = 0, nx = cx, ny = cy;
-
-				for (let dy = -step_r; dy <= step_r; dy++) {
-					let y = cy + dy;
-					if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
-					for (let dx = -step_r; dx <= step_r; dx++) {
-						let x = cx + dx;
-						if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
-						let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, prv_offset, x, y));
-						if (d > best_d) { best_d = d; nx = x; ny = y; }
+			function crc8(data) {
+				let crc = 0;
+				for (let b of data) {
+					crc ^= b;
+					for (let i = 0; i < 8; i++) {
+						crc = (crc & 0x80) ? (((crc << 1) ^ 0x07) & 0xFF) : ((crc << 1) & 0xFF);
 					}
 				}
-				if (best_d >= min_d) { cx = nx; cy = ny; }
-				track_x[f] = cx; track_y[f] = cy;
+				return crc;
 			}
 
-			// Backward track
-			cx = peak.bx; cy = peak.by;
-			for (let f = peak.sf - 1; f >= c0; f--) {
-				const ref_f = Math.min(f + lag, num_frames - 1);
-				const cur_offset = f * frame_bytes;
-				const nxt_offset = ref_f * frame_bytes;
-				let best_d = 0, nx = cx, ny = cy;
-
-				for (let dy = -step_r; dy <= step_r; dy++) {
-					let y = cy + dy;
-					if (y < 1 || y >= H - 1 || Math.abs(y - peak.by) > max_drift) continue;
-					for (let dx = -step_r; dx <= step_r; dx++) {
-						let x = cx + dx;
-						if (x < 1 || x >= W - 1 || Math.abs(x - peak.bx) > max_drift) continue;
-						let d = Math.abs(box3_at(frames_pure_blue, cur_offset, x, y) - box3_at(frames_pure_blue, nxt_offset, x, y));
-						if (d > best_d) { best_d = d; nx = x; ny = y; }
-					}
+			function is_printable(bytes) {
+				for (let b of bytes) {
+					if (!((b >= 0x20 && b <= 0x7E) || b === 0x0A || b === 0x0D || b === 0x09 || b === 0x00)) return false;
 				}
-				if (best_d >= min_d) { cx = nx; cy = ny; }
-				track_x[f] = cx; track_y[f] = cy;
+				return true;
 			}
-		}
 
-		// Top-K Intensity Extraction
-		function extract_signal(tx_ref, ty_ref, half_box, top_k) {
-			const sig = new Float32Array(num_frames);
-			for (let f = 0; f < num_frames; f++) {
-				const tx = tx_ref[f], ty = ty_ref[f];
-				const f_offset = f * frame_bytes;
-				const patch = [];
+			function ascii_plausibility(str) {
+				let score = 0;
+				for (let ch of str) {
+					if (/[A-Za-z0-9 _\-().:]/.test(ch)) score += 2;
+					else score -= 3;
+				}
+				return score;
+			}
 
-				for (let dy = -half_box; dy <= half_box; dy++) {
-					const y = ty + dy;
-					if (y < 0 || y >= H) continue;
-					for (let dx = -half_box; dx <= half_box; dx++) {
-						const x = tx + dx;
-						if (x < 0 || x >= W) continue;
-						patch.push(frames_blue[f_offset + y * W + x]);
-					}
+			function check_frame_bytes(s_slice, pkt_len) {
+				const need_bits = (1 + pkt_len + 1) * 8;
+				if (s_slice.length < need_bits) return null;
+
+				const bytes = [];
+				for (let b = 0; b < need_bits; b += 8) {
+					bytes.push(parseInt(s_slice.substring(b, b + 8), 2));
 				}
 
-				patch.sort((a, b) => b - a);
-				const n = Math.min(patch.length, top_k);
-				let sum = 0;
-				for (let i = 0; i < n; i++) sum += patch[i];
-				sig[f] = sum / n;
-			}
-			return sig;
-		}
+				const payload = bytes.slice(1, 1 + pkt_len);
+				const rx_crc = bytes[1 + pkt_len];
+				const calc_crc = crc8(bytes.slice(0, 1 + pkt_len));
 
-		log("Extracting signals...");
-		const fixed_x = new Int32Array(num_frames).fill(global.bx);
-		const fixed_y = new Int32Array(num_frames).fill(global.by);
-
-		const candidates = [
-			{ name: "chunk-tracked", sig: extract_signal(track_x, track_y, 5, 14) },
-			{ name: "wide-roi", sig: extract_signal(fixed_x, fixed_y, 9, 20) }
-		];
-
-		let found_exact = false;
-		const exact_packets = new Set();
-		const soft_packets = [];
-
-		function crc8(data) {
-			let crc = 0;
-			for (let b of data) {
-				crc ^= b;
-				for (let i = 0; i < 8; i++) {
-					crc = (crc & 0x80) ? (((crc << 1) ^ 0x07) & 0xFF) : ((crc << 1) & 0xFF);
+				if (rx_crc === calc_crc && is_printable(payload)) {
+					let str = String.fromCharCode(...payload).replace(/\0+$/, '');
+					return { rx_crc, str };
 				}
-			}
-			return crc;
-		}
-
-		function is_printable(bytes) {
-			for (let b of bytes) {
-				if (!((b >= 0x20 && b <= 0x7E) || b === 0x0A || b === 0x0D || b === 0x09 || b === 0x00)) return false;
-			}
-			return true;
-		}
-
-		function ascii_plausibility(str) {
-			let score = 0;
-			for (let ch of str) {
-				if (/[A-Za-z0-9 _\-().:]/.test(ch)) score += 2;
-				else score -= 3;
-			}
-			return score;
-		}
-
-		function check_frame_bytes(s_slice, pkt_len) {
-			const need_bits = (1 + pkt_len + 1) * 8;
-			if (s_slice.length < need_bits) return null;
-
-			const bytes = [];
-			for (let b = 0; b < need_bits; b += 8) {
-				bytes.push(parseInt(s_slice.substring(b, b + 8), 2));
+				return null;
 			}
 
-			const payload = bytes.slice(1, 1 + pkt_len);
-			const rx_crc = bytes[1 + pkt_len];
-			const calc_crc = crc8(bytes.slice(0, 1 + pkt_len));
+			function try_decode_bitstream(s, confs, bitTimesMs, tag) {
+				for (let invert = 0; invert <= 1; invert++) {
+					const bit_str = invert ? s.replace(/0/g, 'x').replace(/1/g, '0').replace(/x/g, '1') : s;
+					let pos = bit_str.indexOf('01111110'); // SOF
 
-			if (rx_crc === calc_crc && is_printable(payload)) {
-				let str = String.fromCharCode(...payload).replace(/\0+$/, '');
-				return { rx_crc, str };
-			}
-			return null;
-		}
+					while (pos !== -1) {
+						const f_start = pos + 8;
+						if (f_start + 32 <= bit_str.length) {
+							const pkt_len = parseInt(bit_str.substring(f_start, f_start + 8), 2);
+							const need_bits = (1 + pkt_len + 1) * 8;
 
-		function try_decode_bitstream(s, confs, tag) {
-			for (let invert = 0; invert <= 1; invert++) {
-				const bit_str = invert ? s.replace(/0/g, 'x').replace(/1/g, '0').replace(/x/g, '1') : s;
-				let pos = bit_str.indexOf('01111110'); // SOF
+							if (pkt_len >= 2 && pkt_len <= 64 && f_start + need_bits <= bit_str.length) {
+								const slice = bit_str.substring(f_start, f_start + need_bits);
+								const sofFrame = Math.min(num_frames - 1, Math.max(0, Math.round((bitTimesMs[pos] || 0) / dt_ms)));
 
-				while (pos !== -1) {
-					const f_start = pos + 8;
-					if (f_start + 32 <= bit_str.length) {
-						const pkt_len = parseInt(bit_str.substring(f_start, f_start + 8), 2);
-						const need_bits = (1 + pkt_len + 1) * 8;
-
-						if (pkt_len >= 2 && pkt_len <= 64 && f_start + need_bits <= bit_str.length) {
-							const slice = bit_str.substring(f_start, f_start + need_bits);
-
-							// 1. Exact match
-							const exact = check_frame_bytes(slice, pkt_len);
-							if (exact) {
-								const key = `${exact.rx_crc}:${exact.str}`;
-								if (!exact_packets.has(key)) {
-									exact_packets.add(key);
-									log(`\nOK (${tag}, CRC 0x${exact.rx_crc.toString(16).toUpperCase()}, invert=${invert}):\n${exact.str}`);
-									found_exact = true;
-								}
-							} else if (!found_exact && confs) {
-								// 2. Soft-decision 1-bit and 2-bit flip recovery
-								const weak = [];
-								for (let i = 8; i < need_bits; i++) weak.push(i);
-								weak.sort((a, b) => confs[f_start + a] - confs[f_start + b]);
-
-								const top1 = Math.min(weak.length, 12);
-								const top2 = Math.min(weak.length, 8);
-
-								for (let i = 0; i < top1; i++) {
-									const idx1 = weak[i];
-									const cArr = slice.split('');
-									cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
-									const soft = check_frame_bytes(cArr.join(''), pkt_len);
-									if (soft) {
-										const q = 1000 + ascii_plausibility(soft.str) - confs[f_start + idx1];
-										soft_packets.push({ q, flips: 1, tag: `${tag} [1-bit soft fix]`, ...soft, invert });
+								// 1. Exact match
+								const exact = check_frame_bytes(slice, pkt_len);
+								if (exact) {
+									const key = `${exact.rx_crc}:${exact.str}`;
+									if (!exact_packets.has(key)) {
+										exact_packets.add(key);
+										matchedFrameIdx = sofFrame;
+										logDecoded(`\nOK (${tag}, CRC 0x${exact.rx_crc.toString(16).toUpperCase()}, invert=${invert}, frame=${sofFrame}):`, exact.str);
+										found_exact = true;
 									}
-								}
+								} else if (!found_exact && confs && settings.softMode > 0) {
+									// 2. Soft-decision 1-bit and 2-bit flip recovery
+									const weak = [];
+									for (let i = 8; i < need_bits; i++) weak.push(i);
+									weak.sort((a, b) => confs[f_start + a] - confs[f_start + b]);
 
-								for (let i = 0; i < top2 - 1; i++) {
-									for (let j = i + 1; j < top2; j++) {
-										const idx1 = weak[i], idx2 = weak[j];
+									const top1 = Math.min(weak.length, 12);
+									const top2 = Math.min(weak.length, 8);
+
+									for (let i = 0; i < top1; i++) {
+										const idx1 = weak[i];
 										const cArr = slice.split('');
 										cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
-										cArr[idx2] = cArr[idx2] === '0' ? '1' : '0';
 										const soft = check_frame_bytes(cArr.join(''), pkt_len);
 										if (soft) {
-											const q = ascii_plausibility(soft.str) - confs[f_start + idx1] - confs[f_start + idx2];
-											soft_packets.push({ q, flips: 2, tag: `${tag} [2-bit soft fix]`, ...soft, invert });
+											const q = 1000 + ascii_plausibility(soft.str) - confs[f_start + idx1];
+											soft_packets.push({ q, flips: 1, tag: `${tag} [1-bit soft fix]`, ...soft, invert, sofFrame });
+										}
+									}
+
+									if (settings.softMode >= 2) {
+										for (let i = 0; i < top2 - 1; i++) {
+											for (let j = i + 1; j < top2; j++) {
+												const idx1 = weak[i], idx2 = weak[j];
+												const cArr = slice.split('');
+												cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
+												cArr[idx2] = cArr[idx2] === '0' ? '1' : '0';
+												const soft = check_frame_bytes(cArr.join(''), pkt_len);
+												if (soft) {
+													const q = ascii_plausibility(soft.str) - confs[f_start + idx1] - confs[f_start + idx2];
+													soft_packets.push({ q, flips: 2, tag: `${tag} [2-bit soft fix]`, ...soft, invert, sofFrame });
+												}
+											}
 										}
 									}
 								}
 							}
 						}
+						pos = bit_str.indexOf('01111110', pos + 1);
 					}
-					pos = bit_str.indexOf('01111110', pos + 1);
-				}
-			}
-		}
-
-		// Matched filter phase loop
-		log("Running Matched Filters (Searching timeline...)");
-
-		for (let cand of candidates) {
-			const raw = cand.sig;
-			const raw_at = (t_ms) => {
-				let idx = t_ms / dt_ms;
-				if (idx <= 0) return raw[0];
-				if (idx >= num_frames - 1) return raw[num_frames - 1];
-				let i0 = Math.floor(idx);
-				let frac = idx - i0;
-				return raw[i0] * (1.0 - frac) + raw[i0 + 1] * frac;
-			};
-
-			const halfbit_diff = (t_mid, th) => {
-				let m1 = (raw_at(t_mid - th * 0.70) + raw_at(t_mid - th * 0.45) + raw_at(t_mid - th * 0.20)) / 3.0;
-				let m2 = (raw_at(t_mid + th * 0.20) + raw_at(t_mid + th * 0.45) + raw_at(t_mid + th * 0.70)) / 3.0;
-				return m2 - m1;
-			};
-
-			const deriv = new Float32Array(num_frames);
-			for (let i = 1; i <= num_frames - 2; i++) {
-				deriv[i] = (raw[i + 1] - raw[i - 1]) * 0.5;
-			}
-
-			const slope_peaks = [];
-			for (let i = 2; i <= num_frames - 3; i++) {
-				const d = deriv[i];
-				if ((d > 6.0 && d >= deriv[i - 1] && d >= deriv[i + 1]) ||
-					(d < -6.0 && d <= deriv[i - 1] && d <= deriv[i + 1])) {
-					slope_peaks.push(i * dt_ms);
 				}
 			}
 
-			if (slope_peaks.length < 20) continue;
-			const total_ms = (num_frames - 1) * dt_ms;
+			// Matched filter phase loop
+			log("Running Matched Filters (Searching timeline...)");
 
-			for (let th = 15.800; th <= 16.200; th += 0.005) {
-				const tbit = th * 2.0;
+			for (let cand of candidates) {
+				statusText.textContent = `Running matched filter on ${cand.name}...`;
+				await new Promise(r => setTimeout(r, 0));
 
-				for (let t_start of slope_peaks) {
-					if (t_start + 40 * tbit > total_ms) continue;
+				const raw = cand.sig;
+				const raw_at = (t_ms) => {
+					let idx = t_ms / dt_ms;
+					if (idx <= 0) return raw[0];
+					if (idx >= num_frames - 1) return raw[num_frames - 1];
+					let i0 = Math.floor(idx);
+					let frac = idx - i0;
+					return raw[i0] * (1.0 - frac) + raw[i0 + 1] * frac;
+				};
 
-					let t_cur = t_start;
-					const diffs = [];
-					while (t_cur + th < total_ms && diffs.length < 620) {
-						const d0 = halfbit_diff(t_cur, th);
-						diffs.push(d0);
+				const halfbit_diff = (t_mid, th) => {
+					let m1 = (raw_at(t_mid - th * 0.70) + raw_at(t_mid - th * 0.45) + raw_at(t_mid - th * 0.20)) / 3.0;
+					let m2 = (raw_at(t_mid + th * 0.20) + raw_at(t_mid + th * 0.45) + raw_at(t_mid + th * 0.70)) / 3.0;
+					return m2 - m1;
+				};
 
-						let best_shift = 0.0, best_mag = Math.abs(d0);
-						for (let sh of [-3.5, -2.0, -1.0, 1.0, 2.0, 3.5]) {
-							const mag = Math.abs(halfbit_diff(t_cur + sh, th));
-							if (mag > best_mag * 1.08) { best_mag = mag; best_shift = sh; }
-						}
-						t_cur += tbit + best_shift * 0.25;
+				const deriv = new Float32Array(num_frames);
+				for (let i = 1; i <= num_frames - 2; i++) {
+					deriv[i] = (raw[i + 1] - raw[i - 1]) * 0.5;
+				}
+
+				const slope_peaks = [];
+				const st = settings.slopeThresh;
+				for (let i = 2; i <= num_frames - 3; i++) {
+					const d = deriv[i];
+					if ((d > st && d >= deriv[i - 1] && d >= deriv[i + 1]) ||
+						(d < -st && d <= deriv[i - 1] && d <= deriv[i + 1])) {
+						slope_peaks.push(i * dt_ms);
 					}
+				}
 
-					if (diffs.length < 40) continue;
+				if (slope_peaks.length < 20) continue;
+				const total_ms = (num_frames - 1) * dt_ms;
 
-					const bits = [], confs = [];
-					const win = 12;
-					for (let k = 0; k < diffs.length; k++) {
-						const lo = Math.max(0, k - win);
-						const hi = Math.min(diffs.length - 1, k + win);
-						let dmin = 1e9, dmax = -1e9;
-						for (let j = lo; j <= hi; j++) {
-							if (diffs[j] < dmin) dmin = diffs[j];
-							if (diffs[j] > dmax) dmax = diffs[j];
+				for (let th = settings.thMin; th <= settings.thMax + 1e-6; th += 0.005) {
+					const tbit = th * 2.0;
+
+					for (let t_start of slope_peaks) {
+						if (t_start + 40 * tbit > total_ms) continue;
+
+						let t_cur = t_start;
+						const diffs = [];
+						const bitTimesMs = [];
+						while (t_cur + th < total_ms && diffs.length < 620) {
+							const d0 = halfbit_diff(t_cur, th);
+							diffs.push(d0);
+							bitTimesMs.push(t_cur);
+
+							let best_shift = 0.0, best_mag = Math.abs(d0);
+							for (let sh of [-3.5, -2.0, -1.0, 1.0, 2.0, 3.5]) {
+								const mag = Math.abs(halfbit_diff(t_cur + sh, th));
+								if (mag > best_mag * 1.08) { best_mag = mag; best_shift = sh; }
+							}
+							t_cur += tbit + best_shift * 0.25;
 						}
-						const mid = (dmax + dmin) * 0.5;
-						const norm_d = diffs[k] - mid;
-						bits.push(norm_d > 0 ? '1' : '0');
-						confs.push(Math.abs(norm_d));
-					}
 
-					try_decode_bitstream(bits.join(''), confs, `${cand.name} BoxMatched T=${th.toFixed(3)}`);
+						if (diffs.length < 40) continue;
+
+						const bits = [], confs = [];
+						const win = 12;
+						for (let k = 0; k < diffs.length; k++) {
+							const lo = Math.max(0, k - win);
+							const hi = Math.min(diffs.length - 1, k + win);
+							let dmin = 1e9, dmax = -1e9;
+							for (let j = lo; j <= hi; j++) {
+								if (diffs[j] < dmin) dmin = diffs[j];
+								if (diffs[j] > dmax) dmax = diffs[j];
+							}
+							const mid = (dmax + dmin) * 0.5;
+							const norm_d = diffs[k] - mid;
+							bits.push(norm_d > 0 ? '1' : '0');
+							confs.push(Math.abs(norm_d));
+						}
+
+						try_decode_bitstream(bits.join(''), confs, bitTimesMs, `${cand.name} BoxMatched T=${th.toFixed(3)}`);
+						if (found_exact) break;
+					}
 					if (found_exact) break;
 				}
 				if (found_exact) break;
 			}
-			if (found_exact) break;
-		}
 
-		if (!found_exact) {
-			if (soft_packets.length > 0) {
-				soft_packets.sort((a, b) => (a.flips - b.flips) || (b.q - a.q));
-				const best = soft_packets[0];
-				log(`\nOK (${best.tag}, CRC 0x${best.rx_crc.toString(16).toUpperCase()}, invert=${best.invert}):\n${best.str}`);
-			} else {
-				log("\nNo valid CRC8 frame found. Try adjusting FPS or selecting a clearer video.");
+			if (!found_exact) {
+				if (soft_packets.length > 0) {
+					soft_packets.sort((a, b) => (a.flips - b.flips) || (b.q - a.q));
+					const best = soft_packets[0];
+					matchedFrameIdx = best.sofFrame;
+					logDecoded(`\nOK (${best.tag}, CRC 0x${best.rx_crc.toString(16).toUpperCase()}, invert=${best.invert}, frame=${best.sofFrame}):`, best.str);
+				} else {
+					log("\nNo valid CRC8 frame found. Try adjusting ROI position/size, Blue Excess Min, or FPS.");
+				}
 			}
-		}
 
-		statusText.textContent = "Processing complete.";
-		processBtn.disabled = false;
-		progressBar.style.display = "none";
+			drawFrameWithTracking(matchedFrameIdx);
+			statusText.textContent = "Processing complete.";
+		} finally {
+			processBtn.disabled = false;
+			redecodeBtn.disabled = !cachedMedia.framesRgba;
+			progressBar.style.display = "none";
+			isProcessing = false;
+		}
 	}
+
+	// Draw initial default rectangles on blank canvas
+	updateDimensionLabels();
+	drawFrameWithTracking(0);
 </script>
 
 </body>
