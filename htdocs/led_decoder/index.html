@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 	<title>Optical LED Manchester Decoder</title>
 	<style>
 		* { box-sizing: border-box; }
@@ -22,8 +22,28 @@
 		.drop-hint { font-size: 0.84rem; color: #666; margin-bottom: 16px; }
 
 		.workspace { display: grid; grid-template-columns: minmax(340px, 500px) 1fr; gap: 18px; align-items: start; margin-bottom: 12px; }
+		
 		@media (max-width: 860px) {
 			.workspace { grid-template-columns: 1fr; }
+		}
+
+		/* iOS & Mobile Scaling Fixes */
+		@media (max-width: 600px) {
+			body { padding: 12px; }
+			.panel { padding: 14px; }
+			h1 { font-size: 1.25rem; flex-direction: column; align-items: flex-start; }
+			.grid-2 { grid-template-columns: 1fr !important; gap: 10px !important; }
+			
+			/* Enforce 16px font size on inputs to prevent iOS Safari auto-zoom on focus */
+			input[type="number"], select, input[type="file"] { font-size: 16px !important; }
+			.field-inputs input[type="number"] { width: 80px; }
+			
+			.controls { align-items: stretch; }
+			.controls input[type="file"] { min-width: 0; width: 100%; }
+			.scrubber-row { flex-wrap: wrap; }
+			.scrubber-row button, .signal-controls button { padding: 8px 12px; font-size: 0.95rem; } /* larger touch targets */
+			
+			.drop-overlay-box { padding: 24px; font-size: 1rem; margin: 20px; }
 		}
 
 		.preview-card { padding: 12px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
@@ -95,8 +115,8 @@
 		.pkt-soft { border-style: dashed; border-color: #e5534b; }
 		.pkt-empty { color: #777; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.82rem; }
 
-		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 12px; padding: 0 4px; }
-		progress { width: 220px; }
+		.status-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.9rem; color: #555; margin-bottom: 12px; padding: 0 4px; }
+		progress { flex-grow: 1; max-width: 220px; width: 100%; }
 
 		.log-output { width: 100%; height: 185px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
 		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
@@ -521,7 +541,6 @@
 	}
 
 	function drawRectanglesOnContext(tx, ty, anchorX, anchorY, trackHalfBox, wideHalfBox, maxDrift, showTrackBox) {
-		// 0. Max Drift boundary (faint dotted outline showing how far the green box can wander)
 		if (maxDrift > 0) {
 			ctx.save();
 			ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
@@ -531,7 +550,6 @@
 			ctx.restore();
 		}
 
-		// 1. Stationary / Anchor wide-ROI box (amber dashed)
 		const wSize = 2 * wideHalfBox;
 		ctx.save();
 		ctx.strokeStyle = "rgba(255, 187, 0, 0.85)";
@@ -539,13 +557,11 @@
 		ctx.setLineDash([2, 2]);
 		ctx.strokeRect(anchorX - wideHalfBox + 0.5, anchorY - wideHalfBox + 0.5, wSize, wSize);
 
-		// Anchor center tick
 		ctx.setLineDash([]);
 		ctx.fillStyle = "rgba(255, 187, 0, 0.9)";
 		ctx.fillRect(anchorX, anchorY, 1, 1);
 		ctx.restore();
 
-		// 2. Active chunk-tracked ROI box (bright green solid)
 		if (showTrackBox) {
 			const tSize = 2 * trackHalfBox;
 			ctx.save();
@@ -553,7 +569,6 @@
 			ctx.lineWidth = 1;
 			ctx.strokeRect(tx - trackHalfBox + 0.5, ty - trackHalfBox + 0.5, tSize, tSize);
 
-			// Center pixel marker
 			ctx.fillStyle = "#00ff66";
 			ctx.fillRect(tx, ty, 1, 1);
 			ctx.restore();
@@ -665,7 +680,6 @@
 			stopPlayback();
 			drawFrameWithTracking(midFrame);
 			
-			// Auto expand the signal card if jumped from a badge
 			if (signalCard.classList.contains('collapsed')) {
 				signalCard.classList.remove('collapsed');
 				drawSignalGraph();
@@ -752,7 +766,6 @@
 		const totalMs = Math.max(1, (raw.length - 1) * dtMs);
 		const tToOvX = (t) => (t / totalMs) * cssW;
 
-		// Packet region highlight on overview bar
 		if (trace.matched && trace.sofPos >= 0 && trace.bitTimesMs) {
 			const lastIdx = Math.min(trace.bitTimesMs.length - 1, trace.sofPos + 8 + (1 + trace.pktLen + 1) * 8 - 1);
 			if (lastIdx >= trace.sofPos) {
@@ -763,7 +776,6 @@
 			}
 		}
 
-		// Mini sparkline of entire recording
 		let minR = Infinity, maxR = -Infinity;
 		for (let i = 0; i < raw.length; i++) {
 			if (raw[i] < minR) minR = raw[i];
@@ -783,7 +795,6 @@
 		}
 		ovCtx.stroke();
 
-		// Playhead on overview
 		const curX = tToOvX(vizState.currentFrame * dtMs);
 		ovCtx.strokeStyle = "#f87171";
 		ovCtx.lineWidth = 1.5;
@@ -792,7 +803,6 @@
 		ovCtx.lineTo(curX, cssH);
 		ovCtx.stroke();
 
-		// Active zoom viewport window
 		const vx0 = Math.max(0, tToOvX(signalVizState.viewStartMs));
 		const vx1 = Math.min(cssW, tToOvX(signalVizState.viewEndMs));
 		const vw = Math.max(8, vx1 - vx0);
@@ -803,7 +813,6 @@
 		ovCtx.lineWidth = 1.5;
 		ovCtx.strokeRect(vx0 + 0.5, 0.5, vw - 1, cssH - 1);
 
-		// Left/right resize grip bars
 		ovCtx.fillStyle = "#93c5fd";
 		ovCtx.fillRect(vx0, 4, 2.5, cssH - 8);
 		ovCtx.fillRect(vx0 + vw - 2.5, 4, 2.5, cssH - 8);
@@ -870,7 +879,6 @@
 
 		const timeToX = (t) => padL + ((t - tStart) / spanMs) * plotW;
 
-		// Build list of aligned protocol bytes (SOF, LEN, PAYLOAD[0..N-1], CRC8)
 		const packetBytes = [];
 		if (trace.matched && trace.sofPos >= 0 && trace.bitTimesMs && trace.bytes) {
 			const th = trace.th;
@@ -920,7 +928,6 @@
 			);
 		}
 
-		// 1. Byte-aligned vertical background bands & 8-bit boundary dividers across all tracks
 		sigCtx.save();
 		sigCtx.beginPath();
 		sigCtx.rect(padL, padT, plotW, byteY0 + byteStripH - padT);
@@ -943,7 +950,6 @@
 			}
 			sigCtx.fillRect(x0, padT, x1 - x0, botY0 + botH - padT);
 
-			// 8-bit byte boundary divider line
 			sigCtx.strokeStyle = "rgba(148, 163, 184, 0.28)";
 			sigCtx.lineWidth = 1;
 			sigCtx.beginPath();
@@ -961,14 +967,12 @@
 		}
 		sigCtx.restore();
 
-		// Panel borders
 		sigCtx.strokeStyle = "#1e2736";
 		sigCtx.lineWidth = 1;
 		sigCtx.strokeRect(padL + 0.5, padT + 0.5, plotW, topH);
 		sigCtx.strokeRect(padL + 0.5, botY0 + 0.5, plotW, botH);
 		sigCtx.strokeRect(padL + 0.5, byteY0 + 0.5, plotW, byteStripH);
 
-		// Compute local Y-scale for top raw blue signal
 		const fStart = Math.max(0, Math.floor(tStart / dtMs));
 		const fEnd = Math.min(raw.length - 1, Math.ceil(tEnd / dtMs));
 		let minRaw = Infinity, maxRaw = -Infinity;
@@ -985,7 +989,6 @@
 		const yMaxRaw = maxRaw + rawPad;
 		const valToTopY = (v) => padT + topH - ((v - yMinRaw) / (yMaxRaw - yMinRaw)) * topH;
 
-		// 2. Half-bit sampling windows (m1 & m2) and mid-bit transition markers
 		if (trace.bitTimesMs && trace.bitTimesMs.length > 0) {
 			const th = trace.th;
 			const pxPerBit = (th * 2.0 / spanMs) * plotW;
@@ -1031,7 +1034,6 @@
 			sigCtx.restore();
 		}
 
-		// 3. Plot Raw Blue Intensity Curve (Top Track)
 		sigCtx.save();
 		sigCtx.beginPath();
 		sigCtx.rect(padL, padT, plotW, topH);
@@ -1048,7 +1050,6 @@
 		}
 		sigCtx.stroke();
 
-		// Show frame sample dots when zoomed in tightly
 		const pxPerFrame = (dtMs / spanMs) * plotW;
 		if (pxPerFrame >= 5) {
 			sigCtx.fillStyle = "#7dd3fc";
@@ -1062,7 +1063,6 @@
 		}
 		sigCtx.restore();
 
-		// Top Y-axis labels
 		sigCtx.fillStyle = "#8a99ad";
 		sigCtx.font = "10px monospace";
 		sigCtx.textAlign = "right";
@@ -1071,7 +1071,6 @@
 		sigCtx.textBaseline = "bottom";
 		sigCtx.fillText(Math.round(yMinRaw).toString(), padL - 5, padT + topH - 1);
 
-		// 4. Plot Normalized Manchester Differential (norm_d) & Decoded Bits (Middle Track)
 		const zeroY = botY0 + botH * 0.5;
 		sigCtx.strokeStyle = "rgba(148, 163, 184, 0.35)";
 		sigCtx.lineWidth = 1;
@@ -1146,7 +1145,6 @@
 			sigCtx.restore();
 		}
 
-		// 5. Dedicated Byte / ASCII Alignment Band (Bottom Track)
 		sigCtx.fillStyle = "#8a99ad";
 		sigCtx.font = "9px monospace";
 		sigCtx.textAlign = "right";
@@ -1219,7 +1217,6 @@
 			sigCtx.restore();
 		}
 
-		// 6. Bottom Time Axis & Hover Inspection Readout
 		sigCtx.fillStyle = "#8a99ad";
 		sigCtx.font = "10px monospace";
 		sigCtx.textBaseline = "top";
@@ -1228,7 +1225,6 @@
 		sigCtx.textAlign = "right";
 		sigCtx.fillText(`${Math.round(tEnd)} ms`, padL + plotW, byteY0 + byteStripH + 4);
 
-		// Update range / hover metadata text
 		const f0 = Math.max(0, Math.round(tStart / dtMs));
 		const f1 = Math.min(raw.length - 1, Math.round(tEnd / dtMs));
 		let metaStr = `View: ${Math.round(tStart)}–${Math.round(tEnd)} ms (frames ${f0}–${f1})`;
@@ -1244,7 +1240,6 @@
 		}
 		signalRangeMeta.textContent = metaStr;
 
-		// 7. Synchronized Video Playhead Cursor
 		const curMs = vizState.currentFrame * dtMs;
 		if (curMs >= tStart && curMs <= tEnd) {
 			const cx = timeToX(curMs);
@@ -1297,7 +1292,6 @@
 		}
 	}
 
-	// Interactive Zoom, Pan & Scrub on Main Waveform Canvas
 	let signalPointerState = null;
 
 	function clientXToSignalMs(clientX) {
@@ -1390,7 +1384,6 @@
 		try { signalCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
 	});
 
-	// Interactive Overview Minimap Bar (Pan, Edge-Resize Zoom, Click-to-Jump)
 	let overviewDrag = null;
 
 	signalOverviewCanvas.addEventListener('wheel', (e) => {
@@ -1553,7 +1546,6 @@
 		drawFrameWithTracking(parseInt(frameSlider.value, 10));
 	});
 
-	// Interactive Canvas Rectangle Dragging & Resizing
 	let canvasDrag = null;
 
 	function clientToCanvasCoords(e) {
@@ -2414,7 +2406,6 @@
 		drawFrameWithTracking(peakFrame);
 	}
 
-	// 2. Core DSP Math Translation (unchanged DSP math; captures diagnostic trace for waveform UI)
 	async function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings) {
 		try {
 			const HALF_BIT_MS = settings.halfBitMs;
