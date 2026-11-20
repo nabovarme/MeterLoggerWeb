@@ -309,10 +309,6 @@ sub process_build {
 
 	$sth->execute;
 
-	my $fs_version_base = $git_version;
-	$fs_version_base =~ s/[^a-zA-Z0-9._-]/_/g;
-	$fs_version_base = 'unknown' if !$fs_version_base;
-
 	my %active_db_meters;
 	my @jobs_to_queue;
 	my $job_count = 0;
@@ -321,9 +317,18 @@ sub process_build {
 		$active_db_meters{$row->{serial}} = 1;
 
 		my $build_flags = build_flags_from_sw_version($row->{sw_version});
-		
+
+		# Preserve -CUSTOM... suffix when checking existing builds so scheduled syncs
+		# do not overwrite custom builds with a duplicate standard build
+		my $meter_sw_version = $git_version;
+		if (defined $row->{sw_version} && $row->{sw_version} =~ /(?:^|-)CUSTOM(.*)$/i) {
+			$meter_sw_version = "$git_version-CUSTOM$1";
+		}
+
 		# Hash both build_flags and the encryption key
-		my $meter_fs_version = $fs_version_base;
+		my $meter_fs_version = $meter_sw_version;
+		$meter_fs_version =~ s/[^a-zA-Z0-9._-]//g;
+		$meter_fs_version = 'unknown' if !$meter_fs_version;
 		my $config_str = ($build_flags || "") . ":" . ($row->{key} || "");
 		my $config_hash = substr(md5_hex($config_str), 0, 6);
 		$meter_fs_version .= "-$config_hash";
@@ -338,6 +343,7 @@ sub process_build {
 		}
 
 		$row->{_build_flags} = $build_flags;
+		$row->{_sw_version}  = $meter_sw_version;
 		push @jobs_to_queue, $row;
 		$job_count++;
 	}
@@ -383,7 +389,7 @@ sub process_build {
 			serial       => $row->{serial},
 			info         => $row->{info},
 			trigger_time => time(),
-			version      => $git_version,
+			version      => $row->{_sw_version},
 			build_flags  => $row->{_build_flags},
 			batch_id     => $batch_id
 		});
@@ -440,13 +446,13 @@ sub run_docker_build {
 		# Interrogate the Docker image for the actual compiled source version (e.g., master-1465-4e0b)
 		my $true_git_version = get_git_version_from_docker();
 		
-		my $sw_version = $version;
+		my $sw_version = $version // '';
 		
 		# If the job came from the Web API, it contains a stale database version prefix.
 		# Strip off the stale prefix, inject the true git version, and derive fresh build flags.
-		if ($sw_version =~ /-CUSTOM/i) {
+		if ($sw_version =~ /(?:^|-)CUSTOM/i) {
 			# Replaces "master-1449-dff6d-CUSTOM..." with "master-1465-4e0b-CUSTOM..."
-			$sw_version =~ s/^.*?-CUSTOM/$true_git_version-CUSTOM/i;
+			$sw_version =~ s/^(?:.*?-)?CUSTOM/$true_git_version-CUSTOM/i;
 			$build_flags = build_flags_from_sw_version($sw_version);
 		} else {
 			$sw_version = $true_git_version;
@@ -468,7 +474,7 @@ sub run_docker_build {
 		my $firmware_path = RELEASE_DIR . "/$serial/$fs_version/manifest.json";
 		my $failed_flag   = RELEASE_DIR . "/$serial/$fs_version/build_failed.flag";
 
-		if ($sw_version =~ /-CUSTOM/i) {
+		if ($sw_version =~ /(?:^|-)CUSTOM/i) {
 			# Always recompile when explicitly triggered via the Web UI Rebuild button
 			unlink $firmware_path if -f $firmware_path;
 			unlink $failed_flag   if -f $failed_flag;
@@ -535,6 +541,10 @@ sub run_docker_build {
 		print $fh encode_json($meta);
 		close($fh);
 
+		if (!$redis->llen($REDIS_ACTIVE_BATCHES)) {
+			generate_firmware_index();
+		}
+
 		$redis->incr($done_key);
 	};
 
@@ -579,6 +589,7 @@ sub update_latest_symlink {
 	my $newest_mtime = 0;
 	my $target_dir;
 	my $mtime_fallback_dir;
+	my $preferred_custom_dir;
 
 	while (my $entry = readdir($dh)) {
 		next if $entry =~ /^\./;
@@ -592,9 +603,13 @@ sub update_latest_symlink {
 
 		my $is_preferred = (defined $preferred_dir && $entry eq $preferred_dir) ? 1 : 0;
 
+		if ($is_preferred && $entry =~ /(?:^|-)CUSTOM/i) {
+			$preferred_custom_dir = $entry;
+		}
+
 		# Track mtime fallback in case no build numbers can be extracted
 		my $mtime = (stat($full_path))[9] || 0;
-		if ($is_preferred || $mtime > $newest_mtime) {
+		if ($is_preferred || (!$target_is_preferred && $mtime > $newest_mtime)) {
 			$newest_mtime = $mtime;
 			$mtime_fallback_dir = $entry;
 		}
@@ -614,8 +629,9 @@ sub update_latest_symlink {
 	}
 	closedir($dh);
 
-	# Use the highest git build number directory, falling back to mtime if unmatched
-	my $selected_dir = $target_dir || $mtime_fallback_dir;
+	# Always point 'latest' to a newly built custom release if present;
+	# otherwise use the highest git build number directory, falling back to mtime
+	my $selected_dir = $preferred_custom_dir || $target_dir || $mtime_fallback_dir;
 
 	if ($selected_dir) {
 		my $latest_link = "$serial_dir/latest";
