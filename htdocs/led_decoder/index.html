@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-	<title>Optical LED Manchester Decoder</title>
+	<title>MeterLogger Optical LED Decoder</title>
 	<style>
 		* { box-sizing: border-box; }
 		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 1120px; margin: 0 auto; background: #f4f4f9; color: #333; }
@@ -64,7 +64,12 @@
 		.status-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.82rem; color: #444; background: #fff; padding: 6px 8px; border: 1px solid #e1e4e8; border-radius: 4px; }
 		.status-bar progress { flex-grow: 1; min-width: 110px; max-width: 180px; height: 14px; }
 
-		.settings-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; }
+		.settings-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; transition: all 0.2s ease; }
+		.settings-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+		.settings-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; user-select: none; }
+		.settings-title:hover { opacity: 0.8; }
+		.settings-card.collapsed .settings-group,
+		.settings-card.collapsed .settings-footer { display: none; }
 		.settings-group { background: #fff; border: 1px solid #e4e7ec; border-radius: 5px; padding: 10px 12px; }
 		.settings-group-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
 		.dot-green { width: 9px; height: 9px; border-radius: 50%; background: #00cc52; display: inline-block; margin-right: 5px; }
@@ -87,7 +92,8 @@
 		.signal-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; user-select: none; }
 		.signal-title:hover { opacity: 0.8; }
 		.toggle-icon { display: inline-block; transition: transform 0.2s ease; margin-right: 2px; font-size: 0.75rem; color: #666; }
-		.signal-card.collapsed .toggle-icon { transform: rotate(-90deg); }
+		.signal-card.collapsed .toggle-icon,
+		.settings-card.collapsed .toggle-icon { transform: rotate(-90deg); }
 		.signal-card.collapsed .signal-canvas-wrap,
 		.signal-card.collapsed .signal-overview-wrap,
 		.signal-card.collapsed .signal-help,
@@ -184,7 +190,15 @@
 			</div>
 		</div>
 
-		<div class="settings-card">
+		<div class="settings-card collapsed" id="settingsCard">
+			<div class="settings-header">
+				<div class="settings-title" id="settingsToggle" title="Click to collapse/expand">
+					<span class="toggle-icon">▼</span>
+					<span>ROI &amp; Decoder Settings</span>
+					<span id="settingsSummaryBadge" class="signal-source-tag">11&times;11 px &bull; 15.0 ms</span>
+				</div>
+			</div>
+
 			<div class="settings-group">
 				<div class="settings-group-title">
 					<span><span class="dot-green"></span>Tracked ROI (Motion-Following)</span>
@@ -393,6 +407,15 @@
 	const dropOverlay = document.getElementById('dropOverlay');
 	const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
 
+	// Settings card collapse toggle
+	const settingsCard = document.getElementById('settingsCard');
+	const settingsToggle = document.getElementById('settingsToggle');
+	const settingsSummaryBadge = document.getElementById('settingsSummaryBadge');
+
+	settingsToggle.addEventListener('click', () => {
+		settingsCard.classList.toggle('collapsed');
+	});
+
 	// Signal waveform & Manchester decoder visualizer elements
 	const signalCard = document.getElementById('signalCard');
 	const signalToggle = document.getElementById('signalToggle');
@@ -529,6 +552,7 @@
 		wideDimLabel.textContent = `${wSide}\u00d7${wSide}`;
 		trackAreaTag.textContent = `${tSide}\u00d7${tSide} px`;
 		wideAreaTag.textContent = `${wSide}\u00d7${wSide}`;
+		settingsSummaryBadge.textContent = `${tSide}\u00d7${tSide} px \u2022 ${s.halfBitMs.toFixed(1)} ms`;
 	}
 
 	function stopPlayback() {
