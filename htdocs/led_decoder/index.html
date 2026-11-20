@@ -41,7 +41,7 @@
 			.controls { align-items: stretch; }
 			.controls input[type="file"] { min-width: 0; width: 100%; }
 			.scrubber-row { flex-wrap: wrap; }
-			.scrubber-row button, .signal-controls button { padding: 8px 12px; font-size: 0.95rem; } /* larger touch targets */
+			.scrubber-row button, .signal-controls button { padding: 8px 12px; font-size: 0.95rem; }
 			
 			.drop-overlay-box { padding: 24px; font-size: 1rem; margin: 20px; }
 		}
@@ -60,6 +60,9 @@
 		.scrubber-row button { padding: 5px 10px; font-size: 0.84rem; }
 		.scrubber-row input[type="range"] { flex-grow: 1; }
 		.frame-meta { font-family: monospace; font-size: 0.82rem; color: #222; background: #fff; padding: 6px 8px; border: 1px solid #e1e4e8; border-radius: 4px; }
+
+		.status-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.82rem; color: #444; background: #fff; padding: 6px 8px; border: 1px solid #e1e4e8; border-radius: 4px; }
+		.status-bar progress { flex-grow: 1; min-width: 110px; max-width: 180px; height: 14px; }
 
 		.settings-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 12px; }
 		.settings-group { background: #fff; border: 1px solid #e4e7ec; border-radius: 5px; padding: 10px 12px; }
@@ -114,9 +117,6 @@
 		.pkt-crc { background: #e8f5ff; border-color: #96ccf7; color: #0a4f8a; font-weight: 700; }
 		.pkt-soft { border-style: dashed; border-color: #e5534b; }
 		.pkt-empty { color: #777; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.82rem; }
-
-		.status-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.9rem; color: #555; margin-bottom: 12px; padding: 0 4px; }
-		progress { flex-grow: 1; max-width: 220px; width: 100%; }
 
 		.log-output { width: 100%; height: 185px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
 		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
@@ -177,6 +177,11 @@
 			</div>
 
 			<div id="frameMeta" class="frame-meta">Frame: - / -</div>
+
+			<div class="status-bar">
+				<span id="statusText">Waiting for video...</span>
+				<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
+			</div>
 		</div>
 
 		<div class="settings-card">
@@ -325,11 +330,6 @@
 				</label>
 			</div>
 		</div>
-	</div>
-
-	<div class="status-bar">
-		<span id="statusText">Waiting for video...</span>
-		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
 	</div>
 
 	<div class="signal-card collapsed" id="signalCard">
@@ -2018,7 +2018,7 @@
 		throw new Error("No video track found in container.");
 	}
 
-	async function extractFramesWebCodecs(file, blueThresh) {
+	async function extractFramesWebCodecs(file, blueThresh, progressEnd = 60) {
 		const track = await parseIsoBmffVideoTrack(file);
 		const config = {
 			codec: track.codec,
@@ -2079,7 +2079,7 @@
 
 				decodedCount++;
 				if ((decodedCount & 31) === 0 || decodedCount === track.sampleCount) {
-					progressBar.value = (decodedCount / track.sampleCount) * 100;
+					progressBar.value = (decodedCount / track.sampleCount) * progressEnd;
 				}
 			},
 			error(err) {
@@ -2145,7 +2145,7 @@
 		};
 	}
 
-	async function extractFramesPlayback(file, fps, blueThresh) {
+	async function extractFramesPlayback(file, fps, blueThresh, progressEnd = 60) {
 		return new Promise((resolve, reject) => {
 			const url = URL.createObjectURL(file);
 			const video = document.createElement('video');
@@ -2179,7 +2179,7 @@
 
 						f++;
 						if (video.duration > 0) {
-							progressBar.value = Math.min(100, (metadata.mediaTime / video.duration) * 100);
+							progressBar.value = Math.min(progressEnd, (metadata.mediaTime / video.duration) * progressEnd);
 						}
 					}
 					if (!video.ended && !video.paused) {
@@ -2239,10 +2239,11 @@
 		log(`File: ${file.name}`);
 
 		try {
+			const EXTRACT_WEIGHT = 60;
 			let extracted;
 			if ('VideoDecoder' in window) {
 				try {
-					extracted = await extractFramesWebCodecs(file, settings.blueThresh);
+					extracted = await extractFramesWebCodecs(file, settings.blueThresh, EXTRACT_WEIGHT);
 					if (extracted.detectedFps && Math.abs(extracted.detectedFps - fps) > 0.5) {
 						fps = Math.round(extracted.detectedFps * 100) / 100;
 						fpsInput.value = fps;
@@ -2252,11 +2253,11 @@
 					log(`Decoded ${extracted.num_frames} frames via WebCodecs.`);
 				} catch (wcErr) {
 					log(`WebCodecs fallback (${wcErr.message}), using sequential playback capture...`);
-					extracted = await extractFramesPlayback(file, fps, settings.blueThresh);
+					extracted = await extractFramesPlayback(file, fps, settings.blueThresh, EXTRACT_WEIGHT);
 					log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
 				}
 			} else {
-				extracted = await extractFramesPlayback(file, fps, settings.blueThresh);
+				extracted = await extractFramesPlayback(file, fps, settings.blueThresh, EXTRACT_WEIGHT);
 				log(`Decoded ${extracted.num_frames} frames via sequential capture.`);
 			}
 
@@ -2280,8 +2281,9 @@
 			frameSlider.max = num_frames - 1;
 			frameSlider.value = 0;
 
+			progressBar.value = EXTRACT_WEIGHT;
 			statusText.textContent = "Analyzing signal & tracking ROI...";
-			await runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings);
+			await runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings, EXTRACT_WEIGHT, 100);
 
 		} catch (err) {
 			log(`Error: ${err.message}`);
@@ -2298,6 +2300,8 @@
 		stopPlayback();
 		processBtn.disabled = true;
 		redecodeBtn.disabled = true;
+		progressBar.style.display = "block";
+		progressBar.value = 0;
 
 		try {
 			const settings = getSettings();
@@ -2306,28 +2310,36 @@
 			const num_frames = cachedMedia.numFrames;
 			vizState.dtMs = dt_ms;
 
+			let dspStartProgress = 0;
 			if (cachedMedia.cachedBlueThresh !== settings.blueThresh) {
+				dspStartProgress = 15;
 				statusText.textContent = "Recomputing blue-excess channels...";
-				await new Promise(r => setTimeout(r, 10));
+				await new Promise(r => setTimeout(r, 0));
 				const frames_blue = new Float32Array(num_frames * frame_bytes);
 				const frames_pure_blue = new Float32Array(num_frames * frame_bytes);
 				for (let f = 0; f < num_frames; f++) {
 					extractBlueChannels(cachedMedia.framesRgba[f], frames_blue, frames_pure_blue, f * frame_bytes, settings.blueThresh);
+					if ((f & 255) === 255) {
+						progressBar.value = Math.round(((f + 1) / num_frames) * dspStartProgress);
+						await new Promise(r => setTimeout(r, 0));
+					}
 				}
 				cachedMedia.framesBlue = frames_blue;
 				cachedMedia.framesPureBlue = frames_pure_blue;
 				cachedMedia.cachedBlueThresh = settings.blueThresh;
+				progressBar.value = dspStartProgress;
 			}
 
 			clearLog();
 			log(`Re-decoding cached ${num_frames} frames @ ${fps.toFixed(2)} FPS (BlueThresh=${settings.blueThresh}, HalfBit=${settings.halfBitMs.toFixed(1)} ms)...`);
 			statusText.textContent = "Re-running ROI tracker & matched filters...";
-			await runDSP(cachedMedia.framesBlue, cachedMedia.framesPureBlue, num_frames, dt_ms, settings);
+			await runDSP(cachedMedia.framesBlue, cachedMedia.framesPureBlue, num_frames, dt_ms, settings, dspStartProgress, 100);
 		} catch (err) {
 			log(`Error: ${err.message}`);
 			statusText.textContent = "Re-decode failed.";
 			processBtn.disabled = false;
 			redecodeBtn.disabled = false;
+			progressBar.style.display = "none";
 			isProcessing = false;
 		}
 	}
@@ -2406,8 +2418,14 @@
 		drawFrameWithTracking(peakFrame);
 	}
 
-	async function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings) {
+	async function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings, progressStart = 0, progressEnd = 100) {
+		const setDspProgress = (frac) => {
+			const clamped = Math.max(0, Math.min(1, frac));
+			progressBar.value = Math.round(progressStart + clamped * (progressEnd - progressStart));
+		};
+
 		try {
+			setDspProgress(0.02);
 			const HALF_BIT_MS = settings.halfBitMs;
 			let lag = Math.floor((HALF_BIT_MS / dt_ms) + 0.5);
 			if (lag < 1) lag = 1;
@@ -2479,6 +2497,9 @@
 			const chunk_frames = Math.floor(1500.0 / dt_ms);
 
 			log("Locating LED emitter ROI bounding boxes...");
+			statusText.textContent = "Locating LED emitter ROI...";
+			await new Promise(r => setTimeout(r, 0));
+
 			let global;
 			if (settings.anchorMode === 'pinned') {
 				global = find_peak_in_range(lag, num_frames - 1, { x: settings.anchorX, y: settings.anchorY }, settings.maxDrift);
@@ -2492,8 +2513,13 @@
 				log(`Global peak blue LED casing at (x=${global.bx}, y=${global.by}), frame ${global.sf} (t=${Math.round(global.sf * dt_ms)} ms, delta=${global.bd.toFixed(1)})`);
 			}
 
+			setDspProgress(0.12);
+			statusText.textContent = "Tracking ROI across frames...";
+			await new Promise(r => setTimeout(r, 0));
+
 			// ROI Tracking
 			const pinCenter = settings.anchorMode === 'pinned' ? { x: settings.anchorX, y: settings.anchorY } : null;
+			let lastYield = performance.now();
 			for (let c0 = 0; c0 < num_frames; c0 += chunk_frames) {
 				let c1 = Math.min(c0 + chunk_frames - 1, num_frames - 1);
 				let peak = find_peak_in_range(c0, c1, pinCenter, settings.maxDrift);
@@ -2548,6 +2574,12 @@
 					if (best_d >= min_d) { cx = nx; cy = ny; }
 					track_x[f] = cx; track_y[f] = cy;
 				}
+
+				setDspProgress(0.12 + 0.18 * Math.min(1, (c1 + 1) / num_frames));
+				if (performance.now() - lastYield > 25) {
+					lastYield = performance.now();
+					await new Promise(r => setTimeout(r, 0));
+				}
 			}
 
 			vizState.trackX = track_x;
@@ -2559,9 +2591,11 @@
 			nextFrameBtn.disabled = false;
 			frameSlider.disabled = false;
 
+			setDspProgress(0.32);
 			const sweepStart = Math.max(0, global.sf - Math.floor(1200 / dt_ms));
 			const sweepEnd = Math.min(num_frames - 1, global.sf + Math.floor(1200 / dt_ms));
 			await animateLiveTrackingSweep(sweepStart, sweepEnd, global.sf);
+			setDspProgress(0.36);
 
 			// Top-K Intensity Extraction
 			function extract_signal(tx_ref, ty_ref, half_box, top_k) {
@@ -2591,6 +2625,9 @@
 			}
 
 			log("Extracting signals...");
+			statusText.textContent = "Extracting ROI intensity signals...";
+			await new Promise(r => setTimeout(r, 0));
+
 			const fixed_x = new Int32Array(num_frames).fill(global.bx);
 			const fixed_y = new Int32Array(num_frames).fill(global.by);
 
@@ -2607,6 +2644,8 @@
 					sig: extract_signal(fixed_x, fixed_y, settings.wideHalfBox, settings.wideTopK)
 				});
 			}
+
+			setDspProgress(0.45);
 
 			let found_exact = false;
 			let matchedFrameIdx = global.sf;
@@ -2818,9 +2857,14 @@
 
 			// Matched filter phase loop
 			log("Running Matched Filters (Searching timeline...)");
+			const totalCandCount = Math.max(1, candidates.length);
+			const totalThSteps = Math.max(1, Math.floor((settings.thMax - settings.thMin + 1e-6) / 0.005) + 1);
+			lastYield = performance.now();
 
-			for (let cand of candidates) {
+			for (let cIdx = 0; cIdx < candidates.length; cIdx++) {
+				const cand = candidates[cIdx];
 				statusText.textContent = `Running matched filter on ${cand.name}...`;
+				setDspProgress(0.45 + 0.53 * (cIdx / totalCandCount));
 				await new Promise(r => setTimeout(r, 0));
 
 				const raw = cand.sig;
@@ -2857,8 +2901,15 @@
 				if (slope_peaks.length < 20) continue;
 				const total_ms = (num_frames - 1) * dt_ms;
 
-				for (let th = settings.thMin; th <= settings.thMax + 1e-6; th += 0.005) {
+				let thStep = 0;
+				for (let th = settings.thMin; th <= settings.thMax + 1e-6; th += 0.005, thStep++) {
 					const tbit = th * 2.0;
+					const mfFrac = (cIdx + Math.min(1, thStep / totalThSteps)) / totalCandCount;
+					setDspProgress(0.45 + 0.53 * mfFrac);
+					if (performance.now() - lastYield > 25) {
+						lastYield = performance.now();
+						await new Promise(r => setTimeout(r, 0));
+					}
 
 					for (let t_start of slope_peaks) {
 						if (t_start + 40 * tbit > total_ms) continue;
@@ -2926,6 +2977,8 @@
 				}
 				if (found_exact) break;
 			}
+
+			setDspProgress(1.0);
 
 			let activeTrace = exactTrace || fallbackTrace;
 			if (!found_exact) {
