@@ -21,7 +21,7 @@
 		button:disabled { background: #ccc; color: #fff; cursor: not-allowed; border-color: transparent; }
 		.drop-hint { font-size: 0.84rem; color: #666; margin-bottom: 16px; }
 
-		.workspace { display: grid; grid-template-columns: minmax(340px, 500px) 1fr; gap: 18px; align-items: start; margin-bottom: 16px; }
+		.workspace { display: grid; grid-template-columns: minmax(340px, 500px) 1fr; gap: 18px; align-items: start; margin-bottom: 12px; }
 		@media (max-width: 860px) {
 			.workspace { grid-template-columns: 1fr; }
 		}
@@ -59,21 +59,32 @@
 		.checkbox-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
 		/* Graphical Manchester Waveform & Byte-Aligned ASCII Card */
-		.signal-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+		.signal-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; transition: all 0.2s ease; }
 		.signal-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-		.signal-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+		.signal-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; user-select: none; }
+		.signal-title:hover { opacity: 0.8; }
+		.toggle-icon { display: inline-block; transition: transform 0.2s ease; margin-right: 2px; font-size: 0.75rem; color: #666; }
+		.signal-card.collapsed .toggle-icon { transform: rotate(-90deg); }
+		.signal-card.collapsed .signal-canvas-wrap,
+		.signal-card.collapsed .signal-overview-wrap,
+		.signal-card.collapsed .signal-help,
+		.signal-card.collapsed .packet-strip,
+		.signal-card.collapsed .signal-controls { display: none; }
 		.signal-source-tag { font-family: monospace; font-size: 0.78rem; font-weight: 600; text-transform: none; color: #0066cc; background: #e8f2ff; padding: 2px 7px; border-radius: 4px; }
+		
 		.signal-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.82rem; }
 		.signal-controls button { padding: 3px 9px; font-size: 0.8rem; }
 		.zoom-readout { font-family: monospace; font-size: 0.78rem; color: #333; background: #fff; border: 1px solid #d0d7de; padding: 3px 7px; border-radius: 4px; min-width: 68px; text-align: center; }
 		.signal-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 0.78rem; color: #555; margin-right: 4px; }
 		.sig-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+		
 		.signal-canvas-wrap { position: relative; width: 100%; height: 270px; background: #0f141c; border: 1px solid #2b3442; border-radius: 4px; overflow: hidden; }
 		.signal-canvas-wrap canvas { width: 100%; height: 100%; display: block; cursor: ew-resize; touch-action: none; }
 		.signal-overview-wrap { position: relative; width: 100%; height: 26px; background: #131923; border: 1px solid #2b3442; border-radius: 4px; overflow: hidden; }
 		.signal-overview-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 		.signal-help { font-size: 0.76rem; color: #666; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 		.signal-range-meta { font-family: monospace; color: #333; }
+		
 		.packet-strip { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-family: monospace; font-size: 0.8rem; min-height: 26px; }
 		.pkt-badge { padding: 3px 7px; border-radius: 4px; border: 1px solid #d0d7de; background: #fff; color: #222; cursor: pointer; }
 		.pkt-badge:hover { filter: brightness(0.96); }
@@ -84,11 +95,12 @@
 		.pkt-soft { border-style: dashed; border-color: #e5534b; }
 		.pkt-empty { color: #777; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.82rem; }
 
+		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 12px; padding: 0 4px; }
+		progress { width: 220px; }
+
 		.log-output { width: 100%; height: 185px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
 		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
 		.log-output strong.decoded-str { font-weight: 700; color: #000; }
-		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 6px; }
-		progress { width: 220px; }
 
 		.drop-overlay { position: fixed; inset: 0; background: rgba(0, 123, 245, 0.14); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 9999; pointer-events: none; }
 		.drop-overlay.active { display: flex; }
@@ -295,9 +307,15 @@
 		</div>
 	</div>
 
-	<div class="signal-card">
+	<div class="status-bar">
+		<span id="statusText">Waiting for video...</span>
+		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
+	</div>
+
+	<div class="signal-card collapsed" id="signalCard">
 		<div class="signal-header">
-			<div class="signal-title">
+			<div class="signal-title" id="signalToggle" title="Click to collapse/expand">
+				<span class="toggle-icon">▼</span>
 				<span>Received Signal &amp; Manchester Slicer</span>
 				<span id="signalSourceBadge" class="signal-source-tag">No signal yet</span>
 			</div>
@@ -330,10 +348,6 @@
 		</div>
 	</div>
 
-	<div class="status-bar">
-		<span id="statusText">Waiting for video...</span>
-		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
-	</div>
 	<div id="logOutput" class="log-output" data-placeholder="Decoded telemetry will appear here..."></div>
 </div>
 
@@ -360,6 +374,8 @@
 	const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
 
 	// Signal waveform & Manchester decoder visualizer elements
+	const signalCard = document.getElementById('signalCard');
+	const signalToggle = document.getElementById('signalToggle');
 	const signalCanvas = document.getElementById('signalCanvas');
 	const sigCtx = signalCanvas.getContext('2d');
 	const signalOverviewCanvas = document.getElementById('signalOverviewCanvas');
@@ -372,6 +388,13 @@
 	const zoomReadout = document.getElementById('zoomReadout');
 	const signalRangeMeta = document.getElementById('signalRangeMeta');
 	const packetStrip = document.getElementById('packetStrip');
+
+	signalToggle.addEventListener('click', () => {
+		signalCard.classList.toggle('collapsed');
+		if (!signalCard.classList.contains('collapsed')) {
+			drawSignalGraph();
+		}
+	});
 
 	// Settings controls
 	const trackHalfBoxInput = document.getElementById('trackHalfBoxInput');
@@ -641,6 +664,12 @@
 			const midFrame = Math.max(0, Math.min(vizState.framesRgba.length - 1, Math.round(((trace.bitTimesMs[globalBitStart] + trace.bitTimesMs[lastIdx]) * 0.5) / trace.dtMs)));
 			stopPlayback();
 			drawFrameWithTracking(midFrame);
+			
+			// Auto expand the signal card if jumped from a badge
+			if (signalCard.classList.contains('collapsed')) {
+				signalCard.classList.remove('collapsed');
+				drawSignalGraph();
+			}
 		};
 
 		const addBadge = (cls, text, title, bitStart, bitEnd) => {
@@ -695,6 +724,8 @@
 	}
 
 	function drawSignalOverview() {
+		if (signalCard.classList.contains('collapsed')) return;
+		
 		const rect = signalOverviewCanvas.getBoundingClientRect();
 		const cssW = Math.max(200, Math.floor(rect.width || 800));
 		const cssH = Math.max(20, Math.floor(rect.height || 26));
@@ -781,6 +812,8 @@
 	}
 
 	function drawSignalGraph() {
+		if (signalCard.classList.contains('collapsed')) return;
+		
 		const rect = signalCanvas.getBoundingClientRect();
 		const cssW = Math.max(300, Math.floor(rect.width || 800));
 		const cssH = Math.max(180, Math.floor(rect.height || 270));
@@ -1258,7 +1291,10 @@
 			zoomToPacket();
 		}
 		renderPacketStrip(trace);
-		drawSignalGraph();
+		
+		if (!signalCard.classList.contains('collapsed')) {
+			drawSignalGraph();
+		}
 	}
 
 	// Interactive Zoom, Pan & Scrub on Main Waveform Canvas
