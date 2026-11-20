@@ -28,7 +28,7 @@
 
 		.preview-card { padding: 12px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
 		.canvas-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border: 1px solid #bbb; border-radius: 4px; overflow: hidden; }
-		canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
+		.canvas-wrap canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
 		.canvas-help { font-size: 0.78rem; color: #666; }
 
 		.legend { font-size: 0.82rem; color: #444; display: flex; gap: 14px; flex-wrap: wrap; }
@@ -58,7 +58,33 @@
 		.settings-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.83rem; color: #444; }
 		.checkbox-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
-		.log-output { width: 100%; height: 210px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
+		/* Graphical Manchester Waveform & Byte-Aligned ASCII Card */
+		.signal-card { padding: 12px 14px; background: #f8f9fb; border: 1px solid #e1e4e8; border-radius: 6px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
+		.signal-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+		.signal-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #444; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+		.signal-source-tag { font-family: monospace; font-size: 0.78rem; font-weight: 600; text-transform: none; color: #0066cc; background: #e8f2ff; padding: 2px 7px; border-radius: 4px; }
+		.signal-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.82rem; }
+		.signal-controls button { padding: 3px 9px; font-size: 0.8rem; }
+		.zoom-readout { font-family: monospace; font-size: 0.78rem; color: #333; background: #fff; border: 1px solid #d0d7de; padding: 3px 7px; border-radius: 4px; min-width: 68px; text-align: center; }
+		.signal-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 0.78rem; color: #555; margin-right: 4px; }
+		.sig-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+		.signal-canvas-wrap { position: relative; width: 100%; height: 270px; background: #0f141c; border: 1px solid #2b3442; border-radius: 4px; overflow: hidden; }
+		.signal-canvas-wrap canvas { width: 100%; height: 100%; display: block; cursor: ew-resize; touch-action: none; }
+		.signal-overview-wrap { position: relative; width: 100%; height: 26px; background: #131923; border: 1px solid #2b3442; border-radius: 4px; overflow: hidden; }
+		.signal-overview-wrap canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+		.signal-help { font-size: 0.76rem; color: #666; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+		.signal-range-meta { font-family: monospace; color: #333; }
+		.packet-strip { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-family: monospace; font-size: 0.8rem; min-height: 26px; }
+		.pkt-badge { padding: 3px 7px; border-radius: 4px; border: 1px solid #d0d7de; background: #fff; color: #222; cursor: pointer; }
+		.pkt-badge:hover { filter: brightness(0.96); }
+		.pkt-sof { background: #fff8db; border-color: #e6c245; color: #6e5200; font-weight: 700; }
+		.pkt-len { background: #f3ecff; border-color: #c5a8f5; color: #4c238a; font-weight: 700; }
+		.pkt-pay { background: #e9fbf0; border-color: #8adba8; color: #0e5a2b; font-weight: 700; }
+		.pkt-crc { background: #e8f5ff; border-color: #96ccf7; color: #0a4f8a; font-weight: 700; }
+		.pkt-soft { border-style: dashed; border-color: #e5534b; }
+		.pkt-empty { color: #777; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.82rem; }
+
+		.log-output { width: 100%; height: 185px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; line-height: 1.45; padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: #fafafa; color: #333; resize: vertical; }
 		.log-output:empty::before { content: attr(data-placeholder); color: #888; }
 		.log-output strong.decoded-str { font-weight: 700; color: #000; }
 		.status-bar { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; color: #555; margin-bottom: 6px; }
@@ -269,6 +295,41 @@
 		</div>
 	</div>
 
+	<div class="signal-card">
+		<div class="signal-header">
+			<div class="signal-title">
+				<span>Received Signal &amp; Manchester Slicer</span>
+				<span id="signalSourceBadge" class="signal-source-tag">No signal yet</span>
+			</div>
+			<div class="signal-controls">
+				<div class="signal-legend">
+					<span><span class="sig-swatch" style="background:#38bdf8;"></span>Blue Intensity</span>
+					<span><span class="sig-swatch" style="background:rgba(56,189,248,0.22);border:1px solid #38bdf8;"></span>Half-Bit m1</span>
+					<span><span class="sig-swatch" style="background:rgba(52,211,153,0.22);border:1px solid #34d399;"></span>Half-Bit m2</span>
+					<span><span class="sig-swatch" style="background:#f87171;"></span>Playhead</span>
+				</div>
+				<button id="zoomOutBtn" class="secondary" disabled title="Zoom out (-)">&minus;</button>
+				<span id="zoomReadout" class="zoom-readout">1.0&times;</span>
+				<button id="zoomInBtn" class="secondary" disabled title="Zoom in (+)">+</button>
+				<button id="zoomPacketBtn" class="secondary" disabled title="Zoom to decoded packet">Packet</button>
+				<button id="zoomFullBtn" class="secondary" disabled title="Reset zoom to full video">Full</button>
+			</div>
+		</div>
+		<div class="signal-canvas-wrap">
+			<canvas id="signalCanvas"></canvas>
+		</div>
+		<div class="signal-overview-wrap" title="Drag highlighted window to pan, drag window edges to zoom, or click to jump">
+			<canvas id="signalOverviewCanvas"></canvas>
+		</div>
+		<div class="signal-help">
+			<span>Scroll wheel to zoom at cursor &bull; Shift+drag (or overview bar) to pan &bull; Click/drag waveform to scrub video</span>
+			<span id="signalRangeMeta" class="signal-range-meta">-</span>
+		</div>
+		<div id="packetStrip" class="packet-strip">
+			<span class="pkt-empty">Drop or process a video to inspect Manchester half-bit transitions and decoded ASCII bytes.</span>
+		</div>
+	</div>
+
 	<div class="status-bar">
 		<span id="statusText">Waiting for video...</span>
 		<progress id="progressBar" value="0" max="100" style="display: none;"></progress>
@@ -297,6 +358,20 @@
 	const frameMeta = document.getElementById('frameMeta');
 	const dropOverlay = document.getElementById('dropOverlay');
 	const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+
+	// Signal waveform & Manchester decoder visualizer elements
+	const signalCanvas = document.getElementById('signalCanvas');
+	const sigCtx = signalCanvas.getContext('2d');
+	const signalOverviewCanvas = document.getElementById('signalOverviewCanvas');
+	const ovCtx = signalOverviewCanvas.getContext('2d');
+	const signalSourceBadge = document.getElementById('signalSourceBadge');
+	const zoomOutBtn = document.getElementById('zoomOutBtn');
+	const zoomInBtn = document.getElementById('zoomInBtn');
+	const zoomPacketBtn = document.getElementById('zoomPacketBtn');
+	const zoomFullBtn = document.getElementById('zoomFullBtn');
+	const zoomReadout = document.getElementById('zoomReadout');
+	const signalRangeMeta = document.getElementById('signalRangeMeta');
+	const packetStrip = document.getElementById('packetStrip');
 
 	// Settings controls
 	const trackHalfBoxInput = document.getElementById('trackHalfBoxInput');
@@ -349,8 +424,15 @@
 		currentFrame: 0,
 		isPlaying: false,
 		rafId: null,
-		lastStepTime: 0,
-		liveBox: null
+		lastStepTime: 0
+	};
+
+	// Diagnostic telemetry & interactive zoom viewport state for graphical Manchester visualization
+	let signalVizState = {
+		trace: null,
+		viewStartMs: 0,
+		viewEndMs: 1000,
+		hoverMs: null
 	};
 
 	function getSettings() {
@@ -455,6 +537,912 @@
 		}
 	}
 
+	function clampViewport(startMs, endMs) {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw || trace.raw.length < 2) {
+			signalVizState.viewStartMs = 0;
+			signalVizState.viewEndMs = 1000;
+			return;
+		}
+		const totalMs = Math.max(10, (trace.raw.length - 1) * trace.dtMs);
+		const minSpanMs = Math.max(trace.dtMs * 8, (trace.th || 15.0) * 4);
+		let span = Math.max(minSpanMs, Math.min(totalMs, endMs - startMs));
+		let s = Math.max(0, Math.min(totalMs - span, startMs));
+		let e = s + span;
+		signalVizState.viewStartMs = s;
+		signalVizState.viewEndMs = e;
+	}
+
+	function zoomToPacket() {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		const totalMs = (trace.raw.length - 1) * trace.dtMs;
+		if (trace.bitTimesMs && trace.bitTimesMs.length > 0) {
+			const tbit = trace.th * 2.0;
+			if (trace.matched && trace.sofPos >= 0) {
+				const firstBitIdx = Math.max(0, trace.sofPos - 2);
+				const lastBitIdx = Math.min(trace.bitTimesMs.length - 1, trace.sofPos + 8 + (1 + trace.pktLen + 1) * 8 + 1);
+				clampViewport(
+					trace.bitTimesMs[firstBitIdx] - tbit * 1.2,
+					trace.bitTimesMs[lastBitIdx] + tbit * 1.2
+				);
+			} else {
+				clampViewport(
+					trace.bitTimesMs[0] - tbit * 2,
+					trace.bitTimesMs[trace.bitTimesMs.length - 1] + tbit * 2
+				);
+			}
+		} else {
+			clampViewport(0, totalMs);
+		}
+		drawSignalGraph();
+	}
+
+	function zoomToFull() {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		clampViewport(0, (trace.raw.length - 1) * trace.dtMs);
+		drawSignalGraph();
+	}
+
+	function zoomByFactor(factor, anchorMs = null) {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		const totalMs = (trace.raw.length - 1) * trace.dtMs;
+		const curStart = signalVizState.viewStartMs;
+		const curEnd = signalVizState.viewEndMs;
+		const curSpan = curEnd - curStart;
+		const center = (anchorMs !== null && anchorMs >= curStart && anchorMs <= curEnd)
+			? anchorMs
+			: (curStart + curEnd) * 0.5;
+		const ratio = curSpan > 0 ? (center - curStart) / curSpan : 0.5;
+		const newSpan = Math.min(totalMs, curSpan * factor);
+		clampViewport(center - ratio * newSpan, center + (1 - ratio) * newSpan);
+		drawSignalGraph();
+	}
+
+	function formatPrintableChar(byteVal) {
+		if (byteVal === 0x20) return '␣';
+		if (byteVal === 0x0A) return '\\n';
+		if (byteVal === 0x0D) return '\\r';
+		if (byteVal === 0x09) return '\\t';
+		if (byteVal === 0x00) return '\\0';
+		if (byteVal >= 0x21 && byteVal <= 0x7E) return String.fromCharCode(byteVal);
+		return `.`;
+	}
+
+	function renderPacketStrip(trace) {
+		packetStrip.textContent = "";
+		if (!trace || !trace.matched) {
+			const span = document.createElement('span');
+			span.className = 'pkt-empty';
+			span.textContent = trace
+				? "Showing extracted blue intensity waveform (no valid CRC8 packet locked yet)."
+				: "Drop or process a video to inspect Manchester half-bit transitions and decoded ASCII bytes.";
+			packetStrip.appendChild(span);
+			return;
+		}
+
+		const flippedSet = new Set(trace.flippedFrameBits || []);
+		const hasFlipInRange = (startFrameBit, endFrameBit) => {
+			for (let b = startFrameBit; b < endFrameBit; b++) {
+				if (flippedSet.has(b)) return true;
+			}
+			return false;
+		};
+
+		const jumpToByteBits = (globalBitStart, globalBitEnd) => {
+			if (!trace.bitTimesMs || globalBitStart >= trace.bitTimesMs.length) return;
+			const lastIdx = Math.min(trace.bitTimesMs.length - 1, globalBitEnd - 1);
+			const tbit = trace.th * 2.0;
+			const t0 = trace.bitTimesMs[globalBitStart] - tbit * 3;
+			const t1 = trace.bitTimesMs[lastIdx] + tbit * 3;
+			clampViewport(t0, t1);
+			const midFrame = Math.max(0, Math.min(vizState.framesRgba.length - 1, Math.round(((trace.bitTimesMs[globalBitStart] + trace.bitTimesMs[lastIdx]) * 0.5) / trace.dtMs)));
+			stopPlayback();
+			drawFrameWithTracking(midFrame);
+		};
+
+		const addBadge = (cls, text, title, bitStart, bitEnd) => {
+			const el = document.createElement('span');
+			el.className = `pkt-badge ${cls}`;
+			el.textContent = text;
+			if (title) el.title = title;
+			el.addEventListener('click', () => jumpToByteBits(bitStart, bitEnd));
+			packetStrip.appendChild(el);
+		};
+
+		addBadge(
+			'pkt-sof',
+			'SOF 0x7E',
+			'Start-of-Frame delimiter (01111110) — click to zoom to byte',
+			trace.sofPos,
+			trace.sofPos + 8
+		);
+		addBadge(
+			'pkt-len' + (hasFlipInRange(0, 8) ? ' pkt-soft' : ''),
+			`LEN ${trace.pktLen}`,
+			`Payload length: ${trace.pktLen} bytes (0x${trace.pktLen.toString(16).toUpperCase().padStart(2, '0')}) — click to zoom to byte`,
+			trace.sofPos + 8,
+			trace.sofPos + 16
+		);
+
+		const bytes = trace.bytes || [];
+		for (let i = 0; i < trace.pktLen; i++) {
+			const b = bytes[1 + i];
+			const ch = formatPrintableChar(b);
+			const frameBitStart = (1 + i) * 8;
+			const isSoft = hasFlipInRange(frameBitStart, frameBitStart + 8);
+			const binStr = b.toString(2).padStart(8, '0');
+			addBadge(
+				'pkt-pay' + (isSoft ? ' pkt-soft' : ''),
+				ch,
+				`Byte[${i}]: '${ch}' (0x${b.toString(16).toUpperCase().padStart(2, '0')} / ${binStr})${isSoft ? ' [soft-fixed]' : ''} — click to zoom to byte`,
+				trace.sofPos + 8 + frameBitStart,
+				trace.sofPos + 8 + frameBitStart + 8
+			);
+		}
+
+		const crcFrameBitStart = (1 + trace.pktLen) * 8;
+		const crcHex = `0x${trace.rxCrc.toString(16).toUpperCase().padStart(2, '0')}`;
+		addBadge(
+			'pkt-crc' + (hasFlipInRange(crcFrameBitStart, crcFrameBitStart + 8) ? ' pkt-soft' : ''),
+			`CRC8 ${crcHex} \u2713`,
+			`CRC-8/SMBUS verified (${crcHex}) — click to zoom to byte`,
+			trace.sofPos + 8 + crcFrameBitStart,
+			trace.sofPos + 8 + crcFrameBitStart + 8
+		);
+	}
+
+	function drawSignalOverview() {
+		const rect = signalOverviewCanvas.getBoundingClientRect();
+		const cssW = Math.max(200, Math.floor(rect.width || 800));
+		const cssH = Math.max(20, Math.floor(rect.height || 26));
+		const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+		if (signalOverviewCanvas.width !== cssW * dpr || signalOverviewCanvas.height !== cssH * dpr) {
+			signalOverviewCanvas.width = cssW * dpr;
+			signalOverviewCanvas.height = cssH * dpr;
+		}
+
+		ovCtx.save();
+		ovCtx.scale(dpr, dpr);
+		ovCtx.fillStyle = "#131923";
+		ovCtx.fillRect(0, 0, cssW, cssH);
+
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw || trace.raw.length < 2) {
+			ovCtx.restore();
+			return;
+		}
+
+		const raw = trace.raw;
+		const dtMs = trace.dtMs;
+		const totalMs = Math.max(1, (raw.length - 1) * dtMs);
+		const tToOvX = (t) => (t / totalMs) * cssW;
+
+		// Packet region highlight on overview bar
+		if (trace.matched && trace.sofPos >= 0 && trace.bitTimesMs) {
+			const lastIdx = Math.min(trace.bitTimesMs.length - 1, trace.sofPos + 8 + (1 + trace.pktLen + 1) * 8 - 1);
+			if (lastIdx >= trace.sofPos) {
+				const px0 = tToOvX(trace.bitTimesMs[trace.sofPos] - trace.th);
+				const px1 = Math.max(px0 + 3, tToOvX(trace.bitTimesMs[lastIdx] + trace.th));
+				ovCtx.fillStyle = "rgba(52, 211, 153, 0.25)";
+				ovCtx.fillRect(px0, 0, px1 - px0, cssH);
+			}
+		}
+
+		// Mini sparkline of entire recording
+		let minR = Infinity, maxR = -Infinity;
+		for (let i = 0; i < raw.length; i++) {
+			if (raw[i] < minR) minR = raw[i];
+			if (raw[i] > maxR) maxR = raw[i];
+		}
+		if (maxR <= minR) { minR = 0; maxR = 255; }
+
+		ovCtx.strokeStyle = "rgba(56, 189, 248, 0.55)";
+		ovCtx.lineWidth = 1;
+		ovCtx.beginPath();
+		const step = Math.max(1, Math.floor(raw.length / cssW));
+		for (let f = 0; f < raw.length; f += step) {
+			const x = tToOvX(f * dtMs);
+			const y = cssH - 3 - ((raw[f] - minR) / (maxR - minR)) * (cssH - 6);
+			if (f === 0) ovCtx.moveTo(x, y);
+			else ovCtx.lineTo(x, y);
+		}
+		ovCtx.stroke();
+
+		// Playhead on overview
+		const curX = tToOvX(vizState.currentFrame * dtMs);
+		ovCtx.strokeStyle = "#f87171";
+		ovCtx.lineWidth = 1.5;
+		ovCtx.beginPath();
+		ovCtx.moveTo(curX, 0);
+		ovCtx.lineTo(curX, cssH);
+		ovCtx.stroke();
+
+		// Active zoom viewport window
+		const vx0 = Math.max(0, tToOvX(signalVizState.viewStartMs));
+		const vx1 = Math.min(cssW, tToOvX(signalVizState.viewEndMs));
+		const vw = Math.max(8, vx1 - vx0);
+
+		ovCtx.fillStyle = "rgba(255, 255, 255, 0.14)";
+		ovCtx.fillRect(vx0, 1, vw, cssH - 2);
+		ovCtx.strokeStyle = "#93c5fd";
+		ovCtx.lineWidth = 1.5;
+		ovCtx.strokeRect(vx0 + 0.5, 0.5, vw - 1, cssH - 1);
+
+		// Left/right resize grip bars
+		ovCtx.fillStyle = "#93c5fd";
+		ovCtx.fillRect(vx0, 4, 2.5, cssH - 8);
+		ovCtx.fillRect(vx0 + vw - 2.5, 4, 2.5, cssH - 8);
+
+		ovCtx.restore();
+	}
+
+	function drawSignalGraph() {
+		const rect = signalCanvas.getBoundingClientRect();
+		const cssW = Math.max(300, Math.floor(rect.width || 800));
+		const cssH = Math.max(180, Math.floor(rect.height || 270));
+		const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+		if (signalCanvas.width !== cssW * dpr || signalCanvas.height !== cssH * dpr) {
+			signalCanvas.width = cssW * dpr;
+			signalCanvas.height = cssH * dpr;
+		}
+
+		sigCtx.save();
+		sigCtx.scale(dpr, dpr);
+
+		sigCtx.fillStyle = "#0f141c";
+		sigCtx.fillRect(0, 0, cssW, cssH);
+
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw || trace.raw.length < 2) {
+			zoomReadout.textContent = "1.0\u00d7";
+			signalRangeMeta.textContent = "-";
+			sigCtx.fillStyle = "#7c8899";
+			sigCtx.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+			sigCtx.textAlign = "center";
+			sigCtx.textBaseline = "middle";
+			sigCtx.fillText("Waveform, Manchester bit slicer, and aligned ASCII bytes will appear here after decoding", cssW / 2, cssH / 2);
+			sigCtx.restore();
+			drawSignalOverview();
+			return;
+		}
+
+		const raw = trace.raw;
+		const dtMs = trace.dtMs;
+		const totalMs = Math.max(10, (raw.length - 1) * dtMs);
+		const tStart = signalVizState.viewStartMs;
+		const tEnd = signalVizState.viewEndMs;
+		const spanMs = Math.max(1, tEnd - tStart);
+
+		const zoomFactor = totalMs / spanMs;
+		zoomReadout.textContent = `${zoomFactor >= 10 ? zoomFactor.toFixed(0) : zoomFactor.toFixed(1)}\u00d7`;
+
+		const padL = 44;
+		const padR = 12;
+		const padT = 18;
+		const padB = 20;
+		const plotW = Math.max(40, cssW - padL - padR);
+		const byteStripH = 34;
+		const gap1 = 8;
+		const gap2 = 6;
+		const signalAreaH = cssH - padT - padB - byteStripH - gap1 - gap2;
+		const topH = Math.floor(signalAreaH * 0.56);
+		const botY0 = padT + topH + gap1;
+		const botH = signalAreaH - topH;
+		const byteY0 = botY0 + botH + gap2;
+
+		const timeToX = (t) => padL + ((t - tStart) / spanMs) * plotW;
+
+		// Build list of aligned protocol bytes (SOF, LEN, PAYLOAD[0..N-1], CRC8)
+		const packetBytes = [];
+		if (trace.matched && trace.sofPos >= 0 && trace.bitTimesMs && trace.bytes) {
+			const th = trace.th;
+			const flippedSet = new Set(trace.flippedFrameBits || []);
+			const hasFlipInRange = (sfb, efb) => {
+				for (let b = sfb; b < efb; b++) if (flippedSet.has(b)) return true;
+				return false;
+			};
+
+			const addByteEntry = (kind, bitOffsetFromSof, primaryText, secondaryText, isSoft) => {
+				const k0 = trace.sofPos + bitOffsetFromSof;
+				const k7 = k0 + 7;
+				if (k0 < 0 || k7 >= trace.bitTimesMs.length) return;
+				const t0 = trace.bitTimesMs[k0] - th;
+				const t1 = trace.bitTimesMs[k7] + th;
+				packetBytes.push({ kind, k0, k7, t0, t1, primaryText, secondaryText, isSoft });
+			};
+
+			addByteEntry('sof', 0, 'SOF', '0x7E', false);
+			addByteEntry(
+				'len',
+				8,
+				'LEN',
+				`${trace.pktLen}`,
+				hasFlipInRange(0, 8)
+			);
+
+			for (let i = 0; i < trace.pktLen; i++) {
+				const b = trace.bytes[1 + i];
+				const frameBitStart = (1 + i) * 8;
+				addByteEntry(
+					'pay',
+					16 + frameBitStart,
+					formatPrintableChar(b),
+					b.toString(16).toUpperCase().padStart(2, '0'),
+					hasFlipInRange(frameBitStart, frameBitStart + 8)
+				);
+			}
+
+			const crcFrameBitStart = (1 + trace.pktLen) * 8;
+			addByteEntry(
+				'crc',
+				16 + crcFrameBitStart,
+				'CRC',
+				`0x${trace.rxCrc.toString(16).toUpperCase().padStart(2, '0')}`,
+				hasFlipInRange(crcFrameBitStart, crcFrameBitStart + 8)
+			);
+		}
+
+		// 1. Byte-aligned vertical background bands & 8-bit boundary dividers across all tracks
+		sigCtx.save();
+		sigCtx.beginPath();
+		sigCtx.rect(padL, padT, plotW, byteY0 + byteStripH - padT);
+		sigCtx.clip();
+
+		for (let idx = 0; idx < packetBytes.length; idx++) {
+			const pb = packetBytes[idx];
+			const x0 = timeToX(pb.t0);
+			const x1 = timeToX(pb.t1);
+			if (x1 < padL || x0 > padL + plotW) continue;
+
+			if (pb.kind === 'sof') {
+				sigCtx.fillStyle = "rgba(250, 204, 21, 0.08)";
+			} else if (pb.kind === 'len') {
+				sigCtx.fillStyle = "rgba(192, 132, 252, 0.09)";
+			} else if (pb.kind === 'crc') {
+				sigCtx.fillStyle = "rgba(56, 189, 248, 0.09)";
+			} else {
+				sigCtx.fillStyle = (idx % 2 === 0) ? "rgba(52, 211, 153, 0.05)" : "rgba(52, 211, 153, 0.10)";
+			}
+			sigCtx.fillRect(x0, padT, x1 - x0, botY0 + botH - padT);
+
+			// 8-bit byte boundary divider line
+			sigCtx.strokeStyle = "rgba(148, 163, 184, 0.28)";
+			sigCtx.lineWidth = 1;
+			sigCtx.beginPath();
+			sigCtx.moveTo(x0, padT);
+			sigCtx.lineTo(x0, byteY0 + byteStripH);
+			sigCtx.stroke();
+		}
+		if (packetBytes.length > 0) {
+			const xEnd = timeToX(packetBytes[packetBytes.length - 1].t1);
+			sigCtx.strokeStyle = "rgba(148, 163, 184, 0.28)";
+			sigCtx.beginPath();
+			sigCtx.moveTo(xEnd, padT);
+			sigCtx.lineTo(xEnd, byteY0 + byteStripH);
+			sigCtx.stroke();
+		}
+		sigCtx.restore();
+
+		// Panel borders
+		sigCtx.strokeStyle = "#1e2736";
+		sigCtx.lineWidth = 1;
+		sigCtx.strokeRect(padL + 0.5, padT + 0.5, plotW, topH);
+		sigCtx.strokeRect(padL + 0.5, botY0 + 0.5, plotW, botH);
+		sigCtx.strokeRect(padL + 0.5, byteY0 + 0.5, plotW, byteStripH);
+
+		// Compute local Y-scale for top raw blue signal
+		const fStart = Math.max(0, Math.floor(tStart / dtMs));
+		const fEnd = Math.min(raw.length - 1, Math.ceil(tEnd / dtMs));
+		let minRaw = Infinity, maxRaw = -Infinity;
+		for (let f = fStart; f <= fEnd; f++) {
+			if (raw[f] < minRaw) minRaw = raw[f];
+			if (raw[f] > maxRaw) maxRaw = raw[f];
+		}
+		if (!isFinite(minRaw) || maxRaw <= minRaw) {
+			minRaw = 0;
+			maxRaw = 255;
+		}
+		const rawPad = (maxRaw - minRaw) * 0.12 + 2;
+		const yMinRaw = Math.max(0, minRaw - rawPad);
+		const yMaxRaw = maxRaw + rawPad;
+		const valToTopY = (v) => padT + topH - ((v - yMinRaw) / (yMaxRaw - yMinRaw)) * topH;
+
+		// 2. Half-bit sampling windows (m1 & m2) and mid-bit transition markers
+		if (trace.bitTimesMs && trace.bitTimesMs.length > 0) {
+			const th = trace.th;
+			const pxPerBit = (th * 2.0 / spanMs) * plotW;
+
+			sigCtx.save();
+			sigCtx.beginPath();
+			sigCtx.rect(padL, padT, plotW, botY0 + botH - padT);
+			sigCtx.clip();
+
+			for (let k = 0; k < trace.bitTimesMs.length; k++) {
+				const tMid = trace.bitTimesMs[k];
+				if (tMid + th < tStart || tMid - th > tEnd) continue;
+
+				if (pxPerBit >= 9) {
+					const m1x0 = timeToX(tMid - th * 0.70);
+					const m1x1 = timeToX(tMid - th * 0.20);
+					if (m1x1 > m1x0) {
+						sigCtx.fillStyle = "rgba(56, 189, 248, 0.14)";
+						sigCtx.fillRect(m1x0, padT + 1, m1x1 - m1x0, topH - 2);
+					}
+
+					const m2x0 = timeToX(tMid + th * 0.20);
+					const m2x1 = timeToX(tMid + th * 0.70);
+					if (m2x1 > m2x0) {
+						sigCtx.fillStyle = "rgba(52, 211, 153, 0.14)";
+						sigCtx.fillRect(m2x0, padT + 1, m2x1 - m2x0, topH - 2);
+					}
+				}
+
+				const xMid = timeToX(tMid);
+				if (pxPerBit >= 5) {
+					sigCtx.save();
+					sigCtx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+					sigCtx.lineWidth = 1;
+					sigCtx.setLineDash([2, 2]);
+					sigCtx.beginPath();
+					sigCtx.moveTo(xMid, padT);
+					sigCtx.lineTo(xMid, botY0 + botH);
+					sigCtx.stroke();
+					sigCtx.restore();
+				}
+			}
+			sigCtx.restore();
+		}
+
+		// 3. Plot Raw Blue Intensity Curve (Top Track)
+		sigCtx.save();
+		sigCtx.beginPath();
+		sigCtx.rect(padL, padT, plotW, topH);
+		sigCtx.clip();
+
+		sigCtx.strokeStyle = "#38bdf8";
+		sigCtx.lineWidth = 1.6;
+		sigCtx.beginPath();
+		for (let f = fStart; f <= fEnd; f++) {
+			const x = timeToX(f * dtMs);
+			const y = valToTopY(raw[f]);
+			if (f === fStart) sigCtx.moveTo(x, y);
+			else sigCtx.lineTo(x, y);
+		}
+		sigCtx.stroke();
+
+		// Show frame sample dots when zoomed in tightly
+		const pxPerFrame = (dtMs / spanMs) * plotW;
+		if (pxPerFrame >= 5) {
+			sigCtx.fillStyle = "#7dd3fc";
+			for (let f = fStart; f <= fEnd; f++) {
+				const x = timeToX(f * dtMs);
+				const y = valToTopY(raw[f]);
+				sigCtx.beginPath();
+				sigCtx.arc(x, y, 2, 0, Math.PI * 2);
+				sigCtx.fill();
+			}
+		}
+		sigCtx.restore();
+
+		// Top Y-axis labels
+		sigCtx.fillStyle = "#8a99ad";
+		sigCtx.font = "10px monospace";
+		sigCtx.textAlign = "right";
+		sigCtx.textBaseline = "top";
+		sigCtx.fillText(Math.round(yMaxRaw).toString(), padL - 5, padT + 2);
+		sigCtx.textBaseline = "bottom";
+		sigCtx.fillText(Math.round(yMinRaw).toString(), padL - 5, padT + topH - 1);
+
+		// 4. Plot Normalized Manchester Differential (norm_d) & Decoded Bits (Middle Track)
+		const zeroY = botY0 + botH * 0.5;
+		sigCtx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+		sigCtx.lineWidth = 1;
+		sigCtx.beginPath();
+		sigCtx.moveTo(padL, zeroY);
+		sigCtx.lineTo(padL + plotW, zeroY);
+		sigCtx.stroke();
+
+		sigCtx.fillStyle = "#8a99ad";
+		sigCtx.font = "9px monospace";
+		sigCtx.textAlign = "right";
+		sigCtx.textBaseline = "middle";
+		sigCtx.fillText("1", padL - 6, botY0 + botH * 0.22);
+		sigCtx.fillText("0", padL - 6, botY0 + botH * 0.78);
+
+		if (trace.normDiffs && trace.normDiffs.length > 0 && trace.bitTimesMs) {
+			let maxAbsNorm = 10;
+			for (let k = 0; k < trace.normDiffs.length; k++) {
+				const tMid = trace.bitTimesMs[k];
+				if (tMid < tStart || tMid > tEnd) continue;
+				const a = Math.abs(trace.normDiffs[k]);
+				if (a > maxAbsNorm) maxAbsNorm = a;
+			}
+
+			const pxPerBit = (trace.th * 2.0 / spanMs) * plotW;
+			const flippedGlobalBits = new Set();
+			if (trace.matched && trace.sofPos >= 0 && trace.flippedFrameBits) {
+				for (const fb of trace.flippedFrameBits) {
+					flippedGlobalBits.add(trace.sofPos + 8 + fb);
+				}
+			}
+
+			sigCtx.save();
+			sigCtx.beginPath();
+			sigCtx.rect(padL, botY0, plotW, botH);
+			sigCtx.clip();
+
+			for (let k = 0; k < trace.normDiffs.length; k++) {
+				const tMid = trace.bitTimesMs[k];
+				if (tMid < tStart || tMid > tEnd) continue;
+				const x = timeToX(tMid);
+				const bitVal = trace.bits ? trace.bits[k] : (trace.normDiffs[k] > 0 ? '1' : '0');
+				const isOne = bitVal === '1';
+				const isFlipped = flippedGlobalBits.has(k);
+
+				const magNorm = Math.min(1, Math.abs(trace.normDiffs[k]) / maxAbsNorm);
+				const stemH = Math.max(4, magNorm * (botH * 0.40));
+				const yTip = isOne ? (zeroY - stemH) : (zeroY + stemH);
+
+				sigCtx.strokeStyle = isFlipped ? "#f87171" : (isOne ? "#34d399" : "#60a5fa");
+				sigCtx.lineWidth = pxPerBit >= 8 ? 2 : 1.2;
+				sigCtx.beginPath();
+				sigCtx.moveTo(x, zeroY);
+				sigCtx.lineTo(x, yTip);
+				sigCtx.stroke();
+
+				if (pxPerBit >= 4) {
+					sigCtx.fillStyle = isFlipped ? "#f87171" : (isOne ? "#34d399" : "#60a5fa");
+					sigCtx.beginPath();
+					sigCtx.arc(x, yTip, pxPerBit >= 10 ? 2.5 : 1.6, 0, Math.PI * 2);
+					sigCtx.fill();
+				}
+
+				if (pxPerBit >= 9) {
+					sigCtx.fillStyle = isFlipped ? "#fca5a5" : "#e2e8f0";
+					sigCtx.font = "bold 9px monospace";
+					sigCtx.textAlign = "center";
+					sigCtx.textBaseline = isOne ? "bottom" : "top";
+					sigCtx.fillText(bitVal, x, isOne ? (yTip - 1) : (yTip + 1));
+				}
+			}
+			sigCtx.restore();
+		}
+
+		// 5. Dedicated Byte / ASCII Alignment Band (Bottom Track)
+		sigCtx.fillStyle = "#8a99ad";
+		sigCtx.font = "9px monospace";
+		sigCtx.textAlign = "right";
+		sigCtx.textBaseline = "middle";
+		sigCtx.fillText("ASCII", padL - 5, byteY0 + byteStripH * 0.5);
+
+		if (packetBytes.length > 0) {
+			sigCtx.save();
+			sigCtx.beginPath();
+			sigCtx.rect(padL, byteY0, plotW, byteStripH);
+			sigCtx.clip();
+
+			for (const pb of packetBytes) {
+				const x0 = timeToX(pb.t0);
+				const x1 = timeToX(pb.t1);
+				if (x1 < padL || x0 > padL + plotW) continue;
+				const bw = x1 - x0;
+				const xCenter = (x0 + x1) * 0.5;
+
+				let fillCol = "rgba(52, 211, 153, 0.22)";
+				let strokeCol = "#34d399";
+				let textCol = "#a7f3d0";
+				if (pb.kind === 'sof') {
+					fillCol = "rgba(250, 204, 21, 0.22)";
+					strokeCol = "#facc15";
+					textCol = "#fde047";
+				} else if (pb.kind === 'len') {
+					fillCol = "rgba(192, 132, 252, 0.22)";
+					strokeCol = "#c084fc";
+					textCol = "#e9d5ff";
+				} else if (pb.kind === 'crc') {
+					fillCol = "rgba(56, 189, 248, 0.22)";
+					strokeCol = "#38bdf8";
+					textCol = "#bae6fd";
+				}
+				if (pb.isSoft) {
+					strokeCol = "#f87171";
+				}
+
+				sigCtx.fillStyle = fillCol;
+				sigCtx.fillRect(x0 + 1, byteY0 + 2, Math.max(1, bw - 2), byteStripH - 4);
+
+				sigCtx.save();
+				sigCtx.strokeStyle = strokeCol;
+				sigCtx.lineWidth = 1;
+				if (pb.isSoft) sigCtx.setLineDash([2, 2]);
+				sigCtx.strokeRect(x0 + 1.5, byteY0 + 2.5, Math.max(1, bw - 3), byteStripH - 5);
+				sigCtx.restore();
+
+				if (bw >= 9) {
+					sigCtx.fillStyle = textCol;
+					sigCtx.textAlign = "center";
+					if (bw >= 22) {
+						sigCtx.font = "bold 12px monospace";
+						sigCtx.textBaseline = "top";
+						sigCtx.fillText(pb.primaryText, xCenter, byteY0 + 4);
+
+						sigCtx.fillStyle = "rgba(226, 232, 240, 0.72)";
+						sigCtx.font = "9px monospace";
+						sigCtx.textBaseline = "bottom";
+						sigCtx.fillText(pb.secondaryText, xCenter, byteY0 + byteStripH - 3);
+					} else {
+						sigCtx.font = "bold 11px monospace";
+						sigCtx.textBaseline = "middle";
+						const label = pb.kind === 'pay' ? pb.primaryText : pb.primaryText[0];
+						sigCtx.fillText(label, xCenter, byteY0 + byteStripH * 0.5);
+					}
+				}
+			}
+			sigCtx.restore();
+		}
+
+		// 6. Bottom Time Axis & Hover Inspection Readout
+		sigCtx.fillStyle = "#8a99ad";
+		sigCtx.font = "10px monospace";
+		sigCtx.textBaseline = "top";
+		sigCtx.textAlign = "left";
+		sigCtx.fillText(`${Math.round(tStart)} ms`, padL, byteY0 + byteStripH + 4);
+		sigCtx.textAlign = "right";
+		sigCtx.fillText(`${Math.round(tEnd)} ms`, padL + plotW, byteY0 + byteStripH + 4);
+
+		// Update range / hover metadata text
+		const f0 = Math.max(0, Math.round(tStart / dtMs));
+		const f1 = Math.min(raw.length - 1, Math.round(tEnd / dtMs));
+		let metaStr = `View: ${Math.round(tStart)}–${Math.round(tEnd)} ms (frames ${f0}–${f1})`;
+		if (signalVizState.hoverMs !== null && signalVizState.hoverMs >= tStart && signalVizState.hoverMs <= tEnd) {
+			const hMs = signalVizState.hoverMs;
+			const hFrame = Math.max(0, Math.min(raw.length - 1, Math.round(hMs / dtMs)));
+			const hoveredByte = packetBytes.find(pb => hMs >= pb.t0 && hMs <= pb.t1);
+			if (hoveredByte) {
+				metaStr = `Cursor: ${Math.round(hMs)} ms (f=${hFrame}) | Byte: ${hoveredByte.primaryText} (${hoveredByte.secondaryText})`;
+			} else {
+				metaStr = `Cursor: ${Math.round(hMs)} ms (f=${hFrame}) | Blue: ${raw[hFrame].toFixed(1)}`;
+			}
+		}
+		signalRangeMeta.textContent = metaStr;
+
+		// 7. Synchronized Video Playhead Cursor
+		const curMs = vizState.currentFrame * dtMs;
+		if (curMs >= tStart && curMs <= tEnd) {
+			const cx = timeToX(curMs);
+			sigCtx.save();
+			sigCtx.strokeStyle = "#f87171";
+			sigCtx.lineWidth = 1.5;
+			sigCtx.beginPath();
+			sigCtx.moveTo(cx, padT - 2);
+			sigCtx.lineTo(cx, byteY0 + byteStripH + 2);
+			sigCtx.stroke();
+
+			sigCtx.fillStyle = "#f87171";
+			sigCtx.beginPath();
+			sigCtx.moveTo(cx - 4, padT - 4);
+			sigCtx.lineTo(cx + 4, padT - 4);
+			sigCtx.lineTo(cx, padT + 2);
+			sigCtx.closePath();
+			sigCtx.fill();
+			sigCtx.restore();
+		}
+
+		sigCtx.restore();
+		drawSignalOverview();
+	}
+
+	function setSignalTrace(trace) {
+		signalVizState.trace = trace;
+		const hasTrace = Boolean(trace && trace.raw && trace.raw.length >= 2);
+		zoomOutBtn.disabled = !hasTrace;
+		zoomInBtn.disabled = !hasTrace;
+		zoomPacketBtn.disabled = !hasTrace;
+		zoomFullBtn.disabled = !hasTrace;
+
+		if (!hasTrace) {
+			signalSourceBadge.textContent = "No signal yet";
+			signalVizState.viewStartMs = 0;
+			signalVizState.viewEndMs = 1000;
+		} else {
+			if (trace.matched) {
+				signalSourceBadge.textContent = `${trace.candName} | T_half=${trace.th.toFixed(3)} ms | invert=${trace.invert}`;
+			} else {
+				signalSourceBadge.textContent = `${trace.candName} | Raw intensity (no CRC8 lock)`;
+			}
+			zoomToPacket();
+		}
+		renderPacketStrip(trace);
+		drawSignalGraph();
+	}
+
+	// Interactive Zoom, Pan & Scrub on Main Waveform Canvas
+	let signalPointerState = null;
+
+	function clientXToSignalMs(clientX) {
+		const rect = signalCanvas.getBoundingClientRect();
+		const padL = 44;
+		const padR = 12;
+		const plotW = Math.max(40, rect.width - padL - padR);
+		const relX = Math.max(0, Math.min(plotW, (clientX - rect.left) - padL));
+		return signalVizState.viewStartMs + (relX / plotW) * (signalVizState.viewEndMs - signalVizState.viewStartMs);
+	}
+
+	function scrubVideoToMs(tMs) {
+		const trace = signalVizState.trace;
+		if (!trace || !vizState.framesRgba) return;
+		const targetFrame = Math.max(0, Math.min(vizState.framesRgba.length - 1, Math.round(tMs / trace.dtMs)));
+		stopPlayback();
+		drawFrameWithTracking(targetFrame);
+	}
+
+	signalCanvas.addEventListener('wheel', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		e.preventDefault();
+		const anchorMs = clientXToSignalMs(e.clientX);
+		const factor = e.deltaY < 0 ? 0.72 : 1.38;
+		zoomByFactor(factor, anchorMs);
+	}, { passive: false });
+
+	signalCanvas.addEventListener('dblclick', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		const anchorMs = clientXToSignalMs(e.clientX);
+		zoomByFactor(0.4, anchorMs);
+	});
+
+	signalCanvas.addEventListener('pointerdown', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !vizState.framesRgba) return;
+		const isPan = e.shiftKey || e.button === 1 || e.button === 2;
+		signalPointerState = {
+			mode: isPan ? 'pan' : 'scrub',
+			startX: e.clientX,
+			origStartMs: signalVizState.viewStartMs,
+			origEndMs: signalVizState.viewEndMs
+		};
+		signalCanvas.style.cursor = isPan ? 'grabbing' : 'ew-resize';
+		signalCanvas.setPointerCapture(e.pointerId);
+		if (!isPan) {
+			scrubVideoToMs(clientXToSignalMs(e.clientX));
+		}
+	});
+
+	signalCanvas.addEventListener('pointermove', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+
+		if (!signalPointerState) {
+			signalVizState.hoverMs = clientXToSignalMs(e.clientX);
+			drawSignalGraph();
+			return;
+		}
+
+		if (signalPointerState.mode === 'pan') {
+			const rect = signalCanvas.getBoundingClientRect();
+			const padL = 44;
+			const padR = 12;
+			const plotW = Math.max(40, rect.width - padL - padR);
+			const spanMs = signalPointerState.origEndMs - signalPointerState.origStartMs;
+			const deltaMs = -((e.clientX - signalPointerState.startX) / plotW) * spanMs;
+			clampViewport(signalPointerState.origStartMs + deltaMs, signalPointerState.origEndMs + deltaMs);
+			drawSignalGraph();
+		} else {
+			const tMs = clientXToSignalMs(e.clientX);
+			signalVizState.hoverMs = tMs;
+			scrubVideoToMs(tMs);
+		}
+	});
+
+	signalCanvas.addEventListener('pointerleave', () => {
+		if (!signalPointerState) {
+			signalVizState.hoverMs = null;
+			drawSignalGraph();
+		}
+	});
+
+	signalCanvas.addEventListener('pointerup', (e) => {
+		if (!signalPointerState) return;
+		signalPointerState = null;
+		signalCanvas.style.cursor = 'ew-resize';
+		try { signalCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+	});
+
+	// Interactive Overview Minimap Bar (Pan, Edge-Resize Zoom, Click-to-Jump)
+	let overviewDrag = null;
+
+	signalOverviewCanvas.addEventListener('wheel', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		e.preventDefault();
+		const rect = signalOverviewCanvas.getBoundingClientRect();
+		const totalMs = (trace.raw.length - 1) * trace.dtMs;
+		const anchorMs = Math.max(0, Math.min(totalMs, ((e.clientX - rect.left) / rect.width) * totalMs));
+		zoomByFactor(e.deltaY < 0 ? 0.72 : 1.38, anchorMs);
+	}, { passive: false });
+
+	signalOverviewCanvas.addEventListener('pointerdown', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		const rect = signalOverviewCanvas.getBoundingClientRect();
+		const totalMs = Math.max(1, (trace.raw.length - 1) * trace.dtMs);
+		const px = e.clientX - rect.left;
+		const vx0 = (signalVizState.viewStartMs / totalMs) * rect.width;
+		const vx1 = (signalVizState.viewEndMs / totalMs) * rect.width;
+
+		let mode = 'jump';
+		if (Math.abs(px - vx0) <= 6) mode = 'resize-left';
+		else if (Math.abs(px - vx1) <= 6) mode = 'resize-right';
+		else if (px > vx0 && px < vx1) mode = 'pan';
+
+		overviewDrag = {
+			mode,
+			startX: e.clientX,
+			origStartMs: signalVizState.viewStartMs,
+			origEndMs: signalVizState.viewEndMs
+		};
+		signalOverviewCanvas.setPointerCapture(e.pointerId);
+
+		if (mode === 'jump') {
+			const clickMs = (px / rect.width) * totalMs;
+			const halfSpan = (signalVizState.viewEndMs - signalVizState.viewStartMs) * 0.5;
+			clampViewport(clickMs - halfSpan, clickMs + halfSpan);
+			drawSignalGraph();
+		}
+	});
+
+	signalOverviewCanvas.addEventListener('pointermove', (e) => {
+		const trace = signalVizState.trace;
+		if (!trace || !trace.raw) return;
+		const rect = signalOverviewCanvas.getBoundingClientRect();
+		const totalMs = Math.max(1, (trace.raw.length - 1) * trace.dtMs);
+
+		if (!overviewDrag) {
+			const px = e.clientX - rect.left;
+			const vx0 = (signalVizState.viewStartMs / totalMs) * rect.width;
+			const vx1 = (signalVizState.viewEndMs / totalMs) * rect.width;
+			if (Math.abs(px - vx0) <= 6 || Math.abs(px - vx1) <= 6) {
+				signalOverviewCanvas.style.cursor = 'ew-resize';
+			} else if (px > vx0 && px < vx1) {
+				signalOverviewCanvas.style.cursor = 'grab';
+			} else {
+				signalOverviewCanvas.style.cursor = 'pointer';
+			}
+			return;
+		}
+
+		const deltaMs = ((e.clientX - overviewDrag.startX) / rect.width) * totalMs;
+		if (overviewDrag.mode === 'pan' || overviewDrag.mode === 'jump') {
+			clampViewport(overviewDrag.origStartMs + deltaMs, overviewDrag.origEndMs + deltaMs);
+		} else if (overviewDrag.mode === 'resize-left') {
+			clampViewport(Math.min(overviewDrag.origEndMs - 20, overviewDrag.origStartMs + deltaMs), overviewDrag.origEndMs);
+		} else if (overviewDrag.mode === 'resize-right') {
+			clampViewport(overviewDrag.origStartMs, Math.max(overviewDrag.origStartMs + 20, overviewDrag.origEndMs + deltaMs));
+		}
+		drawSignalGraph();
+	});
+
+	signalOverviewCanvas.addEventListener('pointerup', (e) => {
+		if (!overviewDrag) return;
+		overviewDrag = null;
+		try { signalOverviewCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+	});
+
+	zoomOutBtn.addEventListener('click', () => zoomByFactor(1.6));
+	zoomInBtn.addEventListener('click', () => zoomByFactor(0.625));
+	zoomPacketBtn.addEventListener('click', () => zoomToPacket());
+	zoomFullBtn.addEventListener('click', () => zoomToFull());
+
+	window.addEventListener('resize', () => {
+		drawSignalGraph();
+	});
+
 	function drawFrameWithTracking(f) {
 		const s = getSettings();
 		const anchorX = s.anchorMode === 'pinned' ? s.anchorX : vizState.globalBx;
@@ -464,6 +1452,7 @@
 			ctx.fillStyle = "#000";
 			ctx.fillRect(0, 0, W, H);
 			drawRectanglesOnContext(anchorX, anchorY, anchorX, anchorY, s.trackHalfBox, s.wideHalfBox, s.maxDrift, true);
+			drawSignalGraph();
 			return;
 		}
 
@@ -484,6 +1473,8 @@
 		} else {
 			frameMeta.textContent = `Frame: ${f} / ${vizState.framesRgba.length - 1} (${tMs} ms) | Anchor: (${anchorX}, ${anchorY})`;
 		}
+
+		drawSignalGraph();
 	}
 
 	function playbackLoop(now) {
@@ -544,14 +1535,12 @@
 		const tx = hasTrack ? vizState.trackX[vizState.currentFrame] : anchorX;
 		const ty = hasTrack ? vizState.trackY[vizState.currentFrame] : anchorY;
 
-		// Check if pointer is near perimeter of green Tracked ROI
 		const tDx = Math.abs(px - tx);
 		const tDy = Math.abs(py - ty);
 		if (Math.max(tDx, tDy) >= s.trackHalfBox - 1 && Math.max(tDx, tDy) <= s.trackHalfBox + 2) {
 			return 'resize-track';
 		}
 
-		// Check if pointer is near perimeter of amber Anchor ROI
 		const wDx = Math.abs(px - anchorX);
 		const wDy = Math.abs(py - anchorY);
 		if (Math.max(wDx, wDy) >= s.wideHalfBox - 1 && Math.max(wDx, wDy) <= s.wideHalfBox + 2) {
@@ -634,7 +1623,6 @@
 		}, delayMs);
 	}
 
-	// Bind live updates to all rectangle & threshold inputs
 	const settingElements = [
 		trackHalfBoxInput, trackTopKInput, stepRInput, maxDriftInput,
 		anchorModeSelect, wideHalfBoxInput, anchorXInput, anchorYInput,
@@ -650,7 +1638,6 @@
 	halfBitMsInput.addEventListener('input', () => {
 		const hb = parseFloat(halfBitMsInput.value);
 		if (hb > 0) {
-			// Keep sweep window centered proportionally around nominal half-bit period
 			thMinInput.value = (hb * (15.800 / 15.0)).toFixed(3);
 			thMaxInput.value = (hb * (16.200 / 15.0)).toFixed(3);
 		}
@@ -712,7 +1699,6 @@
 		}
 	}
 
-	// Quick live hotspot estimator used while decoding frames so the rectangle tracks live during load
 	function estimateLiveHotspot(frames_pure_blue, curFrameIdx, lag) {
 		if (curFrameIdx < lag) return null;
 		const curOff = curFrameIdx * frame_bytes;
@@ -733,7 +1719,6 @@
 		return bx >= 0 ? { bx, by } : null;
 	}
 
-	// Lightweight ISO BMFF (.MOV / .MP4) box parser for frame-exact WebCodecs extraction
 	async function parseIsoBmffVideoTrack(file) {
 		function readFourCC(view, off) {
 			return String.fromCharCode(
@@ -1005,7 +1990,6 @@
 		throw new Error("No video track found in container.");
 	}
 
-	// Primary frame-exact extraction via WebCodecs VideoDecoder
 	async function extractFramesWebCodecs(file, blueThresh) {
 		const track = await parseIsoBmffVideoTrack(file);
 		const config = {
@@ -1040,7 +2024,6 @@
 				extractBlueChannels(imgData, blue, pureBlue, 0, blueThresh);
 				decodedFrames.push({ ts, blue, pureBlue, rgba: imgData });
 
-				// Live preview overlay while extracting frames
 				const now = performance.now();
 				if (now - lastLivePaint >= 30) {
 					lastLivePaint = now;
@@ -1134,7 +2117,6 @@
 		};
 	}
 
-	// Fallback sequential playback capture via requestVideoFrameCallback
 	async function extractFramesPlayback(file, fps, blueThresh) {
 		return new Promise((resolve, reject) => {
 			const url = URL.createObjectURL(file);
@@ -1217,6 +2199,7 @@
 		vizState.framesRgba = null;
 		vizState.trackX = null;
 		vizState.trackY = null;
+		setSignalTrace(null);
 
 		processBtn.disabled = true;
 		clearLog();
@@ -1295,7 +2278,6 @@
 			const num_frames = cachedMedia.numFrames;
 			vizState.dtMs = dt_ms;
 
-			// Recompute blue channel arrays only if blueThresh changed
 			if (cachedMedia.cachedBlueThresh !== settings.blueThresh) {
 				statusText.textContent = "Recomputing blue-excess channels...";
 				await new Promise(r => setTimeout(r, 10));
@@ -1381,7 +2363,6 @@
 		}
 	});
 
-	// Animate live ROI tracking sweep across the active burst
 	async function animateLiveTrackingSweep(startFrame, endFrame, peakFrame) {
 		if (!liveAnimCheck.checked || !vizState.framesRgba) {
 			drawFrameWithTracking(peakFrame);
@@ -1397,7 +2378,7 @@
 		drawFrameWithTracking(peakFrame);
 	}
 
-	// 2. Core DSP Math Translation (with live tracking visualization & user-configurable ROI/thresholds)
+	// 2. Core DSP Math Translation (unchanged DSP math; captures diagnostic trace for waveform UI)
 	async function runDSP(frames_blue, frames_pure_blue, num_frames, dt_ms, settings) {
 		try {
 			const HALF_BIT_MS = settings.halfBitMs;
@@ -1542,7 +2523,6 @@
 				}
 			}
 
-			// Attach live tracking arrays and animate across the active region
 			vizState.trackX = track_x;
 			vizState.trackY = track_y;
 			vizState.globalBx = global.bx;
@@ -1603,6 +2583,19 @@
 
 			let found_exact = false;
 			let matchedFrameIdx = global.sf;
+			let exactTrace = null;
+			let fallbackTrace = candidates.length > 0 ? {
+				matched: false,
+				candName: candidates[0].name,
+				raw: candidates[0].sig,
+				dtMs: dt_ms,
+				th: HALF_BIT_MS,
+				invert: 0,
+				bitTimesMs: null,
+				normDiffs: null,
+				bits: null
+			} : null;
+
 			const exact_packets = new Set();
 			const soft_packets = [];
 
@@ -1648,12 +2641,19 @@
 
 				if (rx_crc === calc_crc && is_printable(payload)) {
 					let str = String.fromCharCode(...payload).replace(/\0+$/, '');
-					return { rx_crc, str };
+					return { rx_crc, str, bytes };
 				}
 				return null;
 			}
 
-			function try_decode_bitstream(s, confs, bitTimesMs, tag) {
+			function buildOrientedNormDiffs(normDiffs, invert) {
+				if (!invert) return normDiffs;
+				const out = new Float32Array(normDiffs.length);
+				for (let i = 0; i < normDiffs.length; i++) out[i] = -normDiffs[i];
+				return out;
+			}
+
+			function try_decode_bitstream(s, confs, bitTimesMs, meta, tag) {
 				for (let invert = 0; invert <= 1; invert++) {
 					const bit_str = invert ? s.replace(/0/g, 'x').replace(/1/g, '0').replace(/x/g, '1') : s;
 					let pos = bit_str.indexOf('01111110'); // SOF
@@ -1675,6 +2675,24 @@
 									if (!exact_packets.has(key)) {
 										exact_packets.add(key);
 										matchedFrameIdx = sofFrame;
+										if (!exactTrace) {
+											exactTrace = {
+												matched: true,
+												candName: meta.candName,
+												raw: meta.raw,
+												dtMs: dt_ms,
+												th: meta.th,
+												invert,
+												bitTimesMs,
+												normDiffs: buildOrientedNormDiffs(meta.normDiffs, invert),
+												bits: bit_str,
+												sofPos: pos,
+												pktLen: pkt_len,
+												rxCrc: exact.rx_crc,
+												bytes: exact.bytes,
+												flippedFrameBits: []
+											};
+										}
 										logDecoded(`\nOK (${tag}, CRC 0x${exact.rx_crc.toString(16).toUpperCase()}, invert=${invert}, frame=${sofFrame}):`, exact.str);
 										found_exact = true;
 									}
@@ -1691,10 +2709,35 @@
 										const idx1 = weak[i];
 										const cArr = slice.split('');
 										cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
-										const soft = check_frame_bytes(cArr.join(''), pkt_len);
+										const fixedSlice = cArr.join('');
+										const soft = check_frame_bytes(fixedSlice, pkt_len);
 										if (soft) {
 											const q = 1000 + ascii_plausibility(soft.str) - confs[f_start + idx1];
-											soft_packets.push({ q, flips: 1, tag: `${tag} [1-bit soft fix]`, ...soft, invert, sofFrame });
+											const correctedBitStr = bit_str.substring(0, f_start) + fixedSlice + bit_str.substring(f_start + need_bits);
+											soft_packets.push({
+												q,
+												flips: 1,
+												tag: `${tag} [1-bit soft fix]`,
+												...soft,
+												invert,
+												sofFrame,
+												trace: {
+													matched: true,
+													candName: meta.candName,
+													raw: meta.raw,
+													dtMs: dt_ms,
+													th: meta.th,
+													invert,
+													bitTimesMs,
+													normDiffs: buildOrientedNormDiffs(meta.normDiffs, invert),
+													bits: correctedBitStr,
+													sofPos: pos,
+													pktLen: pkt_len,
+													rxCrc: soft.rx_crc,
+													bytes: soft.bytes,
+													flippedFrameBits: [idx1]
+												}
+											});
 										}
 									}
 
@@ -1705,10 +2748,35 @@
 												const cArr = slice.split('');
 												cArr[idx1] = cArr[idx1] === '0' ? '1' : '0';
 												cArr[idx2] = cArr[idx2] === '0' ? '1' : '0';
-												const soft = check_frame_bytes(cArr.join(''), pkt_len);
+												const fixedSlice = cArr.join('');
+												const soft = check_frame_bytes(fixedSlice, pkt_len);
 												if (soft) {
 													const q = ascii_plausibility(soft.str) - confs[f_start + idx1] - confs[f_start + idx2];
-													soft_packets.push({ q, flips: 2, tag: `${tag} [2-bit soft fix]`, ...soft, invert, sofFrame });
+													const correctedBitStr = bit_str.substring(0, f_start) + fixedSlice + bit_str.substring(f_start + need_bits);
+													soft_packets.push({
+														q,
+														flips: 2,
+														tag: `${tag} [2-bit soft fix]`,
+														...soft,
+														invert,
+														sofFrame,
+														trace: {
+															matched: true,
+															candName: meta.candName,
+															raw: meta.raw,
+															dtMs: dt_ms,
+															th: meta.th,
+															invert,
+															bitTimesMs,
+															normDiffs: buildOrientedNormDiffs(meta.normDiffs, invert),
+															bits: correctedBitStr,
+															sofPos: pos,
+															pktLen: pkt_len,
+															rxCrc: soft.rx_crc,
+															bytes: soft.bytes,
+															flippedFrameBits: [idx1, idx2]
+														}
+													});
 												}
 											}
 										}
@@ -1786,7 +2854,7 @@
 
 						if (diffs.length < 40) continue;
 
-						const bits = [], confs = [];
+						const bits = [], confs = [], normDiffs = new Float32Array(diffs.length);
 						const win = 12;
 						for (let k = 0; k < diffs.length; k++) {
 							const lo = Math.max(0, k - win);
@@ -1798,11 +2866,33 @@
 							}
 							const mid = (dmax + dmin) * 0.5;
 							const norm_d = diffs[k] - mid;
+							normDiffs[k] = norm_d;
 							bits.push(norm_d > 0 ? '1' : '0');
 							confs.push(Math.abs(norm_d));
 						}
 
-						try_decode_bitstream(bits.join(''), confs, bitTimesMs, `${cand.name} BoxMatched T=${th.toFixed(3)}`);
+						const bitStr = bits.join('');
+						if (fallbackTrace && (!fallbackTrace.bitTimesMs || diffs.length > fallbackTrace.bitTimesMs.length)) {
+							fallbackTrace = {
+								matched: false,
+								candName: cand.name,
+								raw,
+								dtMs: dt_ms,
+								th,
+								invert: 0,
+								bitTimesMs,
+								normDiffs,
+								bits: bitStr
+							};
+						}
+
+						try_decode_bitstream(
+							bitStr,
+							confs,
+							bitTimesMs,
+							{ candName: cand.name, raw, th, normDiffs },
+							`${cand.name} BoxMatched T=${th.toFixed(3)}`
+						);
 						if (found_exact) break;
 					}
 					if (found_exact) break;
@@ -1810,17 +2900,20 @@
 				if (found_exact) break;
 			}
 
+			let activeTrace = exactTrace || fallbackTrace;
 			if (!found_exact) {
 				if (soft_packets.length > 0) {
 					soft_packets.sort((a, b) => (a.flips - b.flips) || (b.q - a.q));
 					const best = soft_packets[0];
 					matchedFrameIdx = best.sofFrame;
+					activeTrace = best.trace;
 					logDecoded(`\nOK (${best.tag}, CRC 0x${best.rx_crc.toString(16).toUpperCase()}, invert=${best.invert}, frame=${best.sofFrame}):`, best.str);
 				} else {
 					log("\nNo valid CRC8 frame found. Try adjusting ROI position/size, Blue Excess Min, or FPS.");
 				}
 			}
 
+			setSignalTrace(activeTrace);
 			drawFrameWithTracking(matchedFrameIdx);
 			statusText.textContent = "Processing complete.";
 		} finally {
@@ -1831,7 +2924,7 @@
 		}
 	}
 
-	// Draw initial default rectangles on blank canvas
+	// Draw initial default rectangles and empty waveform canvas
 	updateDimensionLabels();
 	drawFrameWithTracking(0);
 </script>
